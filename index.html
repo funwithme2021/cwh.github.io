@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>臺北站列車資訊版</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f5f5f5;
+      margin: 0;
+      padding: 20px;
+    }
+
+    h1 {
+      text-align: center;
+    }
+
+    #trainInfoContainer {
+      display: flex;
+      justify-content: space-around;
+      margin-top: 20px;
+    }
+
+    .trainInfo {
+      background-color: #fff;
+      padding: 20px;
+      text-align: center;
+      width: 45%;
+    }
+  </style>
+  <script>
+    document.addEventListener("DOMContentLoaded", function() {
+      var trainInfoContainer = document.getElementById("trainInfoContainer");
+
+      function getTrainInfo() {
+        // 發送請求到台灣鐵路管理局的API，取得臺北站列車即時動態資料
+        var apiUrl = "https://ptx.transportdata.tw/MOTC/v3/Rail/TRA/LiveTrainDelay?$filter=StationID eq '1008'&$top=2&$format=JSON";
+        fetch(apiUrl)
+          .then(response => response.json())
+          .then(data => {
+            // 取得API回傳的列車資訊，並顯示在網頁上
+            var currentTime = new Date();
+            var northboundTrain = data[0];
+            var southboundTrain = data[1];
+
+            var trainInfoHTML = `
+              <div class="trainInfo">
+                <h3>北上列車</h3>
+                <p>現在時間：${currentTime.toLocaleTimeString()}</p>
+                <p>車次：${northboundTrain.TrainNo}</p>
+                <p>車種：${northboundTrain.TrainTypeName}</p>
+                <p>終點站：${northboundTrain.EndingStationName.Zh_tw}</p>
+                <p>經由線路：${northboundTrain.Routes[0].RouteName.Zh_tw}</p>
+                <p>準/誤點：${northboundTrain.DelayTime} 分鐘</p>
+              </div>
+              <div class="trainInfo">
+                <h3>南下列車</h3>
+                <p>現在時間：${currentTime.toLocaleTimeString()}</p>
+                <p>車次：${southboundTrain.TrainNo}</p>
+                <p>車種：${southboundTrain.TrainTypeName}</p>
+                <p>終點站：${southboundTrain.EndingStationName.Zh_tw}</p>
+                <p>經由線路：${southboundTrain.Routes[0].RouteName.Zh_tw}</p>
+                <p>準/誤點：${southboundTrain.DelayTime} 分鐘</p>
+              </div>
+            `;
+
+            trainInfoContainer.innerHTML = trainInfoHTML;
+          })
+          .catch(error => {
+            console.error("取得列車資訊時發生錯誤：", error);
+          });
+      }
+
+      // 每隔一段時間更新列車資訊
+      setInterval(getTrainInfo, 5000);
+    });
+  </script>
+</head>
+<body>
+  <h1>臺北站列車資訊版</h1>
+  <div id="trainInfoContainer"></div>
+</body>
+</html>
+
