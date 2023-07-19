@@ -62,17 +62,17 @@
       function determineGrade(finalScore) {
         var percentage = (finalScore / fullScore) * 100;
 
-        if (percentage >= 90) {
+        if (percentage >= 80) {
           return "特優";
-        } else if (percentage >= 85) {
-          return "優等";
-        } else if (percentage >= 80) {
-          return "甲等";
-        } else if (percentage >= 75) {
-          return "乙等";
         } else if (percentage >= 70) {
-          return "丙等";
+          return "優等";
         } else if (percentage >= 60) {
+          return "甲等";
+        } else if (percentage >= 50) {
+          return "乙等";
+        } else if (percentage >= 40) {
+          return "丙等";
+        } else if (percentage >= 30) {
           return "丙等";
         } else {
           return "淘汰";
