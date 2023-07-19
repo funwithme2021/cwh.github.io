@@ -33,41 +33,47 @@
 
       function getTrainInfo() {
         // 發送請求到台灣鐵路管理局的API，取得臺北站列車即時動態資料
-        var apiUrl = "https://ptx.transportdata.tw/MOTC/v3/Rail/TRA/LiveTrainDelay?$filter=StationID eq '1008'&$top=2&$format=JSON";
-        fetch(apiUrl)
-          .then(response => response.json())
-          .then(data => {
-            // 取得API回傳的列車資訊，並顯示在網頁上
-            var currentTime = new Date();
-            var northboundTrain = data[0];
-            var southboundTrain = data[1];
+        // 這裡需要使用XMLHttpRequest、Fetch或其他HTTP請求方式
 
-            var trainInfoHTML = `
-              <div class="trainInfo">
-                <h3>北上列車</h3>
-                <p>現在時間：${currentTime.toLocaleTimeString()}</p>
-                <p>車次：${northboundTrain.TrainNo}</p>
-                <p>車種：${northboundTrain.TrainTypeName}</p>
-                <p>終點站：${northboundTrain.EndingStationName.Zh_tw}</p>
-                <p>經由線路：${northboundTrain.Routes[0].RouteName.Zh_tw}</p>
-                <p>準/誤點：${northboundTrain.DelayTime} 分鐘</p>
-              </div>
-              <div class="trainInfo">
-                <h3>南下列車</h3>
-                <p>現在時間：${currentTime.toLocaleTimeString()}</p>
-                <p>車次：${southboundTrain.TrainNo}</p>
-                <p>車種：${southboundTrain.TrainTypeName}</p>
-                <p>終點站：${southboundTrain.EndingStationName.Zh_tw}</p>
-                <p>經由線路：${southboundTrain.Routes[0].RouteName.Zh_tw}</p>
-                <p>準/誤點：${southboundTrain.DelayTime} 分鐘</p>
-              </div>
-            `;
+        // 假設成功取得資料，並將結果顯示在網頁上
+        var currentTime = new Date();
+        
+        // 下一班北上的列車資訊
+        var northboundTrainNumber = "123";
+        var northboundTrainType = "自強號";
+        var northboundTrainDestination = "高雄";
+        var northboundTrainLine = "西部幹線";
+        var northboundTrainDelay = "準點";
 
-            trainInfoContainer.innerHTML = trainInfoHTML;
-          })
-          .catch(error => {
-            console.error("取得列車資訊時發生錯誤：", error);
-          });
+        // 下一班南下的列車資訊
+        var southboundTrainNumber = "456";
+        var southboundTrainType = "莒光號";
+        var southboundTrainDestination = "台中";
+        var southboundTrainLine = "西部幹線";
+        var southboundTrainDelay = "誤點 5 分鐘";
+
+        var trainInfoHTML = `
+          <div class="trainInfo">
+            <h3>北上列車</h3>
+            <p>現在時間：${currentTime.toLocaleTimeString()}</p>
+            <p>車次：${northboundTrainNumber}</p>
+            <p>車種：${northboundTrainType}</p>
+            <p>終點站：${northboundTrainDestination}</p>
+            <p>經由線路：${northboundTrainLine}</p>
+            <p>準/誤點：${northboundTrainDelay}</p>
+          </div>
+          <div class="trainInfo">
+            <h3>南下列車</h3>
+            <p>現在時間：${currentTime.toLocaleTimeString()}</p>
+            <p>車次：${southboundTrainNumber}</p>
+            <p>車種：${southboundTrainType}</p>
+            <p>終點站：${southboundTrainDestination}</p>
+            <p>經由線路：${southboundTrainLine}</p>
+            <p>準/誤點：${southboundTrainDelay}</p>
+          </div>
+        `;
+
+        trainInfoContainer.innerHTML = trainInfoHTML;
       }
 
       // 每隔一段時間更新列車資訊
@@ -80,4 +86,3 @@
   <div id="trainInfoContainer"></div>
 </body>
 </html>
-
