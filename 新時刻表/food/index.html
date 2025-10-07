@@ -1,0 +1,707 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <title>美食評分 - 排名首頁 (動態等第 + 顏色對照 + 美觀表格)</title>
+  <link rel="stylesheet" href="food-style.css">
+
+  <style>
+  /* --- 顏色對照 (等第) --- */
+  .grade-color-App { color: #ff0000; }
+  .grade-color-Ap  { color: #d02f2f; }
+  .grade-color-A   { color: #ff9900; }
+  .grade-color-Bpp { color: #669900; }
+  .grade-color-Bp  { color: #33a02c; }
+  .grade-color-B   { color: #1f78b4; }
+  .grade-color-C   { color: #6a3d9a; }
+  .grade-color-F   { color: #777777; }
+
+  /* 表格美化 */
+  .table-container table {
+    width: 100%;
+    border-collapse: collapse;
+    background-color: #fff;
+  }
+  .table-container th,
+  .table-container td {
+    border: 1px solid #ddd;
+    padding: 8px;
+    text-align: center;
+  }
+  .table-container th {
+    background: #f8f8f8;
+  }
+  .table-container tr:nth-child(even) {
+    background: #fcfcfc;
+  }
+
+  /* 距離/平均分/等第 欄位稍微固定寬度 */
+  .dist-col {
+    width: 60px;
+  }
+  .score-col {
+    width: 80px;
+    cursor: pointer; /* 顯示可以點擊 */
+  }
+  .grade-col {
+    width: 60px;
+  }
+
+  /* Popup */
+  .detail-popup {
+    position: absolute;
+    background: #fff;
+    border: 1px solid #ccc;
+    padding: 10px;
+    display: none;
+    z-index: 9999;
+    box-shadow: 2px 2px 8px rgba(0,0,0,0.3);
+  }
+  </style>
+  <link rel="stylesheet" href="../assets/css/global.css" />
+  <script defer src="../assets/js/site.js"></script>
+</head>
+<body data-base-path=".." data-section="food" data-page="overview">
+
+<header>
+  <h1>美食評分．即時排行</h1>
+  <p>整合車站周邊人氣美食、評分來源與距離資訊，支援多種篩選模式與分制切換。</p>
+</header>
+
+<div class="navbar">
+  <a href="index.html">首頁(排名)</a>
+  <a href="info.html">說明</a>
+  <a href="chart.html">統計圖表</a>
+  <a href="map.html">地圖</a>
+</div>
+
+<section class="panel food-app">
+  <div class="translate-bar" id="google_translate_element"></div>
+
+  <!-- (A) 搜尋/篩選 區 -->
+  <div class="search-section" style="margin-bottom:20px;">
+    <h2>搜尋與篩選</h2>
+
+    <div style="margin-bottom:8px;">
+      <label>
+        <input type="radio" name="searchMode" value="mode1" checked>
+        功能一 (下拉式)
+      </label>
+      <label>
+        <input type="radio" name="searchMode" value="mode2">
+        功能二 (關鍵字)
+      </label>
+    </div>
+
+    <!-- 功能一: 下拉式篩選 -->
+    <div id="filterContainer">
+      <div style="margin-bottom:5px;">
+        <label>城市:</label>
+        <select id="citySelect"></select>
+        <label>區域:</label>
+        <select id="districtSelect"></select>
+      </div>
+      <div style="margin-bottom:5px;">
+        <label>類別:</label>
+        <select id="categorySelect"></select>
+        <label>價位:</label>
+        <select id="priceSelect"></select>
+        <label>等第:</label>
+        <select id="gradeSelect"></select>
+      </div>
+    </div>
+
+    <!-- 功能二: 關鍵字搜尋 -->
+    <div id="keywordContainer" style="display:none;margin-top:5px;">
+      <label>關鍵字:</label>
+      <input type="text" id="keywordInput" style="width:180px;"
+        placeholder="店名 / 城市 / 區域 / 類別 / 價位..." />
+    </div>
+
+    <div style="margin-top:10px;">
+      <label for="scoreScaleSelect">分制:</label>
+      <select id="scoreScaleSelect">
+        <option value="100" selected>100 分制</option>
+        <option value="5">5 分制</option>
+      </select>
+
+      <label for="sortSelect">排序:</label>
+      <select id="sortSelect">
+        <option value="desc" selected>由高到低</option>
+        <option value="asc">由低到高</option>
+      </select>
+
+      <label for="pageSizeSelect">每頁顯示:</label>
+      <select id="pageSizeSelect">
+        <option value="10">10</option>
+        <option value="20" selected>20</option>
+        <option value="50">50</option>
+      </select>
+
+      <button id="searchBtn">查詢</button>
+      <button id="resetBtn">重置篩選</button>
+      <button id="nearestBtn">開啟定位/搜尋符合條件最近20間</button>
+    </div>
+  </div>
+
+  <!-- (B) 等第統計 (顯示在表格上方) -->
+  <div id="gradeSummary" style="margin-bottom:10px; font-size:0.95rem;"></div>
+
+  <!-- (C) 表格 -->
+  <div class="table-container">
+    <table>
+      <thead>
+        <tr>
+          <th style="width:50px;">排名</th>
+          <th>店家</th>
+          <th class="score-col">平均分</th>
+          <th class="grade-col">等第</th>
+          <th class="dist-col">距離</th>
+          <th>城市(區域)</th>
+          <th>類別</th>
+          <th>價位</th>
+          <th>評分時間</th>
+          <th style="width:60px;">導航</th>
+        </tr>
+      </thead>
+      <tbody id="resultTbody"></tbody>
+    </table>
+  </div>
+
+  <!-- (D) 分頁按鈕 -->
+  <div class="pagination" style="margin-top:10px;">
+    <button id="prevPageBtn">&laquo; 上一頁</button>
+    <span id="pageInfo"></span>
+    <button id="nextPageBtn">下一頁 &raquo;</button>
+  </div>
+
+  <!-- (E) 點擊平均分 => 細項popup -->
+  <div id="detailPopup" class="detail-popup">
+    <h4>細項評分等第</h4>
+    <ul id="detailList"></ul>
+    <button id="closePopupBtn">關閉</button>
+  </div>
+
+</section>
+
+
+
+<!-- 載入資料檔 (food.js) -->
+<script src="food.js"></script>
+<script>
+/* ========== 1) 動態等第邏輯(多次迭代) ========== */
+const WEIGHTS = {
+  taste:0.15, freshness:0.10, texture:0.15, appearance:0.10,
+  smell:0.10, portion:0.10, uniqueness:0.05, price:0.10,
+  environment:0.05, attitude:0.05, others:0.05
+};
+function computeSingleScore(d){
+  return (
+    d.taste*WEIGHTS.taste +
+    d.freshness*WEIGHTS.freshness +
+    d.texture*WEIGHTS.texture +
+    d.appearance*WEIGHTS.appearance +
+    d.smell*WEIGHTS.smell + d.portion*WEIGHTS.portion +
+    d.uniqueness*WEIGHTS.uniqueness + d.price*WEIGHTS.price +
+    d.environment*WEIGHTS.environment + d.attitude*WEIGHTS.attitude +
+    d.others*WEIGHTS.others
+  );
+}
+const RATIO_GRADE_CONFIG=[
+{grade:"A++",    minRatio:0.03, maxRatio:0.05},
+  {grade:"A+",    minRatio:0.08, maxRatio:0.13},
+  {grade:"A",    minRatio:0.13, maxRatio:0.20},
+  {grade:"B++",    minRatio:0.17, maxRatio:0.23},
+  {grade:"B+",    minRatio:0.20, maxRatio:0.25},
+  {grade:"B",    minRatio:0.13, maxRatio:0.25},
+  {grade:"C",  minRatio:0.05, maxRatio:0.08},
+  {grade:"F",      minRatio:0.00, maxRatio:0.05}
+];
+function assignRatioGrades(arr, maxIter=5){
+  arr.sort((a,b)=> computeSingleScore(b)-computeSingleScore(a));
+  let n= arr.length;
+  if(n===0) return arr;
+
+  let start=0;
+  for(let i=0;i<RATIO_GRADE_CONFIG.length;i++){
+    let cfg= RATIO_GRADE_CONFIG[i];
+    let mid= (cfg.minRatio+ cfg.maxRatio)/2;
+    let slotCount= Math.round(mid*n);
+    if(i=== RATIO_GRADE_CONFIG.length-1){
+      for(let j=start;j<n;j++){
+        arr[j].ratioGrade= cfg.grade;
+      }
+      break;
+    } else {
+      let end= Math.min(start+slotCount,n);
+      for(let j=start;j<end;j++){
+        arr[j].ratioGrade= cfg.grade;
+      }
+      start= end;
+    }
+  }
+
+  for(let iter=0; iter<maxIter; iter++){
+    let gCount={};
+    arr.forEach(d=>{
+      gCount[d.ratioGrade]= (gCount[d.ratioGrade]||0)+1;
+    });
+    for(let i=0;i<RATIO_GRADE_CONFIG.length;i++){
+      let cfg= RATIO_GRADE_CONFIG[i];
+      let g= cfg.grade;
+      let c= gCount[g]||0;
+      let ratio= c/n;
+      if(ratio>cfg.maxRatio && i<RATIO_GRADE_CONFIG.length-1){
+        let overCount= Math.round(c- cfg.maxRatio*n);
+        if(overCount>0){
+          let sameArr= arr.filter(x=> x.ratioGrade===g);
+          sameArr.sort((a,b)=> computeSingleScore(a)-computeSingleScore(b));
+          for(let k=0;k<overCount && k<sameArr.length;k++){
+            sameArr[k].ratioGrade= RATIO_GRADE_CONFIG[i+1].grade;
+          }
+        }
+      } else if(ratio<cfg.minRatio && i>0){
+        let shortCount= Math.round(cfg.minRatio*n - c);
+        if(shortCount>0){
+          let prevG= RATIO_GRADE_CONFIG[i-1].grade;
+          let prevArr= arr.filter(x=> x.ratioGrade===prevG);
+          prevArr.sort((a,b)=> computeSingleScore(a)-computeSingleScore(b));
+          for(let k=0;k<shortCount && k<prevArr.length;k++){
+            prevArr[prevArr.length-1-k].ratioGrade= g;
+          }
+        }
+      }
+    }
+    arr.sort((a,b)=> computeSingleScore(b)-computeSingleScore(a));
+    gCount={};
+    arr.forEach(d=>{
+      gCount[d.ratioGrade]=(gCount[d.ratioGrade]||0)+1;
+    });
+  }
+  return arr;
+}
+
+/* ========== 2) 下拉 / 關鍵字 ========== */
+function distinct(arr,key){
+  return [...new Set(arr.map(d=> d[key]).filter(Boolean))];
+}
+function populate(sel, arr, def){
+  sel.innerHTML="";
+  let o= document.createElement("option");
+  o.value=""; o.textContent= def;
+  sel.appendChild(o);
+  arr.forEach(v=>{
+    let opt= document.createElement("option");
+    opt.value= v;
+    opt.textContent= v;
+    sel.appendChild(opt);
+  });
+}
+
+// 初始化
+function initSelectOptions(){
+  populate(document.getElementById("citySelect"), distinct(foodData,"city"), "全部");
+  populate(document.getElementById("districtSelect"), distinct(foodData,"district"), "全部");
+  populate(document.getElementById("categorySelect"), distinct(foodData,"category"), "全部");
+  populate(document.getElementById("priceSelect"), distinct(foodData,"priceLevel"), "全部");
+
+  assignRatioGrades(foodData,5);
+  let gSet= new Set();
+  foodData.forEach(d=> gSet.add(d.ratioGrade));
+  populate(document.getElementById("gradeSelect"), [...gSet], "全部");
+}
+
+function updateDistrictOptions(){
+  let cityVal= document.getElementById("citySelect").value;
+  let arr= foodData;
+  if(cityVal) arr= arr.filter(x=> x.city=== cityVal);
+  let distArr= distinct(arr,"district");
+  populate(document.getElementById("districtSelect"), distArr, "全部");
+}
+
+function filterByDropdown(data){
+  let c= document.getElementById("citySelect").value;
+  let dist= document.getElementById("districtSelect").value;
+  let cat= document.getElementById("categorySelect").value;
+  let pri= document.getElementById("priceSelect").value;
+  let grd= document.getElementById("gradeSelect").value;
+
+  return data.filter(d=>{
+    if(c && d.city!== c) return false;
+    if(dist && d.district!== dist) return false;
+    if(cat && d.category!== cat) return false;
+    if(pri && d.priceLevel!== pri) return false;
+    if(grd && d.ratioGrade!== grd) return false;
+    return true;
+  });
+}
+function filterByKeyword(data){
+  let kw= document.getElementById("keywordInput").value.trim().toLowerCase();
+  if(!kw) return data;
+  return data.filter(d=>{
+    let combo= (d.storeName + d.city + d.district + d.category + d.priceLevel).toLowerCase();
+    return combo.includes(kw);
+  });
+}
+function getSearchMode(){
+  return document.querySelector('input[name="searchMode"]:checked').value;
+}
+
+/* ========== 3) 分制 & 排序 & 每頁顯示 ========== */
+function getScoreText(d){
+  let raw= computeSingleScore(d);
+  let scale= document.getElementById("scoreScaleSelect").value;
+  if(scale==="5"){
+    return (raw/20).toFixed(4);
+  } else {
+    return raw.toFixed(4);
+  }
+}
+function sortData(arr){
+  let sortSel= document.getElementById("sortSelect").value;
+  arr.sort((a,b)=>{
+    let sa= computeSingleScore(a);
+    let sb= computeSingleScore(b);
+    return (sortSel==="asc")?(sa-sb):(sb-sa);
+  });
+  return arr;
+}
+
+/* ========== 全域變數 + 分頁 ========== */
+let finalData= [];
+let currentPage=1;
+let pageSize=20;
+
+function performSearch(){
+  // 動態等第
+  assignRatioGrades(foodData,5);
+
+  // 篩選
+  let result=[];
+  if(getSearchMode()==="mode1"){
+    result= filterByDropdown(foodData);
+  } else {
+    result= filterByKeyword(foodData);
+  }
+
+  // 排序
+  result= sortData(result);
+
+  finalData= result;
+  currentPage=1;
+  renderTablePage();
+}
+
+function renderTablePage(){
+  pageSize= parseInt(document.getElementById("pageSizeSelect").value,10);
+  let start= (currentPage-1)* pageSize;
+  let end= currentPage* pageSize;
+  let slice= finalData.slice(start,end);
+
+  // 排名(同分同排名)
+  let rankMap={};
+  let itemCount=0, lastScore=null, curRank=0;
+  finalData.forEach(d=>{
+    itemCount++;
+    let sc= computeSingleScore(d).toFixed(2);
+    if(sc!== lastScore){
+      curRank= itemCount;
+      lastScore= sc;
+    }
+    rankMap[d.storeName]= curRank;
+  });
+
+  // 填表
+  let tbody= document.getElementById("resultTbody");
+  tbody.innerHTML= "";
+  slice.forEach(d=>{
+    let tr= document.createElement("tr");
+    let grade= d.ratioGrade;
+    let score= getScoreText(d);
+
+    // 排名
+    let tdRank= document.createElement("td");
+    tdRank.textContent= rankMap[d.storeName];
+
+    // 店家(連地圖?)
+    let tdStore= document.createElement("td");
+    let link= document.createElement("a");
+    link.href= `map.html?storeName=${encodeURIComponent(d.storeName)}`;
+    link.textContent= d.storeName;
+    tdStore.appendChild(link);
+
+    // 平均分 => 同色(依 grade)
+    let tdScore= document.createElement("td");
+    tdScore.textContent= score;
+    tdScore.classList.add( getGradeColorClass(grade) );
+    tdScore.style.cursor="pointer";
+    tdScore.addEventListener("click",(evt)=> showDetailPopup(evt,d));
+
+    // 等第 => 加同色
+    let tdGrade= document.createElement("td");
+    tdGrade.textContent= grade;
+    tdGrade.classList.add( getGradeColorClass(grade) );
+
+    // 距離(若 d.distance 有值)
+    let tdDist= document.createElement("td");
+    if(Number.isFinite(d.distance)){
+      tdDist.textContent= d.distance.toFixed(2);
+    } else {
+      tdDist.textContent= "";
+    }
+
+    // 城市(區域)
+    let tdCity= document.createElement("td");
+    tdCity.textContent= d.city+"("+(d.district||"")+")";
+
+    // 類別
+    let tdCat= document.createElement("td");
+    tdCat.textContent= d.category||"";
+
+    // 價位
+    let tdPrice= document.createElement("td");
+    tdPrice.textContent= d.priceLevel||"";
+
+    // 評分時間
+    let tdTime= document.createElement("td");
+    tdTime.textContent= d.time||"";
+
+    // 導航
+    let tdNav= document.createElement("td");
+    let navBtn= document.createElement("button");
+    navBtn.textContent= "導航";
+    navBtn.addEventListener("click",()=>{
+      if(d.gmapUrl){
+        window.open(d.gmapUrl, "_blank");
+      } else {
+        alert("此店無Google地圖連結");
+      }
+    });
+    tdNav.appendChild(navBtn);
+
+    tr.append(tdRank, tdStore, tdScore, tdGrade, tdDist, tdCity, tdCat, tdPrice, tdTime, tdNav);
+    tbody.appendChild(tr);
+  });
+
+  // 分頁
+  let pageInfo= document.getElementById("pageInfo");
+  let totalPage= Math.ceil(finalData.length / pageSize);
+  pageInfo.textContent= `第 ${currentPage} 頁 / 共 ${totalPage} 頁`;
+
+  // 更新等第分配統計
+  updateGradeSummary();
+}
+
+/** 顏色 class => grade-color-xxx **/
+function getGradeColorClass(g){
+  switch(g){
+    case "A++": return "grade-color-App";
+    case "A+":  return "grade-color-Ap";
+    case "A":   return "grade-color-A";
+    case "B++": return "grade-color-Bpp";
+    case "B+":  return "grade-color-Bp";
+    case "B":   return "grade-color-B";
+    case "C":   return "grade-color-C";
+    default:    return "grade-color-F";
+  }
+}
+
+/* 等第分佈統計 */
+function updateGradeSummary(){
+  let summaryEl= document.getElementById("gradeSummary");
+  if(finalData.length===0){
+    summaryEl.textContent= "目前無資料";
+    return;
+  }
+  let gCountMap={};
+  finalData.forEach(d=>{
+    let g= d.ratioGrade||"F";
+    gCountMap[g]=(gCountMap[g]||0)+1;
+  });
+  let total= finalData.length;
+  let parts=[];
+  parts.push(`總共 ${total} 筆`);
+  let allG= ["A++","A+","A","B++","B+","B","C","F"];
+  allG.forEach(g=>{
+    let c= gCountMap[g]||0;
+    let pct= (c/total*100).toFixed(1);
+    parts.push(`${g}：${c} 筆(${pct}%)`);
+  });
+  summaryEl.textContent= parts.join("， ");
+}
+
+/* ========== 點擊平均分 => 細項popup ========== */
+const detailPopup= document.getElementById("detailPopup");
+const detailList= document.getElementById("detailList");
+document.getElementById("closePopupBtn").addEventListener("click",()=>{
+  detailPopup.style.display="none";
+});
+function getItemLetter(score){
+  if(score>=94) return "A++";
+  if(score>=88) return "A+";
+  if(score>=80) return "A";
+  if(score>=70) return "B++";
+  if(score>=60) return "B+";
+  if(score>=45) return "B";
+  if(score>=25) return "C";
+  return "F";
+}
+function showDetailPopup(evt, rowData){
+  detailList.innerHTML= "";
+  let items=[
+    {label:"口味", val:getItemLetter(rowData.taste)},
+    {label:"食材新鮮度", val:getItemLetter(rowData.freshness)},
+    {label:"口感", val:getItemLetter(rowData.texture)},
+    {label:"外觀", val:getItemLetter(rowData.appearance)},
+    {label:"氣味", val:getItemLetter(rowData.smell)},
+    {label:"分量", val:getItemLetter(rowData.portion)},
+    {label:"獨特性", val:getItemLetter(rowData.uniqueness)},
+    {label:"價格", val:getItemLetter(rowData.price)},
+    {label:"環境", val:getItemLetter(rowData.environment)},
+    {label:"態度", val:getItemLetter(rowData.attitude)},
+    {label:"其他", val:getItemLetter(rowData.others)}
+  ];
+  items.forEach(x=>{
+    let li= document.createElement("li");
+    li.textContent= `${x.label}：${x.val}`;
+    detailList.appendChild(li);
+  });
+  detailPopup.style.display= "block";
+  detailPopup.style.top= (evt.clientY + window.scrollY)+"px";
+  detailPopup.style.left= evt.clientX +"px";
+}
+
+
+function resetSearch() {
+  // 1) 將所有搜尋相關欄位清空/設回預設
+  document.getElementById("citySelect").value = "";
+  document.getElementById("districtSelect").value = "";
+  document.getElementById("categorySelect").value = "";
+  document.getElementById("priceSelect").value = "";
+  document.getElementById("gradeSelect").value = "";
+  document.getElementById("keywordInput").value = "";
+
+  // 分制、排序、每頁顯示選單也可以視需要重設
+  document.getElementById("scoreScaleSelect").value = "100";
+  document.getElementById("sortSelect").value = "desc";
+  document.getElementById("pageSizeSelect").value = "20";
+
+  // 如果預設要顯示「功能一」(下拉式)，將模式切回 mode1
+  document.querySelector('input[name="searchMode"][value="mode1"]').checked = true;
+  document.getElementById("filterContainer").style.display = "";
+  document.getElementById("keywordContainer").style.display = "none";
+
+  // 2) 重新執行搜尋 (或顯示全部)
+  //    若您想直接顯示全部資料，也可以改為直接呼叫 renderTablePage()
+  //    但通常建議呼叫與「查詢」同樣的邏輯。
+  performSearch();
+}
+
+
+/* ========== 使用者定位 => 最近20間 ========== */
+function haversineDistKm(lat1,lng1, lat2,lng2){
+  const R=6371;
+  let dLat= (lat2-lat1)*Math.PI/180;
+  let dLng= (lng2-lng1)*Math.PI/180;
+  let a=
+    Math.sin(dLat/2)* Math.sin(dLat/2)+
+    Math.cos(lat1*Math.PI/180)* Math.cos(lat2*Math.PI/180)*
+    Math.sin(dLng/2)* Math.sin(dLng/2);
+  let c= 2* Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  return R*c;
+}
+function showNearest10(){
+  if(!navigator.geolocation){
+    alert("瀏覽器不支援 geolocation");
+    return;
+  }
+  navigator.geolocation.getCurrentPosition(pos=>{
+    let lat= pos.coords.latitude;
+    let lng= pos.coords.longitude;
+
+    finalData.forEach(d=>{
+      if(d.lat && d.lng){
+        d.distance= haversineDistKm(lat,lng, d.lat,d.lng);
+      } else {
+        d.distance= Infinity;
+      }
+    });
+    finalData.sort((a,b)=> a.distance- b.distance);
+    finalData= finalData.slice(0,20);
+    currentPage=1;
+    renderTablePage();
+    alert("已顯示距離最近的20間(目前篩選結果)");
+  }, err=>{
+    alert("定位失敗或被拒絕");
+  });
+}
+
+/* ========== DOM Loaded ========== */
+document.addEventListener("DOMContentLoaded", ()=>{
+  // 下拉
+  initSelectOptions();
+  document.getElementById("citySelect").addEventListener("change", ()=>{
+    let cityVal= document.getElementById("citySelect").value;
+    let arr= foodData;
+    if(cityVal) arr= arr.filter(x=> x.city=== cityVal);
+    populate(document.getElementById("districtSelect"),
+      distinct(arr,"district"), "全部"
+    );
+  });
+
+  // Radio => 功能1 / 功能2
+  document.querySelectorAll('input[name="searchMode"]').forEach(r=>{
+    r.addEventListener("change",(e)=>{
+      if(e.target.value==="mode1"){
+        document.getElementById("filterContainer").style.display="";
+        document.getElementById("keywordContainer").style.display="none";
+      } else {
+        document.getElementById("filterContainer").style.display="none";
+        document.getElementById("keywordContainer").style.display="";
+      }
+    });
+  });
+
+  // 查詢、重置、最近10間
+  document.getElementById("searchBtn").addEventListener("click", performSearch);
+  document.getElementById("resetBtn").addEventListener("click", resetSearch);
+  document.getElementById("nearestBtn").addEventListener("click", showNearest10);
+
+  // 分頁
+  document.getElementById("prevPageBtn").addEventListener("click",()=>{
+    if(currentPage>1){
+      currentPage--;
+      renderTablePage();
+    }
+  });
+  document.getElementById("nextPageBtn").addEventListener("click",()=>{
+    let total= finalData.length;
+    let totalPage= Math.ceil(total/pageSize);
+    if(currentPage< totalPage){
+      currentPage++;
+      renderTablePage();
+    }
+  });
+
+  // 細項popup關閉
+  document.getElementById("closePopupBtn").addEventListener("click",()=>{
+    document.getElementById("detailPopup").style.display="none";
+  });
+
+  // 預設 => resetSearch => 顯示全部
+  resetSearch();
+});
+
+/* Google翻譯 (如需) */
+function googleTranslateElementInit(){
+  new google.translate.TranslateElement({pageLanguage:'zh-TW'},
+    'google_translate_element'
+  );
+}
+</script>
+<script 
+  type="text/javascript" 
+  src="//translate.google.com/translate_a/element.js?cb=googleTranslateElementInit">
+</script>
+</body>
+</html>

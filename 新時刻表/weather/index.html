@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>天氣防災儀表板｜智慧旅遊中心</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../assets/css/global.css" />
+  <script defer src="../assets/js/site.js"></script>
+</head>
+<body data-base-path=".." data-section="weather" data-page="overview">
+  <main class="page-content">
+    <section class="hero">
+      <div>
+        <span class="badge">Weather Intelligence</span>
+        <h1>掌握天氣風險，守護旅途安全</h1>
+        <p>整合颱風預報、豪雨警戒、停班停課資訊、風雨雷達與災害地圖。透過視覺化工具快速判讀風險並擬定備援方案。</p>
+        <div class="tag-group">
+          <span class="tag">颱風動態</span>
+          <span class="tag">降雨雷達</span>
+          <span class="tag">災防通報</span>
+          <span class="tag">停班停課</span>
+        </div>
+      </div>
+      <div class="card" style="gap:1.2rem;">
+        <h3>常用工具</h3>
+        <div class="input-group">
+          <label for="weather-tool">選擇功能</label>
+          <select id="weather-tool">
+            <option value="ty.html">颱風追蹤（列表＋圖例）</option>
+            <option value="ty.draw1.html">互動路徑繪圖</option>
+            <option value="storm-map.html">災害地圖</option>
+            <option value="suspend.html">停班停課查詢</option>
+            <option value="ty2.html">環太平洋風暴即時看板</option>
+          </select>
+          <button class="btn-primary" type="button" id="weather-tool-go">開啟工具</button>
+        </div>
+        <p class="section-lead" style="font-size:0.85rem;">支援自訂預報區間、資料匯出、分享連結與多語言圖例，適合旅客與防災單位共同使用。</p>
+      </div>
+    </section>
+
+    <section>
+      <div class="section-title">即時模組</div>
+      <p class="section-lead">依照用途提供不同視角，協助旅客在行程安排與緊急應變時快速判斷。</p>
+      <div class="card-grid" style="margin-top:1.5rem;">
+        <article class="card">
+          <h2>颱風追蹤</h2>
+          <p>查閱多顆颱風的擴散圈、警戒範圍及預報半徑，支援時間軸播放與風力等級圖示。</p>
+          <div class="actions"><a href="ty.html">檢視追蹤</a></div>
+        </article>
+        <article class="card">
+          <h2>路徑繪圖</h2>
+          <p>載入最新的颱風預報資料或自訂 GeoJSON，建立誤差錐並匯出高解析圖片。</p>
+          <div class="actions"><a href="ty.draw1.html">啟動繪圖</a></div>
+        </article>
+        <article class="card">
+          <h2>災害通報地圖</h2>
+          <p>結合雨量、風速與災損通報，提供圖層切換、熱點分析與事件時間軸。</p>
+          <div class="actions"><a href="storm-map.html">開啟地圖</a></div>
+        </article>
+      </div>
+    </section>
+
+    <section class="grid-two">
+      <article class="card">
+        <h3>停班停課快覽</h3>
+        <p>比對中央與地方公告，提供縣市級狀態與歷史紀錄，支援一鍵分享至行動裝置。</p>
+        <div class="actions"><a href="suspend.html">查詢狀態</a></div>
+      </article>
+      <article class="card">
+        <h3>資料實驗室</h3>
+        <p>提供工程師載入自備資料、套用統一的地圖樣式與分析工具，快速產生視覺化成果。</p>
+        <div class="actions"><a href="lab.html">進入實驗室</a></div>
+      </article>
+    </section>
+  </main>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const select = document.getElementById('weather-tool');
+      const go = document.getElementById('weather-tool-go');
+      go.addEventListener('click', () => {
+        const value = select.value;
+        if (value) {
+          window.location.href = value;
+        }
+      });
+    });
+  </script>
+</body>
+</html>

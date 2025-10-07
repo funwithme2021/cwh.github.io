@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>各站點平均運量</title>
+    <style>
+        
+
+         /* 基本樣式設置保持不變 */
+body {
+    font-family: 'Arial', sans-serif;
+    margin: 0;
+    padding: 0;
+    background-color: #f0f2f5;
+    margin-left: 30px;
+    margin-bottom: 80px;
+}
+
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+.header {
+      background-color: #333;
+      color: #fff;
+      padding: 10px 0;
+      text-align: center;
+    }
+
+    .header h1 {
+      margin: 0;
+      font-size: 28px;
+    }
+
+    .header nav {
+      margin-top: 10px;
+    }
+
+    .header nav a {
+      color: #fff;
+      text-decoration: none;
+      font-size: 16px;
+      margin: 0 15px;
+    }
+
+    .header nav a:hover {
+      text-decoration: underline;
+    }
+
+h1 {
+    color: #ffffff;
+    text-align: center;
+    margin-bottom: 40px;
+    font-weight: 300;
+    letter-spacing: 1px;
+}
+
+h2 {
+    color: #333;
+    margin-top: 40px;
+    margin-bottom: 20px;
+    font-weight: 300;
+    border-left: 5px solid #130058;
+    padding-left: 10px;
+}
+
+label {
+    margin: 15px 10px 5px 0;
+    color: #555;
+    font-weight: 600;
+}
+
+select, input, button {
+    margin: 10px 10px;
+    padding: 7px 15px;
+    font-size: 14px;
+    border-radius: 4px;
+    border: 1px solid #ddd;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    transition: all 0.3s ease;
+}
+
+button {
+    background-color: #0460fe;
+    color: #fff;
+    cursor: pointer;
+    border: none;
+    border-radius: 4px;
+    padding: 7px 15px;
+    transition: background-color 0.3s ease, transform 0.3s ease;
+}
+
+button:hover {
+    background-color: #242424;
+    transform: translateY(-2px);
+}
+
+button:active {
+    background-color: #242424;
+    transform: translateY(0);
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 10px;
+    background-color: #fff;
+    border-radius: 8px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    overflow: hidden;
+}
+
+th, td {
+    border: none;
+    padding: 10px;
+    text-align: left;
+    border-bottom: 1px solid #ddd;
+}
+
+th {
+    background-color: #333;
+    color: #fff;
+    font-weight: 500;
+}
+
+tr:nth-child(even) {
+    background-color: #f9f9f9;
+}
+
+tr:hover {
+    background-color: #f1f1f1;
+}
+
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 1;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+    background-color: rgba(0, 0, 0, 0.5);
+}
+
+.modal-content {
+    background-color: #fff;
+    margin: 10% auto;
+    padding: 15px;
+    border: none;
+    width: 60%;
+    border-radius: 8px;
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+    animation: slide-down 0.3s ease-out;
+}
+
+@keyframes slide-down {
+    from {
+        transform: translateY(-50%);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+#trainDetailsModal h3 {
+    color: #333;
+    font-weight: 500;
+    margin-bottom: 10px;
+    border-left: 5px solid #17004e;
+    padding-left: 10px;
+}
+
+#trainDetailsModal table {
+    margin-top: 10px;
+    width: 100%;
+    border-collapse: collapse;
+}
+
+#trainDetailsModal th, #trainDetailsModal td {
+    padding: 7px 7px;
+    border-bottom: 1px solid #ddd;
+}
+
+#trainDetailsModal th {
+    background-color: #000000;
+    font-weight: 500;
+}
+
+#trainDetailsModal button {
+    background-color: #242424;
+    color: #fff;
+    cursor: pointer;
+    border: none;
+    border-radius: 4px;
+    padding: 7px 15px;
+    font-size: 16px;
+    transition: background-color 0.3s ease, transform 0.3s ease;
+    margin-top: 20px;
+    display: block;
+    width: 7%;
+}
+
+#trainDetailsModal button:hover {
+    background-color: #242424;
+    transform: translateY(-2px);
+}
+
+#trainDetailsModal button:active {
+    background-color: #242424;
+    transform: translateY(0);
+}
+
+/* Additional Styles for the New Feature */
+#stationFilterContainer {
+    text-align: center;
+    margin-top: 40px;
+}
+
+#filteredTrainsTable {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 20px;
+    background-color: #fff;
+    border-radius: 8px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    overflow: hidden;
+}
+
+#filteredTrainsTable th, #filteredTrainsTable td {
+    border: none;
+    padding: 15px;
+    text-align: left;
+    border-bottom: 1px solid #ddd;
+}
+
+#filteredTrainsTable th {
+    background-color: #333;
+    color: #fff;
+    font-weight: 500;
+}
+
+#filteredTrainsTable tr:nth-child(even) {
+    background-color: #f9f9f9;
+}
+
+#filteredTrainsTable tr:hover {
+    background-color: #f1f1f1;
+}
+
+.train-type-button, .train-type-checkbox {
+    margin-right: 10px;
+}
+
+.train-type-button {
+    border: 1px solid #ddd;
+    padding: 10px 15px;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+.train-type-button:hover {
+    background-color: #242424;
+    color: white;
+}
+
+.train-type-checkbox {
+    cursor: pointer;
+    margin-right: 5px;
+}
+
+.selected {
+    background-color: #242424;
+    color: white;
+}
+
+/* Flexbox layout for filters */
+#filterContainer {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+}
+
+.filter-group {
+    display: flex;
+    align-items: center;
+    margin-right: 15px;
+}
+
+#trainTypeButtons {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.filter-group label {
+    margin-right: 10px;
+}
+
+.filter-group select, .filter-group input, .filter-group button {
+    margin-right: 10px;
+}
+    </style>
+  <link rel="stylesheet" href="../assets/css/global.css" />
+  <script defer src="../assets/js/site.js"></script>
+</head>
+<body data-base-path=".." data-section="train" data-page="analysis">
+    <div class="header">  <h1>各站點平均運量</h1> <nav>
+    <a href="index.html"><strong><font size="3">台鐵時刻表</font></strong></a>
+    <a href="index-tra.html"><strong><font size="3">台鐵時刻表(專用)</font></strong></a>
+    <a href="index-speed.html"><strong><font size="3">高鐵時刻表</font></strong></a>
+    <a href="index-thsr.html"><strong><font size="3">高鐵時刻表(專用)</font></strong></a>
+    <a href="train-speed-info.html"><strong><font size="3">高鐵車站資訊板</font></strong></a>
+    <a href="train-speed-info4.html"><strong><font size="3">高鐵多站車站資訊板</font></strong></a>
+    <a href="speed-people.html"><strong><font size="3">高鐵運量查詢</font></strong></a>
+    </nav></div>
+
+    
+    <table border="1">
+        <tr>
+            <th>排名</th>
+            <th>站點</th>
+            <th>平均運量</th>
+            <th>總列車數</th>
+            <th>新自強</th>
+            <th>普悠瑪</th>
+            <th>自強號</th>
+            <th>莒光號</th>
+            <th>復興號</th>
+            <th>區間快</th>
+            <th>區間車</th>
+            <th>加班車</th>
+        </tr>
+
+        <!-- 站點運量數據將在這裡插入 -->
+
+    </table>
+
+    <h2>站點排名</h2>
+<table border="1">
+    <tr>
+        <th>站點</th>
+        <th>排名</th>
+        <th>平均運量</th>
+    </tr>
+
+
+    <script src="js/train-speed-schedule.js"></script>
+    <script>
+        // 存儲站點和排名的對應關係
+        var stationRankings = [];
+
+
+        var stationMaxCapacities = {
+            '每日行駛': 989,
+            '三行駛': 989,
+            '四行駛': 989,
+            '五行駛': 989,
+            '六行駛': 989,
+            '日行駛': 989,
+            '一至五行駛': 989,
+            '一至六行駛': 989,
+            default: 989,
+            // 其他車種的最大運量可以繼續添加
+        };
+
+        var stationTotalLoads = {};
+        var stationTrainCounts = {};  // 新增的統計各站各車種數量的變數
+        var stationTotalTrains = {};  // 新增的統計各站總列車數的變數
+
+        // 遍歷列車時刻表
+        for (var trainNumber in trainSchedule) {
+            if (trainSchedule.hasOwnProperty(trainNumber)) {
+                var train = trainSchedule[trainNumber];
+
+                // 獲取車種的最大運量
+                var maxCapacityPerTrain = stationMaxCapacities[train['車種']] || 100;
+
+                // 遍歷每列車的經過站點和時間
+                for (var i = 0; i < train['車站時間'].length; i++) {
+                    var station = train['車站時間'][i][0];
+
+                    // 初始化站點運量信息
+                    if (!stationTotalLoads[station]) {
+                        stationTotalLoads[station] = {
+                            totalLoad: 0,
+                            trainCount: 0,
+                        };
+                    }
+
+                    // 初始化站點車種數量信息
+                    if (!stationTrainCounts[station]) {
+                        stationTrainCounts[station] = {
+                            '新自強': 0,
+                            '普悠瑪': 0,
+                            '自強號': 0,
+                            '莒光號': 0,
+                            '復興號': 0,
+                            '區間快': 0,
+                            '區間車': 0,
+                            '加班車': 0,
+                        };
+                    }
+
+                    // 初始化站點總列車數
+                    if (!stationTotalTrains[station]) {
+                        stationTotalTrains[station] = 0;
+                    }
+
+                    // 計算該站點的實際運量（使用一個符合邏輯的隨機公式）
+                    var load = Math.floor(Math.random() * maxCapacityPerTrain) + 1;
+                    stationTotalLoads[station].totalLoad += load;
+                    stationTotalLoads[station].trainCount++;
+
+                    // 累加該站點的各車種數量
+                    stationTrainCounts[station][train['車種']]++;
+
+                    // 累加該站點的總列車數
+                    stationTotalTrains[station]++;
+                }
+            }
+        }
+
+        // 將站點運量由高到低排序
+        var sortedStations = Object.keys(stationTotalLoads).sort(function (a, b) {
+            return stationTotalLoads[b].totalLoad - stationTotalLoads[a].totalLoad;
+        });
+
+        // 在HTML中插入站點運量數據
+        var table = document.querySelector('table');
+        for (var i = 0; i < sortedStations.length; i++) {
+            var station = sortedStations[i];
+            var row = table.insertRow();
+            var cell1 = row.insertCell(0);
+            var cell2 = row.insertCell(1);
+            var cell3 = row.insertCell(2);
+            var cell4 = row.insertCell(3);
+            var cell5 = row.insertCell(4);
+            var cell6 = row.insertCell(5);
+            var cell7 = row.insertCell(6);
+            var cell8 = row.insertCell(7);
+            var cell9 = row.insertCell(8);
+            var cell10 = row.insertCell(9);
+            var cell11 = row.insertCell(10);
+            var cell12 = row.insertCell(11);
+            
+
+            cell1.innerHTML = i + 1;  // 排名
+            cell2.innerHTML = station;
+            cell3.innerHTML = stationTotalLoads[station].totalLoad.toFixed(0); // 保留兩位小數
+            cell4.innerHTML = stationTotalTrains[station];
+            cell5.innerHTML = stationTrainCounts[station]['新自強'];
+            cell6.innerHTML = stationTrainCounts[station]['普悠瑪'];
+            cell7.innerHTML = stationTrainCounts[station]['自強號'];
+            cell8.innerHTML = stationTrainCounts[station]['莒光號'];
+            cell9.innerHTML = stationTrainCounts[station]['復興號'];
+            cell10.innerHTML = stationTrainCounts[station]['區間快'];
+            cell11.innerHTML = stationTrainCounts[station]['區間車'];
+            cell12.innerHTML = stationTrainCounts[station]['加班車'];
+        }
+
+
+    </script>
+
+<script>
+     var stationsOrder = [
+     '南港', '臺北', '板橋', '桃園', '新竹', '苗栗', '臺中', '彰化', '雲林', '嘉義',
+      '臺南', '左營'
+        ];
+        var table = document.querySelector('table');
+        var rankingTable = document.createElement('table');
+        var headerRowRanking = rankingTable.insertRow();
+        var headerCell1Ranking = headerRowRanking.insertCell(0);
+        var headerCell2Ranking = headerRowRanking.insertCell(1);
+        var headerCell3Ranking = headerRowRanking.insertCell(2);
+        headerCell1Ranking.innerHTML = '站點';
+        headerCell2Ranking.innerHTML = '排名';
+        headerCell3Ranking.innerHTML = '運量';
+
+        for (var i = 0; i < stationsOrder.length; i++) {
+            var station = stationsOrder[i];
+            var row = rankingTable.insertRow();
+            var cell1 = row.insertCell(0);
+            var cell2 = row.insertCell(1);
+            var cell3 = row.insertCell(2);
+
+            // 獲取站點在整體排名中的索引
+            var stationIndex = sortedStations.indexOf(station);
+
+            cell1.innerHTML = station;
+            cell2.innerHTML = stationIndex + 1;  // 排名
+            cell3.innerHTML = stationTotalLoads[station].totalLoad.toFixed(0);
+        }
+
+        document.body.appendChild(rankingTable);
+    </script>
+</body>
+</html>
+

@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>列車時刻表</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f0f0f0;
+            color: #333;
+        }
+        .container {
+            width: 90%;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        .header {
+      background-color: #333;
+      color: #fff;
+      padding: 10px 0;
+      text-align: center;
+    }
+
+    .header h1 {
+      margin: 0;
+      font-size: 28px;
+    }
+
+    .header nav {
+      margin-top: 10px;
+    }
+
+    .header nav a {
+      color: #fff;
+      text-decoration: none;
+      font-size: 16px;
+      margin: 0 15px;
+    }
+
+    .header nav a:hover {
+      text-decoration: underline;
+    }
+
+h1 {
+    color: #ffffff;
+    text-align: center;
+    margin-bottom: 40px;
+    font-weight: 300;
+    letter-spacing: 1px;
+}
+        h1 {
+            text-align: center;
+        }
+        .form-group {
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        .schedule-hour {
+            border: 1px solid #ddd;
+            margin-bottom: 10px;
+            padding: 10px;
+            background-color: #f4f4f4;
+        }
+        .schedule-hour h2 {
+            background-color: #ddd;
+            padding: 5px;
+            margin: -10px -10px 10px -10px;
+            text-align: center;
+        }
+        .schedule-row {
+            display: flex;
+            flex-wrap: wrap; /* 讓超過七個的資訊自動換行 */
+            justify-content: flex-start; /* 靠左對齊 */
+            margin-bottom: 0px; /* 設定間距 */
+        }
+        .schedule-item {
+            width: calc(100% / 5 - 10px); /* 七個一排，間距平均 */
+            padding: 5px;
+        }
+        .train-type-number {
+            font-weight: bold;
+            font-size: 12px;
+            margin-bottom: -8px;
+        }
+        .train-minute {
+            padding-left: 3px;
+            font-size: 50px; /* 分的數字顯示得更大 */
+            margin-bottom: -8px;
+        }
+        .train-destination {
+            margin-left: 0px;
+            font-size: 12px;
+        }
+    </style>
+  <link rel="stylesheet" href="../assets/css/global.css" />
+  <script defer src="../assets/js/site.js"></script>
+</head>
+<body data-base-path=".." data-section="train" data-page="thsr">
+    <div class="header">
+    <h1>台灣高鐵簡式列車時刻表</h1>
+    <nav>
+        <a href="index-thsr.html"><strong><font size="3">時刻表</font></strong></a>
+        <a href="index-thsr.transfer.html"><strong><font size="3">轉乘時刻表</font></strong></a>
+        <a href="index-thsr.easy.html"><strong><font size="3">簡式時刻表</font></strong></a>
+        <a href="index-thsr.info.html"><strong><font size="3">車站資訊板</font></strong></a>
+        <a href="index-thsr.station.html"><strong><font size="3">依車站時刻查詢</font></strong></a>
+        <a href="index-thsr.num.html"><strong><font size="3">依車次時刻查詢</font></strong></a>
+    </nav></div>
+
+    <div class="container">
+        <div class="form-group">
+            <label for="stationFilter">選擇車站:</label>
+            <select id="stationFilter" onchange="filterTrainsByStation()">
+                <option value="">--請選擇車站--</option>
+            </select>
+        
+            <label for="directionFilter">選擇方向:</label>
+            <select id="directionFilter" onchange="filterTrainsByDirection()">
+                <option value="north">北上</option>
+                <option value="south">南下</option>
+            </select>
+        </div>
+        <div id="scheduleDisplay">
+            <!-- 動態生成的時刻表 -->
+        </div>
+    </div>
+
+    <script src="js/train-speed-schedule.js"></script>
+    <script>
+        // 動態生成車站下拉選單
+        function generateStationFilterOptions() {
+            var stationFilterSelect = document.getElementById('stationFilter');
+            for (var i = 0; i < stations.length; i++) {
+                var option = document.createElement('option');
+                option.value = stations[i];
+                option.text = stations[i];
+                stationFilterSelect.add(option);
+            }
+        }
+
+        // 過濾顯示指定車站的列車
+        function filterTrainsByStation() {
+    var selectedStation = document.getElementById('stationFilter').value;
+    var direction = document.getElementById('directionFilter').value;
+    var scheduleDisplay = document.getElementById('scheduleDisplay');
+    scheduleDisplay.innerHTML = ''; // 清除之前的內容
+    var hourlyTrains = {};
+
+    for (var trainNumberKey in trainSchedule) {
+        var stationTimes = trainSchedule[trainNumberKey]['車站時間'];
+        var stationIndex = stationTimes.findIndex(station => station[0] === selectedStation);
+        if (stationIndex !== -1) {
+            var time = stationTimes[stationIndex][1];
+            var hour = parseInt(time.split(':')[0], 10); // 只保留整數部分
+            var minute = parseInt(time.split(':')[1], 10); // 只保留整數部分
+            var trainNumber = parseInt(trainNumberKey, 10); // 將車次轉換為數字
+            if (!hourlyTrains[hour]) {
+                hourlyTrains[hour] = {};
+            }
+            if (!hourlyTrains[hour][minute]) {
+                hourlyTrains[hour][minute] = [];
+            }
+            var trainDirection = (trainNumber % 2 === 0) ? 'north' : 'south'; // 判斷列車方向
+            if (trainDirection === direction) { // 檢查列車方向是否符合選擇的方向
+                hourlyTrains[hour][minute].push({
+                    number: trainNumberKey,
+                    type: trainSchedule[trainNumberKey]['車種'],
+                    destination: stationTimes.slice(-1)[0][0]
+                });
+            }
+        }
+    }
+
+    var hours = Object.keys(hourlyTrains).sort((a, b) => a - b);
+    hours.forEach(function(hour) {
+        var hourDiv = document.createElement('div');
+        hourDiv.classList.add('schedule-hour');
+        var hourTitle = document.createElement('h2');
+        hourTitle.textContent = parseInt(hour, 10) + '時'; // 只顯示整數部分
+        hourDiv.appendChild(hourTitle);
+
+        var scheduleRow = document.createElement('div');
+        scheduleRow.classList.add('schedule-row');
+
+        var minutes = Object.keys(hourlyTrains[hour]).sort((a, b) => a - b);
+        minutes.forEach(function(minute) {
+            hourlyTrains[hour][minute].forEach(function(train) {
+                var itemDiv = document.createElement('div');
+                itemDiv.classList.add('schedule-item');
+                itemDiv.innerHTML = `
+                    <div class="train-type-number">${getTrainTypeWithColor(train.type)} ${train.number}</div>
+                    <div class="train-minute">${minute}</div>
+                    <div class="train-destination">${train.destination}</div>
+                `;
+                itemDiv.setAttribute('onclick', 'showTrainDetails(\'' + train.number + '\')');
+                scheduleRow.appendChild(itemDiv);
+            });
+        });
+
+        hourDiv.appendChild(scheduleRow);
+        scheduleDisplay.appendChild(hourDiv);
+    });
+}
+
+
+        // 根據車種獲取帶顏色的名稱
+        function getTrainTypeWithColor(trainType) {
+            var color = '';
+            switch (trainType) {
+      case '每日行駛':
+        color = '#8600FF';
+        break;
+      case '六行駛':
+        color = '#FF1493'; // Deep Pink
+        break;
+      case '日行駛':
+        color = 'red';
+        break;
+      case '四行駛':
+        color = 'orange';
+        break;
+      case '五行駛':
+        color = 'green';
+        break;
+      default:
+        color = 'black';
+    }
+            return '<span style="color: ' + color + ';">' + trainType + '</span>';
+        }
+
+        // 初始化生成車站下拉選單
+        generateStationFilterOptions();
+
+        // 初始化生成方向下拉選單
+        function filterTrainsByDirection() {
+            filterTrainsByStation();
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            // 獲取所有列車資訊項目
+            var trainItems = document.querySelectorAll('.schedule-item');
+
+            // 對每個列車資訊項目添加點擊事件監聽器
+            trainItems.forEach(function(item) {
+                item.addEventListener('click', function() {
+                    // 獲取點擊列車的資訊
+                    var trainTypeNumber = item.querySelector('.train-type-number').textContent;
+                    var trainMinute = item.querySelector('.train-minute').textContent;
+                    var trainDestination = item.querySelector('.train-destination').textContent;
+
+                    // 創建彈出顯示框元素
+                    var popup = document.createElement('div');
+                    popup.classList.add('popup');
+                    popup.innerHTML = `
+                        <div class="popup-content">
+                            <span class="close-btn">&times;</span>
+                            <p>車種及車次：${trainTypeNumber}</p>
+                            <p>到站時間：${trainMinute}分</p>
+                            <p>終點站：${trainDestination}</p>
+                        </div>
+                    `;
+
+                    // 添加關閉按鈕的點擊事件監聽器
+                    var closeBtn = popup.querySelector('.close-btn');
+                    closeBtn.addEventListener('click', function() {
+                        popup.remove();
+                    });
+
+                    // 將彈出顯示框添加到 body 中
+                    document.body.appendChild(popup);
+                });
+            });
+        });
+    </script>
+</body>
+</html>
