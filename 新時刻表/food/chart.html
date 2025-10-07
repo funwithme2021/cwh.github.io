@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8"/>
+  <title>統計圖表 (動態等第)</title>
+  <link rel="stylesheet" href="food-style.css">
+
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <style>
+    body {
+      margin: 0; padding: 0;
+      font-family: sans-serif;
+      background-color: #fdfdfd;
+    }
+    .navbar {
+      background: #eee;
+      padding: 10px;
+    }
+    .navbar a {
+      margin-right: 10px;
+      text-decoration: none;
+      color: #333;
+    }
+    footer {
+      text-align: center;
+      padding: 10px;
+      color: #666;
+      margin-top: 20px;
+    }
+    .container {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 15px;
+    }
+
+    /* 文字顯示的「整體平均分」區塊 */
+    .avg-section {
+      background: #fff;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      padding: 15px;
+      margin-bottom: 20px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+    .avg-section p {
+      margin: 5px 0;
+      font-size: 1rem;
+    }
+
+    /* 圖表父容器 */
+    .chart-container {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+      justify-content: center;
+    }
+    .chart-box {
+      background: #fff;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      padding: 15px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+      flex: 1 1 500px;
+      margin-bottom: 20px;
+      min-width: 300px;
+    }
+    .chart-box h2 {
+      margin-top: 0;
+      margin-bottom: 10px;
+      text-align: center;
+      font-size: 1.1rem;
+    }
+    canvas {
+      display: block;
+      margin: 0 auto;
+    }
+
+    /* 城市tabs (店家Top5 / 平均分Top5) */
+    .city-tabs {
+      display: flex;
+      justify-content: center;
+      margin: 10px 0;
+      gap: 10px;
+    }
+    .city-tabs button {
+      padding: 6px 12px;
+      border: 1px solid #ccc;
+      background: #eee;
+      cursor: pointer;
+      border-radius: 4px;
+    }
+    .city-tabs button.active {
+      background: #fff;
+      font-weight: 600;
+      box-shadow: 0 -1px 0 #fff inset;
+    }
+    .city-chart-container {
+      position: relative;
+    }
+    .city-chart-canvas {
+      display: none;
+      width: 100%;
+      height: 350px;
+    }
+    .city-chart-canvas.active {
+      display: block;
+    }
+
+    /* 讓「城市 vs. 等第」堆疊長條可以更大 */
+    #gradeBarChart{
+      width: 100%;
+      max-height: 100%; /* 可以再調大或調小 */
+    }
+    #cityGradeStackedChart {
+      width: 100%;
+      height: 200%; /* 可以再調大或調小 */
+    }
+  </style>
+  <link rel="stylesheet" href="../assets/css/global.css" />
+  <script defer src="../assets/js/site.js"></script>
+</head>
+<body data-base-path=".." data-section="food" data-page="chart">
+
+<header>
+  <h1>美食評分 - 統計圖表 (動態等第)</h1>
+  <p>整體平均分、細項平均、等第分配、城市分析、以及城市 vs. 等第(堆疊)</p>
+</header>
+
+<div class="navbar">
+  <a href="index.html">首頁(排名)</a>
+  <a href="info.html">說明</a>
+  <a href="chart.html">統計圖表</a>
+  <a href="map.html">地圖</a>
+</div>
+
+<section class="panel food-app">
+    <!-- Google 翻譯 (右上方) -->
+    <div class="translate-bar" id="google_translate_element"></div>
+  <!-- (A) 顯示整體平均分 -->
+  <div class="avg-section">
+    <p>
+      <strong>整體平均分 (100制):</strong> <span id="avg100"></span>
+    </p>
+    <p>
+      <strong>整體平均分 (5制):</strong> <span id="avg5"></span>
+    </p>
+  </div>
+
+  <!-- (B) 圖表區塊 -->
+  <div class="chart-container">
+
+    <!-- 1) 等第分配 (Bar) -->
+    <div class="chart-box">
+      <h2>等第分配 (動態)</h2>
+      <canvas id="gradeBarChart"></canvas>
+    </div>
+
+    <!-- 2) 各細項平均 (Radar) -->
+    <div class="chart-box">
+      <h2>各細項平均</h2>
+      <canvas id="itemRadarChart"></canvas>
+    </div>
+
+    <!-- 3) 城市Top5 (店家數 / 平均分) -->
+    <div class="chart-box">
+      <h2>城市分析(Top5)</h2>
+      <div class="city-tabs">
+        <button id="btnCityCount" class="active">店家數Top5</button>
+        <button id="btnCityAvg">平均分Top5</button>
+      </div>
+      <div class="city-chart-container">
+        <canvas id="cityCountChart" class="city-chart-canvas active"></canvas>
+        <canvas id="cityAvgChart"   class="city-chart-canvas"></canvas>
+      </div>
+    </div>
+
+    <!-- 4) 城市 vs. 等第 (堆疊長條) -->
+    <div class="chart-box">
+      <h2>城市 vs. 等第 (堆疊)</h2>
+      <canvas id="cityGradeStackedChart"></canvas>
+    </div>
+
+  </div>
+</section>
+
+
+
+<!-- food.js 載入 (必需含 foodData) -->
+<script src="food.js"></script>
+
+<script>
+/* ================== 1) 動態等第邏輯 ================== */
+function computeSingleScore(d){
+  const WEIGHTS = {
+    taste:0.15, freshness:0.10, texture:0.15, appearance:0.10, smell:0.10,
+    portion:0.10, uniqueness:0.05, price:0.10, environment:0.05, attitude:0.05, others:0.05
+  };
+  return (
+    d.taste*WEIGHTS.taste + d.freshness*WEIGHTS.freshness +
+    d.texture*WEIGHTS.texture + d.appearance*WEIGHTS.appearance +
+    d.smell*WEIGHTS.smell + d.portion*WEIGHTS.portion +
+    d.uniqueness*WEIGHTS.uniqueness + d.price*WEIGHTS.price +
+    d.environment*WEIGHTS.environment + d.attitude*WEIGHTS.attitude +
+    d.others*WEIGHTS.others
+  );
+}
+
+// 預期「等第 & 占比」設定
+const RATIO_GRADE_CONFIG = [
+{grade:"A++",    minRatio:0.03, maxRatio:0.05},
+  {grade:"A+",    minRatio:0.08, maxRatio:0.13},
+  {grade:"A",    minRatio:0.13, maxRatio:0.20},
+  {grade:"B++",    minRatio:0.17, maxRatio:0.23},
+  {grade:"B+",    minRatio:0.20, maxRatio:0.25},
+  {grade:"B",    minRatio:0.13, maxRatio:0.25},
+  {grade:"C",  minRatio:0.05, maxRatio:0.08},
+  {grade:"F",      minRatio:0.00, maxRatio:0.05}
+];
+
+function assignRatioGrades(arr, maxIter=5){
+  arr.sort((a,b)=> computeSingleScore(b)- computeSingleScore(a));
+  let n= arr.length;
+  if(n===0) return arr;
+
+  // 第一次粗分
+  let start=0;
+  for(let i=0; i<RATIO_GRADE_CONFIG.length; i++){
+    const cfg= RATIO_GRADE_CONFIG[i];
+    let midRatio= (cfg.minRatio+ cfg.maxRatio)/2;
+    let slotCount= Math.round(midRatio*n);
+    if(i=== RATIO_GRADE_CONFIG.length-1){
+      for(let j=start; j<n; j++){
+        arr[j].ratioGrade= cfg.grade;
+      }
+      break;
+    } else {
+      const endIndex= Math.min(start+slotCount,n);
+      for(let j=start; j<endIndex; j++){
+        arr[j].ratioGrade= cfg.grade;
+      }
+      start= endIndex;
+    }
+  }
+
+  // 多次迭代微調
+  for(let iter=0; iter<maxIter; iter++){
+    let gradeCountMap={};
+    arr.forEach(d=>{
+      gradeCountMap[d.ratioGrade]= (gradeCountMap[d.ratioGrade]||0)+1;
+    });
+    for(let i=0; i<RATIO_GRADE_CONFIG.length; i++){
+      const cfg= RATIO_GRADE_CONFIG[i];
+      const g= cfg.grade;
+      const c= gradeCountMap[g]||0;
+      const ratio= c/n;
+
+      if(ratio> cfg.maxRatio && i<RATIO_GRADE_CONFIG.length-1){
+        let overCount= Math.round(c - cfg.maxRatio*n);
+        if(overCount>0){
+          let sameArr= arr.filter(d=> d.ratioGrade=== g);
+          sameArr.sort((a,b)=> computeSingleScore(a)-computeSingleScore(b));
+          for(let k=0; k<overCount && k<sameArr.length; k++){
+            sameArr[k].ratioGrade= RATIO_GRADE_CONFIG[i+1].grade;
+          }
+        }
+      }
+      else if(ratio< cfg.minRatio && i>0){
+        let shortCount= Math.round(cfg.minRatio*n - c);
+        if(shortCount>0){
+          const prevG= RATIO_GRADE_CONFIG[i-1].grade;
+          let prevArr= arr.filter(d=> d.ratioGrade=== prevG);
+          prevArr.sort((a,b)=> computeSingleScore(a)-computeSingleScore(b));
+          for(let k=0; k<shortCount && k<prevArr.length; k++){
+            let item= prevArr[prevArr.length-1-k];
+            item.ratioGrade= g;
+          }
+        }
+      }
+    }
+    arr.sort((a,b)=> computeSingleScore(b)- computeSingleScore(a));
+    gradeCountMap={};
+    arr.forEach(d=>{
+      gradeCountMap[d.ratioGrade]= (gradeCountMap[d.ratioGrade]||0)+1;
+    });
+  }
+  return arr;
+}
+
+/* ========== 2) DOM Loaded ========== */
+document.addEventListener("DOMContentLoaded", ()=>{
+  if(!foodData || foodData.length===0){
+    document.getElementById("avg100").textContent="無資料";
+    document.getElementById("avg5").textContent="無資料";
+    console.log("No data found in foodData.");
+    return;
+  }
+
+  // (A) 執行動態等第分配
+  assignRatioGrades(foodData, 5);
+
+  // (B) 整體平均分 (文字顯示)
+  let sumAll=0;
+  foodData.forEach(d=> sumAll += computeSingleScore(d));
+  let overallAvg100= sumAll / foodData.length;
+  let overallAvg5  = overallAvg100/20;
+  document.getElementById("avg100").textContent = overallAvg100.toFixed(2);
+  document.getElementById("avg5").textContent   = overallAvg5.toFixed(2);
+
+  // (C) 等第分配 (Bar)
+  //    用 ratioGrade 做統計
+  let gradeCountMap= {};
+  foodData.forEach(d=>{
+    let g= d.ratioGrade;
+    gradeCountMap[g]= (gradeCountMap[g]||0)+1;
+  });
+  // 順序依 RATIO_GRADE_CONFIG
+  const gradeList= RATIO_GRADE_CONFIG.map(cfg=> cfg.grade);
+  const gradeCounts= gradeList.map(g=> gradeCountMap[g]||0);
+  new Chart(document.getElementById("gradeBarChart"),{
+    type:'bar',
+    data:{
+      labels: gradeList,
+      datasets:[{
+        label:'等第個數',
+        data: gradeCounts
+      }]
+    },
+    options:{
+      scales:{ y:{ beginAtZero:true } }
+    }
+  });
+
+  // (D) 各細項平均 (Radar)
+  const itemKeys= [
+    "taste","freshness","texture","appearance","smell","portion",
+    "uniqueness","price","environment","attitude","others"
+  ];
+  let sumObj= {
+    taste:0, freshness:0, texture:0, appearance:0, smell:0,
+    portion:0, uniqueness:0, price:0, environment:0, attitude:0, others:0
+  };
+  foodData.forEach(d=>{
+    itemKeys.forEach(k=> sumObj[k]+= d[k]);
+  });
+  let itemAvgs= itemKeys.map(k=> sumObj[k]/foodData.length);
+  let itemLabels= ["口味","新鮮度","口感","外觀","氣味","分量",
+                   "獨特","價格","環境","態度","其他"];
+  new Chart(document.getElementById("itemRadarChart"),{
+    type:'radar',
+    data:{
+      labels: itemLabels,
+      datasets:[{
+        label:'細項平均(0~100)',
+        data: itemAvgs
+      }]
+    },
+    options:{
+      scales:{
+        r:{
+          suggestedMin:0,
+          suggestedMax:100
+        }
+      }
+    }
+  });
+
+  // (E) 城市Top5: (1) 店家數 / (2) 平均分 => Tabs
+  // (1) 店家數
+  let cityCountMap= {};
+  foodData.forEach(d=>{
+    let c= d.city || "未知";
+    cityCountMap[c]= (cityCountMap[c]||0)+1;
+  });
+  let cityCountArr= Object.keys(cityCountMap).map(k=>({city:k, count: cityCountMap[k]}));
+  cityCountArr.sort((a,b)=> b.count- a.count);
+  let topCount5= cityCountArr.slice(0,5);
+  let cityCountLabels= topCount5.map(o=> o.city);
+  let cityCountData  = topCount5.map(o=> o.count);
+
+  let cityCountChart = new Chart(document.getElementById("cityCountChart"),{
+    type:'bar',
+    data:{
+      labels: cityCountLabels,
+      datasets:[{
+        label:'店家數',
+        data: cityCountData
+      }]
+    },
+    options:{
+      scales:{ y:{ beginAtZero:true } }
+    }
+  });
+
+  // (2) 平均分
+  let citySumMap= {};
+  foodData.forEach(d=>{
+    let c= d.city||"未知";
+    let sc= computeSingleScore(d);
+    if(!citySumMap[c]) citySumMap[c]={ sum:0, count:0 };
+    citySumMap[c].sum+= sc;
+    citySumMap[c].count++;
+  });
+  let cityAvgArr= Object.keys(citySumMap).map(c=>{
+    let obj= citySumMap[c];
+    return { city:c, avg: (obj.sum/ obj.count) };
+  });
+  cityAvgArr.sort((a,b)=> b.avg- a.avg);
+  let topAvg5= cityAvgArr.slice(0,5);
+  let cityAvgLabels= topAvg5.map(o=> o.city);
+  let cityAvgData  = topAvg5.map(o=> o.avg.toFixed(2));
+
+  let cityAvgChart = new Chart(document.getElementById("cityAvgChart"),{
+    type:'bar',
+    data:{
+      labels: cityAvgLabels,
+      datasets:[{
+        label:'平均分(100制)',
+        data: cityAvgData
+      }]
+    },
+    options:{
+      scales:{ y:{ beginAtZero:true } }
+    }
+  });
+
+  // Tabs 切換
+  const btnCityCount= document.getElementById("btnCityCount");
+  const btnCityAvg  = document.getElementById("btnCityAvg");
+  const cvsCityCount= document.getElementById("cityCountChart");
+  const cvsCityAvg  = document.getElementById("cityAvgChart");
+
+  btnCityCount.addEventListener("click", ()=>{
+    btnCityCount.classList.add("active");
+    btnCityAvg.classList.remove("active");
+    cvsCityCount.classList.add("active");
+    cvsCityAvg.classList.remove("active");
+  });
+  btnCityAvg.addEventListener("click", ()=>{
+    btnCityAvg.classList.add("active");
+    btnCityCount.classList.remove("active");
+    cvsCityAvg.classList.add("active");
+    cvsCityCount.classList.remove("active");
+  });
+
+  // (F) 城市 vs. 等第 (堆疊長條)
+  //    可能城市很多 => 這裡示範直接用「所有城市」(或自己取前N)
+  let citySet= new Set();
+  foodData.forEach(d=> citySet.add(d.city||"未知"));
+  let cityList= [...citySet];
+  cityList.sort();
+
+  // 建立 (city, ratioGrade)->count
+  let cityGradeCountMap= {};
+  foodData.forEach(d=>{
+    let c= d.city||"未知";
+    let g= d.ratioGrade;
+    let key= c+"|"+g;
+    cityGradeCountMap[key]= (cityGradeCountMap[key]||0)+1;
+  });
+
+  // 產生 dataset => 每個等第一個 dataset
+  let datasets= [];
+  gradeList.forEach((g,idx)=>{
+    // 設定不同顏色
+    let hue= (idx*45)%360;
+    let bg= `hsla(${hue},70%,60%,0.6)`;
+    let bd= `hsla(${hue},70%,30%,1)`;
+    let dataArr= cityList.map(city=>{
+      let k= city+"|"+ g;
+      return cityGradeCountMap[k]||0;
+    });
+    datasets.push({
+      label: g,
+      data: dataArr,
+      backgroundColor: bg,
+      borderColor: bd,
+      borderWidth:1
+    });
+  });
+
+  new Chart(document.getElementById("cityGradeStackedChart"),{
+    type:'bar',
+    data:{
+      labels: cityList,
+      datasets: datasets
+    },
+    options:{
+      responsive:true,
+      scales:{
+        x:{ stacked:true },
+        y:{ stacked:true, beginAtZero:true }
+      },
+      plugins:{
+        title:{
+          display:true,
+          text:"城市 vs. 等第 (動態/堆疊)",
+          font:{ size:16 }
+        },
+        legend:{
+          position:'top'
+        }
+      }
+    }
+  });
+});
+
+/* Google翻譯 (如需) */
+function googleTranslateElementInit(){
+  new google.translate.TranslateElement({pageLanguage:'zh-TW'},
+    'google_translate_element'
+  );
+}
+</script>
+<script
+  type="text/javascript"
+  src="//translate.google.com/translate_a/element.js?cb=googleTranslateElementInit">
+</script>
+</body>
+</html>

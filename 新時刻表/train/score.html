@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>小組成員互評表</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            background-color: #f0f2f5;
+            margin: 0;
+            padding: 20px;
+            color: #333;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: #fff;
+            padding: 20px 30px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            border-radius: 10px;
+        }
+        .btn-container {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    .btn-container button {
+      background-color: #007bff;
+      border: none;
+      color: white;
+      padding: 6px 10px;
+      text-align: center;
+      text-decoration: none;
+      display: inline-block;
+      font-size: 12px;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    .btn-container button:hover {
+      background-color: #0056b3;
+    }
+        h1, h2, h3 {
+            font-weight: 300;
+            color: #2c3e50;
+        }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #34495e;
+        }
+        select, textarea, button {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 20px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        button {
+            background-color: #3498db;
+            color: white;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            border: none;
+        }
+        button:hover {
+            background-color: #2980b9;
+        }
+        .hidden {
+            display: none;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 10px;
+            text-align: center;
+            font-size: 14px;
+        }
+        th {
+            background-color: #f7f7f7;
+        }
+        .final-scores {
+            margin-top: 20px;
+        }
+        .comments-section {
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #fafafa;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .comments-section h3 {
+            margin-top: 0;
+        }
+    </style>
+  <link rel="stylesheet" href="../assets/css/global.css" />
+  <script defer src="../assets/js/site.js"></script>
+</head>
+<body data-base-path=".." data-section="train" data-page="analysis">
+    <div class="container">
+        <div class="btn-container">
+            <button onclick="location.href='score.all.html';">互評統計總表(成績)</button>
+          </div>
+        <h1>小組成員互評表</h1>
+        <div>
+            <label for="evaluator">選擇你的名字(評分者):</label>
+            <select id="evaluator">
+                <option value="">--選擇你的名字--</option>
+                <option value="邱偉軒">邱偉軒</option>
+                <option value="林郁萱">林郁萱</option>
+                <option value="王芊驊">王芊驊</option>
+                <option value="鄧詠蔙">鄧詠蔙</option>
+                <option value="隋昀芝">隋昀芝</option>
+                <option value="馬玉宣">馬玉宣</option>
+                <option value="何冠儀">何冠儀</option>
+                <option value="喻楷倫">喻楷倫</option>
+                <option value="韋芳敏">韋芳敏</option>
+                <option value="黃嫣謠">黃嫣謠</option>
+                
+            </select>
+        </div>
+        <div id="evaluation-form" class="hidden">
+            <div id="member-sections"></div>
+            <div>
+                <button onclick="nextMember()">下一位</button>
+            </div>
+        </div>
+        <div id="message-section" class="hidden">
+            <h2>我有話要說</h2>
+            <textarea id="comments" rows="5"></textarea>
+            <button onclick="submitComments()">確認</button>
+        </div>
+        <div id="thank-you-message" class="hidden">
+            <h2>感謝大家這學期的參與與配合，大家辛苦了!</h2>
+            <button onclick="exportScores()">匯出總評分表</button>
+        </div>
+        <div id="final-scores" class="hidden final-scores">
+            <h2>總評分表</h2>
+            <table id="final-table">
+                <tr>
+                    <th>評分者姓名</th>
+                    <th>被評人</th>
+                    <th>準時性 (30%)</th>
+                    <th>參與度 (30%)</th>
+                    <th>實質貢獻率 (40%)</th>
+                    <th>總分</th>
+                    
+                </tr>
+            </table>
+        </div>
+        <div id="comments-section" class="hidden comments-section">
+            <h3>評語</h3>
+            <p id="final-comments"></p>
+        </div>
+    </div>
+    <script>
+        const members = ["邱偉軒", "林郁萱", "王芊驊", "鄧詠蔙", "隋昀芝", "馬玉宣", "何冠儀", "喻楷倫", "韋芳敏", "黃嫣謠"];
+        let currentIndex = 0;
+        let evaluator = '';
+        const scores = {};
+        let comments = '';
+        const memberSections = document.getElementById('member-sections');
+
+        document.getElementById('evaluator').addEventListener('change', function() {
+            evaluator = this.value;
+            if (evaluator) {
+                this.disabled = true; // 禁止修改
+                memberSections.innerHTML = '';
+                currentIndex = 0;
+                scores[evaluator] = {};
+                showNextMember();
+                document.getElementById('evaluation-form').classList.remove('hidden');
+            } else {
+                document.getElementById('evaluation-form').classList.add('hidden');
+            }
+        });
+
+        function showNextMember() {
+            if (currentIndex < members.length) {
+                const member = members[currentIndex];
+                if (member === evaluator) {
+                    currentIndex++;
+                    showNextMember();
+                    return;
+                }
+
+                memberSections.innerHTML = `
+                    <h3>評分 ${member}</h3>
+                    <table>
+                        <tr>
+                            <th>準時性 (30%)</th>
+                            <th>參與度 (30%)</th>
+                            <th>實質貢獻率 (40%)</th>
+                        </tr>
+                        <tr>
+                            <td><select class="score" data-member="${member}" data-category="punctuality">
+                                ${generateOptions()}
+                            </select></td>
+                            <td><select class="score" data-member="${member}" data-category="participation">
+                                ${generateOptions()}
+                            </select></td>
+                            <td><select class="score" data-member="${member}" data-category="contribution">
+                                ${generateOptions()}
+                            </select></td>
+                        </tr>
+                    </table>
+                `;
+            } else {
+                document.getElementById('evaluation-form').classList.add('hidden');
+                document.getElementById('message-section').classList.remove('hidden');
+            }
+        }
+
+        function generateOptions() {
+            let options = '<option value="">--選擇分數--</option>';
+            for (let i = 0; i <= 100; i += 2.5) {
+                options += `<option value="${i}">${i}</option>`;
+            }
+            return options;
+        }
+
+        function nextMember() {
+            const currentMember = members[currentIndex];
+            const punctualitySelect = document.querySelector(`.score[data-member="${currentMember}"][data-category="punctuality"]`);
+            const participationSelect = document.querySelector(`.score[data-member="${currentMember}"][data-category="participation"]`);
+            const contributionSelect = document.querySelector(`.score[data-member="${currentMember}"][data-category="contribution"]`);
+
+            const punctuality = parseFloat(punctualitySelect.value);
+            const participation = parseFloat(participationSelect.value);
+            const contribution = parseFloat(contributionSelect.value);
+
+            if (isNaN(punctuality) || isNaN(participation) || isNaN(contribution
+            )) {
+                alert("所有分數都必須填寫");
+                return;
+            }
+
+            scores[evaluator][currentMember] = {
+                punctuality: punctuality,
+                participation: participation,
+                contribution: contribution
+            };
+
+            currentIndex++;
+            showNextMember();
+        }
+
+        function submitComments() {
+            comments = document.getElementById('comments').value;
+            document.getElementById('message-section').classList.add('hidden');
+            document.getElementById('thank-you-message').classList.remove('hidden');
+            document.getElementById('final-comments').textContent = comments;
+        }
+
+        function exportScores() {
+            let output = "評分者姓名, 被評人, 準時性 (30%), 參與度 (30%), 實質貢獻率 (40%), 總分, 我有話要說\n";
+            const finalScoresDiv = document.getElementById('final-scores');
+            finalScoresDiv.classList.remove('hidden');
+            const table = document.getElementById('final-table');
+
+            for (const evaluator in scores) {
+                for (const member in scores[evaluator]) {
+                    const { punctuality, participation, contribution } = scores[evaluator][member];
+                    const total = (punctuality * 0.3) + (participation * 0.3) + (contribution * 0.4);
+                    output += `${evaluator}, ${member}, ${punctuality}, ${participation}, ${contribution}, ${total.toFixed(2)}, ${comments}\n`;
+                    const row = table.insertRow();
+                    row.innerHTML = `<td>${evaluator}</td><td>${member}</td><td>${punctuality}</td><td>${participation}</td><td>${contribution}</td><td>${total.toFixed(2)}</td>`;
+                }
+            }
+            console.log(output);
+            alert("請截圖保存您的評分結果。");
+            document.getElementById('comments-section').classList.remove('hidden');
+        }
+    </script>
+</body>
+</html>
+
+

@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>火車時刻表矩陣版</title>
+
+  <!-- Noto Sans TC -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700&display=swap" rel="stylesheet" />
+
+  <!-- jsPDF & html2canvas -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+  <style>
+    body{font-family:'Noto Sans TC',sans-serif;background:#f5f5f5;margin:0;color:#333}
+    header{background:#2c3e50;color:#fff;padding:16px;text-align:center;font-size:18px}
+    h2.section{margin:20px auto 10px;text-align:center;font-size:16px}
+
+    #controls{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin:16px 0}
+    #controls select,#controls button{font-size:15px;padding:6px 10px}
+    #exportAllBtn{background:#2980b9;color:#fff;border:none;border-radius:4px;cursor:pointer}
+    #exportAllBtn:hover{background:#2573a6}
+
+    .scheduleContainer{overflow:auto;padding:20px;margin-bottom:40px;background:#fff;box-shadow:0 2px 6px rgba(0,0,0,.08)}
+
+    table{border-collapse:collapse;width:100%;margin-bottom:40px}
+    th,td{border:1px solid #444;padding:6px;text-align:center;font-size:12px;white-space:nowrap}
+
+    .corner{writing-mode:vertical-rl;transform:rotate(180deg);width:44px;background:#eee}
+    .header-cell{height:150px;position:relative}
+    .header-cell>div{white-space:nowrap;width:100%}
+
+    .station-cell{position:sticky;left:0;background:#fff;font-weight:700;z-index:1}
+    .sea-line{color:#2980b9;font-weight:700}
+    .arrow{color:#bbb}
+  </style>
+  <link rel="stylesheet" href="../assets/css/global.css" />
+  <script defer src="../assets/js/site.js"></script>
+</head>
+
+<body data-base-path=".." data-section="train" data-page="tra">
+  <header>火車時刻表矩陣版（最多車次站 → 基準站排序 / 跨夜列車置後）</header>
+
+  <!-- 控制列 -->
+  <div id="controls">
+    <label>起始站：<select id="rangeStart"></select></label>
+    <label>結束站：<select id="rangeEnd"></select></label>
+
+    <label>基準①：<select id="pivot1"><option value="">（空）</option></select></label>
+    <label>基準②：<select id="pivot2"><option value="">（空）</option></select></label>
+    <label>基準③：<select id="pivot3"><option value="">（空）</option></select></label>
+    <label>基準④：<select id="pivot4"><option value="">（空）</option></select></label>
+    <label>基準⑤：<select id="pivot5"><option value="">（空）</option></select></label>
+
+    <button id="applyRangeBtn">套用</button>
+    <button id="exportAllBtn">📄 匯出 PDF</button>
+  </div>
+
+  <div id="reservedWrapper"></div>
+  <div id="nonReservedWrapper"></div>
+
+  <!-- 列車時刻資料 -->
+  <script src="js/train-schedule.js"></script>
+  <script>
+  document.addEventListener('DOMContentLoaded',()=>{
+    const { trainSchedule, stations } = window;
+    if(!trainSchedule||!stations) return;
+
+    /* ===== 工具 ===== */
+    const nonReserved=['區間快','區間車'];
+    const typeColor=t=>({新自強:'#8600FF',普悠瑪:'#FF1493',自強號:'red',莒光號:'orange',
+                          區間快:'green',復興號:'#0080FF',區間車:'black','自強號(新)':'brown'}[t]||'#34495e');
+    const parseMin=t=>{if(!t) return 99999; const [h,m]=t.split(':').map(Number); return h*60+m;};
+
+    /* ——— 海線標註：車次編號含 A ——— */
+    const isSea=id=>id.includes('A');
+
+    /* ===== 初始化選單 ===== */
+    const selStart=document.getElementById('rangeStart'),
+          selEnd  =document.getElementById('rangeEnd'),
+          pivots=['pivot1','pivot2','pivot3','pivot4','pivot5'].map(id=>document.getElementById(id));
+
+    stations.forEach(st=>{
+      selStart.add(new Option(st,st));
+      selEnd.add(new Option(st,st));
+      pivots.forEach(pv=>pv.add(new Option(st,st)));
+    });
+    selStart.selectedIndex=0;
+    selEnd.selectedIndex=stations.length-1;
+    pivots[0].value=stations[0];
+
+    document.getElementById('applyRangeBtn').addEventListener('click',renderAll);
+    renderAll();
+
+    /* ===== 主渲染 ===== */
+    function renderAll(){
+      const sIdx=stations.indexOf(selStart.value),
+            eIdx=stations.indexOf(selEnd.value);
+      if(sIdx===-1||eIdx===-1||sIdx>=eIdx){alert('範圍錯誤');return;}
+      const range=stations.slice(sIdx,eIdx+1);
+      pivots.forEach(pv=>{if(pv.value && !range.includes(pv.value)) pv.value='';});
+
+      /* ---------- collect IDs ---------- */
+      const resIds=[], nonIds=[];
+      for(const id in trainSchedule){
+        const t=trainSchedule[id];
+        if(t.車種==='加班車') continue;
+
+        // ➜ 先判斷此車在範圍內是否至少停靠一次
+        const hasStop = t.車站時間.some(([s])=>range.includes(s));
+        if(!hasStop) continue;             // 不論對號 / 非對號，沒停靠就略過
+
+        // 分類
+        (nonReserved.includes(t.車種)?nonIds:resIds).push(id);
+      }
+      const allIds=[...resIds,...nonIds];
+
+      /* ---- 區段內最多車次停靠的站 ---- */
+      const stopCount={}; range.forEach(st=>stopCount[st]=0);
+      allIds.forEach(id=>{
+        trainSchedule[id].車站時間.forEach(([st])=>{
+          if(range.includes(st)) stopCount[st]++;
+        });
+      });
+      let majorStation=null,max=-1;
+      range.forEach(st=>{if(stopCount[st]>max){majorStation=st;max=stopCount[st];}});
+
+      /* ---- 區段內跨夜判定 ---- */
+      const isOvernight=id=>{
+        const seg=trainSchedule[id].車站時間.filter(([st])=>range.includes(st));
+        if(seg.length<2) return false;
+        let prev=parseMin(seg[0][1]);
+        for(let i=1;i<seg.length;i++){
+          const cur=parseMin(seg[i][1]);
+          if(cur<prev) return true; prev=cur;
+        }
+        return false;
+      };
+
+      /* ---- key 函式 ---- */
+      function timeAt(id,station){
+        const arr=trainSchedule[id].車站時間;
+        const rec=arr.find(([s])=>s===station);
+        if(rec) return parseMin(rec[1]);
+        let b=null,a=null;
+        for(const r of arr) if(stations.indexOf(r[0])<stations.indexOf(station)) b=r;
+        for(const r of arr) if(stations.indexOf(r[0])>stations.indexOf(station)){a=r;break;}
+        if(b&&a){
+          const ratio=(stations.indexOf(station)-stations.indexOf(b[0]))/
+                      (stations.indexOf(a[0])-stations.indexOf(b[0]));
+          return parseMin(b[1])+ratio*(parseMin(a[1])-parseMin(b[1]));
+        }
+        return 999999;
+      }
+      function pivotKey(id){
+        for(let layer=0;layer<pivots.length;layer++){
+          const pv=pivots[layer].value.trim();
+          if(!pv||!range.includes(pv)) continue;
+          const t=timeAt(id,pv);
+          if(t!==999999) return {layer,time:t};
+        }
+        return {layer:99,time:999999};
+      }
+      const fullSorter=(a,b)=>{
+        const ta=timeAt(a,majorStation), tb=timeAt(b,majorStation);
+        if(ta!==tb) return ta-tb;
+        const A=pivotKey(a), B=pivotKey(b);
+        if(A.layer!==B.layer) return A.layer-B.layer;
+        if(A.time!==B.time)   return A.time-B.time;
+        return parseInt(a)-parseInt(b);
+      };
+
+      /* ---- 排序：非跨夜 → 跨夜 ---- */
+      const arrange=ids=>{
+        const day  = ids.filter(id=>!isOvernight(id)).sort(fullSorter),
+              night= ids.filter(isOvernight).sort(fullSorter);
+        return [...day,...night];
+      };
+      const sortedRes=arrange(resIds),
+            sortedNon=arrange(nonIds);
+
+      /* ---- render ---- */
+      document.getElementById('reservedWrapper').innerHTML='';
+      document.getElementById('nonReservedWrapper').innerHTML='';
+
+      if(sortedRes.length){
+        const resStations=range.filter(st=>sortedRes.some(id=>trainSchedule[id].車站時間.some(([s])=>s===st)));
+        if(resStations.length){
+          document.getElementById('reservedWrapper')
+            .insertAdjacentHTML('beforeend','<h2 class="section">對號列車</h2><div id="reservedContainer" class="scheduleContainer"></div>');
+          drawMatrix(sortedRes,'reservedContainer',resStations);
+        }
+      }
+      if(sortedNon.length){
+        document.getElementById('nonReservedWrapper')
+          .insertAdjacentHTML('beforeend','<h2 class="section">非對號列車 (區間快 / 區間車)</h2><div id="nonReservedContainer" class="scheduleContainer"></div>');
+        drawMatrix(sortedNon,'nonReservedContainer',range);
+      }
+    }
+
+    /* ===== 畫矩陣 ===== */
+    function drawMatrix(ids, containerId, stList){
+      const cont=document.getElementById(containerId); cont.innerHTML='';
+      const tbl=document.createElement('table');
+
+      /* 表頭一列 */
+      const thead=tbl.createTHead();
+      const r1=thead.insertRow();
+      const corner=r1.insertCell(); corner.className='corner'; corner.innerText='車次';
+
+      ids.forEach(id=>{
+        const t=trainSchedule[id];
+        const th=r1.insertCell(); th.className='header-cell';
+        th.innerHTML=
+          `<div>${id}<br>
+            <span style="color:${typeColor(t.車種)}">${t.車種}</span><br>
+            ${t.車站時間[0][0]}<br>↓<br>${t.車站時間.at(-1)[0]}
+            ${isSea(id)?'<br><span class="sea-line">(海線)</span>':''}
+          </div>`;
+      });
+
+      /* 表身 */
+      const tbody=tbl.createTBody();
+      stList.forEach(st=>{
+        const tr=tbody.insertRow();
+        tr.insertCell().className='station-cell';
+        tr.cells[0].innerText=st;
+        ids.forEach(id=>{
+          const arr=trainSchedule[id].車站時間;
+          const rec=arr.find(([s])=>s===st);
+          let val='';
+          if(rec){ val=rec[1]; }
+          else{
+            const inside=arr.filter(([s])=>stList.includes(s));
+            if(inside.length){
+              const f=stList.indexOf(inside[0][0]),
+                    l=stList.indexOf(inside.at(-1)[0]),
+                    c=stList.indexOf(st);
+              if(c>f&&c<l) val='↓';
+            }
+          }
+          tr.insertCell().innerHTML=val||'<span class="arrow">&nbsp;</span>';
+        });
+      });
+      cont.appendChild(tbl);
+    }
+
+    /* ===== 匯出 PDF ===== */
+    document.getElementById('exportAllBtn').addEventListener('click',async()=>{
+      await document.fonts.ready;
+      const canvas=await html2canvas(document.body,{scale:2,useCORS:true});
+      const pdf=new jspdf.jsPDF('l','mm','a4');
+      const w=pdf.internal.pageSize.getWidth(),
+            h=canvas.height*w/canvas.width;
+      pdf.addImage(canvas.toDataURL('image/png'),'PNG',0,0,w,h);
+      pdf.save('時刻表_矩陣版.pdf');
+    });
+  });
+  </script>
+</body>
+</html>

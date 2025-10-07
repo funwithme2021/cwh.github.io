@@ -1,0 +1,1015 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>列車運用率</title>
+  <style>
+    /* ===== Reset & Basic ===== */
+    * {
+      margin: 0; 
+      padding: 0; 
+      box-sizing: border-box;
+      font-family: 'Noto Sans TC', sans-serif;
+    }
+    body {
+      background: linear-gradient(to right, #e4ecfa, #f5f8ff);
+      color: #333;
+      transition: background-color 0.3s ease, color 0.3s ease;
+      padding-bottom: 40px;
+    }
+    /* Dark Mode */
+    body.dark-mode {
+      background: #121212;
+      color: #ccc;
+    }
+
+    /* ===== Container ===== */
+    .container {
+      max-width: 1200px;
+      margin: 30px auto;
+      background: #fff;
+      padding: 20px 25px;
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      transition: background-color 0.3s ease, color 0.3s ease;
+    }
+    body.dark-mode .container {
+      background: #1f1f1f;
+      color: #ddd;
+    }
+
+    h1 {
+      text-align: center;
+      margin-bottom: 20px;
+      font-size: 24px;
+    }
+    body.dark-mode h1 {
+      color: #ccc;
+    }
+
+    /* ===== Top bar: checkboxes & actions ===== */
+    .top-bar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 20px;
+      gap: 10px;
+    }
+    .checkbox-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+    }
+    .checkbox-group label {
+      display: inline-flex;
+      align-items: center;
+      font-size: 14px;
+      color: #444;
+      cursor: pointer;
+    }
+    body.dark-mode .checkbox-group label {
+      color: #aaa;
+    }
+    .checkbox-group input[type="checkbox"] {
+      margin-right: 4px;
+      transform: scale(1.1);
+      cursor: pointer;
+    }
+    .btn {
+      background-color: #007bff;
+      color: #fff;
+      padding: 8px 14px;
+      border: none;
+      border-radius: 4px;
+      font-size: 14px;
+      cursor: pointer;
+      transition: background-color 0.3s, transform 0.2s;
+    }
+    .btn:hover {
+      background-color: #005bb3;
+      transform: translateY(-2px);
+    }
+    .btn:active {
+      transform: translateY(0);
+    }
+
+    /* ===== Additional Filter: search & section ===== */
+    .extra-filters {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 15px;
+      margin-bottom: 15px;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .search-group {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .extra-filters label {
+      font-weight: 600;
+      margin-right: 4px;
+    }
+    .extra-filters input[type="text"],
+    .extra-filters select {
+      padding: 6px 8px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      outline: none;
+      font-size: 14px;
+    }
+
+    /* ===== Table (Main) ===== */
+    #train-utilization-table {
+      width: 100%;
+      border-collapse: collapse;
+      overflow: hidden;
+      border-radius: 4px;
+      margin-bottom: 20px;
+    }
+    #train-utilization-table thead th {
+      background: #007bff;
+      color: #fff;
+      font-weight: 600;
+      text-align: center;
+      padding: 12px 8px;
+    }
+    body.dark-mode #train-utilization-table thead th {
+      background: #444;
+    }
+    #train-utilization-table tbody tr {
+      border-bottom: 1px solid #ddd;
+      transition: background-color 0.2s;
+      cursor: pointer;
+    }
+    body.dark-mode #train-utilization-table tbody tr {
+      border-bottom: 1px solid #555;
+    }
+    #train-utilization-table tbody tr:hover {
+      background: #f7f7f7;
+    }
+    body.dark-mode #train-utilization-table tbody tr:hover {
+      background: #2a2a2a;
+    }
+    #train-utilization-table td {
+      padding: 10px;
+      text-align: center;
+      font-size: 14px;
+      color: #333;
+    }
+    body.dark-mode #train-utilization-table td {
+      color: #ddd;
+    }
+    #train-utilization-table tr:nth-child(even) {
+      background: #f9f9f9;
+    }
+    body.dark-mode #train-utilization-table tr:nth-child(even) {
+      background: #2a2a2a;
+    }
+    #sort-btn {
+      padding: 4px 8px;
+      margin-left: 8px;
+      cursor: pointer;
+      border-radius: 4px;
+      background-color: #ff9800;
+      color: #fff;
+      font-size: 12px;
+    }
+    #sort-btn:hover {
+      background-color: #c77700;
+    }
+
+    /* ===== Statistics Table ===== */
+    #statistics-table {
+      width: 100%;
+      border-collapse: collapse;
+      overflow: hidden;
+      border-radius: 4px;
+    }
+    #statistics-table thead th {
+      background: #4caf50;
+      color: #fff;
+      font-weight: 600;
+      text-align: center;
+      padding: 12px 8px;
+    }
+    body.dark-mode #statistics-table thead th {
+      background: #666;
+    }
+    #statistics-table tbody tr {
+      border-bottom: 1px solid #ddd;
+    }
+    body.dark-mode #statistics-table tbody tr {
+      border-bottom: 1px solid #555;
+    }
+    #statistics-table td {
+      padding: 10px;
+      text-align: center;
+      font-size: 14px;
+      color: #333;
+    }
+    body.dark-mode #statistics-table td {
+      color: #ddd;
+    }
+    #statistics-table tr:nth-child(even) {
+      background: #f9f9f9;
+    }
+    body.dark-mode #statistics-table tr:nth-child(even) {
+      background: #2a2a2a;
+    }
+
+    /* ===== Modal (Train Form & Train Detail) ===== */
+    .modal {
+      display: none;
+      position: fixed;
+      z-index: 1000;
+      top: 0; left: 0; width: 100%; height: 100%;
+      background-color: rgba(0,0,0,0.5);
+      overflow: auto;
+      padding-top: 60px;
+    }
+    .modal-content {
+      background-color: #fff;
+      margin: 5% auto;
+      border-radius: 6px;
+      padding: 20px;
+      width: 80%;
+      max-width: 800px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+      position: relative;
+      transition: background-color 0.3s, color 0.3s;
+    }
+    body.dark-mode .modal-content {
+      background-color: #2a2a2a;
+      color: #ddd;
+    }
+    .close {
+      position: absolute;
+      top: 10px;
+      right: 14px;
+      font-size: 24px;
+      font-weight: bold;
+      color: #aaa;
+      cursor: pointer;
+    }
+    .close:hover {
+      color: #333;
+    }
+    .modal-content form {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .modal-content form label {
+      font-weight: 600;
+      margin-bottom: 4px;
+      color: #444;
+    }
+    body.dark-mode .modal-content form label {
+      color: #ccc;
+    }
+    .modal-content form input[type="text"],
+    .modal-content form select,
+    .modal-content form textarea {
+      padding: 6px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      outline: none;
+      font-size: 14px;
+      transition: border-color 0.2s;
+    }
+    body.dark-mode .modal-content form input[type="text"],
+    body.dark-mode .modal-content form select,
+    body.dark-mode .modal-content form textarea {
+      background-color: #444;
+      color: #eee;
+      border-color: #555;
+    }
+    .modal-content form button[type="submit"] {
+      align-self: flex-end;
+      background-color: #28a745;
+      color: #fff;
+      padding: 8px 16px;
+      border: none;
+      border-radius: 4px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background-color 0.3s, transform 0.2s;
+    }
+    .modal-content form button[type="submit"]:hover {
+      background-color: #1e7e34;
+      transform: translateY(-2px);
+    }
+    .modal-content form button[type="submit"]:active {
+      transform: translateY(0);
+    }
+
+    #modal-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+    }
+    #modal-table thead th {
+      background-color: #007bff;
+      color: #fff;
+      padding: 10px;
+      font-weight: 600;
+    }
+    body.dark-mode #modal-table thead th {
+      background-color: #444;
+    }
+    #modal-table td, #modal-table th {
+      border: 1px solid #ddd;
+      padding: 8px;
+      text-align: left;
+    }
+
+  </style>
+  <link rel="stylesheet" href="../assets/css/global.css" />
+  <script defer src="../assets/js/site.js"></script>
+</head>
+
+<body data-base-path=".." data-section="train" data-page="analysis">
+  <!-- Dark Mode toggle button -->
+  <button id="darkModeToggle" 
+    style="position: fixed; top: 10px; right: 10px; background: #444; color: #fff; border:none; border-radius:4px; padding:6px 12px; cursor:pointer; z-index:999;"
+  >
+    Dark Mode
+  </button>
+
+  <div class="container">
+    <h1>列車運用率</h1>
+
+    <!-- 車種勾選 & actions -->
+    <div class="top-bar">
+      <!-- Checkbox group -->
+      <div class="checkbox-group">
+        <label><input type="checkbox" class="train-type-checkbox" value="新自強" checked> 新自強</label>
+        <label><input type="checkbox" class="train-type-checkbox" value="普悠瑪" checked> 普悠瑪</label>
+        <label><input type="checkbox" class="train-type-checkbox" value="自強號" checked> 自強號</label>
+        <label><input type="checkbox" class="train-type-checkbox" value="自強號(新)" checked> 自強號(新)</label>
+        <label><input type="checkbox" class="train-type-checkbox" value="莒光號" checked> 莒光號</label>
+        <label><input type="checkbox" class="train-type-checkbox" value="復興號" checked> 復興號</label>
+        <label><input type="checkbox" class="train-type-checkbox" value="區間快" checked> 區間快</label>
+        <label><input type="checkbox" class="train-type-checkbox" value="區間車" checked> 區間車</label>
+        <label><input type="checkbox" class="train-type-checkbox" value="加班車" checked> 加班車</label>
+      </div>
+
+      <!-- Actions -->
+      <div id="actions" style="display:flex; gap:10px;">
+        <button id="add-train-btn" class="btn">新增車次</button>
+        <button id="edit-train-btn" class="btn">修改車次時間</button>
+      </div>
+    </div>
+
+    <!-- 額外查詢功能：車次查詢 & 區間查詢 -->
+    <div class="extra-filters">
+      <!-- 車次查詢 -->
+      <div class="search-group">
+        <label for="searchTrainNumber">車次查詢:</label>
+        <input type="text" id="searchTrainNumber" placeholder="輸入車次..."/>
+        <button id="searchTrainBtn" class="btn">查詢</button>
+      </div>
+
+      <!-- 區間查詢 -->
+      <div class="search-group">
+        <label>區間查詢:</label>
+        <select id="startStation">
+          <option value="">起始站</option>
+        </select>
+        <select id="endStation">
+          <option value="">終點站</option>
+        </select>
+        <button id="searchSectionBtn" class="btn">區間運用率</button>
+      </div>
+    </div>
+
+    <!-- 運用率表格 -->
+    <table id="train-utilization-table">
+      <thead>
+        <tr>
+          <th style="width:90px;">車次</th>
+          <th style="text-align:center;">車種 (行駛區間)</th>
+          <th style="width:120px;">
+            運用率
+            <span id="sort-btn" class="btn" style="padding:4px 8px; margin-left:8px; background:#ff9800;">排序</span>
+          </th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+
+    <!-- 統計表 -->
+    <table id="statistics-table">
+      <thead>
+        <tr>
+          <th>指標</th>
+          <th>值</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>車次總數</td>
+          <td id="stats-total"></td>
+        </tr>
+        <tr>
+          <td>平均運用率</td>
+          <td id="stats-average"></td>
+        </tr>
+        <tr>
+          <td>最高運用率</td>
+          <td id="stats-max"></td>
+        </tr>
+        <tr>
+          <td>最低運用率</td>
+          <td id="stats-min"></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- 車次新增/修改 Modal -->
+  <div id="trainFormModal" class="modal">
+    <div class="modal-content">
+      <span class="close">&times;</span>
+      <form id="trainForm">
+        <label for="trainNumber">車次編號:</label>
+        <input type="text" id="trainNumber" name="trainNumber" required />
+
+        <label for="trainType">車種:</label>
+        <select id="trainType" name="trainType">
+          <option value="新自強">新自強</option>
+          <option value="普悠瑪">普悠瑪</option>
+          <option value="自強號">自強號</option>
+          <option value="自強號(新)">自強號(新)</option>
+          <option value="莒光號">莒光號</option>
+          <option value="復興號">復興號</option>
+          <option value="區間快">區間快</option>
+          <option value="區間車">區間車</option>
+          <option value="加班車">加班車</option>
+        </select>
+
+        <label for="trainStations">車站與時間:</label>
+        <textarea id="trainStations" name="trainStations" placeholder="格式: 車站, 時間 (如: 台北, 08:00) 每行一筆" required style="min-height:100px;"></textarea>
+
+        <button type="submit">提交</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- 列車詳細資料 Modal -->
+  <div id="myModal" class="modal">
+    <div class="modal-content">
+      <span class="close">&times;</span>
+      <table id="modal-table">
+        <thead>
+          <tr>
+            <th>車站</th>
+            <th>時間</th>
+            <th>運用率</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- 需自行包含 js/train-schedule.js，含 trainSchedule & stations (原本順序) -->
+  <script src="js/train-schedule.js"></script>
+  <script>
+    /*******************************
+      Dark Mode
+    *******************************/
+    const darkModeToggle = document.getElementById('darkModeToggle');
+    darkModeToggle.addEventListener('click', () => {
+      document.body.classList.toggle('dark-mode');
+      // 若要在切換後重新計算或渲染...可自行操作
+    });
+
+    let sortOrder='asc';
+    let selectedTrainTypes= ['新自強','普悠瑪','自強號','自強號(新)','莒光號','復興號','區間快','區間車','加班車'];
+
+    /* stationMaxCapacities / popularityWeights / timeWeights => same as above... */
+    var stationMaxCapacities = {
+      '新自強': 638,
+      '普悠瑪': 406,
+      '自強號(新)': 906,
+      '自強號': 866,
+      '莒光號': 1000,
+      '復興號': 1000,
+      '區間快': 1700,
+      '區間車': 1700,
+      '加班車': 638,
+    };
+    var popularityWeights = {
+      '普悠瑪': 1.42,
+      '新自強': 2.4,
+      '加班車': 2.4,
+      '自強號(新)': 4.7,
+      '自強號': 3.15,
+      '莒光號': 3.0,
+      '復興號': 3.35,
+      '區間快': 5.85,
+      '區間車': 5.65
+    };
+    var timeWeights = {
+      'short_peak': 5.0,
+      'short_offpeak': 3.0,
+      'long_peak': 7.5,
+      'long_offpeak': 3.0
+    };
+    var stationDensity = {};
+
+    // 先根據 trainSchedule 統計 stationDensity
+    for(let tn in trainSchedule) {
+      let train= trainSchedule[tn];
+      train['車站時間'].forEach(st => {
+        let stName= st[0];
+        if(!stationDensity[stName]) stationDensity[stName]=0;
+        stationDensity[stName]++;
+      });
+    }
+
+    function calculateTimeWeight(time) {
+      let hour= parseInt(time.split(':')[0],10);
+      if ((hour>=6 && hour<9.5)||(hour>=12 && hour<13)||(hour>=16 && hour<20)||(hour>=21 && hour<22)) {
+        return timeWeights['short_peak'];
+      }
+      if ((hour>=6.5 && hour<10)||(hour>=16 && hour<20.5)||(hour>=0.5 && hour<4.5)) {
+        return timeWeights['long_peak'];
+      }
+      return timeWeights['short_offpeak'];
+    }
+    function getRandomFactor(trainType) {
+      if (['普悠瑪','新自強','自強號','自強號(新)','莒光號'].includes(trainType)) {
+        return (Math.random()*0.15)-0.1;
+      } else {
+        return (Math.random()*0.22)-0.1;
+      }
+    }
+    function calculateStationUtilizationRate(train, station, time) {
+      let maxCap= stationMaxCapacities[train['車種']]||110;
+      let load=0;
+      let pWeight= popularityWeights[train['車種']]||1;
+      let tWeight= calculateTimeWeight(time);
+      for(let i=0;i<3;i++){
+        let rnd= getRandomFactor(train['車種']);
+        load += ((stationDensity[station]||0)* tWeight* pWeight)*(1+rnd);
+      }
+      let avg= load/3;
+      let usage= Math.min(Math.max((avg/maxCap)*50,0),100);
+      return usage.toFixed(2)+'%';
+    }
+
+    function calculateUtilizationRate(train) {
+      let maxCap= stationMaxCapacities[train['車種']]||110;
+      let totalLoad=0;
+      if(['普悠瑪','新自強','自強號','自強號(新)','莒光號'].includes(train['車種'])){
+        for(let i=0;i<3;i++){
+          let day=0;
+          train['車站時間'].forEach(st=>{
+            let stName= st[0];
+            let stTime= st[1];
+            let tW= calculateTimeWeight(stTime);
+            let pW= popularityWeights[train['車種']]||1;
+            let rnd= (Math.random()*0.15)-0.1;
+            day += ((stationDensity[stName]||0)* tW* pW)*(1+rnd);
+          });
+          totalLoad += day/train['車站時間'].length;
+        }
+      } else {
+        for(let i=0;i<3;i++){
+          let day=0;
+          train['車站時間'].forEach(st=>{
+            let stName= st[0];
+            let stTime= st[1];
+            let tW= calculateTimeWeight(stTime);
+            let pW= popularityWeights[train['車種']]||1;
+            let rnd= (Math.random()*0.22)-0.1;
+            day += ((stationDensity[stName]||0)* tW* pW)*(1+rnd);
+          });
+          totalLoad += day/train['車站時間'].length;
+        }
+      }
+      let usage= Math.min(Math.max(((totalLoad/3)/maxCap)*50,0),100);
+      return usage.toFixed(2)+'%';
+    }
+
+    function getTrainTypeWithColor(trainType) {
+  // 檢查目前是否為「暗色模式」(範例用法：若您有其他夜間模式檢測方式，請自行替換)
+  const isDarkMode = document.body.classList.contains('dark-mode');
+
+  let color = '#333'; // 預設
+
+  switch (trainType) {
+    case '新自強': color = '#8600FF'; break;
+    case '普悠瑪': color = '#FF1493'; break;
+    case '自強號': color = 'red';     break;
+    case '莒光號': color = 'orange';  break;
+    case '區間快': color = 'green';   break;
+    case '復興號': color = '#0080FF'; break;
+    case '區間車': 
+      // 若為暗色模式，改成白色；否則用黑色
+      color = isDarkMode ? '#fff' : 'black'; 
+      break;
+    case '自強號(新)': color = 'brown'; break;
+    case '加班車':      color = 'teal';  break;
+    default:            color = '#333';  break;
+  }
+
+  return `<span style="color: ${color};">${trainType}</span>`;
+}
+
+    /* Table generation */
+    
+    function populateTrainTable(trainList=null) {
+      let dataToShow= trainList? trainList : Object.keys(trainSchedule);
+      let tableBody= document.querySelector('#train-utilization-table tbody');
+      tableBody.innerHTML='';
+
+      dataToShow.forEach(tn=>{
+        let train= trainSchedule[tn];
+        if(!train) return;
+        let tType= train['車種'];
+        if(!selectedTrainTypes.includes(tType)) return;
+
+        let firstStop= train['車站時間'][0][0];
+        let lastStop= train['車站時間'][ train['車站時間'].length-1][0];
+        train['行駛區間']= firstStop+' ➝ '+lastStop;
+
+        let util= calculateUtilizationRate(train);
+
+        let row= document.createElement('tr');
+        row.dataset.trainNumber= tn;
+
+        let cNum= document.createElement('td');
+        cNum.textContent= tn;
+        row.appendChild(cNum);
+
+        let cType= document.createElement('td');
+        cType.innerHTML= getTrainTypeWithColor(tType)+ ' ('+ train['行駛區間'] +')';
+        row.appendChild(cType);
+
+        let cUtil= document.createElement('td');
+        cUtil.textContent= util;
+        row.appendChild(cUtil);
+
+        tableBody.appendChild(row);
+      });
+
+      // 行點擊 => 顯示詳情
+      document.querySelectorAll('#train-utilization-table tbody tr').forEach(tr => {
+        tr.addEventListener('click', ()=>{
+          let tn= tr.dataset.trainNumber;
+          let train= trainSchedule[tn];
+          let modalTbody= document.querySelector('#modal-table tbody');
+          modalTbody.innerHTML='';
+
+          train['車站時間'].forEach(st=>{
+            let stationRow= document.createElement('tr');
+            let stCell= document.createElement('td');
+            stCell.textContent= st[0];
+            stationRow.appendChild(stCell);
+
+            let timeCell= document.createElement('td');
+            timeCell.textContent= st[1];
+            stationRow.appendChild(timeCell);
+
+            let stUtil= calculateStationUtilizationRate(train, st[0], st[1]);
+            let utilCell= document.createElement('td');
+            utilCell.textContent= stUtil;
+            stationRow.appendChild(utilCell);
+
+            modalTbody.appendChild(stationRow);
+          });
+          myModal.style.display='block';
+        });
+      });
+
+      // 生成「統計表」
+      generateStatistics();
+    }
+
+    /* 產生統計表 #statistics-table (顯示：列車總數、平均運用率、最高、最低) */
+    function generateStatistics(){
+      let rows= document.querySelectorAll('#train-utilization-table tbody tr');
+      if(rows.length===0){
+        document.getElementById('stats-total').textContent= '0';
+        document.getElementById('stats-average').textContent= '0%';
+        document.getElementById('stats-max').textContent= '0%';
+        document.getElementById('stats-min').textContent= '0%';
+        return;
+      }
+
+      let total= rows.length;
+      let usageArr= [];
+      rows.forEach(r=>{
+        let val= parseFloat(r.cells[2].textContent);
+        if(!isNaN(val)) usageArr.push(val);
+      });
+      let sum= usageArr.reduce((a,b)=> a+b,0);
+      let avg= (sum/ usageArr.length).toFixed(2)+'%';
+      let maxVal= Math.max(...usageArr).toFixed(2)+'%';
+      let minVal= Math.min(...usageArr).toFixed(2)+'%';
+
+      document.getElementById('stats-total').textContent= total;
+      document.getElementById('stats-average').textContent= avg;
+      document.getElementById('stats-max').textContent= maxVal;
+      document.getElementById('stats-min').textContent= minVal;
+    }
+
+    /* Sort Table */
+    function sortTable() {
+      let tableBody= document.querySelector('#train-utilization-table tbody');
+      let rows= Array.from(tableBody.querySelectorAll('tr'));
+      rows.sort((a,b)=>{
+        let aVal= parseFloat(a.cells[2].textContent);
+        let bVal= parseFloat(b.cells[2].textContent);
+        return sortOrder==='asc'? (aVal-bVal):(bVal-aVal);
+      });
+      tableBody.innerHTML='';
+      rows.forEach(r=> tableBody.appendChild(r));
+
+      // 排序後也更新統計
+      generateStatistics();
+    }
+
+    document.getElementById('sort-btn').addEventListener('click', ()=>{
+      sortOrder= (sortOrder==='asc'?'desc':'asc');
+      sortTable();
+    });
+
+    /* Checkbox 事件 */
+    document.querySelectorAll('.train-type-checkbox').forEach( cb => {
+      cb.addEventListener('change', () => {
+        selectedTrainTypes = Array.from(document.querySelectorAll('.train-type-checkbox:checked')).map(c => c.value);
+        populateTrainTable();
+        sortTable();
+      });
+    });
+
+    /* Train Form: 新增 & 修改 */
+    const addBtn= document.getElementById('add-train-btn');
+    const editBtn= document.getElementById('edit-train-btn');
+    const trainFormModal= document.getElementById('trainFormModal');
+    const trainForm= document.getElementById('trainForm');
+
+    addBtn.addEventListener('click', ()=>{
+      trainFormModal.style.display='block';
+      trainForm.reset();
+    });
+    editBtn.addEventListener('click', ()=>{
+      let inputTN= prompt("請輸入要修改的車次編號：");
+      if(inputTN && trainSchedule[inputTN]) {
+        let t= trainSchedule[inputTN];
+        document.getElementById('trainNumber').value= inputTN;
+        document.getElementById('trainType').value= t['車種'];
+        document.getElementById('trainStations').value= t['車站時間'].map(st => st[0]+', '+ st[1]).join('\n');
+        trainFormModal.style.display='block';
+      } else {
+        alert("未找到該車次！");
+      }
+    });
+
+    trainForm.addEventListener('submit', e=>{
+      e.preventDefault();
+      let tn= document.getElementById('trainNumber').value.trim();
+      let tType= document.getElementById('trainType').value;
+      let tStations= document.getElementById('trainStations').value.split('\n').map(line=>{
+        let parts= line.split(',');
+        return [parts[0].trim(), parts[1].trim()];
+      });
+
+      trainSchedule[tn]= {
+        '車種': tType,
+        '車站時間': tStations
+      };
+
+      populateTrainTable();
+      sortTable();
+      trainFormModal.style.display='none';
+    });
+
+    /* Modal: details */
+    const myModal= document.getElementById('myModal');
+    const closeBtns= document.querySelectorAll('.modal .close');
+    closeBtns.forEach((sp,idx)=>{
+      sp.onclick= ()=>{
+        if (idx===0) trainFormModal.style.display='none';
+        else if(idx===1) myModal.style.display='none';
+      };
+    });
+    window.onclick= e=>{
+      if(e.target===trainFormModal) trainFormModal.style.display='none';
+      if(e.target===myModal) myModal.style.display='none';
+    };
+
+    /* 車次查詢 */
+    const searchTrainBtn= document.getElementById('searchTrainBtn');
+    const searchTrainNumber= document.getElementById('searchTrainNumber');
+    searchTrainBtn.addEventListener('click', ()=>{
+      let inputVal= searchTrainNumber.value.trim();
+      if(!inputVal) {
+        // 若未輸入 => 顯示全部
+        populateTrainTable();
+        sortTable();
+        return;
+      }
+      // 若輸入 => 找該車次
+      if(trainSchedule[inputVal]) {
+        // 只顯示這個車次
+        populateTrainTable([inputVal]);
+        sortTable();
+      } else {
+        let tableBody= document.querySelector('#train-utilization-table tbody');
+        tableBody.innerHTML='';
+        let row= document.createElement('tr');
+        let cell= document.createElement('td');
+        cell.colSpan=3;
+        cell.style.color='red';
+        cell.textContent='未找到該車次！';
+        row.appendChild(cell);
+        tableBody.appendChild(row);
+
+        // 同時統計表歸零
+        document.getElementById('stats-total').textContent= '0';
+        document.getElementById('stats-average').textContent= '0%';
+        document.getElementById('stats-max').textContent= '0%';
+        document.getElementById('stats-min').textContent= '0%';
+      }
+    });
+
+    /* 區間查詢 */
+    const startStation= document.getElementById('startStation');
+    const endStation= document.getElementById('endStation');
+    const searchSectionBtn= document.getElementById('searchSectionBtn');
+    // initStations：依 "stations" 陣列 (在 js/train-schedule.js 順序)
+    function initStations() {
+      // 假設 js/train-schedule.js 中有 var stations=[...]; 預設順序
+      stations.forEach(st=>{
+        let opt1= document.createElement('option');
+        opt1.value= st;
+        opt1.textContent= st;
+        startStation.add(opt1.cloneNode(true));
+        endStation.add(opt1);
+      });
+    }
+
+    searchSectionBtn.addEventListener('click', ()=>{
+      let stStart= startStation.value;
+      let stEnd= endStation.value;
+      if(!stStart|| !stEnd) {
+        alert("請選擇起訖站");
+        return;
+      }
+      let partialTrains= [];
+      for(let tn in trainSchedule) {
+        let train= trainSchedule[tn];
+        let stTimes= train['車站時間'];
+        let idxA= stTimes.findIndex(x=> x[0]=== stStart);
+        let idxB= stTimes.findIndex(x=> x[0]=== stEnd);
+        if(idxA!==-1 && idxB!==-1 && idxA< idxB) {
+          let partialUsage= calcPartialUsage(train, idxA, idxB);
+          partialTrains.push({
+            trainNumber: tn,
+            partialUsage,
+          });
+        }
+      }
+      let tableBody= document.querySelector('#train-utilization-table tbody');
+      tableBody.innerHTML='';
+      partialTrains.forEach(obj=>{
+        let tn= obj.trainNumber;
+        let train= trainSchedule[tn];
+        let tType= train['車種'];
+        if(!selectedTrainTypes.includes(tType)) return;
+        let row= document.createElement('tr');
+        row.dataset.trainNumber= tn;
+
+        let cNum= document.createElement('td');
+        cNum.textContent= tn;
+        row.appendChild(cNum);
+
+        let firstStop= train['車站時間'][0][0];
+        let lastStop= train['車站時間'][ train['車站時間'].length-1][0];
+        let cType= document.createElement('td');
+        cType.innerHTML= getTrainTypeWithColor(tType)+ ` (${firstStop} ➝ ${lastStop})`;
+        row.appendChild(cType);
+
+        let cUtil= document.createElement('td');
+        cUtil.textContent= obj.partialUsage+'%';
+        row.appendChild(cUtil);
+
+        tableBody.appendChild(row);
+      });
+      // 行點擊 => detail
+      document.querySelectorAll('#train-utilization-table tbody tr').forEach(tr => {
+        tr.addEventListener('click', ()=>{
+          let tn= tr.dataset.trainNumber;
+          let train= trainSchedule[tn];
+          let modalTbody= document.querySelector('#modal-table tbody');
+          modalTbody.innerHTML='';
+
+          train['車站時間'].forEach(st=>{
+            let stationRow= document.createElement('tr');
+            let stCell= document.createElement('td');
+            stCell.textContent= st[0];
+            stationRow.appendChild(stCell);
+
+            let timeCell= document.createElement('td');
+            timeCell.textContent= st[1];
+            stationRow.appendChild(timeCell);
+
+            let stUtil= calculateStationUtilizationRate(train, st[0], st[1]);
+            let utilCell= document.createElement('td');
+            utilCell.textContent= stUtil;
+            stationRow.appendChild(utilCell);
+
+            modalTbody.appendChild(stationRow);
+          });
+          myModal.style.display='block';
+        });
+      });
+      generateStatistics(); // 更新統計
+    });
+
+    function calcPartialUsage(train, startIdx, endIdx) {
+      let partialCap= stationMaxCapacities[train['車種']]||110;
+      let partialLoad= 0;
+      for(let i=0;i<3;i++){
+        let routeLoad=0;
+        for(let j=startIdx;j<=endIdx;j++){
+          let stName= train['車站時間'][j][0];
+          let stTime= train['車站時間'][j][1];
+          let tWeight= calculateTimeWeight(stTime);
+          let pWeight= popularityWeights[train['車種']]||1;
+          let rnd= getRandomFactor(train['車種']);
+          routeLoad += ((stationDensity[stName]||0)* tWeight* pWeight)*(1+rnd);
+        }
+        routeLoad= routeLoad/(endIdx - startIdx+1);
+        partialLoad += routeLoad;
+      }
+      let avgLoad= partialLoad/3;
+      let usage= Math.min(Math.max((avgLoad/ partialCap)*50,0),100);
+      return usage.toFixed(2);
+    }
+
+    /* 統計表 (#statistics-table) */
+    function generateStatistics(){
+      let rows= document.querySelectorAll('#train-utilization-table tbody tr');
+      let statsTotal= document.getElementById('stats-total');
+      let statsAvg= document.getElementById('stats-average');
+      let statsMax= document.getElementById('stats-max');
+      let statsMin= document.getElementById('stats-min');
+
+      if(rows.length===0){
+        statsTotal.textContent= '0';
+        statsAvg.textContent= '0%';
+        statsMax.textContent= '0%';
+        statsMin.textContent= '0%';
+        return;
+      }
+
+      let usageArr=[];
+      rows.forEach(r=>{
+        let val= parseFloat(r.cells[2].textContent);
+        if(!isNaN(val)) usageArr.push(val);
+      });
+      let total= usageArr.length;
+      let sum= usageArr.reduce((a,b)=>a+b,0);
+      let avg= (sum/total).toFixed(2) +'%';
+      let maxVal= Math.max(...usageArr).toFixed(2)+'%';
+      let minVal= Math.min(...usageArr).toFixed(2)+'%';
+
+      statsTotal.textContent= total;
+      statsAvg.textContent= avg;
+      statsMax.textContent= maxVal;
+      statsMin.textContent= minVal;
+    }
+
+    (function init(){
+      // 顯示全部
+      populateTrainTable();
+      sortTable();
+      // 建立 "區間查詢" 下拉 => 使用 stations(原順序)
+      initStations();
+    })();
+
+    function initStations(){
+      // stations 是在 js/train-schedule.js 中 (原順序)
+      // 例如: var stations=[ '臺北','板橋','桃園','新竹'... ];
+      stations.forEach(st=>{
+        let opt1= document.createElement('option');
+        opt1.value= st;
+        opt1.textContent= st;
+        startStation.add(opt1.cloneNode(true));
+        endStation.add(opt1);
+      });
+    }
+  </script>
+</body>
+</html>

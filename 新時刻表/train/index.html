@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>鐵道服務總覽｜智慧旅遊中心</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../assets/css/global.css" />
+  <script defer src="../assets/js/site.js"></script>
+</head>
+<body data-base-path=".." data-section="train" data-page="overview">
+  <main class="page-content">
+    <section class="hero">
+      <div>
+        <span class="badge">Rail Insights</span>
+        <h1>一站式的鐵道資訊與分析儀表板</h1>
+        <p>從時刻查詢、車站運量到列車運用率，全方位掌握台鐵與高鐵的服務脈動，並提供即時看板、延誤資訊與乘車建議。</p>
+        <div class="tag-group">
+          <span class="tag">即時時刻</span>
+          <span class="tag">站點資訊</span>
+          <span class="tag">營運分析</span>
+          <span class="tag">AI 排程</span>
+        </div>
+      </div>
+      <div class="card" style="gap:1.2rem;">
+        <h3>熱門工具</h3>
+        <div class="input-group">
+          <label for="rail-tool">選擇功能</label>
+          <select id="rail-tool">
+            <option value="timetable.html">綜合時刻表</option>
+            <option value="index-tra.html">台鐵即時查詢</option>
+            <option value="index-thsr.html">高鐵時刻專區</option>
+            <option value="train-info.html">到站資訊看板</option>
+            <option value="index.trainrate.html">運量與運用率</option>
+          </select>
+          <button class="btn-primary" type="button" id="rail-tool-go">開啟功能</button>
+        </div>
+        <p class="section-lead" style="font-size:0.85rem;">支援搜尋收藏、匯出排程、動態運轉圖、轉乘建議等進階功能，適合旅客與鐵道迷。</p>
+      </div>
+    </section>
+
+    <section>
+      <div class="section-title">核心查詢</div>
+      <p class="section-lead">快速通往各項查詢工具，掌握即時列車資訊並比對不同車種、時段與班距。</p>
+      <div class="card-grid" style="margin-top:1.5rem;">
+        <article class="card">
+          <h2>綜合時刻表</h2>
+          <p>整合台鐵與高鐵，提供智慧排序、尖峰推薦、加載轉乘提示與列車追蹤。</p>
+          <div class="actions"><a href="timetable.html">進入查詢</a></div>
+        </article>
+        <article class="card">
+          <h2>高鐵專區</h2>
+          <p>提供高鐵各式查詢與站點資訊，包括快速版、轉乘指南與各站營運數據。</p>
+          <div class="actions"><a href="index-thsr.html">高鐵時刻</a></div>
+        </article>
+        <article class="card">
+          <h2>台鐵專區</h2>
+          <p>依區間、車種、票種與營運資訊進行篩選，支援延誤與調度公告。</p>
+          <div class="actions"><a href="index-tra.html">台鐵工具箱</a></div>
+        </article>
+      </div>
+    </section>
+
+    <section class="grid-two">
+      <article class="card">
+        <h3>營運觀測</h3>
+        <p>透過運量、準點率與評分系統，洞察不同路線的服務品質，為調整行程提供參考。</p>
+        <div class="tag-group">
+          <span class="tag">運量資料庫</span>
+          <span class="tag">搭乘評價</span>
+          <span class="tag">歷史比較</span>
+        </div>
+        <div class="actions"><a href="index.trainrate.html">查看分析</a></div>
+      </article>
+      <article class="card">
+        <h3>車站資訊</h3>
+        <p>即時看板顯示進出站列車、站內設施與無障礙動線，支援多種顯示模式與語言。</p>
+        <div class="actions"><a href="train-info.html">查看看板</a></div>
+      </article>
+    </section>
+
+    <section class="panel">
+      <h2>開發中的新功能</h2>
+      <p class="section-lead">我們正準備加入更多智慧服務，歡迎體驗測試版並提供回饋。</p>
+      <div class="data-grid" style="margin-top:1.25rem;">
+        <div class="stat">
+          <span class="value">AI</span>
+          <span class="label">動態排點建議</span>
+        </div>
+        <div class="stat">
+          <span class="value">AR</span>
+          <span class="label">車站導覽</span>
+        </div>
+        <div class="stat">
+          <span class="value">LIVE</span>
+          <span class="label">沿線影像串流</span>
+        </div>
+        <div class="stat">
+          <span class="value">API</span>
+          <span class="label">開放資料服務</span>
+        </div>
+      </div>
+    </section>
+  </main>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const select = document.getElementById('rail-tool');
+      const go = document.getElementById('rail-tool-go');
+      go.addEventListener('click', () => {
+        const value = select.value;
+        if (value) {
+          window.location.href = value;
+        }
+      });
+    });
+  </script>
+</body>
+</html>

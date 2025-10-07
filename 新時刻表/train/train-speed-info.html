@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Train Information Chart</title>
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+      background-color: #f4f4f4;
+    }
+
+    .container {
+      max-width: 800px;
+      margin: 20px auto;
+      background-color: #fff;
+      padding: 20px;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    }
+
+    .header {
+      background-color: #333;
+      color: #fff;
+      padding: 10px 0;
+      text-align: center;
+    }
+
+    .header h1 {
+      margin: 0;
+      font-size: 28px;
+    }
+
+    .header nav {
+      margin-top: 10px;
+    }
+
+    .header nav a {
+      color: #fff;
+      text-decoration: none;
+      font-size: 16px;
+      margin: 0 15px;
+    }
+
+    .header nav a:hover {
+      text-decoration: underline;
+    }
+
+h1 {
+    color: #ffffff;
+    text-align: center;
+    margin-bottom: 40px;
+    font-weight: 300;
+    letter-spacing: 1px;
+}
+
+    .station-selection {
+      margin-bottom: 20px;
+    }
+
+    .train-info {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .current-info {
+      margin-bottom: 20px;
+    }
+
+    .next-train-marquee {
+      overflow: hidden;
+      white-space: nowrap;
+      border: 1px solid #ddd;
+      padding: 8px;
+      margin-bottom: 20px;
+    }
+
+    .next-train-marquee p {
+  display: inline-block;
+  margin: 0;
+  animation: marquee 20s linear infinite; /* 將 duration 設置為一個固定值 */
+}
+
+@keyframes marquee {
+  from { transform: translateX(100%); }
+  to { transform: translateX(-100%); }
+}
+
+
+    
+
+    @keyframes bounce {
+      0%, 20%, 50%, 80%, 100% { transform: translateY(0); }
+      40% { transform: translateY(-15px); }
+      60% { transform: translateY(-10px); }
+    }
+
+    .train-info-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+    }
+
+    .train-info-table th, .train-info-table td {
+      border: 1px solid #ddd;
+      padding: 8px;
+      text-align: center;
+    }
+
+    .train-info-table th {
+      background-color: #f2f2f2;
+    }
+
+    .no-train-info {
+      font-style: italic;
+    }
+
+/* 在你的 CSS 中加入這段樣式 */
+
+.departure-ball {
+  display: none;
+  width: 10px;
+  height: 10px;
+  background-color: red;
+  border-radius: 50%;
+  margin-right: 5px; /* 調整紅色小球和車次之間的距離 */
+}
+
+
+
+@keyframes flash {
+   100% {
+    color: red; /* 開始和結束時的顏色 */
+  }
+ 
+}
+
+
+  </style>
+  <link rel="stylesheet" href="../assets/css/global.css" />
+  <script defer src="../assets/js/site.js"></script>
+</head>
+<body data-base-path=".." data-section="train" data-page="board">
+  <div class="header">  <h1>台灣高鐵列車資訊板</h1> <nav>
+  <a href="index.html"><strong><font size="3">台鐵時刻表</font></strong></a>
+  <a href="index-tra.html"><strong><font size="3">台鐵時刻表(專用)</font></strong></a>
+  <a href="index-speed.html"><strong><font size="3">高鐵時刻表</font></strong></a>
+  <a href="index-thsr.transfer.html"><strong><font size="3">高鐵轉乘時刻表</font></strong></a>
+  <a href="index-thsr.html"><strong><font size="3">高鐵時刻表(專用)</font></strong></a>
+  <a href="train-speed-info.html"><strong><font size="3">高鐵車站資訊板</font></strong></a>
+  <a href="train-speed-info4.html"><strong><font size="3">高鐵多站車站資訊板</font></strong></a>
+  <a href="speed-people.html"><strong><font size="3">高鐵運量查詢</font></strong></a>
+</nav></div>
+<div class="container">
+  <div class="header">
+  
+  </div>
+
+  <div class="station-selection">
+    <label for="station">選擇車站：</label>
+    <select id="station"></select>
+  </div>
+  <div class="direction-filter">
+    <label for="direction">選擇方向：</label>
+    <select id="direction">
+      <option value="north">北上</option>
+      <option value="south">南下</option>
+    </select>
+  </div>
+  <div class="train-info">
+    <div class="current-info">
+      <h2 id="current-time"></h2>
+      <h3 id="current-station"></h3>
+    </div>
+
+    <table class="train-info-table" id="upcoming-trains">
+      <thead>
+        <tr>
+          <th>車次</th>
+          <th>行駛日</th>
+          <th>開往</th>
+          <th>開車時間</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+
+    <div id="ball-container"></div>
+
+    <div class="next-train-marquee">
+      <p id="next-train-marquee"></p>
+    </div>
+  </div>
+</div>
+
+<script src="js/train-speed-schedule.js"></script>
+
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    const currentTimeElement = document.getElementById("current-time");
+    const currentStationElement = document.getElementById("current-station");
+    const upcomingTrainsTable = document.getElementById("upcoming-trains");
+    const nextTrainMarqueeElement = document.getElementById("next-train-marquee");
+    const stationSelect = document.getElementById("station");
+    const ballContainer = document.getElementById("ball-container");
+  
+    function generateStationOptions() {
+      var stationSelect = document.getElementById('station');
+  
+      for (var i = 0; i < stations.length; i++) {
+        var option = document.createElement('option');
+        option.value = stations[i];
+        option.text = stations[i];
+        stationSelect.add(option);
+      }
+    }
+  
+    generateStationOptions();
+  
+    function updateTrainInfo() {
+    const now = new Date();  
+    const currentHours = now.getHours().toString().padStart(2, '0');
+    const currentMinutes = now.getMinutes().toString().padStart(2, '0');
+    const currentSeconds = now.getSeconds().toString().padStart(2, '0');
+    const formattedCurrentTime = `${currentHours}:${currentMinutes}:${currentSeconds}`;
+    const directionSelect = document.getElementById("direction");
+  
+  
+    const selectedStation = stationSelect.value;
+    const selectedDirection = directionSelect.value;
+  
+    const nextTrain = findNextTrain(selectedStation, formattedCurrentTime, selectedDirection); // 使用修改後的 findNextTrain 函式
+  
+    currentTimeElement.textContent = formattedCurrentTime;
+  
+    upcomingTrainsTable.querySelector('tbody').innerHTML = "";
+  
+    for (let i = 0; i < 5; i++) {
+      const train = nextTrain[i];
+      const tbody = upcomingTrainsTable.querySelector('tbody');
+  
+      if (train) {
+        const row = tbody.insertRow();
+        const trainNumberCell = row.insertCell(0);
+        const trainTypeCell = row.insertCell(1);
+        const destinationCell = row.insertCell(2);
+        const timeCell = row.insertCell(3);
+  
+        trainNumberCell.innerHTML = `<span class="departure-ball"></span>${train.trainNumber}`;
+  
+        if (isTrainUpcoming(train.time) && isWithinThreeMinutes(train.time)) {
+          trainNumberCell.querySelector(".departure-ball").style.display = "inline-block";
+          trainNumberCell.classList.add("flashing-text");
+        } else {
+          trainNumberCell.querySelector(".departure-ball").style.display = "none";
+          trainNumberCell.classList.remove("flashing-text");
+        }
+  
+        trainTypeCell.innerHTML = getTrainTypeWithColor(train.trainType);
+        destinationCell.textContent = train.destination;
+        timeCell.textContent = train.time;
+      } else {
+        const row = tbody.insertRow();
+        const cell = row.insertCell(0);
+        cell.colSpan = 4;
+        cell.classList.add("no-train-info");
+        cell.textContent = "本日已無列車";
+        break;
+      }
+    }
+  
+    const upcomingStations = getUpcomingStations(selectedStation, nextTrain[0]);
+    const stopsText = upcomingStations.length > 0 ? '本列車沿途停靠：' + upcomingStations.join('、') : '本站為終點站。';
+  
+    if (!upcomingStations.includes(nextTrain[0].destination)) {
+      upcomingStations.push(nextTrain[0].destination);
+    }
+  
+    nextTrainMarqueeElement.innerHTML = `${nextTrain[0].time} 開往 ${nextTrain[0].destination} 的 ${nextTrain[0].trainNumber} 次 ${getTrainTypeWithColor(nextTrain[0].trainType)} 即將進站，${stopsText}`;
+  }
+  
+  
+  const directionSelect = document.getElementById("direction"); // 新增取得選擇方向的元素
+  directionSelect.addEventListener("change", updateTrainInfo); // 新增監聽選擇方向的事件
+  
+  
+  function getUpcomingStations(currentStation, train) {
+    const stationTimes = trainSchedule[train.trainNumber]["車站時間"];
+    const stationIndex = stationTimes.findIndex(entry => entry[0] === currentStation);
+  
+    if (stationIndex !== -1 && stationIndex < stationTimes.length - 1) {
+      const upcomingStations = [];
+      for (let i = stationIndex + 1; i < stationTimes.length; i++) {
+        upcomingStations.push(stationTimes[i][0]);
+      }
+      return upcomingStations;
+    }
+  
+    return [];
+  }
+  
+  
+    stationSelect.addEventListener("change", updateTrainInfo);
+  
+    // 初始執行
+    setInterval(() => updateTrainInfo(), 1000);
+  
+    function findNextTrain(selectedStation, currentTime, selectedDirection) {
+    const nextTrainList = [];
+  
+    for (const trainNumber in trainSchedule) {
+      const stationTimes = trainSchedule[trainNumber]["車站時間"];
+      const stationIndex = stationTimes.findIndex(entry => entry[0] === selectedStation);
+  
+      if (stationIndex !== -1) {
+        const departureTime = stationTimes[stationIndex][1];
+        const destination = stationTimes[stationTimes.length - 1][0];
+  
+        if (compareTime(currentTime, departureTime) < 0) {
+          // 根據選擇的方向和奇偶車次篩選列車
+          if ((selectedDirection === "north" && parseInt(trainNumber) % 2 === 0) || (selectedDirection === "south" && parseInt(trainNumber) % 2 !== 0)) {
+            nextTrainList.push({
+              trainNumber: trainNumber,
+              trainType: trainSchedule[trainNumber]["車種"],
+              destination: destination,
+              time: departureTime,
+            });
+  
+            if (destination !== selectedStation && !nextTrainList.some(train => train.destination === destination)) {
+              nextTrainList.push({
+                trainNumber: trainNumber,
+                trainType: trainSchedule[trainNumber]["車種"],
+                destination: destination,
+                time: getDepartureTimeForStation(trainNumber, destination),
+              });
+            }
+          }
+        }
+      }
+    }
+  
+    nextTrainList.sort((a, b) => compareTime(a.time, b.time));
+  
+    return nextTrainList.slice(0, 5);
+  }
+  
+  
+  
+    function compareTime(time1, time2) {
+      const [hours1, minutes1, seconds1] = time1.split(":").map(Number);
+      const [hours2, minutes2, seconds2] = time2.split(":").map(Number);
+  
+      if (hours1 !== hours2) {
+        return hours1 - hours2;
+      } else if (minutes1 !== minutes2) {
+        return minutes1 - minutes2;
+      } else {
+        return seconds1 - seconds2;
+      }
+    }
+  
+    function getDepartureTimeForStation(trainNumber, station) {
+      const stationTimes = trainSchedule[trainNumber]["車站時間"];
+      const stationIndex = stationTimes.findIndex(entry => entry[0] === station);
+  
+      if (stationIndex !== -1 && stationIndex < stationTimes.length - 1) {
+        return stationTimes[stationIndex][1];
+      }
+  
+      return null;
+    }
+  
+    function isTrainUpcoming(departureTime) {
+      const now = new Date();
+      const [hours, minutes, seconds] = departureTime.split(':').map(Number);
+      const departureDateTime = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hours, minutes, seconds);
+      const timeDifference = departureDateTime - now;
+      const minutesDifference = Math.floor((timeDifference % (1000 * 60 * 60)) / (1000 * 60));
+  
+      return minutesDifference <= 3 && minutesDifference >= 0;
+    }
+  
+    function getTrainTypeWithColor(trainType) {
+      var color = '';
+  
+      switch (trainType) {
+          case '每日行駛':
+          color = '#8600FF';
+          break;
+        case '六行駛':
+          color = '#FF1493'; // Deep Pink
+          break;
+        case '日行駛':
+          color = 'red';
+          break;
+        case '四行駛':
+          color = 'orange';
+          break;
+        case '五行駛':
+          color = 'green';
+          break;
+        default:
+          color = 'black';
+      }
+  
+      return `<span style="color: ${color};">${trainType}</span>`;
+    }
+  });
+  </script>
+  
+
+</body>
+</html>
