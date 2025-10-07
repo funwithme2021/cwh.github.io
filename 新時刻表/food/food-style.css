@@ -1,225 +1,108 @@
-/* ================== RESET & BASE ================== */
-* {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
-  }
-  body {
-    font-family: 'Noto Sans TC', 'Helvetica Neue', Arial, sans-serif;
-    color: #1f2933;
-    background: transparent;
-  }
-  
-  /* ================== NAVBAR ================== */
-  .navbar {
-    display: none;
-  }
-  
-  /* ================== HEADER & FOOTER ================== */
-  header {
-    display: none;
-  }
-  footer {
-    display: none;
-  }
-  
-  /* ================== CONTAINER ================== */
-  .container {
-    width: 100%;
-    max-width: none;
-    background: transparent;
-    box-shadow: none;
-    padding: 0;
-  }
-  
-  /* ================== TRANSLATE BAR ================== */
-  .translate-bar {
-    text-align: right;
-    margin-bottom: 10px;
-  }
-  
-  /* ================== SEARCH SECTION ================== */
-  .search-section h2 {
-    font-size: 18px;
-    margin-bottom: 10px;
-    color: #004080;
-  }
-  .search-section .row {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 12px;
-    margin-bottom: 10px;
-  }
-  .radio-group {
-    display: flex;
-    gap: 10px;
-    margin-bottom: 8px;
-  }
-  label {
-    font-size: 14px;
-    margin-right: 5px;
-  }
-  select, input[type="text"] {
-    font-size: 14px;
-    padding: 4px 8px;
-    border: 1px solid #ccc;
-    border-radius: 4px;
-    min-width: 120px;
-  }
-  button {
-    padding: 6px 14px;
-    border: none;
-    border-radius: 4px;
-    font-size: 14px;
-    cursor: pointer;
-    background: #0080ff;
-    color: #fff;
-  }
-  button:hover {
-    background: #006ad1;
-  }
-  
-  /* ================== TABLE ================== */
-  .table-container {
-    margin-top: 20px;
-    overflow-x: auto;
-  }
-  table {
-    width: 100%;
-    border-collapse: collapse;
-    min-width: 600px;
-  }
-  thead {
-    background: #f7f7f7;
-  }
-  th, td {
-    padding: 10px;
-    border-bottom: 1px solid #ddd;
-    text-align: left;
-    white-space: nowrap;
-  }
-  th {
-    font-weight: 600;
-    color: #444;
-  }
-  tr:hover td {
-    background: #fafafa;
-  }
-  .text-center {
-    text-align: center;
-  }
-  .score-td {
-    font-weight: bold;
-    cursor: pointer;
-    transition: transform 0.1s;
-    color: #004080;
-  }
-  .score-td:hover {
-    transform: scale(1.05);
-  }
-  
-  /* 使「店家名稱連結」看起來像普通文字 */
-  .table-container a {
-    text-decoration: none;
-    color: inherit;
-  }
-  .table-container a:hover {
-    text-decoration: none;
-    color: inherit;
-  }
-  
-  /* ================== PAGINATION ================== */
-  .pagination {
-    margin-top: 10px;
-    text-align: center;
-  }
-  .pagination button {
-    margin: 0 5px;
-    background: #cccccc;
-    color: #333;
-  }
-  .pagination button:hover {
-    background: #999999;
-  }
-  
-  /* ================== DETAIL POPUP ================== */
-  .detail-popup {
-    position: absolute;
-    background: #fff;
-    border: 1px solid #ccc;
-    border-radius: 6px;
-    padding: 12px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-    display: none;
-    z-index: 999;
-  }
-  .detail-popup h4 {
-    margin-bottom: 8px;
-    font-size: 16px;
-    color: #004080;
-    text-align: center;
-  }
-  .detail-list {
-    list-style: none;
-    padding: 0;
-    margin-bottom: 6px;
-  }
-  .detail-list li {
-    margin-bottom: 4px;
-  }
-  .close-popup {
-    display: block;
-    margin: 0 auto;
-    padding: 5px 10px;
-    background: #cccccc;
-    color: #333;
-    text-align: center;
-    border-radius: 4px;
-    font-size: 13px;
-    cursor: pointer;
-    border: none;
-  }
-  .close-popup:hover {
-    background: #999999;
-  }
-  
-  /* ================== GRADE COLOR EXAMPLE ================== */
-  .grade-color-App { color: #ff0000; }
-  .grade-color-Ap  { color: #d02f2f; }
-  .grade-color-A   { color: #ff9900; }
-  .grade-color-Bpp { color: #669900; }
-  .grade-color-Bp  { color: #33a02c; }
-  .grade-color-B   { color: #1f78b4; }
-  .grade-color-C   { color: #6a3d9a; }
-  .grade-color-F   { color: #777777; }
-  
-  /* ================== MEDIA QUERY (RWD) ================== */
-  @media (max-width: 768px) {
-    .search-section .row {
-      flex-direction: column;
-      align-items: flex-start;
-    }
-    table, th, td {
-      font-size: 13px;
-    }
-  }
-  /* 在 food-style.css 最後面或適當位置加入 */
-.info-card {
-    background: #fafafa;
-    border: 1px solid #eee;
-    border-radius: 6px;
-    padding: 15px;
-    margin-bottom: 12px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
-  }
-  .info-card h3 {
-    margin-bottom: 8px;
-    font-size: 16px;
-    color: #444;
-  }
-  .info-card ul {
-    list-style-type: disc;
-    margin-left: 20px;
-  }
-  
+/* 美食模組專用輔助樣式 */
+
+.grade-color-App { color: #d62839; font-weight: 700; }
+.grade-color-Ap  { color: #f95738; font-weight: 700; }
+.grade-color-A   { color: #f4a261; font-weight: 700; }
+.grade-color-Bpp { color: #2a9d8f; font-weight: 700; }
+.grade-color-Bp  { color: #2b8a6d; font-weight: 700; }
+.grade-color-B   { color: #277da1; font-weight: 700; }
+.grade-color-C   { color: #6a4c93; font-weight: 700; }
+.grade-color-F   { color: #6d6d6d; font-weight: 700; }
+
+.table-container {
+  width: 100%;
+  overflow-x: auto;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+  background: rgba(255, 255, 255, 0.92);
+}
+
+body.dark .table-container {
+  background: rgba(18, 24, 39, 0.82);
+}
+
+.table-container table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 720px;
+}
+
+.table-container th,
+.table-container td {
+  padding: 0.85rem 1rem;
+  border-bottom: 1px solid rgba(161, 174, 209, 0.28);
+  text-align: left;
+}
+
+.table-container th {
+  background: rgba(255, 160, 102, 0.16);
+  color: #d8551f;
+  font-weight: 700;
+}
+
+.table-container tr:hover td {
+  background: rgba(255, 160, 102, 0.1);
+}
+
+.detail-popup {
+  position: fixed;
+  background: rgba(255, 255, 255, 0.96);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+  padding: 1.2rem 1.5rem;
+  display: none;
+  z-index: 1200;
+  min-width: 240px;
+}
+
+body.dark .detail-popup {
+  background: rgba(14, 20, 32, 0.96);
+  color: #f8f9ff;
+}
+
+.detail-popup h4 {
+  margin-top: 0;
+  margin-bottom: 0.75rem;
+}
+
+.detail-popup ul {
+  margin: 0 0 1rem 1rem;
+  padding: 0;
+}
+
+.detail-popup button {
+  border: none;
+  border-radius: var(--radius-sm);
+  background: rgba(27, 77, 228, 0.16);
+  color: var(--brand);
+  padding: 0.45rem 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.detail-popup button:hover,
+.detail-popup button:focus-visible {
+  background: rgba(27, 77, 228, 0.26);
+}
+
+.pagination {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.pagination button {
+  border: none;
+  border-radius: var(--radius-sm);
+  background: rgba(27, 77, 228, 0.16);
+  color: var(--brand);
+  font-weight: 600;
+  padding: 0.45rem 0.9rem;
+  cursor: pointer;
+}
+
+.pagination button:hover,
+.pagination button:focus-visible {
+  background: rgba(27, 77, 228, 0.26);
+}

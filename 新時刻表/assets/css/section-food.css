@@ -1,0 +1,312 @@
+.page-content .food-hero {
+  background: linear-gradient(135deg, rgba(255, 130, 92, 0.14), rgba(255, 210, 150, 0.18));
+  border-radius: var(--radius-lg);
+  padding: 2rem;
+  box-shadow: var(--shadow);
+  display: grid;
+  gap: 1.6rem;
+}
+
+body.dark .food-hero {
+  background: linear-gradient(135deg, rgba(255, 166, 120, 0.25), rgba(255, 214, 170, 0.18));
+}
+
+.food-hero h1 {
+  margin: 0;
+  font-size: clamp(1.8rem, 3vw, 2.4rem);
+}
+
+.food-hero p {
+  margin: 0;
+  color: var(--text-muted);
+}
+
+.food-hero .highlight-grid {
+  display: grid;
+  gap: 0.9rem;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.food-highlight {
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.85);
+  padding: 1rem 1.2rem;
+  box-shadow: var(--shadow);
+  display: grid;
+  gap: 0.35rem;
+}
+
+body.dark .food-highlight {
+  background: rgba(10, 16, 26, 0.85);
+}
+
+.food-highlight span.label {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+
+.food-highlight span.value {
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+
+.food-panel {
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+  padding: 1.75rem;
+  display: grid;
+  gap: 1.25rem;
+}
+
+body.dark .food-panel {
+  background: var(--surface-dark);
+  box-shadow: 0 22px 48px rgba(0, 0, 0, 0.42);
+}
+
+.food-panel header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.food-panel header h2 {
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+.food-panel header p {
+  margin: 0;
+  color: var(--text-muted);
+  max-width: 46rem;
+}
+
+.filter-grid {
+  display: grid;
+  gap: 0.9rem;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.filter-actions {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.filter-actions button {
+  min-width: 160px;
+}
+
+.food-table {
+  width: 100%;
+  border-collapse: collapse;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: var(--shadow);
+}
+
+body.dark .food-table {
+  background: rgba(18, 24, 39, 0.82);
+}
+
+.food-table th,
+.food-table td {
+  padding: 0.8rem 1rem;
+  border-bottom: 1px solid rgba(161, 174, 209, 0.28);
+  text-align: left;
+}
+
+.food-table th {
+  background: rgba(255, 160, 102, 0.16);
+  color: #d8551f;
+  font-weight: 700;
+}
+
+.food-table tbody tr:hover {
+  background: rgba(255, 160, 102, 0.12);
+}
+
+.table-responsive {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.food-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.3rem 0.65rem;
+  border-radius: var(--radius-sm);
+  background: rgba(255, 160, 102, 0.18);
+  color: #d8551f;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.food-stats {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+}
+
+.stat-card {
+  border-radius: var(--radius-md);
+  padding: 1rem 1.1rem;
+  background: rgba(27, 77, 228, 0.08);
+  display: grid;
+  gap: 0.3rem;
+}
+
+body.dark .stat-card {
+  background: rgba(27, 77, 228, 0.16);
+}
+
+.stat-card span.value {
+  font-size: 1.3rem;
+  font-weight: 700;
+}
+
+.stat-card span.label {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.map-layout {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: minmax(240px, 320px) 1fr;
+}
+
+@media (max-width: 960px) {
+  .map-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.map-panel {
+  border-radius: var(--radius-lg);
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: var(--shadow);
+  padding: 1.25rem;
+  display: grid;
+  gap: 1rem;
+}
+
+body.dark .map-panel {
+  background: rgba(12, 17, 28, 0.88);
+}
+
+.story-grid {
+  display: grid;
+  gap: 1.25rem;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+
+.story-card {
+  border-radius: var(--radius-lg);
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: var(--shadow);
+  padding: 1.4rem;
+  display: grid;
+  gap: 0.75rem;
+}
+
+body.dark .story-card {
+  background: rgba(15, 19, 30, 0.88);
+}
+
+.story-card h3 {
+  margin: 0;
+  font-size: 1.15rem;
+}
+
+.story-card p {
+  margin: 0;
+  color: var(--text-muted);
+  line-height: 1.7;
+}
+
+.story-card ul {
+  margin: 0;
+  padding-left: 1.1rem;
+  color: var(--text-muted);
+}
+
+.story-card .tag-group {
+  margin-top: auto;
+}
+
+.chart-grid {
+  display: grid;
+  gap: 1.5rem;
+}
+
+.chart-card {
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+  background: rgba(255, 255, 255, 0.94);
+  padding: 1.4rem;
+  display: grid;
+  gap: 1rem;
+}
+
+body.dark .chart-card {
+  background: rgba(18, 24, 39, 0.85);
+}
+
+.chart-card header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.chart-card header h3 {
+  margin: 0;
+}
+
+.chart-card header p {
+  margin: 0;
+  color: var(--text-muted);
+}
+
+.chart-card figure {
+  margin: 0;
+}
+
+.legend-list {
+  display: grid;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.city-chart-container {
+  position: relative;
+  min-height: 320px;
+}
+
+.city-chart-canvas {
+  display: none;
+  width: 100% !important;
+  height: 320px !important;
+}
+
+.city-chart-canvas.active {
+  display: block;
+}
+
+.food-pagination {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  font-size: 0.85rem;
+}
+
+.food-pagination button {
+  min-width: 120px;
+}
