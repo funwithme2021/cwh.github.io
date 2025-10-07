@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>列車訂票系統</title>
+  
+  <!-- Google Fonts 引入 -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <!-- 建議可換成您喜歡的其他字體 -->
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700&display=swap" rel="stylesheet">
+
+  <style>
+    /* ===== Reset & Basic Style ===== */
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      font-family: 'Noto Sans TC', sans-serif;
+    }
+    body {
+      background: linear-gradient(to right, #74ABE2, #5563DE);
+    }
+    h1, h2, p {
+      margin: 0;
+      padding: 0;
+    }
+
+    /* ===== Container & Card ===== */
+    .container {
+      max-width: 900px;
+      margin: 40px auto;
+      background: #ffffffdd;
+      padding: 20px 30px;
+      border-radius: 12px;
+      box-shadow: 0 6px 16px rgba(0,0,0,0.2);
+    }
+    .form-card {
+      background: #ffffff;
+      padding: 20px;
+      margin-bottom: 30px;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    .section-title {
+      text-align: center;
+      margin-bottom: 20px;
+      color: #333;
+      font-weight: 700;
+      font-size: 1.5rem;
+    }
+
+    /* ===== Form & Inputs ===== */
+    .form-section {
+      margin-bottom: 20px;
+    }
+    label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 700;
+      color: #333;
+    }
+    select, input[type="date"], input[type="number"], input[type="time"], input[type="text"] {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 14px;
+      margin-bottom: 10px;
+      transition: border-color 0.2s;
+    }
+    select:focus,
+    input[type="date"]:focus,
+    input[type="number"]:focus,
+    input[type="time"]:focus,
+    input[type="text"]:focus {
+      outline: none;
+      border-color: #5563DE;
+    }
+    .radio-group {
+      display: flex;
+      gap: 20px;
+      margin-top: 8px;
+    }
+    .radio-group label {
+      font-weight: normal;
+      color: #555;
+    }
+
+    /* ===== Button ===== */
+    button {
+      display: inline-block;
+      padding: 12px 20px;
+      background-color: #5563DE;
+      color: #fff;
+      font-size: 16px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background-color 0.3s;
+      font-weight: 700;
+    }
+    button:hover {
+      background-color: #2f3b90;
+    }
+
+    /* ===== Table ===== */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+      background: #fff;
+      border-radius: 6px;
+      overflow: hidden;
+    }
+    th, td {
+      padding: 12px;
+      text-align: left;
+      border-bottom: 1px solid #eee;
+      font-size: 14px;
+      color: #333;
+    }
+    thead {
+      background: #f7f7f7;
+    }
+    tbody tr:hover {
+      background: #fafafa;
+    }
+
+    /* ===== Misc ===== */
+    .hidden {
+      display: none;
+    }
+    .no-seats {
+      color: #d9534f;
+      font-weight: 700;
+    }
+    .results-section h2 {
+      margin-top: 10px;
+      color: #333;
+      font-weight: 700;
+      font-size: 1.3rem;
+      text-align: center;
+    }
+    .confirmation {
+      max-width: 600px;
+      margin: 40px auto;
+      background: #fff;
+      padding: 20px;
+      border-radius: 8px;
+      text-align: center;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+    .confirmation h1 {
+      margin-bottom: 16px;
+      color: #333;
+    }
+    .confirmation button {
+      margin-top: 20px;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <h1 style="text-align:center; color:#fff; margin-bottom:20px;">
+      列車訂票系統
+    </h1>
+
+    <!-- Booking Form -->
+    <div class="form-card">
+      <h2 class="section-title">線上訂票</h2>
+      <form id="booking-form">
+        <div class="form-section">
+          <label for="departure-station">出發站:</label>
+          <select id="departure-station" required></select>
+
+          <label for="arrival-station">抵達站:</label>
+          <select id="arrival-station" required></select>
+        </div>
+
+        <div class="form-section">
+          <label for="date">日期:</label>
+          <input type="date" id="date" required />
+
+          <label for="ticket-quantity">張數:</label>
+          <input type="number" id="ticket-quantity" min="1" value="1" required />
+        </div>
+
+        <div class="form-section">
+          <label>訂票方式:</label>
+          <div class="radio-group">
+            <label><input type="radio" name="booking-method" value="train-number" required/> 依車次</label>
+            <label><input type="radio" name="booking-method" value="time-slot" required/> 依時段</label>
+          </div>
+        </div>
+
+        <div id="train-number-section" class="hidden">
+          <label for="train-number">車次:</label>
+          <input type="text" id="train-number" placeholder="輸入車次" />
+        </div>
+
+        <div id="time-slot-section" class="hidden">
+          <label for="start-time">時段(起):</label>
+          <input type="time" id="start-time" />
+
+          <label for="end-time">時段(迄):</label>
+          <input type="time" id="end-time" />
+        </div>
+
+        <button type="submit">查詢</button>
+      </form>
+    </div>
+
+    <!-- Search Results -->
+    <div id="results-section" class="hidden results-section">
+      <h2>可訂票列車</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>車次</th>
+            <th>車種</th>
+            <th>行駛區間</th>
+            <th>出發時間</th>
+            <th>抵達時間</th>
+            <th>運用率</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody id="results-table-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- 假設 train-schedule.js 裡面定義了 trainSchedule 物件，請自行引入 -->
+  <script src="train-schedule.js"></script>
+  <script>
+    /***** 1. 基本參數設定 *****/
+    // 各車種最大載客數
+    var stationMaxCapacities = {
+      '新自強': 638,
+      '普悠瑪': 406,
+      '自強號(新)': 906,
+      '自強號': 866,
+      '莒光號': 1000,
+      '復興號': 1000,
+      '區間快': 1700,
+      '區間車': 1700,
+      '加班車': 638,
+    };
+
+    // 車種熱門度
+    var popularityWeights = {
+      '普悠瑪': 2.35,
+      '新自強': 2.2,
+      '加班車': 2.4,
+      '自強號(新)': 4.3,
+      '自強號': 3.2,
+      '莒光號': 3.0,
+      '復興號': 3.35,
+      '區間快': 5.85,
+      '區間車': 5.65
+    };
+
+    // 不同時段的加權 (簡易示範)
+    var timeWeights = {
+      'short_peak': 4.0,
+      'short_offpeak': 2.0,
+      'long_peak': 6.0,
+      'long_offpeak': 2.0
+    };
+
+    // 站點密度 (示範用，可自行增補或修改)
+    var stationDensity = {
+      '基隆': 110,
+      '南港': 110,
+      '松山': 120,
+      '臺北': 130,
+      '萬華': 130,
+      '板橋': 135,
+      '桃園': 140,
+      '中壢': 140,
+      '新竹': 140,
+      '苗栗': 60,
+      '豐原': 110,
+      '臺中': 160,
+      '彰化': 100,
+      '員林': 90,
+      '斗六': 70,
+      '嘉義': 130,
+      '新營': 80,
+      '臺南': 135,
+      '新左營': 120,
+      '高雄': 150,
+      '鳳山': 95,
+      '屏東': 70,
+      '潮州': 70,
+      '宜蘭': 110,
+      '羅東': 110,
+      '花蓮': 150,
+      '玉里': 100,
+      '臺東': 150,
+    };
+
+    // 車站列表 (可依實際需求調整)
+    
+/***** 2. 動態生成站名選單 *****/
+var departureSelect = document.getElementById('departure-station');
+    var arrivalSelect = document.getElementById('arrival-station');
+    stations.forEach(station => {
+      const option1 = document.createElement('option');
+      option1.value = station;
+      option1.textContent = station;
+      departureSelect.appendChild(option1);
+
+      const option2 = document.createElement('option');
+      option2.value = station;
+      option2.textContent = station;
+      arrivalSelect.appendChild(option2);
+    });
+
+    /***** 3. 工具函式 *****/
+    // 若有需要對車站名稱做特殊處理，可在此自訂，這裡先直接回傳
+    function normalizeStationName(name) {
+      return name;
+    }
+
+    // 計算時段加權 (簡易邏輯)
+    function calculateTimeWeight(time) {
+      var hour = parseInt(time.split(':')[0], 10);
+
+      // 以下邏輯可視實際需求調整
+      if ((hour >= 6 && hour < 9.5) || (hour >= 12 && hour < 13) ||
+          (hour >= 16 && hour < 20) || (hour >= 21 && hour < 22)) {
+        return timeWeights['short_peak'];
+      }
+      if ((hour >= 6.5 && hour < 10) || (hour >= 16 && hour < 20.5) ||
+          (hour >= 0.5 && hour < 4.5)) {
+        return timeWeights['long_peak'];
+      }
+      return timeWeights['short_offpeak'];
+    }
+
+    // 不同車種的隨機波動因子
+    function getRandomFactor(trainType) {
+      if (['普悠瑪', '新自強', '自強號', '自強號(新)', '莒光號'].includes(trainType)) {
+        return (Math.random() * 0.15) - 0.1;
+      } else {
+        return (Math.random() * 0.22) - 0.1;
+      }
+    }
+
+    // 計算「單一車站 + 時間」的運用率
+    function calculateStationUtilizationRate(train, station, time) {
+      // 該車種最大載客數 (找不到則預設 110)
+      var maxCapacityPerTrain = stationMaxCapacities[train['車種']] || 110; 
+      var popularityWeight = popularityWeights[train['車種']] || 1;
+      var timeWeight = calculateTimeWeight(time);
+
+      // 假設該站的密度若查不到，就給個預設 50
+      var baseDensity = stationDensity[station] || 50;
+
+      var load = 0;
+      for (var i = 0; i < 3; i++) {
+        var randomFactor = getRandomFactor(train['車種']);
+        load += baseDensity * timeWeight * popularityWeight * (1 + randomFactor);
+      }
+
+      var averageLoad = load / 3;
+      // 最後轉為百分比，做一些上下限保護
+      var utilizationRate = Math.min(Math.max((averageLoad / maxCapacityPerTrain) * 50, 0), 100);
+      return utilizationRate.toFixed(2) + '%';
+    }
+
+    // 取得該車次在某個站的停靠時間
+    function getStopTime(train, station) {
+      const stop = train['車站時間'].find(s => normalizeStationName(s[0]) === station);
+      return stop ? stop[1] : '';
+    }
+
+    /***** 4. 計算該區間是否還有座位可訂 *****/
+    function isAvailable(train, departure, arrival, quantity) {
+      const stops = train['車站時間'];
+      const departureStop = stops.find(stop => normalizeStationName(stop[0]) === departure);
+      const arrivalStop = stops.find(stop => normalizeStationName(stop[0]) === arrival);
+
+      // 若找不到對應的出發 or 抵達，就不可訂
+      if (!departureStop || !arrivalStop) return false;
+
+      // 用出發站時間來算運用率
+      const departureTime = departureStop[1];
+      const utilizationRate = calculateStationUtilizationRate(train, departure, departureTime);
+
+      // 將字串 "xx.xx%" 轉為數值
+      const utilizationValue = parseFloat(utilizationRate.replace('%', ''));
+      // 估算：若再加入欲訂張數(以最大容量來看)會超過 100，就視為無法訂
+      const maxCapacity = stationMaxCapacities[train['車種']] || 110;
+      const extraLoad = (quantity / maxCapacity) * 100;
+
+      return (utilizationValue + extraLoad) <= 100;
+    }
+
+    /***** 5. 將符合條件的車次顯示在表格 *****/
+    function displayTrain(trainNumber, train, departure, arrival) {
+      const departureTime = getStopTime(train, departure);
+      const arrivalTime = getStopTime(train, arrival);
+
+      // 計算出發站時間的運用率（顯示於表格）
+      const utilizationRate = calculateStationUtilizationRate(train, departure, departureTime);
+      const numericUtil = parseFloat(utilizationRate.replace('%', ''));
+
+      const row = document.createElement('tr');
+      row.innerHTML = `
+        <td>${trainNumber}</td>
+        <td>${train['車種']}</td>
+        <td>${departure} ➝ ${arrival}</td>
+        <td>${departureTime}</td>
+        <td>${arrivalTime}</td>
+        <td>${utilizationRate}</td>
+        <td>
+          ${
+            numericUtil < 100 
+              ? `<button onclick="confirmBooking('${trainNumber}', '${train['車種']}', '${departure}', '${arrival}', '${departureTime}', '${arrivalTime}')">確認訂票</button>`
+              : '<span class="no-seats">尚無座位</span>'
+          }
+        </td>
+      `;
+      resultsTableBody.appendChild(row);
+    }
+
+    /***** 6. 確認訂票 *****/
+    function confirmBooking(trainNumber, trainType, departure, arrival, departureTime, arrivalTime) {
+      const bookingCode = Math.floor(100000 + Math.random() * 900000); // 產生 6 位數訂票代碼
+      const ticketQuantity = parseInt(document.getElementById('ticket-quantity').value);
+
+      // 模擬隨機座位
+      const seats = Array.from({ length: ticketQuantity }, (_, i) => {
+        const carNo = Math.ceil(Math.random() * 12);  // 第幾車
+        const seatNo = Math.ceil(Math.random() * 40); // 第幾號
+        return `第${carNo}車 ${seatNo}號`;
+      }).join('<br>');
+
+      const confirmationPage = `
+        <div class="confirmation">
+          <h1>訂票結果</h1>
+          <p>訂票代碼: <strong>${bookingCode}</strong></p>
+          <p>旅程: <strong>${departureTime} ${departure} 到 ${arrivalTime} ${arrival}</strong></p>
+          <p>行程資訊: <strong>${trainNumber}車次 ${trainType}</strong></p>
+          <p>票數: <strong>${ticketQuantity}</strong></p>
+          <div class="seats-info" style="margin:10px 0;">
+            <strong>座位號:</strong><br>${seats}
+          </div>
+          <button onclick="window.location.reload()">返回主頁</button>
+        </div>
+      `;
+      document.body.innerHTML = confirmationPage;
+    }
+
+    /***** 7. 監聽表單 *****/
+    const bookingForm = document.getElementById('booking-form');
+    const trainNumberSection = document.getElementById('train-number-section');
+    const timeSlotSection = document.getElementById('time-slot-section');
+    const resultsSection = document.getElementById('results-section');
+    const resultsTableBody = document.getElementById('results-table-body');
+
+    // 切換「依車次 / 依時段」區塊顯示
+    bookingForm.addEventListener('change', (event) => {
+      if (event.target.name === 'booking-method') {
+        if (event.target.value === 'train-number') {
+          trainNumberSection.classList.remove('hidden');
+          timeSlotSection.classList.add('hidden');
+          document.getElementById('train-number').required = true;
+          document.getElementById('start-time').required = false;
+          document.getElementById('end-time').required = false;
+        } else if (event.target.value === 'time-slot') {
+          timeSlotSection.classList.remove('hidden');
+          trainNumberSection.classList.add('hidden');
+          document.getElementById('train-number').required = false;
+          document.getElementById('start-time').required = true;
+          document.getElementById('end-time').required = true;
+        }
+      }
+    });
+
+    // 表單送出
+    bookingForm.addEventListener('submit', (event) => {
+      event.preventDefault();
+
+      // 讀取表單輸入
+      const departure = normalizeStationName(departureSelect.value);
+      const arrival = normalizeStationName(arrivalSelect.value);
+      const date = document.getElementById('date').value;
+      const quantity = parseInt(document.getElementById('ticket-quantity').value);
+      const bookingMethod = document.querySelector('input[name="booking-method"]:checked').value;
+      resultsTableBody.innerHTML = '';
+
+      // 若出發站和抵達站相同，直接報錯
+      if (departure === arrival) {
+        alert('出發站與抵達站不能相同，請重新選擇。');
+        return;
+      }
+
+      // 依車次訂票
+      if (bookingMethod === 'train-number') {
+        const trainNumber = document.getElementById('train-number').value.trim();
+        const train = trainSchedule[trainNumber];
+
+        if (!train) {
+          alert('無此車次，請確認輸入是否正確。');
+          return;
+        }
+
+        const stops = train['車站時間'];
+        const departureStop = stops.find(stop => normalizeStationName(stop[0]) === departure);
+        const arrivalStop = stops.find(stop => normalizeStationName(stop[0]) === arrival);
+
+        // 檢查區間合理性
+        if (!departureStop || !arrivalStop || stops.indexOf(departureStop) >= stops.indexOf(arrivalStop)) {
+          alert('行程錯誤。請確認輸入的出發站和抵達站是否正確。');
+          return;
+        }
+
+        // 檢查是否可訂
+        if (isAvailable(train, departure, arrival, quantity)) {
+          displayTrain(trainNumber, train, departure, arrival);
+          resultsSection.classList.remove('hidden');
+        } else {
+          alert('該車次在此區段的運用已滿，無法訂票。');
+        }
+
+      }
+      // 依時段訂票
+      else if (bookingMethod === 'time-slot') {
+        const startTime = document.getElementById('start-time').value;
+        const endTime = document.getElementById('end-time').value;
+
+        if (!startTime || !endTime) {
+          alert('請輸入完整的時段。');
+          return;
+        }
+        if (startTime >= endTime) {
+          alert('結束時間需大於開始時間。');
+          return;
+        }
+
+        const filteredTrains = [];
+        for (const trainNumber in trainSchedule) {
+          const train = trainSchedule[trainNumber];
+          // 若車種是「區間車/區間快」，此示例中略過，可自行調整
+          if (['區間車', '區間快'].includes(train['車種'])) {
+            continue;
+          }
+
+          const departureStop = train['車站時間'].find(stop => normalizeStationName(stop[0]) === departure);
+          if (!departureStop) continue;
+
+          const depTime = departureStop[1];
+          // 若出發時間符合時段 & 還有位子可訂
+          if (depTime >= startTime && depTime <= endTime && isAvailable(train, departure, arrival, quantity)) {
+            filteredTrains.push({ trainNumber, train });
+          }
+        }
+
+        // 依出發時間排序
+        filteredTrains.sort((a, b) => {
+          const depTimeA = getStopTime(a.train, departure);
+          const depTimeB = getStopTime(b.train, departure);
+          return depTimeA.localeCompare(depTimeB);
+        });
+
+        // 顯示在表格
+        filteredTrains.forEach(({ trainNumber, train }) => {
+          displayTrain(trainNumber, train, departure, arrival);
+        });
+
+        if (resultsTableBody.children.length > 0) {
+          resultsSection.classList.remove('hidden');
+        } else {
+          alert('沒有符合條件的列車可以訂票。');
+        }
+      }
+    });
+  </script>
+</body>
+</html>

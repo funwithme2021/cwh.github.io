@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>多颱風路徑圖 (可隱藏清單／圖例／說明)</title>
+
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+
+  <style>
+    /* ===== 全域變數 ===== */
+    :root {
+      --bg-color:#f6f8ff;
+      --topbar-bg:#333;              --topbar-button-bg:#555;
+      --topbar-button-hover:#777;    --sidebar-bg:#1f2d3d;
+      --sidebar-accent:#ffeb3b;      --panel-bg:rgba(0,0,0,.7);
+      --storm-card-bg:rgba(255,255,255,.1);
+      --storm-card-hover:rgba(255,255,255,.15);
+      --font-color:#fff;             --transition-speed:.3s;
+    }
+    *{margin:0;padding:0;box-sizing:border-box;font-family:"Microsoft JhengHei",sans-serif;}
+    body{display:flex;flex-direction:column;height:100vh;overflow:hidden;background:var(--bg-color);}
+
+    /* ===== 1. 頂部工具列 ===== */
+    .topbar{flex:0 0 auto;background:var(--topbar-bg);color:var(--font-color);
+            padding:6px 10px;display:flex;align-items:center;flex-wrap:wrap;
+            gap:10px;box-shadow:0 2px 6px rgba(0,0,0,.2);z-index:1000;}
+    .topbar button{background:var(--topbar-button-bg);border:none;color:var(--font-color);
+                   padding:6px 12px;border-radius:4px;cursor:pointer;font-size:.85rem;
+                   transition:background-color var(--transition-speed),transform var(--transition-speed);}
+    .topbar button:hover{background:var(--topbar-button-hover);transform:translateY(-1px);}
+    .topbar button:active{transform:translateY(1px);}
+
+    /* ===== 2. 主要內容 ===== */
+    .main{flex:1 1 0;display:flex;overflow:hidden;}
+
+    /* ----- 左側側邊欄 ----- */
+    .sidebar{width:320px;background:var(--sidebar-bg);overflow-y:auto;padding:15px;
+             transition:all var(--transition-speed);border-right:2px solid var(--sidebar-accent);}
+    .sidebar.hidden{display:none;}
+    .sidebar h2{text-align:center;color:var(--sidebar-accent);font-size:1.3rem;margin-bottom:.5rem;letter-spacing:1px;}
+    .filter-container{margin-bottom:12px;}
+    .filter-container input,.filter-container select{width:100%;padding:6px 8px;margin-top:4px;border:none;
+                                                     border-radius:4px;font-size:.9rem;}
+    .storm-item{background:var(--storm-card-bg);padding:10px;margin-bottom:10px;border-radius:6px;
+                transition:background-color var(--transition-speed);}
+    .storm-item:hover{background:var(--storm-card-hover);}
+    .storm-header{display:flex;align-items:center;justify-content:space-between;cursor:pointer;}
+    .storm-header h3{font-size:1rem;color:var(--font-color);margin-left:6px;}
+    .storm-header input[type="checkbox"]{transform:scale(1.2);accent-color:var(--sidebar-accent);margin-right:4px;}
+    .storm-details{display:none;margin-top:8px;}
+    .storm-details p{margin:4px 0;font-size:.85rem;color:#dfe6e9;line-height:1.4;padding-left:24px;}
+
+    /* ----- 地圖 ----- */
+    #map{flex:1;position:relative;transition:all var(--transition-speed);}
+
+    /* ----- 浮動面板 ----- */
+    .floating-panel{position:absolute;top:10px;right:10px;min-width:200px;max-width:250px;
+                    background:var(--panel-bg);color:var(--font-color);padding:10px 15px;
+                    border-radius:6px;z-index:999;display:none;box-shadow:0 4px 12px rgba(0,0,0,.3);}
+    .floating-panel h4{margin-bottom:6px;font-size:1rem;color:var(--sidebar-accent);
+                       border-bottom:1px solid rgba(236,240,241,.3);padding-bottom:4px;}
+    .floating-panel p{font-size:.85rem;line-height:1.4;}
+    .floating-panel img{width:100%;border-radius:4px;border:1px solid #aaa;margin-top:6px;}
+
+    /* ----- 日期／現在位置標籤 ----- */
+    .date-label{background:none!important;box-shadow:none!important;text-shadow:none!important;
+                color:#333!important;padding:0;border-radius:0;font-weight:bold;font-size:.9rem;white-space:nowrap;}
+  </style>
+</head>
+<body>
+
+  <!-- 頂部工具列 -->
+  <div class="topbar">
+    <button onclick="toggleSidebar()">顯示/隱藏清單</button>
+    <button onclick="toggleLegend()">顯示/隱藏圖例</button>
+    <button onclick="toggleInfo()">顯示/隱藏說明</button>
+    <button onclick="exportMapAsImage()">下載地圖</button>
+    <!-- 新增的三顆批次控制按鈕 -->
+    <button onclick="showAllStorms()">全部顯示</button>
+    <button onclick="hideAllStorms()">全部隱藏</button>
+    <button onclick="showActiveStorms()">只顯示活躍系統</button>
+  </div>
+
+  <!-- 主要區域 -->
+  <div class="main">
+    <!-- 側邊欄 -->
+    <div class="sidebar" id="sidebar">
+      <h2>颱風清單</h2>
+      <div class="filter-container">
+        <label for="searchInput" style="color:#ccc;font-size:.9rem;">搜尋名稱：</label>
+        <input type="text" id="searchInput" placeholder="輸入颱風名稱..." oninput="applyFilters()"/>
+      </div>
+      <div class="filter-container">
+        <label for="intensityFilter" style="color:#ccc;font-size:.9rem;">強度篩選：</label>
+        <select id="intensityFilter" onchange="applyFilters()">
+          <option value="">全部強度</option>
+          <option value="TD">TD (熱帶性低氣壓以上)</option>
+          <option value="TS">TS (熱帶性風暴以上)</option>
+          <option value="ST">ST (強烈熱帶風暴以上)</option>
+          <option value="TY">TY (颱風)</option>
+        </select>
+      </div>
+      <div id="stormList"></div>
+    </div>
+
+    <!-- 地圖 -->
+    <div id="map">
+      <div class="floating-panel" id="legendPanel">
+        <h4>圖例</h4>
+        <img src="pic.png" alt="圖例示意">
+      </div>
+      <div class="floating-panel" id="infoPanel" style="top:150px;">
+        <h4>說明</h4>
+        <p>此範例可隱藏/顯示左側清單、圖例與說明面板。</p>
+        <p>過去路徑僅顯示每日首個位置的日期標籤；現在位置顯示四象限暴風圈。</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Script 區：Leaflet → html2canvas → ty.js(颱風資料) → 主程式 -->
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/0.4.1/html2canvas.min.js"></script>
+  <script src="ty.js"></script>   <!-- storms 陣列 -->
+
+  <script>
+    /************** 0. 面板顯示／隱藏 **************/
+    function toggleSidebar(){
+      const sb=document.getElementById("sidebar");
+      const mapEl=document.getElementById("map");
+      sb.classList.toggle("hidden");
+      mapEl.style.flex=sb.classList.contains("hidden")?"1 1 100%":"1";
+    }
+    const toggleLegend=()=>{const p=document.getElementById("legendPanel");
+      p.style.display=p.style.display==="block"?"none":"block";}
+    const toggleInfo=()=>{const p=document.getElementById("infoPanel");
+      p.style.display=p.style.display==="block"?"none":"block";}
+    function exportMapAsImage(){
+      html2canvas(document.getElementById("map")).then(c=>{
+        const a=document.createElement("a");
+        a.download="typhoon_map.png";
+        a.href=c.toDataURL("image/png");
+        a.click();
+      });
+    }
+
+    /************** 1. Leaflet 初始化 **************/
+    const map=L.map("map").setView([23.5,121],6);
+    const baseLayer=L.tileLayer(
+      "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png",
+      {maxZoom:18,attribution:"Map tiles by CartoDB, CC BY 3.0"}).addTo(map);
+
+    /************** 2. 渲染左側清單 **************/
+    const stormListEl=document.getElementById("stormList");
+    function renderStormList(){
+      stormListEl.innerHTML="";
+      const kw=document.getElementById("searchInput").value.trim().toLowerCase();
+      const filter=document.getElementById("intensityFilter").value;
+
+      storms.forEach((s,idx)=>{
+        if(kw && !s.name.toLowerCase().includes(kw)) return;
+        if(filter){
+          const order=["TD","TS","ST","TY"];
+          if(order.indexOf(s.currentData.intensity) < order.indexOf(filter)) return;
+        }
+
+        const div=document.createElement("div");div.className="storm-item";
+        const header=document.createElement("div");header.className="storm-header";
+
+        /* 勾選框狀態 */
+        const active=s.futurePath && s.futurePath.length>0;
+        if(s.show===undefined) s.show=active;          // 首次載入
+        const checkedAttr=s.show?"checked":"";
+
+        header.innerHTML=`
+          <label style="display:flex;align-items:center;">
+            <input type="checkbox" ${checkedAttr}
+                   onchange="toggleStorm(${idx},this.checked)">
+            <h3>${s.name}</h3>
+          </label>
+          <span style="font-size:.9rem;color:#ccc;">▾</span>`;
+        div.appendChild(header);
+
+        /* 詳細資訊 */
+        const details=document.createElement("div");details.className="storm-details";
+        details.innerHTML=`
+          <p>中心氣壓: ${s.centerPressure} hPa</p>
+          <p>最大風速(陣風): ${s.windSpeed} (${s.gust}) m/s</p>
+          <p>七級(十級)暴風圈半徑: ${s.seven} (${s.ten}) km</p>
+          <p>路徑移動: ${s.movement}</p>
+          <p>更新時間: ${s.time}</p>`;
+        div.appendChild(details);
+
+        header.addEventListener("click",e=>{
+          if(e.target.tagName.toLowerCase()==="input")return;
+          const show=details.style.display==="block";
+          details.style.display=show?"none":"block";
+          header.querySelector("span").textContent=show?"▾":"▴";
+        });
+
+        stormListEl.appendChild(div);
+      });
+
+      drawAllStorms();   // 清單更新後同步更新地圖
+    }
+    const applyFilters=()=>renderStormList();
+    const toggleStorm=(idx,show)=>{storms[idx].show=show;drawAllStorms();}
+
+    /************** 3. 批次控制按鈕 **************/
+    function showAllStorms(){storms.forEach(s=>s.show=true);renderStormList();}
+    function hideAllStorms(){storms.forEach(s=>s.show=false);renderStormList();}
+    function showActiveStorms(){
+      storms.forEach(s=>{
+        const active=s.futurePath && s.futurePath.length>0;
+        s.show=active;
+      });
+      renderStormList();
+    }
+
+    /************** 4. 繪圖函式 **************/
+    function drawAllStorms(){
+      map.eachLayer(l=>{if(l!==baseLayer)map.removeLayer(l);});
+      storms.forEach(s=>{if(s.show)drawOneStorm(s);});
+    }
+
+    function drawOneStorm(storm){
+      /* (a) 過去路徑 */
+      const p=storm.pastPath||[];let shown=new Set();
+      p.forEach((pt,i)=>{
+        if(i>0)L.polyline([p[i-1].coords,pt.coords],{color:"black",weight:2}).addTo(map);
+        addTyphoonIcon(pt.coords,pt.intensity);
+        const d=pt.time.substring(0,pt.time.indexOf("日"));
+        if(!shown.has(d)){shown.add(d);addDateLabel(pt.coords,d);}
+      });
+      /* (b) 現在位置 */
+      if(storm.currentData&&storm.currentData.coords){
+        const c=storm.currentData;
+        addTyphoonIcon(c.coords,c.intensity);
+        if(c.r7)drawAsymCircle(c.coords,c.r7,"orange");
+        if(c.r10)drawAsymCircle(c.coords,c.r10,"red");
+        const nowIcon=L.divIcon({className:"date-label",html:c.time||"現在"});
+        L.marker([c.coords[0]+.3,c.coords[1]],{icon:nowIcon}).addTo(map);
+        if(p.length)L.polyline([p[p.length-1].coords,c.coords],{color:"black",weight:2}).addTo(map);
+      }
+      /* (c) 未來路徑 */
+      const f=storm.futurePath||[];
+      f.forEach((pt,i)=>{
+        const prev=(i===0&&storm.currentData)?storm.currentData.coords:f[i-1].coords;
+        if(prev)L.polyline([prev,pt.coords],{color:"black",weight:2,dashArray:"5,5"}).addTo(map);
+        addTyphoonIcon(pt.coords,pt.intensity);
+        if(pt.r7)drawAsymCircle(pt.coords,pt.r7,"orange",true);
+        if(pt.r10)drawAsymCircle(pt.coords,pt.r10,"red",true);
+        const futIcon=L.divIcon({className:"date-label",html:pt.time});
+        L.marker([pt.coords[0]+.3,pt.coords[1]],{icon:futIcon}).addTo(map);
+      });
+    }
+
+    /* 非正圓風圈 */
+    function drawAsymCircle(center,rObj,color,dashed=false){
+      const step=5,lat0=center[0],lng0=center[1];
+      let pts=[];
+      pts=pts.concat(arc(lat0,lng0,0,90 ,rObj.ne,step));
+      pts=pts.concat(arc(lat0,lng0,90,180,rObj.nw,step));
+      pts=pts.concat(arc(lat0,lng0,180,270,rObj.sw,step));
+      pts=pts.concat(arc(lat0,lng0,270,360,rObj.se,step));
+      pts.push(pts[0]);  // 關閉多邊形
+      const poly=L.polygon(pts,{color,weight:1,fillColor:color,fillOpacity:.1,
+                                 dashArray:dashed?"5,5":null}).addTo(map);
+      const tip=`NE:${rObj.ne} km<br>NW:${rObj.nw} km<br>SW:${rObj.sw} km<br>SE:${rObj.se} km`;
+      poly.bindTooltip(tip,{direction:"center",opacity:.9,sticky:true,offset:[0,0]});
+    }
+    function arc(lat0,lng0,start,end,r,step){
+      const ret=[];
+      for(let a=start;a<=end;a+=step){
+        const rad=a*Math.PI/180;
+        const dLat=(r/111)*Math.cos(rad);
+        const dLng=(r/(111*Math.cos(lat0*Math.PI/180)))*Math.sin(rad);
+        ret.push([lat0+dLat,lng0+dLng]);
+      }
+      return ret;
+    }
+    /* 圖示 & 標籤 */
+    function addTyphoonIcon(coords,intensity){
+      const icon=L.icon({iconUrl:getIconUrl(intensity),iconSize:[14,14],iconAnchor:[7,7]});
+      const m=L.marker(coords,{icon}).addTo(map);
+      m.bindTooltip(`Lat:${coords[0].toFixed(2)}, Lng:${coords[1].toFixed(2)}`,
+                    {direction:"top",opacity:.9,offset:[0,-10]});
+    }
+    function getIconUrl(i){
+      switch(i){case"TD":return"td1.png";case"TS":return"ts1.png";
+        case"ST":return"st1.png";case"TY":return"ty.png";default:return"default.png";}
+    }
+    const addDateLabel=(c,d)=>L.marker([c[0]+.5,c[1]],{icon:L.divIcon({className:"date-label",html:d})}).addTo(map);
+
+    /************** 5. 首次載入 **************/
+    renderStormList();   // 會自動呼叫 drawAllStorms()
+  </script>
+</body>
+</html>

@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>颱風預測路徑繪圖系統</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <style>
+        #map {
+            height: 1060px;
+            width: 100%;
+            position: relative;
+        }
+        .form-container {
+            margin: 15px;
+            position: absolute;
+            top: 10px;
+            left: 55px;
+            z-index: 1000; /* Ensure form is on top */
+            background-color: white;
+            padding: 25px;
+            border-radius: 5px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            max-width: 350px; /* Set maximum width for the form container */
+            max-height: 600px; /* Set maximum height for the form container */
+            overflow-y: auto; /* Enable vertical scroll for overflow */
+            transition: max-height 0.3s ease; /* Smooth transition for height change */
+        }
+        .container.collapsed {
+            max-height: 0;
+            overflow: hidden;
+        }
+        .form-container div {
+            margin-bottom: 10px;
+        }
+        .points-list {
+            margin-top: 10px;
+            border: 1px solid #ccc;
+            padding: 10px;
+            max-height: 200px; /* Set maximum height for the points list */
+            overflow-y: auto; /* Enable vertical scroll for overflow */
+        }
+        .point-item {
+            margin-bottom: 5px;
+        }
+        .crosshair-cursor {
+            cursor: crosshair;
+        }
+        .export-button {
+            margin-top: 10px;
+            padding: 5px 10px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+    <div class="container">
+        <button onclick="toggleForm()" id="toggleFormButton">隱藏/展開</button>
+        <h2>輸入路徑數據</h2>
+        <hr>
+        <form id="typhoon-form">
+            <div>
+                <h3>一、過去位置</h3>
+                <label>1.經度：</label>
+                <input type="number" step="0.01" id="past-longitude">
+                <label>2.緯度：</label>
+                <input type="number" step="0.01" id="past-latitude">
+                <button type="button" onclick="addPastPoint()">新增過去位置</button>
+                <div id="past-points" class="points-list"></div>
+            </div>
+            <hr>
+            <div>
+                <h3>二、預測位置</h3>
+                <div id="future-points">
+                    <!-- Future points input fields will be generated dynamically -->
+                </div>
+                <button type="button" onclick="generateFutureInputs()">新增預測位置</button><br>
+            <hr>
+                <h3>三、繪製誤差範圍</h3>
+                <button type="button" onclick="toggleDrawPolygonMode()">繪製誤差範圍</button>
+                <button type="button" onclick="deleteLastDrawnPolygonVertex()">刪除最後一個點</button>
+                <button type="button" onclick="finishDrawnPolygon()">完成繪製</button>
+            </div>
+            <hr>
+            <div>
+                <h3>四、繪製警戒區</h3>
+                <button type="button" onclick="drawWarningArea()">新增警戒區</button>
+                <button type="button" onclick="deleteLastDrawnWarningVertex()">刪除最後一個點</button>
+                <button type="button" onclick="finishDrawnWarningArea()">完成繪製</button>
+            </div>
+
+            <div>
+                <h3>選擇縣市</h3>
+                <label><input type="checkbox" value="基隆市" onchange="highlightCities()"> 基隆市</label><br>
+                <label><input type="checkbox" value="臺北市" onchange="highlightCities()"> 臺北市</label><br>
+                <label><input type="checkbox" value="新北市" onchange="highlightCities()"> 新北市</label><br>
+                <label><input type="checkbox" value="桃園市" onchange="highlightCities()"> 桃園市</label><br>
+                <label><input type="checkbox" value="新竹市" onchange="highlightCities()"> 新竹市</label><br>
+                <label><input type="checkbox" value="新竹縣" onchange="highlightCities()"> 新竹縣</label><br>
+                <label><input type="checkbox" value="苗栗縣" onchange="highlightCities()"> 苗栗縣</label><br>
+                <label><input type="checkbox" value="臺中市" onchange="highlightCities()"> 臺中市</label><br>
+                <label><input type="checkbox" value="彰化縣" onchange="highlightCities()"> 彰化縣</label><br>
+                <label><input type="checkbox" value="南投縣" onchange="highlightCities()"> 南投縣</label><br>
+                <label><input type="checkbox" value="雲林縣" onchange="highlightCities()"> 雲林縣</label><br>
+                <label><input type="checkbox" value="嘉義市" onchange="highlightCities()"> 嘉義市</label><br>
+                <label><input type="checkbox" value="嘉義縣" onchange="highlightCities()"> 嘉義縣</label><br>
+                <label><input type="checkbox" value="臺南市" onchange="highlightCities()"> 臺南市</label><br>
+                <label><input type="checkbox" value="高雄市" onchange="highlightCities()"> 高雄市</label><br>
+                <label><input type="checkbox" value="屏東縣" onchange="highlightCities()"> 屏東縣</label><br>
+                <label><input type="checkbox" value="宜蘭縣" onchange="highlightCities()"> 宜蘭縣</label><br>
+                <label><input type="checkbox" value="花蓮縣" onchange="highlightCities()"> 花蓮縣</label><br>
+                <label><input type="checkbox" value="臺東縣" onchange="highlightCities()"> 臺東縣</label><br>
+                <label><input type="checkbox" value="蓮將縣" onchange="highlightCities()"> 蓮將縣</label><br>
+                <label><input type="checkbox" value="金門縣" onchange="highlightCities()"> 金門縣</label><br>
+                <label><input type="checkbox" value="澎湖縣" onchange="highlightCities()"> 澎湖縣</label><br>
+                <!-- 可根據需要添加更多選項 -->
+            </div>
+            
+        </form>
+    </div>
+    <button id="toggleFormButton" onclick="toggleForm()">隱藏/展開</button>
+
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <script src="___________.geojson"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/0.4.1/html2canvas.min.js"></script>
+    <script>
+        // Initialize the map
+        var map = L.map('map').setView([23.5, 121], 6);
+
+        // Add OpenStreetMap tile layer
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+            maxZoom: 18,
+            attribution: 'Map tiles by CartoDB, CC BY 3.0',
+        }).addTo(map);
+
+
+        
+
+       // 用來儲存所有繪製的城市邊界
+       var drawnCityPolygons = [];
+
+function highlightCities() {
+    // 移除之前的紅色框
+    drawnCityPolygons.forEach(function(polygon) {
+        map.removeLayer(polygon);
+    });
+    drawnCityPolygons = [];
+
+    var selectedCities = Array.from(document.querySelectorAll('input[type="checkbox"]:checked')).map(input => input.value);
+    selectedCities.forEach(function(city) {
+        geojsonData.features.forEach(function(feature) {
+            if (feature.properties.name === city) {
+                var cityPolygon = L.geoJSON(feature, {
+                    style: {
+                        color: 'transparent',
+                        fillColor: 'red', // 紅色填充
+                        fillOpacity: 0.1,
+                        lineCap: 'round', // 圓角邊緣
+                        renderer: L.canvas(), // 使用canvas渲染器
+                        zIndexOffset: -2000 // 確保多邊形位於其他標記下方
+                    }
+                }).addTo(map);
+                drawnCityPolygons.push(cityPolygon);
+            }
+        });
+    });
+}
+
+        var pastPath = [];
+        var futurePath = [];
+        var currentMarker = null;
+        var currentRadiusCircle7 = null;
+        var currentRadiusCircle10 = null;
+        var futureMarkers = [];
+        var drawnPolygon = null; // Store the drawn polygon
+        var drawnPolygonVertices = []; // Store vertices of the drawn polygon
+        var drawPolygonMode = false; // Track whether in draw mode
+
+        // Add past point
+        function addPastPoint() {
+            var lat = parseFloat(document.getElementById('past-latitude').value);
+            var lng = parseFloat(document.getElementById('past-longitude').value);
+
+            var point = [lat, lng];
+            pastPath.push(point);
+
+            addPastPointToList(lat, lng);
+            redrawPaths();
+        }
+
+        function addPastPointToList(lat, lng) {
+            var pastPointsDiv = document.getElementById('past-points');
+            var pointItem = document.createElement('div');
+            pointItem.className = 'point-item';
+            pointItem.innerHTML = `經度: ${lng}, 緯度: ${lat} <button onclick="removePastPoint(${pastPath.length - 1}, this)">刪除</button>`;
+            pastPointsDiv.appendChild(pointItem);
+        }
+
+        function removePastPoint(index, btn) {
+            pastPath.splice(index, 1);
+            var pointItem = btn.parentNode;
+            pointItem.parentNode.removeChild(pointItem);
+            redrawPaths();
+        }
+
+        // Set or update current point
+        function setOrUpdateCurrentPoint() {
+            var lat = parseFloat(document.getElementById('current-latitude').value);
+            var lng = parseFloat(document.getElementById('current-longitude').value);
+            var intensity = document.getElementById('current-intensity').value;
+            var radius7 = parseFloat(document.getElementById('current-radius-7').value) || 0;
+            var radius10 = parseFloat(document.getElementById('current-radius-10').value) || 0;
+
+            // Remove previous circle and marker
+            if (currentMarker) {
+                map.removeLayer(currentMarker);
+                currentMarker = null;
+            }
+            if (currentRadiusCircle7) {
+                map.removeLayer(currentRadiusCircle7);
+                currentRadiusCircle7 = null;
+            }
+            if (currentRadiusCircle10) {
+                map.removeLayer(currentRadiusCircle10);
+                currentRadiusCircle10 = null;
+            }
+
+            // Add radius 7 circle
+            if (radius7 > 0) {
+                currentRadiusCircle7 = L.circle([lat, lng], {
+                    color: 'orange',
+                    fillColor: 'none',
+                    fillOpacity: 0.5,
+                    radius: radius7 * 1000,
+                    dashArray: '5, 5',
+                }).addTo(map);
+            }
+
+            // Add radius 10 circle
+            if (radius10 > 0) {
+                currentRadiusCircle10 = L.circle([lat, lng], {
+                    color: 'red',
+                    fillColor: 'none',
+                    fillOpacity: 0.5,
+                    radius: radius10 * 1000,
+                    dashArray: '5, 5',
+                }).addTo(map);
+            }
+
+            // Add current marker
+            currentMarker = addMarker(lat, lng, intensity);
+
+            // Redraw the map
+            redrawPaths();
+        }
+
+        // Add future point
+        function addFuturePoint(index) {
+            var lat = parseFloat(document.getElementById(`future-latitude-${index}`).value);
+            var lng = parseFloat(document.getElementById(`future-longitude-${index}`).value);
+            var intensity = document.getElementById(`future-intensity-${index}`).value || 'TD';
+            var radius7 = parseFloat(document.getElementById(`future-radius-7-${index}`).value) || 0;
+            var radius10 = parseFloat(document.getElementById(`future-radius-10-${index}`).value) || 0;
+            var errorRadius = parseFloat(document.getElementById(`future-error-radius-${index}`).value) || 0;
+            var showIcon = document.getElementById(`future-show-icon-${index}`).checked;
+
+            var point = { coords: [lat, lng], radius7: radius7, radius10: radius10, errorRadius: errorRadius, showIcon: showIcon, intensity: intensity };
+            futurePath[index] = point;
+
+            if (showIcon) {
+                var marker = addMarker(lat, lng, intensity);
+                futureMarkers[index] = { marker: marker };
+            }
+
+            redrawPaths();
+        }
+
+        // Add marker
+        function addMarker(lat, lng, intensity) {
+            var icon = L.icon({
+                iconUrl: getIntensityIcon(intensity),
+                iconSize: [30, 30],
+                iconAnchor: [15, 15],
+            });
+
+            return L.marker([lat, lng], { icon: icon }).addTo(map);
+        }
+
+        // Get intensity icon
+        function getIntensityIcon(intensity) {
+            switch (intensity) {
+                case 'TD':
+                    return 'td1.png';
+                case 'TS':
+                    return 'ts1.png';
+                case 'ST':
+                    return 'st1.png';
+                case 'TY':
+                    return 'ty.png';
+                default:
+                    return 'images/default.png';
+            }
+        }
+
+        // Generate future inputs dynamically
+        function generateFutureInputs() {
+            var index = futurePath.length;
+            var futurePointsDiv = document.getElementById('future-points');
+
+            var pointDiv = document.createElement('div');
+            pointDiv.className = 'point-item';
+
+            pointDiv.innerHTML = `
+                <h4>預測位置 ${index + 1}</h4>
+                <label>1.經度：</label>
+                <input type="number" step="0.01" id="future-longitude-${index}">
+                <label>2.緯度：</label>
+                <input type="number" step="0.01" id="future-latitude-${index}">
+                <label>3.強度：</label>
+                <select id="future-intensity-${index}">
+                    <option value="TD">熱帶低氣壓</option>
+                    <option value="TS">輕度颱風</option>
+                    <option value="ST">中度颱風</option>
+                    <option value="TY">強烈颱風</option>
+                </select>
+                <label>4.七級風半徑：</label>
+                <input type="number" step="0.01" id="future-radius-7-${index}">
+                <label>5.十級風半徑：</label>
+                <input type="number" step="0.01" id="future-radius-10-${index}">
+                <label>6.誤差半徑：</label>
+                <input type="number" step="0.01" id="future-error-radius-${index}">
+                <label>7.顯示圖示：</label>
+                <input type="checkbox" id="future-show-icon-${index}" checked>
+                <button type="button" onclick="addFuturePoint(${index})">更新</button>
+            `;
+            futurePointsDiv.appendChild(pointDiv);
+        }
+
+        // Toggle draw polygon mode
+        function toggleDrawPolygonMode() {
+            drawPolygonMode = !drawPolygonMode;
+            if (drawPolygonMode) {
+                // Switch to draw mode
+                if (drawnPolygon) {
+                    map.removeLayer(drawnPolygon);
+                }
+                drawnPolygon = null;
+                map.getContainer().classList.add('crosshair-cursor'); // Add crosshair cursor style
+                alert('點擊地圖以繪製多邊形，完成後再點擊此按鈕退出繪製模式。');
+            } else {
+                // Exit draw mode
+                map.getContainer().classList.remove('crosshair-cursor'); // Remove crosshair cursor style
+                if (drawnPolygon) {
+                    finishDrawnPolygon();
+                }
+            }
+        }
+
+        // Handle map click to add or modify polygon vertices
+        map.on('click', function (e) {
+            if (drawPolygonMode) {
+                if (!drawnPolygon) {
+                    drawnPolygonVertices = []; // Clear previous vertices
+                    drawnPolygon = L.polygon([], {
+                        color: 'transparent',
+                        fillColor: 'lightblue',
+                        fillOpacity: 0.5,
+                        lineCap: 'round', // Rounded edges
+                        renderer: L.canvas(), // Use canvas renderer for smooth edges
+                    }).addTo(map);
+                }
+
+                drawnPolygonVertices.push(e.latlng);
+                updateDrawnPolygonVertices();
+            }
+        });
+
+        // Update drawn polygon vertices
+        function updateDrawnPolygonVertices() {
+            if (drawnPolygon) {
+                drawnPolygon.setLatLngs(drawnPolygonVertices);
+            }
+        }
+
+        // Delete last drawn polygon vertex
+        function deleteLastDrawnPolygonVertex() {
+            if (drawnPolygonVertices.length > 0) {
+                drawnPolygonVertices.pop();
+                updateDrawnPolygonVertices();
+            }
+        }
+
+        // Finish drawing polygon
+        // Finish drawing polygon (error area)
+function finishDrawnPolygon() {
+    if (drawnPolygon && drawnPolygonVertices.length >= 3) { // 至少需要三個點來繪製多邊形
+        map.removeLayer(drawnPolygon); // 移除之前的多邊形
+
+        // 添加新繪製的多邊形
+        drawnPolygon = L.polygon(drawnPolygonVertices, {
+            color: 'transparent',
+            fillColor: 'blue', // 藍色填充
+            fillOpacity: 0.1,
+            lineCap: 'round', // 圓角邊緣
+            renderer: L.canvas(), // 使用canvas渲染器
+            zIndexOffset: -2000, // 確保多邊形位於其他標記下方
+        }).addTo(map);
+
+        // 清空頂點陣列
+        drawnPolygonVertices = [];
+    } else {
+        alert('請至少添加三個點以繪製多邊形。');
+    }
+
+    // 退出繪製模式
+    drawPolygonMode = false;
+    map.getContainer().classList.remove('crosshair-cursor'); // 移除十字線游標樣式
+
+    // 重新繪製所有路徑和標記
+    redrawPaths();
+}
+
+// Handle map click to add or modify polygon vertices
+map.on('click', function (e) {
+    if (drawPolygonMode) {
+        if (!drawnPolygon) {
+            drawnPolygonVertices = []; // Clear previous vertices
+            drawnPolygon = L.polygon([], {
+                color: 'transparent',
+                fillColor: 'rgba(0, 0, 255, 0.1)', // Blue with 0.1 opacity
+                fillOpacity: 0.1,
+                lineCap: 'round', // Rounded edges
+                renderer: L.canvas(), // Use canvas renderer for smooth edges
+                zIndexOffset: -2000, // Ensure the polygon is under other markers
+            }).addTo(map);
+        }
+
+        drawnPolygonVertices.push(e.latlng);
+        updateDrawnPolygonVertices();
+    }
+});
+
+// Update drawn polygon vertices
+function updateDrawnPolygonVertices() {
+    if (drawnPolygon) {
+        drawnPolygon.setLatLngs(drawnPolygonVertices);
+    }
+}
+
+// Delete last drawn polygon vertex
+function deleteLastDrawnPolygonVertex() {
+    if (drawnPolygonVertices.length > 0) {
+        drawnPolygonVertices.pop();
+        updateDrawnPolygonVertices();
+    }
+}
+
+
+        // Redraw all paths and markers
+        // Redraw all paths and markers
+function redrawPaths() {
+    map.eachLayer(function (layer) {
+        if (layer instanceof L.Polyline || layer instanceof L.Circle || layer instanceof L.Marker || layer instanceof L.Polygon) {
+            map.removeLayer(layer);
+        }
+    });
+
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+        maxZoom: 18,
+        attribution: 'Map tiles by CartoDB, CC BY 3.0',
+    }).addTo(map);
+
+    // Draw past path
+    if (pastPath.length > 1) {
+        L.polyline(pastPath, {
+            color: 'black',
+            dashArray: '5, 5',
+            lineCap: 'round',
+        }).addTo(map);
+    }
+
+    // Draw current location and future paths
+    var combinedPath = pastPath.concat(currentMarker ? [currentMarker.getLatLng()] : []).concat(futurePath.map(p => p.coords));
+
+    for (var i = 1; i < combinedPath.length; i++) {
+        var isDashed = (i > pastPath.length);
+        L.polyline([combinedPath[i - 1], combinedPath[i]], {
+            color: 'black',
+            dashArray: isDashed ? '5, 5' : null,
+            lineCap: 'round',
+        }).addTo(map);
+    }
+
+    // Add current marker
+    if (currentMarker) {
+        map.addLayer(currentMarker);
+    }
+
+    // Add future markers and circles
+    futurePath.forEach(function (point, index) {
+        var isDashed = (index >= 1); // Dashed line from future point 2 onwards
+
+        addCircle(point.coords[0], point.coords[1], point.radius7, 'orange', isDashed ? '5, 5' : null, point.radius7 > 0);
+        addCircle(point.coords[0], point.coords[1], point.radius10, 'red', isDashed ? '5, 5' : null, point.radius10 > 0);
+        addCircle(point.coords[0], point.coords[1], point.errorRadius, 'blue', 'dashed', point.errorRadius > 0); // Display error radius circle
+
+        if (point.showIcon) {
+            var marker = addMarker(point.coords[0], point.coords[1], point.intensity);
+            futureMarkers[index] = { marker: marker };
+        }
+    });
+
+    // Add drawn polygon if exists
+    if (drawnPolygon) {
+        map.addLayer(drawnPolygon);
+    }
+
+    // Add drawn warning polygon if exists
+    if (drawnWarningPolygon) {
+        map.addLayer(drawnWarningPolygon);
+    }
+}
+
+
+
+        // Add circle
+        function addCircle(lat, lng, radius, color, dashArray, visible) {
+            if (visible && radius > 0) {
+                L.circle([lat, lng], {
+                    color: color,
+                    fillColor: 'none',
+                    fillOpacity: 0.5,
+                    radius: radius * 1000,
+                    dashArray: dashArray,
+                }).addTo(map);
+            }
+        }
+
+        // Export map as image
+        function exportMapAsImage() {
+            var mapContainer = document.getElementById('map');
+            var mapWidth = mapContainer.offsetWidth;
+            var mapHeight = mapContainer.offsetHeight;
+
+            html2canvas(mapContainer).then(function(canvas) {
+                var imgData = canvas.toDataURL('image/png');
+
+                var link = document.createElement('a');
+                link.download = 'typhoon_map.png';
+                link.href = imgData;
+                link.click();
+            });
+        }
+
+        // Toggle form visibility
+        function toggleForm() {
+            var formContainer = document.querySelector('.container');
+            var toggleButton = document.getElementById('toggleFormButton');
+            formContainer.classList.toggle('collapsed');
+            if (Container.classList.contains('collapsed')) {
+                toggleButton.textContent = '展開';
+            } else {
+                toggleButton.textContent = '隱藏';
+            }
+        }
+       // Variables for warning area drawing
+var drawnWarningPolygon = null;
+var drawnWarningPolygonVertices = [];
+var drawWarningPolygonMode = false;
+
+// Draw warning area function
+function drawWarningArea() {
+    // Enable draw polygon mode
+    drawWarningPolygonMode = true;
+
+    // Remove existing drawn polygon if any
+    if (drawnWarningPolygon) {
+        map.removeLayer(drawnWarningPolygon);
+    }
+    drawnWarningPolygon = null;
+
+    // Switch map cursor style
+    map.getContainer().classList.add('crosshair-cursor');
+
+    // Inform user to click on the map
+    alert('點擊地圖以繪製警戒區，完成後再點擊按鈕退出繪製模式。');
+}
+
+// Handle map click to add or modify warning polygon vertices
+map.on('click', function (e) {
+    if (drawWarningPolygonMode) {
+        if (!drawnWarningPolygon) {
+            drawnWarningPolygonVertices = []; // Clear previous vertices
+            drawnWarningPolygon = L.polygon([], {
+                color: 'transparent',
+                fillColor: 'rgba(255, 0, 0, 0.1)', // Red with 0.1 opacity
+                fillOpacity: 0.1,
+                lineCap: 'round', // Rounded edges
+                renderer: L.canvas(), // Use canvas renderer for smooth edges
+                zIndexOffset: -2000, // Ensure the polygon is under other markers
+            }).addTo(map);
+        }
+
+        drawnWarningPolygonVertices.push(e.latlng);
+        updateDrawnWarningPolygonVertices();
+    }
+});
+
+// Update drawn warning polygon vertices
+function updateDrawnWarningPolygonVertices() {
+    if (drawnWarningPolygon) {
+        drawnWarningPolygon.setLatLngs(drawnWarningPolygonVertices);
+    }
+}
+
+// Delete last drawn warning polygon vertex
+function deleteLastDrawnWarningVertex() {
+    if (drawnWarningPolygonVertices.length > 0) {
+        drawnWarningPolygonVertices.pop();
+        updateDrawnWarningPolygonVertices();
+    }
+}
+
+// Finish drawing warning polygon
+function finishDrawnWarningArea() {
+    if (drawnWarningPolygon && drawnWarningPolygonVertices.length >= 3) { // 至少需要三個點來繪製多邊形
+        map.removeLayer(drawnWarningPolygon); // 移除之前的警戒區多邊形
+
+        // 添加新繪製的警戒區多邊形
+        drawnWarningPolygon = L.polygon(drawnWarningPolygonVertices, {
+            color: 'transparent',
+            fillColor: 'red', // 紅色填充
+            fillOpacity: 0.1,
+            lineCap: 'round', // 圓角邊緣
+            renderer: L.canvas(), // 使用canvas渲染器
+            zIndexOffset: -2000, // 確保多邊形位於其他標記下方
+        }).addTo(map);
+
+        // 清空頂點陣列
+        drawnWarningPolygonVertices = [];
+    } else {
+        alert('請至少添加三個點以繪製警戒區。');
+    }
+
+    // 退出繪製模式
+    drawWarningPolygonMode = false;
+    map.getContainer().classList.remove('crosshair-cursor'); // 移除十字線游標樣式
+}
+
+
+
+    </script>
+</body>
+</html>

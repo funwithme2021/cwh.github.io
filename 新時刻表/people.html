@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>各站點平均運量</title>
+  <style>
+    /* ===== RESET & BASIC ===== */
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      font-family: 'Noto Sans TC', sans-serif;
+    }
+    body {
+      background: linear-gradient(to right, #e4ecfa, #f5f8ff);
+      color: #333;
+      margin: 0;
+      padding-bottom: 50px;
+      transition: background-color 0.3s ease, color 0.3s ease;
+    }
+    body.dark-mode {
+      background: #121212;
+      color: #ccc;
+    }
+
+    /* Header / Navbar */
+    .header {
+      background-color: #333;
+      color: #fff;
+      text-align: center;
+      padding: 10px 20px;
+    }
+    .header h1 {
+      margin: 0;
+      font-size: 24px;
+      font-weight: 700;
+      letter-spacing: 1px;
+    }
+    .header nav {
+      margin-top: 8px;
+    }
+    .header nav a {
+      color: #fff;
+      text-decoration: none;
+      font-size: 14px;
+      margin: 0 8px;
+      padding: 6px 10px;
+      border-radius: 4px;
+      transition: background-color 0.3s;
+    }
+    .header nav a:hover {
+      background-color: #222;
+    }
+
+    /* Dark Mode Toggle */
+    .dark-mode-toggle {
+      position: fixed;
+      top: 10px;
+      right: 10px;
+      background-color: #444;
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      padding: 6px 12px;
+      cursor: pointer;
+      font-size: 14px;
+      z-index: 999;
+    }
+    .dark-mode-toggle:hover {
+      background-color: #222;
+    }
+
+    /* Container */
+    .container {
+      max-width: 1200px;
+      margin: 20px auto;
+      background: #fff;
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      padding: 20px;
+      transition: background-color 0.3s ease, color 0.3s ease;
+    }
+    body.dark-mode .container {
+      background: #1f1f1f;
+      color: #ddd;
+    }
+
+    /* Main Title */
+    .main-title {
+      font-size: 20px;
+      text-align: center;
+      margin-bottom: 20px;
+      font-weight: 700;
+      color: #333;
+    }
+    body.dark-mode .main-title {
+      color: #ccc;
+    }
+
+    /* Table Wrappers & Titles */
+    .table-wrapper {
+      margin-bottom: 40px;
+    }
+    .table-title {
+      font-size: 18px;
+      margin-bottom: 10px;
+      font-weight: 700;
+      border-left: 5px solid #130058;
+      padding-left: 10px;
+      color: #333;
+    }
+    body.dark-mode .table-title {
+      color: #ddd;
+    }
+
+    /* Table Common Styles */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 20px;
+      overflow: hidden;
+      border-radius: 6px;
+    }
+    thead th {
+      background-color: #333;
+      color: #fff;
+      font-weight: 600;
+      text-align: center;
+      padding: 12px 8px;
+      cursor: pointer; /* 可以提示使用者可點擊 */
+    }
+    body.dark-mode thead th {
+      background-color: #444;
+    }
+    tbody tr {
+      border-bottom: 1px solid #ddd;
+      transition: background-color 0.2s;
+    }
+    body.dark-mode tbody tr {
+      border-bottom: 1px solid #555;
+    }
+    tbody tr:nth-child(even) {
+      background: #f9f9f9;
+    }
+    body.dark-mode tbody tr:nth-child(even) {
+      background: #2a2a2a;
+    }
+    tbody tr:hover {
+      background-color: #f1f1f1;
+      cursor: pointer;
+    }
+    body.dark-mode tbody tr:hover {
+      background-color: #333;
+    }
+    td, th {
+      padding: 10px;
+      text-align: center;
+      font-size: 14px;
+      color: #333;
+    }
+    body.dark-mode td, body.dark-mode th {
+      color: #ddd;
+    }
+
+    /* Ranking Table highlight */
+    .ranking-table tbody tr td:nth-child(2) {
+      font-weight: 700;
+      color: #d0021b;
+    }
+    body.dark-mode .ranking-table tbody tr td:nth-child(2) {
+      color: #ff5f5f;
+    }
+  </style>
+</head>
+
+<body>
+  <button class="dark-mode-toggle" id="darkModeToggle">Dark Mode</button>
+
+
+  <div class="header">
+    <h1>各站點平均運量</h1>
+    <nav>
+      <a href="index-speed.html">高鐵時刻表</a>
+      <a href="index-thsr.html">高鐵時刻表(專用)</a>
+      <a href="index.html">時刻表</a>
+      <a href="index.trainrate-2.html">時刻表(含運用)</a>
+      <a href="index-tra.transfer.html">轉乘時刻表</a>
+      <a href="index-tra.easy.html">簡式時刻表</a>
+      <a href="index-tra.type.html">依車種時刻表</a>
+      <a href="train-info.html">車站資訊板</a>
+      <a href="people.html">運量查詢</a>
+      <a href="index.trainrate.html">運用率查詢</a>
+      <a href="index-tra.book.html">訂票系統</a>
+      <a href="index-tra.make.html">列車排點</a>
+    </nav>
+  </div>
+
+  <div class="container">
+    <h2 class="main-title">站點運量統計</h2>
+
+    <div class="table-wrapper">
+      <h3 class="table-title">站點平均運量 & 各車種列車數 & 整體運用率</h3>
+      <table id="station-table">
+        <thead>
+          <tr>
+            <th data-sort-col="none">排名</th>
+            <th data-sort-col="none">站點</th>
+            <th data-sort-col="avgLoad">平均運量</th>
+            <th data-sort-col="usageRate">整體運用率</th>
+            <th data-sort-col="totalTrain">總列車數</th>
+            <th data-sort-col="新自強">新自強</th>
+            <th data-sort-col="普悠瑪">普悠瑪</th>
+            <th data-sort-col="自強號(新)">自強號(新)</th>
+            <th data-sort-col="自強號">自強號</th>
+            <th data-sort-col="莒光號">莒光號</th>
+            <th data-sort-col="復興號">復興號</th>
+            <th data-sort-col="區間快">區間快</th>
+            <th data-sort-col="區間車">區間車</th>
+            <th data-sort-col="加班車">加班車</th>
+          </tr>
+        </thead>
+        <tbody><!-- 動態插入 --></tbody>
+      </table>
+    </div>
+
+    <div class="table-wrapper">
+      <h3 class="table-title">站點原序 & 排名對照</h3>
+      <table class="ranking-table" id="ranking-table">
+        <thead>
+          <tr>
+            <th>站點</th>
+            <th>排名</th>
+            <th>平均運量</th>
+          </tr>
+        </thead>
+        <tbody><!-- 動態插入 --></tbody>
+      </table>
+    </div>
+  </div>
+
+  <script src="train-schedule.js"></script>
+  <script>
+    
+
+    /****************************
+      Dark Mode
+    ****************************/
+    const darkModeToggle = document.getElementById('darkModeToggle');
+    darkModeToggle.addEventListener('click', ()=>{
+      document.body.classList.toggle('dark-mode');
+    });
+
+    /* 1) Station Original Order */
+    var stationsOrder = [
+      '臺東','山里','鹿野','瑞源','瑞和','關山','海端','池上','富里','東竹','東里',
+      '玉里','三民','瑞穗','富源','光復','萬榮','鳳林','南平','林榮新光','豐田','壽豐','平和','志學','吉安',
+      '花蓮','北埔','景美','新城','崇德','和仁','和平','漢本','武塔','南澳','東澳','蘇澳','永樂','蘇澳新','冬山',
+      '羅東','中里','二結','宜蘭','礁溪','頂埔','頭城','外澳','龜山','大溪','大里','石城','福隆','雙溪','猴硐','瑞芳',
+      '基隆','三坑','八堵','七堵','百福',
+      '汐止','汐科','南港','松山','臺北','萬華','板橋','浮洲','樹林','山佳','鶯歌','鳳鳴','桃園','內壢',
+      '中壢','埔心','楊梅','富岡','北湖','湖口','新豐','竹北','新竹','香山','崎頂','竹南',
+      '談文','大山','後龍','白沙屯','通宵','苑裡','日南','大甲','台中港','清水','沙鹿','大肚','追分',
+      '造橋','苗栗','銅鑼','三義','后里',
+      '豐原', '栗林', '潭子', '松竹', '太原', '臺中', '五權', '大慶', '新烏日', '彰化', '員林', '社頭', '田中', '二水', '斗六',
+      '斗南','民雄','嘉義','新營','善化','永康','臺南','岡山','新左營','高雄',
+      '鳳山','九曲堂','屏東','西勢','潮州',
+      '崁頂', '南州', '鎮安', '林邊', '佳冬', '東海', '枋寮'
+    ];
+
+   /* 2) stationMaxCapacities */
+   var stationMaxCapacities = {
+      '新自強': 838,
+      '普悠瑪': 406,
+      '自強號(新)': 1306,
+      '自強號': 1366,
+      '莒光號': 1000,
+      '復興號': 1000,
+      '區間快': 1700,
+      '區間車': 1700,
+      '加班車': 638
+    };
+
+    var stationTotalLoads = {};
+    var stationTrainCounts = {};
+    var stationTotalTrains = {};
+
+    // 假設 trainSchedule 存在於 train-schedule.js
+    for(var tn in trainSchedule) {
+      let train= trainSchedule[tn];
+      let tType= train['車種'];
+      let maxCap= stationMaxCapacities[tType]||100;
+
+      train['車站時間'].forEach(st=>{
+        let station= st[0];
+        if(!stationTotalLoads[station]) {
+          stationTotalLoads[station]= {totalLoad:0, trainCount:0};
+        }
+        if(!stationTrainCounts[station]) {
+          stationTrainCounts[station]= {
+            '新自強':0,'普悠瑪':0,'自強號(新)':0,'自強號':0,'莒光號':0,'復興號':0,'區間快':0,'區間車':0,'加班車':0
+          };
+        }
+        if(!stationTotalTrains[station]){
+          stationTotalTrains[station]=0;
+        }
+        let load= Math.floor(Math.random()* maxCap)+1;
+        stationTotalLoads[station].totalLoad += load;
+        stationTotalLoads[station].trainCount++;
+        stationTrainCounts[station][tType]++;
+        stationTotalTrains[station]++;
+      });
+    }
+
+    // 按 totalLoad 大->小
+    let sortedStations= Object.keys(stationTotalLoads).sort((a,b)=>{
+      return stationTotalLoads[b].totalLoad - stationTotalLoads[a].totalLoad;
+    });
+
+    // 產生第一張表
+    let stationTableBody= document.querySelector('#station-table tbody');
+    let rank=1;
+    sortedStations.forEach(station=>{
+      let row= stationTableBody.insertRow();
+      // 14 columns
+      for(let i=0;i<14;i++){
+        row.insertCell(i);
+      }
+      // col0 => ranking
+      row.cells[0].textContent= rank;
+      rank++;
+      // col1 => station
+      row.cells[1].textContent= station;
+
+      let totalLoad= stationTotalLoads[station].totalLoad;
+      let count= stationTotalLoads[station].trainCount;
+      // avgLoad => totalLoad (or totalLoad/count)
+      let avgLoad= (totalLoad).toFixed(0);
+      row.cells[2].textContent= avgLoad;
+
+      // usageRate => ( totalLoad / Σ( cntOfType * maxCapOfType ) )*100
+      let sumOfMaxCap=0;
+      for(let t in stationTrainCounts[station]){
+        let c= stationTrainCounts[station][t];
+        let cap= stationMaxCapacities[t]||100;
+        sumOfMaxCap+= (c*cap);
+      }
+      let usageRate= sumOfMaxCap>0 ? (totalLoad/sumOfMaxCap)*100 :0;
+      row.cells[3].textContent= usageRate.toFixed(2)+'%';
+
+      row.cells[4].textContent= stationTotalTrains[station];
+      row.cells[5].textContent= stationTrainCounts[station]['新自強'];
+      row.cells[6].textContent= stationTrainCounts[station]['普悠瑪'];
+      row.cells[7].textContent= stationTrainCounts[station]['自強號(新)'];
+      row.cells[8].textContent= stationTrainCounts[station]['自強號'];
+      row.cells[9].textContent= stationTrainCounts[station]['莒光號'];
+      row.cells[10].textContent= stationTrainCounts[station]['復興號'];
+      row.cells[11].textContent= stationTrainCounts[station]['區間快'];
+      row.cells[12].textContent= stationTrainCounts[station]['區間車'];
+      row.cells[13].textContent= stationTrainCounts[station]['加班車'];
+    });
+
+    // 產生第二張表 (ranking)
+    let rankingTableBody= document.querySelector('#ranking-table tbody');
+    stationsOrder.forEach(station=>{
+      let row= rankingTableBody.insertRow();
+      let cSt= row.insertCell(0);
+      let cRank= row.insertCell(1);
+      let cAvg= row.insertCell(2);
+
+      cSt.textContent= station;
+      let idx= sortedStations.indexOf(station);
+      if(idx===-1){
+        cRank.textContent='-';
+        cAvg.textContent='0';
+      } else {
+        cRank.textContent= idx+1;
+        cAvg.textContent= stationTotalLoads[station].totalLoad.toFixed(0);
+      }
+    });
+
+    /*********************************
+     * Sorting columns
+     *   sortDirections => 紀錄每欄位目前 asc/desc
+     *   click => 重新排序 #station-table
+    *********************************/
+    // 原本 col => dataSortMap
+    // "avgLoad" => col2, "usageRate" => col3, "totalTrain" => col4, 
+    //   "新自強" => col5, "普悠瑪" => col6, "自強號(新)" => col7, "自強號" => col8, ...
+    //   其實可以直接從 row.cells[colIndex].textContent parse => numeric
+    //   再 reorder
+    //   之後要更新 "排名" col0 => rowIndex+1
+    const stationTable= document.getElementById('station-table');
+    const stationTableTbody= stationTable.querySelector('tbody');
+    let sortDirections= {}; 
+    // 初始欄位 => asc
+    // col2(平均運量),3(運用率),4(總列車),5..13(各車種)
+    for(let c of [2,3,4,5,6,7,8,9,10,11,12,13]){
+      sortDirections[c]='asc';
+    }
+
+    // 在 <th> data-sort-col != 'none' 的欄位上加監聽
+    let stationTableThs= stationTable.querySelectorAll('thead th');
+    stationTableThs.forEach((th, colIndex)=>{
+      let sortAttr= th.getAttribute('data-sort-col');
+      if(sortAttr && sortAttr!=='none') {
+        th.addEventListener('click', ()=> {
+          sortStationTable(colIndex);
+        });
+      }
+    });
+
+    function sortStationTable(colIndex) {
+      // 取得當前方向
+      let currentDir= sortDirections[colIndex] || 'asc';
+      // 讀取 tbody rows
+      let rows= Array.from(stationTableTbody.querySelectorAll('tr'));
+
+      rows.sort((a,b)=>{
+        let aVal= a.cells[colIndex].textContent.trim();
+        let bVal= b.cells[colIndex].textContent.trim();
+
+        // 若帶% => 去掉
+        aVal= aVal.replace('%','');
+        bVal= bVal.replace('%','');
+
+        let numA= parseFloat(aVal);
+        let numB= parseFloat(bVal);
+        if(isNaN(numA)) numA=0;
+        if(isNaN(numB)) numB=0;
+
+        return (currentDir==='asc')? (numA - numB) : (numB - numA);
+      });
+
+      // 重新塞回 table
+      stationTableTbody.innerHTML='';
+      rows.forEach((row, idx)=>{
+        // 重設 "排名" (col0)
+        row.cells[0].textContent= (idx+1);
+        stationTableTbody.appendChild(row);
+      });
+
+      // flip dir
+      sortDirections[colIndex]= (currentDir==='asc'?'desc':'asc');
+    }
+  </script>
+</body>
+</html>

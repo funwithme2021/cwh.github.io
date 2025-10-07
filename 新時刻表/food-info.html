@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8"/>
+  <title>評分細項與動態等第 - 說明頁</title>
+  <link rel="stylesheet" href="food-style.css">
+  <style>
+    /* ====== 共用容器樣式 ====== */
+    .container {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 15px;
+    }
+
+    /* ====== 自訂卡片樣式 ====== */
+    .info-card {
+      background-color: #fdfdfd;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      padding: 16px;
+      margin-bottom: 16px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .info-card h3 {
+      margin-top: 0;
+      margin-bottom: 8px;
+      color: #333;
+    }
+    .info-card ul {
+      padding-left: 20px;
+    }
+
+    /* ====== 動態等第一覽表格 ====== */
+    .grade-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 20px 0;
+      background-color: #fff;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .grade-table thead th {
+      background: #f8f8f8;
+      border-bottom: 2px solid #ccc;
+    }
+    .grade-table th, .grade-table td {
+      border: 1px solid #eee;
+      padding: 10px 12px;
+      text-align: center;
+      font-weight: normal;
+    }
+    /* 斑馬紋效果(可自行移除或調整) */
+    .grade-table tbody tr:nth-child(even) {
+      background-color: #fcfcfc;
+    }
+
+    /* ====== 分數區間欄位加一點醒目顏色 ====== */
+    .score-range {
+      color: #444;
+      font-weight: bold;
+    }
+
+    /* ====== 其它結構優化 ====== */
+    .info-section {
+      margin-bottom: 30px;
+    }
+    .info-section h2 {
+      margin-bottom: 12px;
+      color: #444;
+    }
+    .info-section p {
+      line-height: 1.6;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>評分細項與動態等第標準</h1>
+  <p>本頁示範：顯示「A++ / A+ / A / B++ / B+ / B / C / F」等第的預估比例、動態分數範圍與實際比例</p>
+</header>
+
+<!-- 導航列 (Navbar) -->
+<div class="navbar">
+  <a href="food.html">首頁(排名)</a>
+  <a href="food-info.html">說明</a>
+  <a href="food-chart.html">統計圖表</a>
+  <a href="food-map.html">地圖</a>
+</div>
+
+<div class="container">
+  <!-- Google 翻譯 (右上方) -->
+  <div class="translate-bar" id="google_translate_element"></div>
+  <!-- (A) 動態等第一覽 (由JS動態產生) -->
+  <div class="info-section" id="gradeOverview">
+    <h2>動態等第一覽</h2>
+    <p>
+      下表顯示系統根據當前店家評分計算後，<br>
+      各等第 (A++ / A+ / A / B++ / B+ / B / C / F) 的
+      「預估比例區間」、「動態分數範圍」以及「目前實際佔比」。
+    </p>
+    <table class="grade-table" id="gradeTable">
+      <thead>
+        <tr>
+          <th>等第</th>
+          <th>預估比例 (min ~ max)</th>
+          <th>動態分數範圍</th>
+          <th>目前實際比例</th>
+        </tr>
+      </thead>
+      <tbody>
+        <!-- JS 產生 -->
+      </tbody>
+    </table>
+  </div>
+
+  <!-- (B) 評分細項說明 -->
+  <div class="info-section">
+    <h2>評分細項</h2>
+
+    <div class="info-card">
+      <h3>1. 價格</h3>
+      <ul>
+        <li>評估餐點的價格是否與其品質、份量和用餐體驗相符。</li>
+        <li>比較同類型餐廳或餐點的價格，判斷其性價比。</li>
+        <li>考量消費者的預算和期望，判斷價格是否合理。</li>
+      </ul>
+    </div>
+
+    <div class="info-card">
+      <h3>2. 外觀(含擺盤)</h3>
+      <ul>
+        <li>觀察餐點的顏色、形狀、擺盤是否美觀吸引人。</li>
+        <li>評估擺盤的創意和精緻度，是否能提升用餐的愉悅感。</li>
+        <li>考量餐點的視覺呈現是否符合其類型和風格。</li>
+      </ul>
+    </div>
+
+    <div class="info-card">
+      <h3>3. 氣味</h3>
+      <ul>
+        <li>嗅聞餐點的香氣是否誘人，是否能引起食慾。</li>
+        <li>評估香氣的層次感和豐富度，是否能展現食材的特色。</li>
+        <li>判斷是否有令人不愉快的異味。</li>
+      </ul>
+    </div>
+
+    <div class="info-card">
+      <h3>4. 口感</h3>
+      <ul>
+        <li>感受食物在口中的質地，例如軟嫩、彈牙、酥脆等。</li>
+        <li>評估食材的熟度和處理方式，是否能呈現最佳口感。</li>
+        <li>判斷口感是否豐富多樣，是否能帶來驚喜。</li>
+      </ul>
+    </div>
+
+    <div class="info-card">
+      <h3>5. 口味</h3>
+      <ul>
+        <li>品嚐餐點的味道，例如酸、甜、苦、辣、鹹等。</li>
+        <li>評估味道的平衡感和層次感，是否能展現食材的美味。</li>
+        <li>判斷調味是否恰到好處，是否能襯托出食材的特色。</li>
+      </ul>
+    </div>
+
+    <div class="info-card">
+      <h3>6. 食材新鮮度</h3>
+      <ul>
+        <li>觀察食材的顏色、光澤和質地，判斷其新鮮程度。</li>
+        <li>品嚐食材的味道，判斷是否有變質或不新鮮的跡象。</li>
+        <li>特別注意海鮮、生食等容易變質的食材。</li>
+      </ul>
+    </div>
+
+    <div class="info-card">
+      <h3>7. 分量</h3>
+      <ul>
+        <li>評估餐點的份量是否足夠，能否滿足消費者需求。</li>
+        <li>比較同類型餐廳或餐點的份量，判斷其是否合理。</li>
+        <li>考量消費者的食量和期望，判斷份量是否適中。</li>
+      </ul>
+    </div>
+
+    <div class="info-card">
+      <h3>8. 獨特性</h3>
+      <ul>
+        <li>評估餐點是否有獨特的創意或特色，是否能讓人印象深刻。</li>
+        <li>判斷餐點是否能展現廚師的巧思和創意。</li>
+        <li>是否有值得推薦給其他人的地方。</li>
+      </ul>
+    </div>
+
+    <div class="info-card">
+      <h3>9. 環境</h3>
+      <ul>
+        <li>包含清潔度、舒適度、氛圍等。</li>
+        <li>用餐環境會影響整體用餐體驗。</li>
+      </ul>
+    </div>
+
+    <div class="info-card">
+      <h3>10. 態度</h3>
+      <ul>
+        <li>服務人員的專業度、親切度。</li>
+        <li>服務態度是餐廳軟實力的體現。</li>
+      </ul>
+    </div>
+
+    <div class="info-card">
+      <h3>11. 其他(等候時間等)</h3>
+      <ul>
+        <li>包含排隊時間、上菜速度、點餐便利度等。</li>
+        <li>這些因素都會影響整體用餐體驗。</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- (C) 動態等第的概念 + 加權比例 -->
+  <div class="info-section">
+    <h2>動態等第：說明</h2>
+    <p>
+      系統會依照所有店家的實際評分分布，採用
+      <strong>多次迭代</strong>的方式分配等第，
+      使得 A++ / A+ / A / B++ / B+ / B / C / F
+      盡量符合預期的比例區間，
+      同時再依據實際分數高低做邊界調整。  
+      <br>
+      當整體分數偏高時，A++ 等級門檻也會相應提升；
+      反之，若大部分店家分數不高，門檻會較為寬鬆。
+    </p>
+
+    <h2>加權比例 (總和 100%)</h2>
+    <div class="info-card">
+      <ul>
+        <li>口味：15%</li>
+        <li>食材新鮮度：10%</li>
+        <li>口感：15%</li>
+        <li>外觀：10%</li>
+        <li>氣味：10%</li>
+        <li>分量：10%</li>
+        <li>獨特性：5%</li>
+        <li>價格：10%</li>
+        <li>環境：5%</li>
+        <li>態度：5%</li>
+        <li>其他：5%</li>
+      </ul>
+      <p>最終分數 = 各細項評分 × 對應權重的加總。</p>
+    </div>
+  </div>
+</div>
+
+<footer>
+  <p>美食評分 - 說明頁 (動態等第)</p>
+</footer>
+
+<!-- 載入資料檔 (food.js) -->
+<script src="food.js"></script>
+<script>
+/* ===============================
+   1) 動態分數計算 + 分級邏輯
+   (與首頁 food.html 保持一致)
+=============================== */
+/* A) 計算店家加權分數 */
+function computeSingleScore(d){
+  const WEIGHTS = {
+    taste: 0.15, freshness: 0.10, texture: 0.15,
+    appearance: 0.10, smell: 0.10, portion: 0.10,
+    uniqueness: 0.05, price: 0.10, environment: 0.05,
+    attitude: 0.05, others: 0.05
+  };
+  return (
+    d.taste*WEIGHTS.taste +
+    d.freshness*WEIGHTS.freshness +
+    d.texture*WEIGHTS.texture +
+    d.appearance*WEIGHTS.appearance +
+    d.smell*WEIGHTS.smell +
+    d.portion*WEIGHTS.portion +
+    d.uniqueness*WEIGHTS.uniqueness +
+    d.price*WEIGHTS.price +
+    d.environment*WEIGHTS.environment +
+    d.attitude*WEIGHTS.attitude +
+    d.others*WEIGHTS.others
+  );
+}
+
+/* B) 預估比例：A++ / A+ / A / B++ / B+ / B / C / F */
+const RATIO_GRADE_CONFIG = [
+{grade:"A++",    minRatio:0.03, maxRatio:0.05},
+  {grade:"A+",    minRatio:0.08, maxRatio:0.13},
+  {grade:"A",    minRatio:0.13, maxRatio:0.20},
+  {grade:"B++",    minRatio:0.17, maxRatio:0.23},
+  {grade:"B+",    minRatio:0.20, maxRatio:0.25},
+  {grade:"B",    minRatio:0.13, maxRatio:0.25},
+  {grade:"C",  minRatio:0.05, maxRatio:0.08},
+  {grade:"F",      minRatio:0.00, maxRatio:0.05}
+];
+
+
+/* C) 多次迭代: 比例分配 (示範) */
+function assignRatioGrades(data, maxIterations=5){
+  data.sort((a,b)=> computeSingleScore(b) - computeSingleScore(a));
+  const n = data.length;
+  if(n===0) return data;
+
+  // 第一次粗分
+  let start=0;
+  for(let i=0; i<RATIO_GRADE_CONFIG.length; i++){
+    const cfg= RATIO_GRADE_CONFIG[i];
+    const midRatio= (cfg.minRatio + cfg.maxRatio)/2;
+    const slotCount= Math.round(midRatio*n);
+    if(i=== RATIO_GRADE_CONFIG.length-1){
+      for(let j=start; j<n; j++){
+        data[j].ratioGrade= cfg.grade;
+      }
+      break;
+    } else {
+      const endIndex= Math.min(start+ slotCount, n);
+      for(let j=start; j<endIndex; j++){
+        data[j].ratioGrade= cfg.grade;
+      }
+      start= endIndex;
+    }
+  }
+
+  // 多次迭代微調
+  for(let iter=0; iter<maxIterations; iter++){
+    let gradeCountMap={};
+    data.forEach(d=>{
+      gradeCountMap[d.ratioGrade] = (gradeCountMap[d.ratioGrade]||0)+1;
+    });
+    for(let i=0; i<RATIO_GRADE_CONFIG.length; i++){
+      const cfg= RATIO_GRADE_CONFIG[i];
+      const g  = cfg.grade;
+      const c  = gradeCountMap[g]||0;
+      const ratio= c/n;
+      // 超標 => 往下一級移
+      if(ratio> cfg.maxRatio && i<RATIO_GRADE_CONFIG.length-1){
+        const overCount= Math.round(c - cfg.maxRatio*n);
+        if(overCount>0){
+          let sameGArr= data.filter(d=> d.ratioGrade=== g);
+          // 分數最低(升序)
+          sameGArr.sort((a,b)=> computeSingleScore(a)-computeSingleScore(b));
+          for(let k=0; k<overCount && k<sameGArr.length; k++){
+            sameGArr[k].ratioGrade= RATIO_GRADE_CONFIG[i+1].grade;
+          }
+        }
+      }
+      // 不足 => 從上一級拉人
+      else if(ratio< cfg.minRatio && i>0){
+        const shortCount= Math.round(cfg.minRatio*n - c);
+        if(shortCount>0){
+          const prevG= RATIO_GRADE_CONFIG[i-1].grade;
+          let prevArr= data.filter(d=> d.ratioGrade=== prevG);
+          // 從上一級分數最高開始
+          prevArr.sort((a,b)=> computeSingleScore(a)-computeSingleScore(b));
+          for(let k=0; k<shortCount && k<prevArr.length; k++){
+            let item= prevArr[prevArr.length-1-k];
+            item.ratioGrade= g;
+          }
+        }
+      }
+    }
+    data.sort((a,b)=> computeSingleScore(b) - computeSingleScore(a));
+    // 重新計算
+    gradeCountMap={};
+    data.forEach(d=>{
+      gradeCountMap[d.ratioGrade] = (gradeCountMap[d.ratioGrade]||0)+1;
+    });
+  }
+  return data;
+}
+
+/* ===============================
+   2) DOM Loaded => 計算+顯示
+=============================== */
+document.addEventListener("DOMContentLoaded", ()=>{
+  const gradeTableBody= document.getElementById("gradeTable").querySelector("tbody");
+  if(!foodData || foodData.length===0){
+    gradeTableBody.innerHTML=`
+      <tr><td colspan="4">目前無任何店家資料</td></tr>`;
+    return;
+  }
+
+  // 1) 分配
+  assignRatioGrades(foodData, 5); 
+
+  // 2) 統計分數範圍 & 實際比例
+  foodData.sort((a,b)=> computeSingleScore(b)-computeSingleScore(a));
+  let total= foodData.length;
+  let infoMap= {};
+  RATIO_GRADE_CONFIG.forEach(cfg=>{
+    infoMap[cfg.grade]= {count:0, minScore:null, maxScore:null};
+  });
+
+  // 填入 minScore/maxScore
+  foodData.forEach(d=>{
+    let g= d.ratioGrade;
+    if(!infoMap[g]){
+      infoMap[g]= {count:0, minScore:null, maxScore:null};
+    }
+    infoMap[g].count++;
+    let sc= computeSingleScore(d);
+    if(infoMap[g].minScore===null || sc< infoMap[g].minScore){
+      infoMap[g].minScore= sc;
+    }
+    if(infoMap[g].maxScore===null || sc> infoMap[g].maxScore){
+      infoMap[g].maxScore= sc;
+    }
+  });
+
+  // 3) 輸出表格
+  let html="";
+  RATIO_GRADE_CONFIG.forEach(cfg=>{
+    const g= cfg.grade;
+    const obj= infoMap[g] || {count:0, minScore:null, maxScore:null};
+    let c= obj.count;
+    let ratio= (c/total*100).toFixed(2)+"%";
+    let ratioRange= `${(cfg.minRatio*100).toFixed(0)}% ~ ${(cfg.maxRatio*100).toFixed(0)}%`;
+    let scRange= "";
+    if(obj.minScore===null){
+      scRange= "<span class='score-range'>無店家</span>";
+    } else {
+      let minS= obj.minScore.toFixed(2);
+      let maxS= obj.maxScore.toFixed(2);
+      scRange= `<span class="score-range">${minS} ~ ${maxS}</span>`;
+    }
+
+    html += `
+      <tr>
+        <td>${g}</td>
+        <td>${ratioRange}</td>
+        <td>${scRange}</td>
+        <td>${ratio}</td>
+      </tr>
+    `;
+  });
+  gradeTableBody.innerHTML= html;
+});
+
+/* ========== Google 翻譯 ========== */
+function googleTranslateElementInit(){
+  new google.translate.TranslateElement({pageLanguage:'zh-TW'},
+    'google_translate_element'
+  );
+}
+</script>
+<script type="text/javascript" 
+  src="//translate.google.com/translate_a/element.js?cb=googleTranslateElementInit">
+</script>
+</body>
+</html>

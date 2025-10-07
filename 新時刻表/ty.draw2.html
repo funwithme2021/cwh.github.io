@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>颱風預測路徑繪圖系統</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <style>
+        #map {
+            height: 800px;
+            width: 100%;
+            position: relative;
+        }
+        .controls-container {
+            margin-top: 20px;
+            background-color: white;
+            padding: 15px;
+            border-radius: 5px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
+            width: 100%;
+        }
+        .custom-label {  
+            border-radius: 5px;
+            white-space: nowrap;
+            text-align: center;
+            font-weight: bold;
+            font-size: 17px;
+        }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+    <div class="controls-container">
+        <h3>繪製控制</h3>
+        <button onclick="toggleDrawErrorRange()">繪製誤差範圍</button>
+        <button onclick="deleteLastErrorVertex()">刪除最後一個點</button>
+        <button onclick="finishDrawErrorRange()">完成繪製</button>
+        <br><br>
+        <h3>顯示選項</h3>
+        <label><input type="checkbox" id="showErrorCircles" onchange="toggleErrorCircles()" checked> 顯示誤差圈</label>
+    </div>
+    <div id="map"></div>
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <script src="___________.geojson"></script> <!-- 替換為實際的 GeoJSON 文件路徑 -->
+    <script>
+        // 初始化地圖
+        var map = L.map('map').setView([23.5, 121], 6);
+
+        // 加入地圖圖層
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+            maxZoom: 18,
+            attribution: 'Map tiles by CartoDB, CC BY 3.0',
+        }).addTo(map);
+
+        var pastPath = [
+        [7.5, 147.5],[9.8, 144.6],[11.3, 140.6],[12.4, 137.8],[12.3, 136.4],[12.8, 134.9],[13.5, 133.6],[14.0, 131.9],[14.2, 130.4],
+        [14.6, 129.0],[14.9, 128.3],[15.5, 126.4],[16.2, 125.3],[16.6, 123.9],[16.8, 123.5],[17.2, 123.1],[17.6, 122.6],[17.9, 122.1],
+        [18.2, 121.9],[18.6, 121.4],[19.1, 121.1],[19.6, 120.7],
+
+        ];
+
+        var currentPosition = {
+            coords: [19.6, 120.7], //東北'東南'西北'西南
+            radius7: { northeast: 160, northwest: 110, southeast: 160, southwest: 150 },
+            radius10: { northeast: 50, northwest: 50, southeast: 50, southwest: 40 },
+            showIcon: true,
+            intensity: 'ST',
+            time: '現在位置'
+        };
+
+        var futurePath = [
+            { coords: [21.0, 119.8], radius7: 120, radius10: 40, errorRadius: 50, showIcon: true, intensity: 'TS', time: '15日14時' },
+            { coords: [21.7, 120.0], radius7: 100, radius10: 0, errorRadius: 90, showIcon: true, intensity: 'TS', time: '16日02時' },
+            { coords: [22.1, 120.5], radius7: 80, radius10: 0, errorRadius: 120, showIcon: true, intensity: 'TS', time: '16日14時' },
+            { coords: [22.3, 121.1], radius7: 80, radius10: 0, errorRadius: 150, showIcon: true, intensity: 'TS', time: '17日02時' },
+            { coords: [22.3, 121.5], radius7: 0, radius10: 0, errorRadius: 190, showIcon: true, intensity: 'TD', time: '17日14時' },
+
+        ];
+
+        var drawnCityPolygons = [];
+        var drawnErrorPolygon = null;
+        var drawnErrorVertices = [];
+        var drawErrorMode = false;
+        var currentMarker = null;
+        var futureMarkers = [];
+        var labelMarkers = [];
+        var connectingLines = [];
+        var showErrorCircles = true;
+        var drawnCityPolygons = [];
+
+
+        // 切換繪製誤差範圍模式
+        function toggleDrawErrorRange() {
+            drawErrorMode = !drawErrorMode;
+            if (drawErrorMode) {
+                alert('點擊地圖來繪製誤差範圍，完成後點擊"完成繪製"按鈕。');
+                map.getContainer().classList.add('crosshair-cursor');
+                if (drawnErrorPolygon) {
+                    map.removeLayer(drawnErrorPolygon);
+                }
+                drawnErrorPolygon = null;
+                drawnErrorVertices = [];
+            } else {
+                map.getContainer().classList.remove('crosshair-cursor');
+            }
+        }
+
+        // 地圖點擊事件，用於繪製多邊形的頂點
+        map.on('click', function (e) {
+            if (drawErrorMode) {
+                if (!drawnErrorPolygon) {
+                    drawnErrorPolygon = L.polygon([], {
+                        color: 'transparent',
+                        fillColor: 'blue',
+                        fillOpacity: 0.3,
+                        lineCap: 'round',
+                        renderer: L.canvas(),
+                        zIndexOffset: -2000
+                    }).addTo(map);
+                }
+                drawnErrorVertices.push(e.latlng);
+                updateDrawnErrorPolygon();
+            }
+        });
+
+        // 更新繪製中的誤差範圍多邊形
+        function updateDrawnErrorPolygon() {
+            if (drawnErrorPolygon) {
+                drawnErrorPolygon.setLatLngs(drawnErrorVertices);
+            }
+        }
+
+        // 刪除最後一個繪製的誤差範圍頂點
+        function deleteLastErrorVertex() {
+            if (drawnErrorVertices.length > 0) {
+                drawnErrorVertices.pop();
+                updateDrawnErrorPolygon();
+            }
+        }
+
+        // 完成繪製誤差範圍
+        function finishDrawErrorRange() {
+            if (drawnErrorPolygon && drawnErrorVertices.length >= 3) {
+                map.removeLayer(drawnErrorPolygon);
+                drawnErrorPolygon = L.polygon(drawnErrorVertices, {
+                    color: 'transparent',
+                    fillColor: 'blue',
+                    fillOpacity: 0.15,
+                    lineCap: 'round',
+                    renderer: L.canvas(),
+                    zIndexOffset: -2000
+                }).addTo(map);
+                drawnErrorVertices = [];
+            } else {
+                alert('請至少添加三個點以繪製多邊形。');
+            }
+            drawErrorMode = false;
+            map.getContainer().classList.remove('crosshair-cursor');
+        }
+
+        // 顯示或隱藏誤差圈
+        function toggleErrorCircles() {
+            showErrorCircles = document.getElementById('showErrorCircles').checked;
+            redrawPaths();
+        }
+
+        // 高亮顯示指定的縣市
+        function highlightCities() {
+            drawnCityPolygons.forEach(function(polygon) {
+                map.removeLayer(polygon);
+            });
+            drawnCityPolygons = [];
+
+            var selectedCities = ["臺北市", "新北市", "桃園市"]; // 直接在這裡指定選擇的縣市
+            selectedCities.forEach(function(city) {
+                geojsonData.features.forEach(function(feature) {
+                    if (feature.properties.name === city) {
+                        var cityPolygon = L.geoJSON(feature, {
+                            style: {
+                                color: 'transparent',
+                                fillColor: 'red',
+                                fillOpacity: 0.1,
+                                lineCap: 'round',
+                                renderer: L.canvas(),
+                                zIndexOffset: -2000
+                            }
+                        }).addTo(map);
+                        drawnCityPolygons.push(cityPolygon);
+                    }
+                });
+            });
+        }
+
+        // 繪製不對稱的風圈
+        function drawAsymmetricWindCircle(center, windData, color) {
+            var points = [];
+            var quadrants = [
+                { radius: windData.northeast, startAngle: 0, endAngle: 90 },
+                { radius: windData.northwest, startAngle: 90, endAngle: 180 },
+                { radius: windData.southwest, startAngle: 180, endAngle: 270 },
+                { radius: windData.southeast, startAngle: 270, endAngle: 360 }
+            ];
+
+            quadrants.forEach(function(quadrant) {
+                var radius = quadrant.radius * 1000;
+                for (var angle = quadrant.startAngle; angle <= quadrant.endAngle; angle += 5) {
+                    var radian = (angle * Math.PI) / 180;
+                    var lat = center[0] + (radius / 111320) * Math.cos(radian);
+                    var lng = center[1] + (radius / (40075000 * Math.cos(center[0] * Math.PI / 180) / 360)) * Math.sin(radian);
+                    points.push([lat, lng]);
+                }
+            });
+
+            points.push(points[0]);
+            L.polygon(points, {
+                color: color,
+                weight: 1,
+                fillOpacity: 0.1,
+                fillColor: color
+            }).addTo(map);
+        }
+
+        // 繪製風圈、標籤和誤差範圍
+        function redrawPaths() {
+            map.eachLayer(function (layer) {
+                if (layer instanceof L.Polyline || layer instanceof L.Circle || layer instanceof L.Marker || layer instanceof L.Polygon) {
+                    map.removeLayer(layer);
+                }
+            });
+
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+                maxZoom: 18,
+                attribution: 'Map tiles by CartoDB, CC BY 3.0',
+            }).addTo(map);
+
+            if (pastPath.length > 0) {
+                L.polyline([...pastPath, currentPosition.coords], {
+                    color: 'black',
+                    lineCap: 'round',
+                }).addTo(map);
+            }
+
+            drawAsymmetricWindCircle(currentPosition.coords, currentPosition.radius7, 'orange');
+            drawAsymmetricWindCircle(currentPosition.coords, currentPosition.radius10, 'red');
+
+            if (currentPosition.showIcon) {
+                currentMarker = addMarker(currentPosition.coords[0], currentPosition.coords[1], currentPosition.intensity);
+                map.addLayer(currentMarker);
+                addDraggableLabel(currentPosition.coords, currentPosition.time);
+            }
+
+            var combinedPath = [currentPosition.coords].concat(futurePath.map(p => p.coords));
+            for (var i = 1; i < combinedPath.length; i++) {
+                L.polyline([combinedPath[i - 1], combinedPath[i]], {
+                    color: 'black',
+                    dashArray: '5, 5',
+                    lineCap: 'round',
+                }).addTo(map);
+            }
+
+            futurePath.forEach(function (point, index) {
+                addCircle(point.coords[0], point.coords[1], point.radius7, 'orange');
+                addCircle(point.coords[0], point.coords[1], point.radius10, 'red');
+                if (showErrorCircles) {
+                    addCircle(point.coords[0], point.coords[1], point.errorRadius, 'blue');
+                }
+
+                if (point.showIcon) {
+                    var marker = addMarker(point.coords[0], point.coords[1], point.intensity);
+                    futureMarkers[index] = { marker: marker };
+                    addDraggableLabel(point.coords, point.time);
+                }
+            });
+
+            if (drawnErrorPolygon) {
+                map.addLayer(drawnErrorPolygon);
+            }
+        }
+
+        // 添加圓圈表示風圈範圍
+        function addCircle(lat, lng, radius, color) {
+            if (radius > 0) {
+                L.circle([lat, lng], {
+                    color: color,
+                    weight: 2,
+                    fillColor: 'none',
+                    fillOpacity: 0.5,
+                    radius: radius * 1000,
+                    dashArray: '5, 5',
+                }).addTo(map);
+            }
+        }
+
+        // 添加標記
+        function addMarker(lat, lng, intensity) {
+            var iconUrl = getIntensityIcon(intensity);
+            var icon = L.icon({
+                iconUrl: iconUrl,
+                iconSize: [22, 22],
+                iconAnchor: [11, 11],
+            });
+
+            return L.marker([lat, lng], { icon: icon }).addTo(map);
+        }
+
+        // 增加可拖動的標籤並連接到圖示
+        function addDraggableLabel(coords, labelText) {
+            var labelMarker = L.marker([coords[0], coords[1] + 0.1], {
+                draggable: true,
+                icon: L.divIcon({
+                    className: 'custom-label',
+                    html: `<div>${labelText}</div>`
+                })
+            }).addTo(map);
+
+            var line = L.polyline([coords, [coords[0], coords[1] + 0.1]], {
+                color: 'black',
+                weight: 1,
+            }).addTo(map);
+
+            connectingLines.push(line);
+            labelMarkers.push(labelMarker);
+
+            labelMarker.on('drag', function (e) {
+                var newPos = e.target.getLatLng();
+                line.setLatLngs([coords, newPos]);
+            });
+        }
+
+        // 根據強度選擇圖示
+        function getIntensityIcon(intensity) {
+            switch (intensity) {
+                case 'TD':
+                    return 'td1.png';
+                case 'TS':
+                    return 'ts1.png';
+                case 'ST':
+                    return 'st1.png';
+                case 'TY':
+                    return 'ty.png';
+                default:
+                    return 'images/default.png';
+            }
+        }
+
+        // 初始化時自動高亮顯示指定的縣市
+        highlightCities();
+        redrawPaths();
+    </script>
+</body>
+</html>

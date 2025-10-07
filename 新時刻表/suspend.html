@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>停班課預測表</title>
+<style>
+  :root{
+    --c-red:#d32f2f;
+    --c-purple:#6a1b9a;
+    --c-dark:#37474f;
+    --c-gray:#fafafa;
+  }
+  body{font-family:"Noto Sans TC",sans-serif;background:#f4f6f9;margin:0;}
+  .container{max-width:760px;margin:24px auto;padding:0 12px;}
+  h2{text-align:center;margin:0;font-size:1.4rem;color:var(--c-dark);}  
+  .note{font-size:.8rem;text-align:center;color:#666;margin:4px 0 16px;line-height:1.4;}
+  table{width:100%;border-collapse:collapse;background:#fff;box-shadow:0 4px 8px rgba(0,0,0,.06);} 
+  th,td{padding:6px 8px;border:1px solid #ddd;text-align:center;font-size:.9rem;}
+  th{background:var(--c-dark);color:#fff;font-weight:600;}
+  tr:nth-child(odd){background:var(--c-gray);}  
+  .red{color:var(--c-red);font-weight:700;}
+  .purple{color:var(--c-purple);font-weight:700;}
+</style>
+</head>
+<body>
+<div class="container">
+  <h2>停班課預測</h2>
+  <p class="note">依最新 CWA 風雨預報判斷，實際資訊以各縣市政府公布為準</p>
+  <table id="forecastTable">
+    <thead>
+      <tr>
+        <th>縣市</th>
+        <th>區域</th>
+        <th>風力預估</th>
+        <th>是否達標</th>
+        <th>預測</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+</div>
+
+<script>
+// ================= 資料設定 =================
+// county : 縣市名稱
+// region : "內陸" | "沿海" | "全縣"
+// avgWind: 平均風力(整數)
+// gust   : 陣風等級(整數)
+// stop   : "O" 停班課 | "X" 上班課
+const data = [
+  {county:"基隆市",  region:"全縣", avgWind:6, gust:10,  stop:"X"},
+  {county:"臺北市",  region:"全縣", avgWind:6, gust:10,  stop:"X"},
+  {county:"新北市",  region:"內陸", avgWind:6, gust:10, stop:"X"},
+  {county:"新北市",  region:"沿海", avgWind:7, gust:10, stop:"X"},
+  {county:"桃園市",  region:"內陸", avgWind:6, gust:9,  stop:"X"},
+  {county:"桃園市",  region:"沿海", avgWind:6, gust:9, stop:"X"},
+  {county:"新竹市",  region:"內陸", avgWind:6, gust:9,  stop:"X"},
+  {county:"新竹市",  region:"沿海", avgWind:6, gust:9, stop:"X"},
+  {county:"新竹縣",  region:"內陸", avgWind:6, gust:9,  stop:"X"},
+  {county:"新竹縣",  region:"沿海", avgWind:6, gust:9, stop:"X"},
+  {county:"苗栗縣",  region:"內陸", avgWind:4, gust:7,  stop:"X"},
+  {county:"苗栗縣",  region:"沿海", avgWind:5, gust:8, stop:"X"},
+  {county:"臺中市",  region:"內陸", avgWind:3, gust:7,  stop:"X"},
+  {county:"臺中市",  region:"沿海", avgWind:5, gust:8, stop:"X"},
+  {county:"彰化縣",  region:"內陸", avgWind:5, gust:8,  stop:"X"},
+  {county:"彰化縣",  region:"沿海", avgWind:6, gust:9, stop:"X"},
+  {county:"南投縣",  region:"全縣", avgWind:5, gust:8,  stop:"X"},
+  {county:"雲林縣",  region:"內陸", avgWind:6, gust:9,  stop:"X"},
+  {county:"雲林縣",  region:"沿海", avgWind:6, gust:9, stop:"X"},
+  {county:"嘉義市",  region:"全縣", avgWind:7, gust:10,  stop:"O"},
+  {county:"嘉義縣",  region:"內陸", avgWind:7, gust:10,  stop:"O"},
+  {county:"嘉義縣",  region:"沿海", avgWind:8, gust:12, stop:"O"},
+  {county:"臺南市",  region:"內陸", avgWind:8, gust:12,  stop:"O"},
+  {county:"臺南市",  region:"沿海", avgWind:8, gust:13, stop:"O"},
+  {county:"高雄市",  region:"內陸", avgWind:7, gust:10,  stop:"O"},
+  {county:"高雄市",  region:"沿海", avgWind:8, gust:11, stop:"O"},
+  {county:"屏東縣",  region:"內陸", avgWind:7, gust:10,  stop:"O"},
+  {county:"屏東縣",  region:"沿海", avgWind:7, gust:10, stop:"O"},
+  {county:"宜蘭縣",  region:"內陸", avgWind:6, gust:9,  stop:"X"},
+  {county:"宜蘭縣",  region:"沿海", avgWind:7, gust:10, stop:"O"},
+  {county:"花蓮縣",  region:"內陸", avgWind:7, gust:10,  stop:"O"},
+  {county:"花蓮縣",  region:"沿海", avgWind:7, gust:10, stop:"O"},
+  {county:"臺東縣",  region:"內陸", avgWind:9, gust:13,  stop:"O"},
+  {county:"臺東縣",  region:"沿海", avgWind:11, gust:16, stop:"O"},
+  {county:"澎湖縣",  region:"全縣", avgWind:9, gust:13, stop:"O"},
+  {county:"金門縣",  region:"全縣", avgWind:6, gust:9,  stop:"X"},
+  {county:"連江縣",  region:"全縣", avgWind:6, gust:9,  stop:"X"},
+];
+
+// ================= 函式 =================
+// 依風力上色
+function applyWindColor(cell, avg, gust){
+  if(avg>=12 || gust>=14){
+    cell.classList.add('purple');
+  }else if(avg>=7 || gust>=10){
+    cell.classList.add('red');
+  }
+}
+
+// 建立合併後的預測儲存格
+function createCombinedStopCell(arr){
+  const td = document.createElement('td');
+  const anyStop = arr.some(d=>d.stop==='O');
+  td.textContent = anyStop ? '停班課' : '上班課';
+  if(anyStop) td.classList.add('red');
+  return td;
+}
+
+function buildTable(){
+  const tbody = document.querySelector('#forecastTable tbody');
+  tbody.innerHTML = '';
+
+  // 依縣市分組
+  const grouped = {};
+  data.forEach(d=>{
+    grouped[d.county] = grouped[d.county] || [];
+    grouped[d.county].push(d);
+  });
+
+  Object.entries(grouped).forEach(([county, arr])=>{
+    const span = arr.length;
+
+    // 建立 rowspan 儲存格們
+    const tdCounty = document.createElement('td');
+    tdCounty.textContent = county;
+    tdCounty.rowSpan = span;
+
+    const tdPredict = createCombinedStopCell(arr);
+    tdPredict.rowSpan = span;
+
+    arr.forEach((d, idx)=>{
+      const tr = document.createElement('tr');
+
+      // 只在第一列插入縣市與預測兩格
+      if(idx===0){
+        tr.appendChild(tdCounty);
+      }
+
+      // 區域
+      const tdRegion = document.createElement('td');
+      tdRegion.textContent = d.region;
+      tr.appendChild(tdRegion);
+
+      // 風力預估
+      const tdWind = document.createElement('td');
+      tdWind.textContent = `${d.avgWind}G${d.gust}`;
+      applyWindColor(tdWind, d.avgWind, d.gust);
+      tr.appendChild(tdWind);
+
+      // 是否達標
+      const tdReach = document.createElement('td');
+      const reach = (d.avgWind>=7 || d.gust>=10);
+      tdReach.textContent = reach ? '達標' : '未達標';
+      if(reach) tdReach.classList.add('red');
+      tr.appendChild(tdReach);
+
+      if(idx===0){
+        tr.appendChild(tdPredict);
+      }
+
+      tbody.appendChild(tr);
+    });
+  });
+}
+
+buildTable();
+</script>
+</body>
+</html>

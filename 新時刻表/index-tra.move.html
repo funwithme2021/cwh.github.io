@@ -1,0 +1,848 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8" />
+  <title>列車運行動態圖</title>
+  <style>
+    /* --- 使用 CSS 變數定義淺色/深色主題 --- */
+    :root {
+      --bg-color: #f0f2f5;       /* 背景色 (淺) */
+      --text-color: #333;        /* 文字色 (淺) */
+      --panel-bg: #fff;          /* 面板背景 (淺) */
+      --panel-border: #ddd;      /* 面板邊框 (淺) */
+      --station-line-bg: #ccc;   /* 路線底色 (淺) */
+    }
+    [data-theme="dark"] {
+      --bg-color: #1d1f21;       /* 背景色 (深) */
+      --text-color: #ccc;        /* 文字色 (深) */
+      --panel-bg: #2c2f33;       /* 面板背景 (深) */
+      --panel-border: #555;      /* 面板邊框 (深) */
+      --station-line-bg: #666;   /* 路線底色 (深) */
+    }
+
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: 'Helvetica Neue', sans-serif;
+      background: var(--bg-color);
+      color: var(--text-color);
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      transition: background 0.3s, color 0.3s; /* 主題切換漸變 */
+    }
+
+    .controls {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      background: var(--panel-bg);
+      border-bottom: 1px solid var(--panel-border);
+      padding: 5px 0;
+    }
+
+    .control-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    #simTimeLabel {
+      font-size: 14px;
+    }
+
+    select, button {
+      font-size: 14px;
+      padding: 4px 8px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+
+    .main-layout {
+      display: flex;
+      flex: 1;
+      height: 100%;
+    }
+
+    .container {
+      width: 70%;
+      overflow-y: auto;
+      padding: 20px;
+    }
+
+    .sidebar {
+      width: 30%;
+      border-left: 1px solid var(--panel-border);
+      background: var(--panel-bg);
+      padding: 20px;
+      box-shadow: -2px 0 5px rgba(0, 0, 0, 0.05);
+      overflow-y: auto;
+      transition: background 0.3s;
+    }
+
+    h1 {
+      font-size: 28px;
+      text-align: center;
+      margin-bottom: 10px;
+    }
+
+    #currentTime {
+      font-size: 16px;
+      text-align: center;
+      margin-bottom: 10px;
+    }
+
+    #searchBox {
+      display: flex;
+      justify-content: center;
+      margin: 10px 0;
+    }
+
+    #searchInput, #trainSearchInput {
+      font-size: 14px;
+      padding: 5px 8px;
+      border-radius: 4px;
+      border: 1px solid #ccc;
+      width: 80%;
+      color: #333;
+    }
+
+    .station-line {
+      position: relative;
+      width: 6px;
+      height: 5500px;
+      margin: 0 auto;
+      background: var(--station-line-bg);
+      z-index: 1;
+      transition: background 0.3s;
+    }
+
+    .station-dot {
+      position: absolute;
+      left: 50%;
+      width: 7px;
+      height: 7px;
+      background: #333;
+      border-radius: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 3;
+    }
+
+    .station-label {
+      position: absolute;
+      font-size: 13px;
+      transform: translateY(-50%);
+      white-space: nowrap;
+      right: 20px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    .station-label.highlight {
+      font-weight: bold;
+      color: #007BFF;
+    }
+
+    .incoming-train-indicator {
+      color: #e60000;
+      margin-left: 5px;
+    }
+
+    .train-marker {
+      position: absolute;
+      left: 0%;
+      transform: translateX(-1.5%);
+      display: flex;
+      align-items: center;
+      cursor: pointer;
+      z-index: 4;
+      font-weight: bold;
+    }
+
+    .train-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #000;
+      border: 2px solid #fff;
+    }
+
+    .train-dot.soon-arriving {
+      animation: blink 1s infinite;
+    }
+
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+
+    .train-label {
+      font-size: 12px;
+      margin-left: 6px;
+      white-space: nowrap;
+    }
+
+    .train-info-item {
+      background: #fdfdfd;
+      border: 1px solid #ddd;
+      padding: 8px 12px;
+      border-radius: 5px;
+      margin-bottom: 10px;
+      cursor: pointer;
+      transition: background 0.2s ease;
+      color: #333;  /* 淺色文字 */
+    }
+
+    .train-info-item:hover {
+      background: #f5f5f5;
+    }
+
+    .filter-box {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      font-size: 13px;
+      margin-bottom: 10px;
+    }
+
+    .filter-box label {
+      display: flex;
+      align-items: center;
+    }
+
+    #modal, #stationModal {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: var(--panel-bg);
+      padding: 20px;
+      box-shadow: 0 5px 20px rgba(0,0,0,0.2);
+      z-index: 100;
+      max-height: 70vh;
+      overflow-y: auto;
+      display: none;
+      border-radius: 8px;
+      border: 1px solid var(--panel-border);
+      color: var(--text-color);
+      transition: background 0.3s, color 0.3s;
+    }
+
+    #modalClose, #stationModalClose {
+      float: right;
+      color: #f00;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    /* 用來畫「區段列車密集度」的色塊 */
+    #hotnessCanvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      z-index: 2;
+      pointer-events: none;
+    }
+
+    /* 區段流量折線圖 (flowChartCanvas) 放在右側 */
+    #flowChartCanvas {
+      margin-top: 10px;
+      background: #fff;
+      border: 1px solid #ccc;
+      display: block;
+      width: 100%;
+      height: 170px;
+      max-width: 100%;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="controls"></div>
+
+  <div class="main-layout">
+    <div class="container">
+      <h1>列車運行動態圖</h1>
+      <div id="currentTime">現在時間：--:--:--</div>
+      <div id="searchBox">
+        <input type="text" id="searchInput" placeholder="搜尋站名並跳至位置..." />
+      </div>
+
+      <!-- 路線圖 (含區段熱度Canvas) -->
+      <div id="stationLine" class="station-line"></div>
+    </div>
+
+    <div class="sidebar">
+        <!-- 區段流量折線圖 -->
+      <canvas id="flowChartCanvas" ></canvas>
+      <h3>行進中車次</h3>
+      <input type="text" id="trainSearchInput" placeholder="輸入車次或車種搜尋..." />
+      <div class="filter-box">
+        <label><input type="checkbox" class="filter-checkbox" value="新自強" checked> 新自強</label>
+        <label><input type="checkbox" class="filter-checkbox" value="普悠瑪" checked> 普悠瑪</label>
+        <label><input type="checkbox" class="filter-checkbox" value="自強號(新)" checked> 自強號(新)</label>
+        <label><input type="checkbox" class="filter-checkbox" value="自強號" checked> 自強號</label>
+        <label><input type="checkbox" class="filter-checkbox" value="莒光號" checked> 莒光號</label>
+        <label><input type="checkbox" class="filter-checkbox" value="復興號" checked> 復興號</label>
+        <label><input type="checkbox" class="filter-checkbox" value="區間快" checked> 區間快</label>
+        <label><input type="checkbox" class="filter-checkbox" value="區間車" checked> 區間車</label>
+        <label><input type="checkbox" class="filter-checkbox" value="加班車" checked> 加班車</label>
+      </div>
+      <div id="trainInfoList"></div>
+
+      
+    </div>
+
+    <!-- Modal -->
+    <div id="modal">
+      <span id="modalClose">[X]</span>
+      <h3 id="modalTitle"></h3>
+      <div id="modalContent"></div>
+    </div>
+  </div>
+
+  <!-- 載入列車資料 -->
+  <script src="train-schedule.js"></script>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      /* ========== 主題切換、時間滑桿、速度控制等按鈕區 ========== */
+      const themeToggleBtn = document.createElement('button');
+      themeToggleBtn.innerText = '切換主題';
+      themeToggleBtn.style.marginRight = '10px';
+      themeToggleBtn.onclick = () => {
+        const currentTheme = document.documentElement.getAttribute('data-theme');
+        if (currentTheme === 'dark') {
+          document.documentElement.removeAttribute('data-theme');
+        } else {
+          document.documentElement.setAttribute('data-theme', 'dark');
+        }
+        // 顯示模式改變後，為了讓「區間車」顏色隨之更新，重新update
+        updateTrains(parseInt(timeSlider.value));
+      };
+
+      const sliderContainer = document.createElement('div');
+      sliderContainer.style.textAlign = 'center';
+      sliderContainer.style.margin = '10px';
+
+      const sliderLabel = document.createElement('span');
+      sliderLabel.innerText = '模擬時間：';
+      sliderLabel.id = 'simTimeLabel';
+      sliderLabel.style.marginRight = '8px';
+
+      const timeSlider = document.createElement('input');
+      timeSlider.type = 'range';
+      timeSlider.min = 0;
+      timeSlider.max = 1439;
+      timeSlider.value = new Date().getHours() * 60 + new Date().getMinutes();
+      timeSlider.id = 'timeSlider';
+      timeSlider.style.width = '300px';
+
+      sliderContainer.appendChild(sliderLabel);
+      sliderContainer.appendChild(timeSlider);
+
+      const controlBar = document.createElement('div');
+      controlBar.style.textAlign = 'center';
+      controlBar.style.marginBottom = '10px';
+
+      const toggleModeBtn = document.createElement('button');
+      toggleModeBtn.innerText = '切換為實時模式';
+      toggleModeBtn.style.marginRight = '10px';
+
+      const togglePlayBtn = document.createElement('button');
+      togglePlayBtn.innerText = '⏸ 暫停模擬';
+
+      controlBar.appendChild(themeToggleBtn);
+      controlBar.appendChild(toggleModeBtn);
+      controlBar.appendChild(togglePlayBtn);
+
+      const speedSelect = document.createElement('select');
+      speedSelect.innerHTML = `
+        <option value="1">1X</option>
+        <option value="2">2X</option>
+        <option value="5">5X</option>
+        <option value="10">10X</option>
+        <option value="20">20X</option>
+        <option value="30">30X</option>
+        <option value="60">60X</option>
+      `;
+      speedSelect.style.marginLeft = '10px';
+      controlBar.appendChild(speedSelect);
+
+      document.body.insertBefore(controlBar, document.body.firstChild);
+      document.body.insertBefore(sliderContainer, controlBar.nextSibling);
+
+      let speedMultiplier = 1;
+      speedSelect.addEventListener('change', () => {
+        speedMultiplier = parseInt(speedSelect.value);
+      });
+
+      let useRealtime = false;
+      let autoAdvance = true;
+
+      togglePlayBtn.onclick = () => {
+        autoAdvance = !autoAdvance;
+        togglePlayBtn.innerText = autoAdvance ? '⏸ 暫停模擬' : '▶️ 播放模擬';
+      };
+
+      toggleModeBtn.onclick = () => {
+        useRealtime = !useRealtime;
+        toggleModeBtn.innerText = useRealtime ? '切換為模擬模式' : '切換為實時模式';
+        if (useRealtime) {
+          const now = new Date();
+          const currentMinutes = now.getHours()*60 + now.getMinutes();
+          timeSlider.value = currentMinutes;
+          updateTrains(currentMinutes);
+        }
+      };
+
+      /* ========== 其餘 UI/資料初始設定 ========== */
+      function updateTimeDisplay() {
+        const now = new Date();
+        document.getElementById("currentTime").innerText = `現在時間：${now.toLocaleTimeString('zh-TW')}`;
+      }
+      setInterval(updateTimeDisplay, 1000);
+      updateTimeDisplay();
+
+      const stationLine = document.getElementById('stationLine');
+      const stationCount = stations.length;
+
+      // 用來畫區段熱度
+      const hotnessCanvas = document.createElement('canvas');
+      hotnessCanvas.id = 'hotnessCanvas';
+      stationLine.appendChild(hotnessCanvas);
+
+      // 車站圓點與標籤
+      stations.forEach((stationName, index) => {
+        const percent = (index / (stationCount - 1)) * 100;
+        const dot = document.createElement('div');
+        dot.className = 'station-dot';
+        dot.style.top = percent + '%';
+
+        const label = document.createElement('div');
+        label.className = 'station-label';
+        label.style.top = percent + '%';
+        label.innerText = stationName;
+        label.dataset.name = stationName;
+
+        // 點擊站名 -> 顯示彈窗
+        label.addEventListener('click', () => {
+          const currentMinutes = parseInt(timeSlider.value);
+          const trainsPassing = Object.entries(trainSchedule).filter(([no, train]) => {
+            const times = train['車站時間'];
+            return times.some(([s, t]) => {
+              const mm = timeToMinutes(t);
+              return s===stationName && mm >= currentMinutes-10 && mm <= currentMinutes+30;
+            });
+          });
+          const list = trainsPassing.map(([no, train]) => `<li>${no}次 ${train['車種']}</li>`).join('');
+          stationModalTitle.innerText = `${stationName} 通過列車`;
+          stationModalContent.innerHTML = `<ul>${list || '<li>無列車通過</li>'}</ul>`;
+          stationModal.style.display = 'block';
+        });
+
+        stationLine.appendChild(dot);
+        stationLine.appendChild(label);
+      });
+
+      /* 車站 Modal */
+      const stationModal = document.createElement('div');
+      stationModal.id = 'stationModal';
+      stationModal.style.display = 'none';
+      stationModal.innerHTML = `
+        <span id="stationModalClose" style="float:right;cursor:pointer;color:red">[X]</span>
+        <h3 id="stationModalTitle"></h3>
+        <div id="stationModalContent"></div>
+      `;
+      document.body.appendChild(stationModal);
+
+      const stationModalClose = stationModal.querySelector('#stationModalClose');
+      stationModalClose.onclick = () => {
+        stationModal.style.display = 'none';
+      };
+      const stationModalTitle = stationModal.querySelector('#stationModalTitle');
+      const stationModalContent = stationModal.querySelector('#stationModalContent');
+
+      // 主 Modal (顯示車次明細)
+      const modal = document.getElementById('modal');
+      const modalTitle = document.getElementById('modalTitle');
+      const modalContent = document.getElementById('modalContent');
+      document.getElementById('modalClose').onclick = () => {
+        modal.style.display = 'none';
+        autoScrollTrainNo = null;
+      };
+
+      /* 列車車種配色（預設） */
+      const trainTypeColors = {
+        '自強號': 'red', '新自強': '#8600FF', '普悠瑪': '#FF1493',
+        '自強號(新)': 'brown', '莒光號': 'orange', '加班車': 'teal',
+        '復興號': '#0080FF', '區間快': 'green', '區間車': 'black'
+      };
+
+      // 根據當前主題，若是區間車且黑夜模式，就改成白色
+      function getTrainColor(trainType) {
+        let baseColor = trainTypeColors[trainType] || '#000';
+        const currentTheme = document.documentElement.getAttribute('data-theme');
+        if (trainType === '區間車' && currentTheme === 'dark') {
+          return '#fff'; // 黑夜模式時，區間車改成白色
+        }
+        return baseColor;
+      }
+
+      // 新上線列車通知
+      let previousActiveTrains = new Set();
+      function notifyNewTrains(currentTrainNos) {
+        const currentSet = new Set(currentTrainNos);
+        const newTrains = [...currentSet].filter(trainNo => !previousActiveTrains.has(trainNo));
+        if (newTrains.length>0) {
+          const messages = newTrains.map(trainNo => {
+            const data = trainSchedule[trainNo];
+            if(!data) return `🚆 ${trainNo}（資料缺失）`;
+            const type = data.車種 || '未知車種';
+            const arr = data.車站時間||[];
+            const from = arr[0]?.[0]||'未知起點';
+            const to = arr[arr.length-1]?.[0]||'未知終點';
+            return `🚆 ${trainNo} ${type}（${from} ➝ ${to}）`;
+          });
+          const popup = document.createElement('div');
+          popup.style.position = 'fixed';
+          popup.style.top = '20px';
+          popup.style.right = '20px';
+          popup.style.padding = '12px 18px';
+          popup.style.backgroundColor = '#e6f7ff';
+          popup.style.border = '1px solid #91d5ff';
+          popup.style.borderRadius = '8px';
+          popup.style.boxShadow = '0 2px 10px rgba(0,0,0,0.2)';
+          popup.style.zIndex = 10000;
+          popup.style.fontSize = '15px';
+          popup.style.color = '#004b6e';
+          popup.innerHTML = messages.join('<br>');
+          document.body.appendChild(popup);
+          setTimeout(()=>popup.remove(), 5000);
+        }
+        previousActiveTrains = currentSet;
+      }
+
+      function timeToMinutes(t) {
+        const [h,m] = t.split(':');
+        return parseInt(h)*60 + parseInt(m);
+      }
+
+      function getTrainPosition(trainData, currentMinutes) {
+        const arr = trainData['車站時間'];
+        const stationTimes = arr.map(([st, stime])=>({
+          station: st,
+          timeMinutes: timeToMinutes(stime)
+        }));
+        for(let i=0; i<stationTimes.length-1; i++){
+          const t1 = stationTimes[i].timeMinutes;
+          const t2 = stationTimes[i+1].timeMinutes;
+          if(currentMinutes>=t1 && currentMinutes<=t2){
+            const ratio = (currentMinutes - t1)/(t2 - t1);
+            const s1 = stations.indexOf(stationTimes[i].station);
+            const s2 = stations.indexOf(stationTimes[i+1].station);
+            if(s1===-1 || s2===-1) return {running:false};
+            const interpolatedIndex = s1 + ratio*(s2-s1);
+            return {
+              running:true,
+              startTime: stationTimes[0].timeMinutes,
+              endTime: stationTimes[stationTimes.length-1].timeMinutes,
+              nextStation: stationTimes[i+1].station,
+              nextTime: arr[i+1][1],
+              segmentIndex: interpolatedIndex,
+              currentBetweenStart: stations[Math.floor(interpolatedIndex)],
+              currentBetweenEnd: stations[Math.ceil(interpolatedIndex)]
+            }
+          }
+        }
+        return {running:false};
+      }
+
+      let autoScrollTrainNo = null;
+      let incomingMap = {};
+      let segmentCounts = Array(stationCount-1).fill(0);
+
+      // 「區段流量」折線圖資料
+      let flowHistory = [];
+
+      // 顯示「黃→橘→紅」漸層
+      function getDensityColor(ratio) {
+        if(ratio<0) ratio=0;
+        if(ratio>1) ratio=1;
+        // 0~0.4 => 黃->橘, 0.4~1 => 橘->紅
+        if(ratio<=0.4){
+          const norm = ratio/0.4; // 0..1
+          const g = 300 - (255-165)*norm; // 255->165
+          return `rgba(255, ${g}, 0, 0.7)`;
+        } else {
+          const norm = (ratio-0.4)/0.4;
+          const g = 165 - 165*norm; // 165->0
+          return `rgba(255, ${g}, 0, 0.7)`;
+        }
+      }
+
+      // 繪製區段熱度 canvas
+      function drawHotnessCanvas() {
+        hotnessCanvas.width = stationLine.offsetWidth;
+        hotnessCanvas.height = stationLine.offsetHeight;
+        const ctx = hotnessCanvas.getContext('2d');
+        ctx.clearRect(0,0,hotnessCanvas.width, hotnessCanvas.height);
+
+        const maxCount = Math.max(...segmentCounts);
+        if(maxCount===0) return;
+
+        const segHeight = hotnessCanvas.height / (stationCount-1);
+        for(let i=0; i<segmentCounts.length; i++){
+          const count = segmentCounts[i];
+          if(count===0) continue;
+          const ratio = count/maxCount;
+          ctx.fillStyle = getDensityColor(ratio);
+          const rectX = (hotnessCanvas.width-6)/2;
+          const rectY = i*segHeight;
+          ctx.fillRect(rectX, rectY, 6, segHeight);
+        }
+      }
+
+      // 繪製「區段流量」折線圖(右下)
+      function drawFlowChart() {
+        const c = document.getElementById('flowChartCanvas');
+        const ctx = c.getContext('2d');
+        ctx.clearRect(0,0,c.width,c.height);
+
+        if(flowHistory.length<2) {
+          ctx.font='14px sans-serif';
+          ctx.fillStyle='#666';
+          ctx.fillText('區段流量折線圖 (暫無資料)', 20,30);
+          return;
+        }
+
+        const maxFlow = Math.max(...flowHistory.map(d=>d.flow));
+        const margin=20;
+        const w = c.width - margin*2;
+        const h = c.height- margin*2;
+
+        // 座標軸
+        ctx.strokeStyle='#aaa';
+        ctx.beginPath();
+        ctx.moveTo(margin, margin);
+        ctx.lineTo(margin, margin+h);
+        ctx.lineTo(margin+w, margin+h);
+        ctx.stroke();
+
+        // 連線
+        ctx.strokeStyle='blue';
+        ctx.beginPath();
+        flowHistory.forEach((d,i)=>{
+          const x = margin + i/(flowHistory.length-1)*w;
+          const y = margin + h - (d.flow/maxFlow)*h;
+          if(i===0) ctx.moveTo(x,y);
+          else ctx.lineTo(x,y);
+        });
+        ctx.stroke();
+
+        // 繪點
+        ctx.fillStyle='blue';
+        flowHistory.forEach((d,i)=>{
+          const x = margin + i/(flowHistory.length-1)*w;
+          const y = margin + h - (d.flow/maxFlow)*h;
+          ctx.beginPath();
+          ctx.arc(x,y,3,0,2*Math.PI);
+          ctx.fill();
+          if(i===flowHistory.length-1){
+            ctx.fillText(`流量:${d.flow}`, x+5, y-5);
+          }
+        });
+      }
+
+      // === 核心：更新列車位置 ===
+      function updateTrains(currentMinutes=null) {
+        // 清除舊 marker
+        document.querySelectorAll('.train-marker').forEach(el => el.remove());
+        segmentCounts.fill(0);
+        incomingMap={};
+
+        if(currentMinutes===null) {
+          const now = new Date();
+          currentMinutes = now.getHours()*60 + now.getMinutes();
+        }
+        document.getElementById("simTimeLabel").innerText =
+          `模擬時間：${String(Math.floor(currentMinutes/60)).padStart(2,'0')}:${String(currentMinutes%60).padStart(2,'0')}`;
+
+        const infoList = document.getElementById('trainInfoList');
+        infoList.innerHTML="";
+        const checkedTypes = [...document.querySelectorAll('.filter-checkbox:checked')].map(cb=>cb.value);
+        const keyword = document.getElementById('trainSearchInput')?.value.trim() || "";
+
+        const currentTrainNos=[];
+        Object.keys(trainSchedule).forEach(trainNo=>{
+          const trainData = trainSchedule[trainNo];
+          const trainType = trainData['車種'];
+          if(!checkedTypes.includes(trainType)) return;
+          if(keyword && !trainNo.includes(keyword) && !trainType.includes(keyword)) return;
+
+          const posInfo = getTrainPosition(trainData, currentMinutes);
+          if(!posInfo.running) return;
+
+          const totalDuration = posInfo.endTime - posInfo.startTime;
+          const traveled = currentMinutes - posInfo.startTime;
+          const remain = posInfo.endTime - currentMinutes;
+          let progress=0;
+          if(totalDuration>0) {
+            progress = traveled/totalDuration *100;
+            if(progress<0) progress=0;
+            if(progress>100) progress=100;
+          }
+
+          const percent = (posInfo.segmentIndex/(stationCount-1))*100;
+          const marker = document.createElement('div');
+          marker.className='train-marker';
+          marker.style.top = percent + '%';
+          marker.dataset.trainNo = trainNo;
+
+          // 取得列車配色(區間車在深色模式自動改成白)
+          const color = getTrainColor(trainType);
+
+          const dot = document.createElement('div');
+          dot.className='train-dot';
+          if(posInfo.nextTime) {
+            const nextStopTime = timeToMinutes(posInfo.nextTime);
+            const remaining = nextStopTime - currentMinutes;
+            if(remaining<=2){
+              dot.classList.add('soon-arriving');
+              if(posInfo.nextStation) incomingMap[posInfo.nextStation]=true;
+            }
+          }
+          dot.style.backgroundColor=color;
+
+          const arr=trainData['車站時間']||[];
+          const fromStation1= arr[0]?.[0]|| '未知';
+          const toStation1= arr[arr.length-1]?.[0]|| '未知';
+
+          const label = document.createElement('div');
+          label.className='train-label';
+          label.innerHTML = `🚆${trainNo}次 <span style="color:${color}">${trainType}</span>（${fromStation1} ➝ ${toStation1}）`;
+
+          marker.onclick = ()=>{
+            const list = trainData['車站時間'].map(s=> `<li>${s[0]} - ${s[1]}</li>`).join('');
+            // 在 Modal 顯示全程時間、已行駛、剩餘、完成度
+            modalTitle.innerText = `${trainNo}次 ${trainType}（${fromStation1} ➝ ${toStation1}）`;
+            const detail=`
+              <p>已行使：${Math.max(0,traveled)}/${Math.max(0,totalDuration)} 分鐘(完成${progress.toFixed(1)}%)</p>
+              <p>剩餘：${Math.max(0,remain)} 分鐘抵達終點站。</p>
+              <ul>${list}</ul>
+            `;
+            modalContent.innerHTML=detail;
+            modal.style.display='block';
+            autoScrollTrainNo= trainNo;
+          };
+          marker.appendChild(dot);
+          marker.appendChild(label);
+          stationLine.appendChild(marker);
+
+          if(autoScrollTrainNo===trainNo) {
+            setTimeout(()=> marker.scrollIntoView({behavior:'smooth', block:'center'}),100);
+          }
+
+          currentTrainNos.push(trainNo);
+
+          // 右側列表資訊
+          const info = document.createElement('div');
+          info.className='train-info-item';
+          info.innerHTML=`
+            <div><strong>🚆${trainNo}次 <span style="color:${color}">${trainType}</span></strong>(${fromStation1} ➝ ${toStation1})</div>
+            <div>⚫目前在 ${posInfo.currentBetweenStart} ➝ ${posInfo.currentBetweenEnd} 間</div>
+            <div>⚫下一站：${posInfo.nextStation}（${posInfo.nextTime}）</div>
+            <div><small>
+              已行駛：${Math.max(0,traveled)}/${Math.max(0,totalDuration)} 分鐘 (完成${progress.toFixed(1)}%) ，
+              剩餘：${Math.max(0,remain)} 分鐘抵達終點站 。
+            </small></div>
+          `;
+          info.onclick = ()=>{
+            autoScrollTrainNo= trainNo;
+            updateTrains(currentMinutes);
+          };
+          infoList.appendChild(info);
+
+          const i1 = stations.indexOf(posInfo.currentBetweenStart);
+          const i2 = stations.indexOf(posInfo.currentBetweenEnd);
+          if(i1!==-1 && i2!==-1) {
+            segmentCounts[Math.min(i1,i2)]++;
+          }
+        });
+
+        // 更新 station label 的 incoming
+        document.querySelectorAll('.station-label').forEach(lbl=>{
+          const nm= lbl.dataset.name;
+          lbl.innerHTML= nm;
+          if(incomingMap[nm]){
+            const icon = document.createElement('span');
+            icon.className='incoming-train-indicator';
+            icon.innerText='🔜';
+            lbl.appendChild(icon);
+          }
+        });
+
+        // 通知新上線列車
+        notifyNewTrains(currentTrainNos);
+
+        // 繪製區段熱度
+        drawHotnessCanvas();
+
+        // 紀錄本次 "flow" (segmentCounts之和)
+        const totalFlow = segmentCounts.reduce((a,b)=>a+b,0);
+        flowHistory.push({ time: currentMinutes, flow: totalFlow});
+        // 過多就刪除舊的
+        if(flowHistory.length>50) {
+          flowHistory.splice(0, flowHistory.length-50);
+        }
+        drawFlowChart();
+      }
+
+      // 監聽輸入框
+      document.getElementById('trainSearchInput')?.addEventListener('input', ()=>{
+        updateTrains(parseInt(timeSlider.value));
+      });
+      timeSlider?.addEventListener('input', e=>{
+        updateTrains(parseInt(e.target.value));
+      });
+
+      updateTrains(parseInt(timeSlider.value));
+
+      setInterval(()=>{
+        if(useRealtime){
+          const now = new Date();
+          const val = now.getHours()*60 + now.getMinutes();
+          timeSlider.value= val;
+          updateTrains(val);
+        } else if(autoAdvance){
+          let val = parseInt(timeSlider.value);
+          val= (val+ speedMultiplier)%1440;
+          timeSlider.value= val;
+          updateTrains(val);
+        }
+      },10000);
+
+      // 站名搜尋並跳轉
+      const stationSearchInput = document.getElementById('searchInput');
+      if(stationSearchInput){
+        stationSearchInput.addEventListener('input', ()=>{
+          const kw = stationSearchInput.value.trim();
+          if(!kw) return;
+          const idx = stations.findIndex(s => s.includes(kw));
+          if(idx!==-1){
+            const matchedStation= stations[idx];
+            const lblEl= document.querySelector(`.station-label[data-name="${matchedStation}"]`);
+            if(lblEl){
+              lblEl.scrollIntoView({behavior:'smooth', block:'center'});
+              lblEl.classList.add('highlight');
+              setTimeout(()=> lblEl.classList.remove('highlight'),2000);
+            }
+          }
+        });
+      }
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>嵌入外部網頁</title>
+    <style>
+         body {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            grid-template-rows: repeat(2, 1fr);
+            gap: 20px; /* 設定列和行之間的間距，可根據需要調整 */
+        }
+
+        .iframe-container {
+            height: 500px; /* 設定高度，可根據需要調整 */
+            overflow: auto; /* 加入捲動條 */
+        }
+
+        iframe {
+            width: 100%;
+            height: 100%;
+            border: none; /* 移除邊框 */
+        }
+    </style>
+</head>
+<a href="index.html"><strong><font size="3">台鐵時刻表</font></strong></a>
+<a href="index-tra.html"><strong><font size="3">台鐵時刻表(專用)</font></strong></a>
+<a href="index-speed.html"><strong><font size="3">高鐵時刻表</font></strong></a>
+<a href="index-thsr.transfer.html"><strong><font size="3">高鐵轉乘時刻表</font></strong></a>
+<a href="index-thsr.html"><strong><font size="3">高鐵時刻表(專用)</font></strong></a>
+<a href="train-speed-info.html"><strong><font size="3">高鐵車站資訊板</font></strong></a>
+<a href="train-speed-info4.html"><strong><font size="3">高鐵多站車站資訊板</font></strong></a>
+<a href="speed-people.html"><strong><font size="3">高鐵運量查詢</font></strong></a>
+<body>
+    <!-- 第一個外部網頁，左上角 -->
+<div class="iframe-container">
+    <iframe src="train-speed-info.html" frameborder="0" allowfullscreen></iframe>
+</div>
+
+<!-- 第二個外部網頁，右上角 -->
+<div class="iframe-container">
+    <iframe src="train-speed-info.html" frameborder="0" allowfullscreen></iframe>
+</div>
+
+<!-- 第三個外部網頁，左下角 -->
+<div class="iframe-container">
+    <iframe src="train-speed-info.html" frameborder="0" allowfullscreen></iframe>
+</div>
+
+<!-- 第四個外部網頁，右下角 -->
+<div class="iframe-container">
+    <iframe src="train-speed-info.html" frameborder="0" allowfullscreen></iframe>
+</div>
+
+
+
+</body>
+</html>

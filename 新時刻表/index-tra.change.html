@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Auto Timetable Optimizer — 列車改點建議分析</title>
+  <style>
+    :root{
+      --bg:#f6f7fb; --card:#fff; --ink:#0f172a; --muted:#64748b; --line:#e2e8f0;
+      --pill:#0f172a; --pillfg:#fff;
+      --green:#16a34a; --greenbg:#ecfdf5; --greenbd:#86efac;
+      --red:#dc2626; --redbg:#fef2f2; --redbd:#fecaca;
+      --amber:#b45309; --amberbg:#fffbeb; --amberbd:#fde68a;
+      --blue:#1d4ed8; --bluebg:#eff6ff; --bluebd:#bfdbfe;
+      --violet:#6d28d9; --violetbg:#f5f3ff; --violetbd:#ddd6fe;
+      --slatebg:#f8fafc; --slatebd:#e2e8f0;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.6 system-ui,-apple-system,Segoe UI,Roboto,"Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif}
+    header{position:sticky;top:0;backdrop-filter:saturate(120%) blur(8px);background:#ffffffcc;border-bottom:1px solid var(--line);z-index:10}
+    .wrap{max-width:1120px;margin:0 auto;padding:16px}
+    .brand{display:flex;align-items:center;gap:12px}
+    .logo{width:36px;height:36px;border-radius:12px;background:var(--pill);color:#fff;display:grid;place-items:center;font-weight:700}
+    .title{font-weight:600}
+    .subtitle{color:var(--muted);font-size:12px;margin-top:-4px}
+    .btn{border:1px solid var(--line);background:#fff;border-radius:12px;padding:8px 12px;cursor:pointer}
+    .btn.primary{background:var(--pill);color:#fff;border-color:var(--pill)}
+    .btn:hover{filter:brightness(0.98)}
+    main .wrap{padding-bottom:64px}
+    section{margin-top:24px}
+    h2{font-size:18px;margin:0 0 12px 0}
+    .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px}
+    .grid{display:grid;gap:16px}
+    @media(min-width:880px){.grid-3{grid-template-columns:1fr 1fr 1fr} .grid-2{grid-template-columns:1fr 1fr}}
+    input[type="file"], input[type="number"], input[type="text"]{border:1px solid var(--line);border-radius:10px;padding:8px 10px;width:100%}
+    .note{font-size:12px;color:var(--muted)}
+    .ok{color:#166534;background:var(--greenbg);border:1px solid var(--greenbd);padding:8px 10px;border-radius:10px}
+    .muted{color:var(--muted)}
+    .pills{display:flex;flex-wrap:wrap;gap:8px}
+    .pill{font-size:12px;border-radius:999px;padding:4px 10px;border:1px solid var(--slatebd);background:var(--slatebg);color:#334155}
+    .pill.red{background:var(--redbg);border-color:var(--redbd);color:var(--red)}
+    .pill.green{background:var(--greenbg);border-color:var(--greenbd);color:var(--green)}
+    .pill.amber{background:var(--amberbg);border-color:var(--amberbd);color:var(--amber)}
+    .pill.blue{background:var(--bluebg);border-color:var(--bluebd);color:var(--blue)}
+    .pill.violet{background:var(--violetbg);border-color:var(--violetbd);color:var(--violet)}
+    .list{display:grid;gap:12px}
+    .row{border:1px solid var(--line);border-radius:16px;padding:14px;background:#fff}
+    .rowhead{display:flex;align-items:center;justify-content:space-between;gap:12px}
+    .rowtitle{display:flex;align-items:center;gap:10px}
+    .rowactions{display:flex;gap:8px}
+    .chip{border:1px solid var(--line);padding:4px 8px;border-radius:999px;font-size:12px;background:#fff}
+    .tabs{display:flex;gap:6px}
+    .tab{border:1px solid var(--line);border-radius:999px;padding:4px 10px;font-size:12px;background:#fff;cursor:pointer}
+    .tab.active{background:var(--pill);color:#fff;border-color:var(--pill)}
+    table{width:100%;border-collapse:collapse;font-size:13px}
+    thead th{position:sticky;top:0;background:#f8fafc}
+    th,td{padding:8px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}
+    .twocol{display:grid;gap:14px}
+    @media(min-width:880px){.twocol{grid-template-columns:1fr 1fr}}
+    .empty{color:var(--muted)}
+    footer{color:var(--muted);text-align:center;margin-top:40px;font-size:12px}
+  </style>
+</head>
+
+<body>
+  <!-- 先載入你的時刻表檔：需在同資料夾，且內含 window.trainSchedule -->
+  <script src="train-schedule.js"></script>
+
+  <header>
+    <div class="wrap" style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+      <div class="brand">
+        <div class="logo">AT</div>
+        <div>
+          <div class="title">Auto Timetable Optimizer</div>
+          <div class="subtitle">列車改點建議分析（HTML/JS 版）</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button id="btnRun" class="btn primary">執行分析</button>
+        <button id="btnDiff" class="btn">下載差分</button>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <div class="wrap">
+
+      <section>
+        <h2>1) 資料載入</h2>
+        <div class="grid grid-3">
+          <div class="card">
+            <div style="font-weight:600;margin-bottom:6px">train-schedule.js</div>
+            <div class="note">本頁會直接讀取同資料夾的 <code>train-schedule.js</code>，需包含全域變數 <code>trainSchedule</code>。</div>
+            <div id="scheduleStatus" style="margin-top:8px"></div>
+          </div>
+          <div class="card">
+            <div style="font-weight:600;margin-bottom:6px">（可選）運用率 CSV</div>
+            <input id="csvInput" type="file" accept=".csv,.txt"/>
+            <div class="note" style="margin-top:6px">欄位：<code>train_id,utilization</code>；百分比可帶 %。</div>
+            <div id="utilStatus" style="margin-top:8px" class="muted">尚未載入運用率。</div>
+          </div>
+          <div class="card">
+            <div style="font-weight:600;margin-bottom:6px">規則快覽</div>
+            <div class="pills">
+              <span class="pill">尖峰：06:30–09:00</span>
+              <span class="pill">尖峰：17:00–20:00</span>
+              <span class="pill">最小間隔：7 分</span>
+              <span class="pill">滿載 ≥ 99%</span>
+              <span class="pill">低載 &lt; 85%</span>
+              <span class="pill">區間車過長：≥ 28 站</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <h2>2) 參數設定</h2>
+        <div class="grid grid-2">
+          <div class="card">
+            <div style="font-weight:600;margin-bottom:6px">尖峰時段與最小間隔</div>
+            <div class="grid grid-2">
+              <div>
+                <label class="note">尖峰#1 開始</label>
+                <input id="p1s" type="text" value="06:30">
+              </div>
+              <div>
+                <label class="note">尖峰#1 結束</label>
+                <input id="p1e" type="text" value="09:00">
+              </div>
+              <div>
+                <label class="note">尖峰#2 開始</label>
+                <input id="p2s" type="text" value="17:00">
+              </div>
+              <div>
+                <label class="note">尖峰#2 結束</label>
+                <input id="p2e" type="text" value="20:00">
+              </div>
+              <div>
+                <label class="note">最小間隔（分）</label>
+                <input id="gapMin" type="number" value="7" min="1">
+              </div>
+            </div>
+          </div>
+          <div class="card">
+            <div style="font-weight:600;margin-bottom:6px">運用率門檻與過長區間判定</div>
+            <div class="grid grid-2">
+              <div>
+                <label class="note">滿載（≥%）</label>
+                <input id="hiUtil" type="number" value="99" min="0" max="100">
+              </div>
+              <div>
+                <label class="note">低載（＜%）</label>
+                <input id="loUtil" type="number" value="85" min="0" max="100">
+              </div>
+              <div>
+                <label class="note">區間車過長（站數≥）</label>
+                <input id="longStops" type="number" value="28" min="5">
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="note" style="margin-top:6px">※ 可依實務擴充更多規則（準點率、站級別、里程、週期化圖等）。</div>
+      </section>
+
+      <section>
+        <h2>3) 分析結果</h2>
+        <div id="statBar" class="pills" style="margin-bottom:10px;display:none"></div>
+        <div id="resultList" class="list"></div>
+        <div id="emptyMsg" class="empty">尚未產生結果。請按「執行分析」。</div>
+      </section>
+
+      <footer>© <span id="yr"></span> Auto Timetable Optimizer</footer>
+    </div>
+  </main>
+
+  <script>
+    // ========= 小工具 =========
+    const pad2 = n => String(n).padStart(2,'0');
+    const hm2min = hhmm => { const [h,m]=String(hhmm).split(':').map(Number); return h*60+m; };
+    const min2hm = mins => { mins=((mins%(1440))+1440)%1440; const h=Math.floor(mins/60), m=mins%60; return pad2(h)+':'+pad2(m); };
+    const addMin = (hhmm,d) => min2hm(hm2min(hhmm)+d);
+    const deepCopy = x => JSON.parse(JSON.stringify(x));
+
+    function inWindows(hhmm, windows){
+      const t = hm2min(hhmm);
+      return windows.some(w=>{
+        const a = hm2min(w.start), b = hm2min(w.end);
+        return a<=b ? (t>=a && t<=b) : (t>=a || t<=b);
+      });
+    }
+    function isOvernight(stops){
+      let last = hm2min(stops[0][1]);
+      for(let i=1;i<stops.length;i++){
+        const cur = hm2min(stops[i][1]);
+        if(cur<last) return true;
+        last = cur;
+      }
+      return false;
+    }
+
+    const TYPE_PRIORITY = ["普悠瑪","太魯閣","新自強","自強號(新)","自強號","莒光號","復興號","區間快","區間車"];
+    const hubs = new Set(["臺北","臺中","高雄"]);
+
+    function typePriorityVal(type){
+      const idx = TYPE_PRIORITY.indexOf(type);
+      return idx===-1 ? 999 : idx;
+    }
+    function stationFrequency(schedule){
+      const f = new Map();
+      for(const v of Object.values(schedule)){
+        for(const [n] of v["車站時間"]||[]) f.set(n,(f.get(n)||0)+1);
+      }
+      return f;
+    }
+    function parseUtilCsv(text){
+      const lines=text.trim().split(/\r?\n/);
+      const map=new Map();
+      for(const line of lines){
+        const [id,util] = line.split(/,|\t/);
+        if(!id) continue;
+        const v = parseFloat(String(util).replace(/%/g,''));
+        if(!isNaN(v)) map.set(String(id).trim(), v);
+      }
+      return map; // Map<id, util>
+    }
+
+    // ========= 分析核心 =========
+    function analyzeSchedule(schedule, rules, utilMap){
+      const results=[];
+      const byStart=new Map();
+      const freq = stationFrequency(schedule);
+
+      // 依起點分組
+      for(const [id,data] of Object.entries(schedule)){
+        const stops=data["車站時間"]||[];
+        if(!stops.length) continue;
+        const start=stops[0][0];
+        if(!byStart.has(start)) byStart.set(start,[]);
+        byStart.get(start).push({id, type:data["車種"], stops});
+      }
+
+      // 1) 尖峰過密 → 合併或錯位建議
+      for(const [start,trains] of byStart.entries()){
+        const peaks = trains.filter(t=>inWindows(t.stops[0][1], rules.peakWindows))
+                            .slice().sort((a,b)=>hm2min(a.stops[0][1])-hm2min(b.stops[0][1]));
+        let lastDep=-1e9, lastIdx=-1;
+        for(let i=0;i<peaks.length;i++){
+          const curDep = hm2min(peaks[i].stops[0][1]);
+          const gap = curDep - lastDep;
+          if(gap < rules.headwayThresholdMin){
+            const a=peaks[lastIdx], b=peaks[i];
+            const keep = typePriorityVal(a.type) <= typePriorityVal(b.type) ? a : b;
+            const drop = keep===a ? b : a;
+            results.push({
+              trainId: drop.id, type: drop.type, action: "合併",
+              reasons:[`尖峰同起點(${start})間隔 ${gap} 分 < ${rules.headwayThresholdMin} 分，與 ${keep.id}（${keep.type}）整併或錯位`],
+              beforeStops: schedule[drop.id]["車站時間"],
+              afterStops: null,
+              extra:{ mergeInto: keep.id, suggestion:`保留 ${keep.id}；${drop.id} 可停駛或改為 ${addMin(drop.stops[0][1], rules.headwayThresholdMin)} 發車` }
+            });
+          }
+          lastDep=curDep; lastIdx=i;
+        }
+      }
+
+      // 2) 跨夜列車 → 快車化（減停）
+      for(const [id,data] of Object.entries(schedule)){
+        const stops=data["車站時間"]||[];
+        if(!stops.length) continue;
+        if(isOvernight(stops)){
+          const major=new Set(["宜蘭","花蓮","臺北","臺中","嘉義","臺南","高雄","潮州"]);
+          const keep=new Set([stops[0][0], stops[stops.length-1][0], ...major]);
+          const after=stops.filter(([n])=>keep.has(n));
+          results.push({
+            trainId:id, type:data["車種"], action:"減停",
+            reasons:["跨夜列車：建議快車化（夜間集中樞紐站）"],
+            beforeStops:stops, afterStops:after
+          });
+        }
+      }
+
+      // 3) 區間車過長 → 調整行駛區間（拆段）
+      for(const [id,data] of Object.entries(schedule)){
+        const type=data["車種"]; const stops=data["車站時間"]||[];
+        if(!stops.length) continue;
+        if(!/區間車/.test(type)) continue;
+        if(stops.length >= rules.longLocalStopsCount){
+          const mid=Math.floor(stops.length/2);
+          const a=stops.slice(0, mid+1);
+          const b=[stops[mid], ...stops.slice(mid+1)];
+          results.push({
+            trainId:id, type, action:"調整行駛區間",
+            reasons:[`區間車停靠站數 ${stops.length} ≥ ${rules.longLocalStopsCount}，建議拆段營運`],
+            beforeStops:stops, afterStops:null, extra:{ splitInto:[{id:`${id}N1`,stops:a},{id:`${id}N2`,stops:b}]}
+          });
+        }
+      }
+
+      // 4) 慢車被快車夾擊（樞紐 ±8 分內有更高等級）→ 合併
+      for(const [id,data] of Object.entries(schedule)){
+        const type=data["車種"]; const stops=data["車站時間"]||[];
+        if(!stops.length) continue;
+        const myPri=typePriorityVal(type);
+        if(myPri <= typePriorityVal("自強號")) continue; // 自強↑不算慢車
+
+        const hubTimes=stops.filter(([n])=>hubs.has(n));
+        for(const [hubName, hubTime] of hubTimes){
+          const t0=hm2min(hubTime);
+          let found=null;
+          for(const [oid,od] of Object.entries(schedule)){
+            if(oid===id) continue;
+            const pri=typePriorityVal(od["車種"]);
+            if(pri>=myPri) continue;
+            const t=(od["車站時間"]||[]).find(([n])=>n===hubName);
+            if(!t) continue;
+            const gap=Math.abs(hm2min(t[1])-t0);
+            if(gap<=8){ found={oid,type:od["車種"],gap,hubName}; break; }
+          }
+          if(found){
+            results.push({
+              trainId:id, type, action:"合併",
+              reasons:[`${hubName} 於 ±${found.gap} 分內有更高等級 ${found.oid}（${found.type}）重疊服務，建議整併/替代`],
+              beforeStops:stops, afterStops:null, extra:{mergeInto:found.oid}
+            });
+            break;
+          }
+        }
+      }
+
+      // 5) 依運用率 → 滿載：增開/減停；低載：增停/停駛
+      if(utilMap && utilMap.size){
+        // 站點頻率（支援減停/增停選點）
+        const f = freq;
+
+        for(const [id,data] of Object.entries(schedule)){
+          const u = utilMap.get(id);
+          if(u==null) continue;
+          const stops=data["車站時間"]||[];
+          if(!stops.length) continue;
+
+          if(u >= rules.highUtilThreshold){
+            // 增開：複製+錯位
+            const clone = stops.map(([n,t])=>[n, addMin(t, rules.headwayThresholdMin)]);
+            results.push({
+              trainId:id, type:data["車種"], action:"增開",
+              reasons:[`運用率 ${u}% ≥ ${rules.highUtilThreshold}%（滿載），建議加開鄰近班次`],
+              beforeStops:stops, afterStops:null, extra:{ addTrain:{id:`${id}A`, stops:clone}}
+            });
+            // 減停：刪 1–2 個低頻站
+            const rare = stops.slice(1,-1).map(([n,t])=>({n,t,f:f.get(n)||0}))
+                        .sort((a,b)=>a.f-b.f).slice(0,2).map(x=>x.n);
+            if(rare.length){
+              const keep=new Set(stops.map(s=>s[0])); rare.forEach(n=>keep.delete(n));
+              const after = stops.filter(([n])=>keep.has(n));
+              results.push({
+                trainId:id, type:data["車種"], action:"減停",
+                reasons:[`滿載加速：刪除低頻站 ${rare.join("、")}，回收 2–5 分鐘並與加開班錯位`],
+                beforeStops:stops, afterStops:after
+              });
+            }
+          }else if(u < rules.lowUtilThreshold){
+            // 增停：補 1–2 個熱門站（簡化）
+            const all = Array.from(f.entries()).sort((a,b)=>b[1]-a[1]).map(x=>x[0]);
+            const cur = new Set(stops.map(s=>s[0]));
+            const add = all.filter(n=>!cur.has(n)).slice(0,2);
+            if(add.length){
+              const after=deepCopy(stops);
+              const mid=Math.floor(after.length/2);
+              for(let i=0;i<add.length;i++){
+                after.splice(mid+i,0,[add[i], addMin(after[mid+i-1][1], 5+i*3)]);
+              }
+              results.push({
+                trainId:id, type:data["車種"], action:"增停",
+                reasons:[`運用率 ${u}% < ${rules.lowUtilThreshold}%（低載），嘗試補停熱門站`],
+                beforeStops:stops, afterStops:after
+              });
+            }else{
+              results.push({
+                trainId:id, type:data["車種"], action:"停駛",
+                reasons:[`運用率 ${u}% 偏低且無可補停大站，建議撤班或整併`],
+                beforeStops:stops, afterStops:null
+              });
+            }
+          }
+        }
+      }
+
+      // 合併同車次提案
+      const merged=new Map();
+      for(const r of results){
+        if(!merged.has(r.trainId)) merged.set(r.trainId,[]);
+        merged.get(r.trainId).push(r);
+      }
+      return Array.from(merged.entries()).map(([trainId, proposals])=>({trainId, proposals}));
+    }
+
+    // ========= UI 綁定 =========
+    const yrEl = document.getElementById('yr'); yrEl.textContent = new Date().getFullYear();
+    const scheduleStatus = document.getElementById('scheduleStatus');
+    const utilStatus = document.getElementById('utilStatus');
+    const csvInput = document.getElementById('csvInput');
+    const statBar = document.getElementById('statBar');
+    const resultList = document.getElementById('resultList');
+    const emptyMsg = document.getElementById('emptyMsg');
+
+    // 規則表單
+    const p1s = document.getElementById('p1s'), p1e=document.getElementById('p1e');
+    const p2s = document.getElementById('p2s'), p2e=document.getElementById('p2e');
+    const gapMin = document.getElementById('gapMin');
+    const hiUtil = document.getElementById('hiUtil'), loUtil=document.getElementById('loUtil');
+    const longStops = document.getElementById('longStops');
+
+    // 狀態
+    let utilMap = null;
+    let analysis = null;
+
+    // 檢查 trainSchedule
+    if(window.trainSchedule && typeof window.trainSchedule==='object'){
+      scheduleStatus.innerHTML = `<div class="ok">已載入時刻表：共 <b>${Object.keys(window.trainSchedule).length}</b> 班。</div>`;
+    }else{
+      scheduleStatus.innerHTML = `<div class="muted">尚未載入：請確認同資料夾存在 <code>train-schedule.js</code>，且內含全域變數 <code>trainSchedule</code>。</div>`;
+    }
+
+    // 讀 CSV
+    csvInput.addEventListener('change', async (e)=>{
+      const f = e.target.files?.[0]; if(!f) return;
+      const text = await f.text();
+      try{
+        utilMap = parseUtilCsv(text);
+        utilStatus.innerHTML = `<span class="ok">已載入運用率：${utilMap.size} 筆</span>`;
+      }catch(err){
+        utilStatus.textContent = 'CSV 解析失敗：' + err.message;
+      }
+    });
+
+    // 執行分析
+    document.getElementById('btnRun').addEventListener('click', ()=>{
+      if(!window.trainSchedule){ alert('未載入 train-schedule.js'); return; }
+
+      const rules = {
+        peakWindows: [{start:p1s.value, end:p1e.value},{start:p2s.value, end:p2e.value}],
+        headwayThresholdMin: Math.max(1, parseInt(gapMin.value)||7),
+        highUtilThreshold: Math.min(100, Math.max(0, parseInt(hiUtil.value)||99)),
+        lowUtilThreshold: Math.min(100, Math.max(0, parseInt(loUtil.value)||85)),
+        longLocalStopsCount: Math.max(5, parseInt(longStops.value)||28),
+      };
+
+      analysis = analyzeSchedule(window.trainSchedule, rules, utilMap);
+      renderResults(analysis);
+    });
+
+    // 匯出差分
+    document.getElementById('btnDiff').addEventListener('click', ()=>{
+      if(!analysis || !analysis.length){ alert('尚未有分析結果'); return; }
+      const diff = {};
+      for(const item of analysis){
+        diff[item.trainId] = item.proposals.map(p=>({
+          action: p.action,
+          reasons: p.reasons,
+          afterStops: p.afterStops ?? null,
+          extra: p.extra ?? null,
+        }));
+      }
+      const blob = new Blob([JSON.stringify(diff,null,2)], {type:'application/json'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href=url; a.download='timetable_diff.json'; a.click();
+      URL.revokeObjectURL(url);
+    });
+
+    function pillTone(action){
+      return action==='停駛' ? 'red' :
+             action==='增開' ? 'green' :
+             action==='合併' ? 'amber' :
+             action==='調整行駛區間' ? 'violet' : 'blue';
+    }
+    function el(tag, attrs={}, children=[]){
+      const x=document.createElement(tag);
+      for(const [k,v] of Object.entries(attrs)){
+        if(k==='class') x.className=v;
+        else if(k==='html') x.innerHTML=v;
+        else x.setAttribute(k,v);
+      }
+      (Array.isArray(children)?children:[children]).filter(Boolean).forEach(c=>{
+        if(typeof c==='string') x.appendChild(document.createTextNode(c)); else x.appendChild(c);
+      });
+      return x;
+    }
+    function stopTable(stops){
+      const wrap=el('div',{class:'card',style:'padding:0;max-height:320px;overflow:auto'});
+      const table=el('table');
+      const thead=el('thead',{},[el('tr',{},[el('th',{},'站名'), el('th',{},'時間')])]);
+      const tbody=el('tbody');
+      (stops||[]).forEach(([n,t],i)=>{
+        const tr=el('tr'); tr.appendChild(el('td',{},n)); tr.appendChild(el('td',{},t)); tbody.appendChild(tr);
+      });
+      table.appendChild(thead); table.appendChild(tbody); wrap.appendChild(table); return wrap;
+    }
+    function renderResults(items){
+      // 統計
+      const stat = {停駛:0,增開:0,合併:0,增停:0,減停:0,調整行駛區間:0};
+      items.forEach(it=>it.proposals.forEach(p=>{stat[p.action]=(stat[p.action]||0)+1;}));
+      statBar.style.display='flex';
+      statBar.innerHTML='';
+      const pills = [
+        el('span',{class:'pill red'},[`停駛 ${stat["停駛"]||0}`]),
+        el('span',{class:'pill green'},[`增開 ${stat["增開"]||0}`]),
+        el('span',{class:'pill amber'},[`合併 ${stat["合併"]||0}`]),
+        el('span',{class:'pill'},[`增停 ${stat["增停"]||0}`]),
+        el('span',{class:'pill'},[`減停 ${stat["減停"]||0}`]),
+        el('span',{class:'pill violet'},[`調整行駛區間 ${stat["調整行駛區間"]||0}`]),
+      ];
+      pills.forEach(p=>statBar.appendChild(p));
+
+      // 列表
+      resultList.innerHTML=''; emptyMsg.style.display = items.length? 'none':'block';
+      items.forEach(item=>{
+        const headLeft = el('div',{class:'rowtitle'},[
+          el('div',{class:'chip'},`#${item.trainId}`),
+          el('div',{class:'chip'}, item.proposals[0]?.type || '')
+        ]);
+
+        const tabWrap = el('div',{class:'tabs'});
+        let activeIdx = 0;
+        const contentWrap = el('div');
+
+        function renderProposal(idx){
+          activeIdx=idx; contentWrap.innerHTML='';
+          // tabs active
+          Array.from(tabWrap.children).forEach((btn,i)=>{
+            btn.className = 'tab' + (i===idx ? ' active':'');
+          });
+
+          const p = item.proposals[idx];
+          const reasons = el('ul',{class:'',style:'margin:8px 0 12px 16px;'}, p.reasons.map(r=>el('li',{},r)));
+
+          const two = el('div',{class:'twocol'});
+          const left = el('div',{},[el('div',{style:'font-weight:600;margin:6px 0'},'改點前'), p.beforeStops? stopTable(p.beforeStops) : el('div',{class:'empty'},'（無資料）')]);
+          let rightContent;
+          if(p.afterStops){
+            rightContent = stopTable(p.afterStops);
+          }else if(p.extra?.splitInto){
+            rightContent = el('div',{}, p.extra.splitInto.map(s=>{
+              return el('div',{class:''},[
+                el('div',{class:'muted',style:'margin:6px 0'}, s.id),
+                stopTable(s.stops)
+              ]);
+            }));
+          }else if(p.extra?.addTrain){
+            rightContent = el('div',{},[
+              el('div',{class:'muted',style:'margin:6px 0'}, `新增班次：${p.extra.addTrain.id}`),
+              stopTable(p.extra.addTrain.stops)
+            ]);
+          }else if(p.extra?.mergeInto){
+            rightContent = el('div',{class:'card'},[
+              el('div',{},['與 ', el('b',{},p.extra.mergeInto), ' 合併（本班建議撤）']),
+              p.extra?.suggestion ? el('div',{class:'muted',style:'margin-top:6px'}, p.extra.suggestion) : null
+            ]);
+          }else{
+            rightContent = el('div',{class:'empty'},'（此提案為描述性，請參照理由）');
+          }
+          const right = el('div',{},[el('div',{style:'font-weight:600;margin:6px 0'},'改點後（建議）'), rightContent]);
+
+          two.appendChild(left); two.appendChild(right);
+          contentWrap.appendChild(reasons);
+          contentWrap.appendChild(two);
+        }
+
+        // tabs 按鈕
+        item.proposals.forEach((p,i)=>{
+          const btn = el('button',{class:'tab'+(i===0?' active':''),}, p.action);
+          btn.addEventListener('click',()=>renderProposal(i));
+          tabWrap.appendChild(btn);
+        });
+
+        // 標籤（顏色）
+        const pills = el('div',{class:'pills'});
+        (item.proposals || []).slice(0,1).forEach(p=>{
+          const c = pillTone(p.action);
+          pills.appendChild(el('span',{class:`pill ${c}`}, p.action));
+        });
+
+        const head = el('div',{class:'rowhead'},[
+          el('div',{},[headLeft]),
+          el('div',{},[pills])
+        ]);
+
+        const row = el('div',{class:'row'},[
+          head,
+          el('div',{class:'rowactions',style:'margin:8px 0'},[tabWrap]),
+          contentWrap
+        ]);
+
+        resultList.appendChild(row);
+        renderProposal(0);
+      });
+    }
+  </script>
+</body>
+</html>

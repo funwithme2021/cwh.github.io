@@ -1,0 +1,928 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>全球熱帶氣旋 v9（線上循環 + 側欄收合 | 修正版）</title>
+
+  <!-- Libs -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
+  <script src="https://unpkg.com/leaflet.heat/dist/leaflet-heat.js"></script>
+  <script src="https://unpkg.com/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+
+  <style>
+    :root{
+      --bg:#0b0e13; --panel:#121623; --text:#ecf1ff; --muted:#a9b3c7; --border:#2b3250;
+      --chip:#1a2040; --chipOn:#20305a; --sidebar-w:480px;
+    }
+    html,body{height:100%;margin:0;background:var(--bg);color:var(--text);font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans TC",sans-serif}
+    #app{display:grid;grid-template-columns:var(--sidebar-w) 1fr;height:100%;transition:grid-template-columns .2s ease;}
+    #app.collapsed{grid-template-columns:0 1fr}
+    #sidebar{background:var(--panel);border-right:1px solid var(--border);padding:14px;overflow:auto}
+    #map{height:100%;width:100%;position:relative}
+    h1{font-size:18px;margin:0 0 10px 0;font-weight:800;letter-spacing:.2px}
+    .desc{font-size:12px;color:var(--muted);line-height:1.55;margin-bottom:10px}
+    .card{background:#0f1424;border:1px solid var(--border);border-radius:12px;padding:10px;margin-bottom:10px}
+    .sec{margin:8px 0 8px;font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:1px}
+    .file{display:flex;gap:8px;align-items:center;background:var(--chip);border:1px dashed var(--border);padding:10px;border-radius:12px;cursor:pointer;justify-content:center}
+    .file input{display:none}
+    .file:hover{background:var(--chipOn)}
+    .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+    .chip{font-size:12px;padding:6px 8px;border-radius:20px;background:var(--chip);border:1px solid var(--border);cursor:pointer;user-select:none}
+    .chip[data-active="true"]{background:var(--chipOn);border-color:#3a4b86}
+    .toggle{display:inline-flex;gap:6px;align-items:center;font-size:13px}
+    .toggle input{width:16px;height:16px}
+    .sys-list{display:grid;grid-template-columns:1fr auto;gap:8px 6px;align-items:center}
+    .sys-name{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;vertical-align:-1px}
+    .btn{background:#2a3a8a;border:1px solid #3a4b9a;color:#e9f2ff;font-size:12px;padding:6px 10px;border-radius:8px;cursor:pointer}
+    .btn:disabled{opacity:.5;cursor:not-allowed}
+    .legend{
+      position:absolute;bottom:14px;left:calc(var(--sidebar-w) + 20px);z-index:900;
+      background:rgba(18,22,35,.95);border:1px solid var(--border);border-radius:10px;padding:8px 10px;
+      font-size:12px;color:var(--muted);backdrop-filter:blur(6px);display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+    }
+    .legend .bar{white-space:nowrap}
+    .legend .tools{display:flex;gap:6px}
+    input[type="range"]{width:100%}
+    .range-row{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center}
+    .mode{display:flex;gap:8px;flex-wrap:wrap}
+    .leaflet-popup-pane{z-index:10000!important}
+    .leaflet-tooltip-pane{z-index:10001!important}
+    .note{font-size:12px;color:#a9b3c7;line-height:1.5;margin-top:6px}
+    .toast{position:absolute;top:10px;right:10px;background:#0f1424;border:1px solid #3a4b86;border-radius:10px;padding:8px 10px;color:#cfe3ff;font-size:12px;display:none;z-index:99999}
+    .summary{font-size:12px;color:#cfe3ff;background:#0c1224;border:1px solid #334276;border-radius:10px;padding:8px;margin-top:6px;line-height:1.5}
+    .legend .item{margin-right:12px}
+    .tag24{font-weight:800;font-size:12px;color:#fff;text-shadow:-1px -1px 0 #000,1px -1px 0 #000,-1px 1px 0 #000,1px 1px 0 #000;pointer-events:none;white-space:nowrap}
+    .collapse{position:absolute;left:8px;top:8px;z-index:1200}
+    @media (max-width: 900px){ :root{ --sidebar-w: 360px; } }
+  </style>
+</head>
+<body>
+  <button class="btn collapse" id="btnCollapse">隱藏資料欄</button>
+
+  <div id="app">
+    <div id="sidebar">
+      <h1>全球熱帶氣旋</h1>
+      <div class="desc">
+        時間顯示：<b>台灣時間 (UTC+8)</b>。決定性永遠置頂（且在風圈之上）；系集不畫風圈。四象限風圈合併。<br>
+        <b>分級與色盤：</b> kt 6 級｜m/s 4 級｜km/h 8 級（最強紫）
+      </div>
+
+      <div class="card">
+        <div class="sec">線上資料（DeepMind WeatherLab）</div>
+        <div class="row">
+          <label style="font-size:12px;color:#a9b3c7">模型</label>
+          <select id="dmModel">
+            <option value="FNV3" selected>FNV3</option>
+            <option value="GENC">GENC</option>
+            <option value="GRPH">GRPH</option>
+          </select>
+          <label style="font-size:12px;color:#a9b3c7">循環</label>
+          <select id="dmCycle"></select>
+        </div>
+        <div class="row">
+          <button class="btn" id="btnLoadCycle">載入所選循環</button>
+          <button class="btn" id="btnLatest">最新可用</button>
+        </div>
+        <div class="note">若最新尚未完全發布，可改選較早的循環（近 48 小時＝ 8 個循環）。⚠️ 多數情況會被 CORS 擋下；失敗時請改用下方「匯入 CSV」。</div>
+        <div class="summary" id="dmStatus" style="display:none"></div>
+      </div>
+
+      <label class="file" id="fileLabel">
+        <input type="file" id="csvFiles" accept=".csv" multiple/>
+        <span>📄 點我匯入多個 CSV</span>
+      </label>
+
+      <div class="card">
+        <div class="sec">模式</div>
+        <div class="mode">
+          <span class="chip" id="modeTracks" data-active="true">路線圖</span>
+          <span class="chip" id="modeProb">機率圖</span>
+        </div>
+        <div class="desc">機率圖：用<b>系集成員</b>點位密度產生熱度圖（從所選時間起）。</div>
+      </div>
+
+      <div class="card">
+        <div class="sec">決定性顏色</div>
+        <div class="mode">
+          <span class="chip" id="detBlack" data-active="true">黑線</span>
+          <span class="chip" id="detIntensity">強度上色</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="sec">顯示</div>
+        <div class="row">
+          <label class="toggle"><input type="checkbox" id="toggleDet" checked>決定性</label>
+          <label class="toggle"><input type="checkbox" id="toggleEns" checked>系集</label>
+          <label class="toggle"><input type="checkbox" id="togglePts" checked>節點</label>
+          <label class="toggle"><input type="checkbox" id="toggleRadii" checked>風圈（僅決定性）</label>
+        </div>
+        <div class="range-row" style="margin-top:8px">
+          <input type="range" id="timeSlider" min="0" max="0" value="0" step="1">
+          <button class="btn" id="playPause" disabled>▶︎</button>
+        </div>
+        <div class="row"><span id="timeLabel" class="desc">台灣時間：—</span></div>
+        <div class="summary" id="loadSummary" style="display:none"></div>
+      </div>
+
+      <div class="card">
+        <div class="sec">風速換算</div>
+        <div class="row">
+          <input type="number" id="wsValue" placeholder="數值" step="0.01" style="width:110px">
+          <select id="wsUnit">
+            <option value="kt">節 (kt)</option>
+            <option value="ms">公尺/秒 (m/s)</option>
+            <option value="kmh">公里/時 (km/h)</option>
+          </select>
+          <button class="btn" id="wsCalc">換算</button>
+        </div>
+        <div class="desc" id="wsOut"><span class="muted">結果：</span>—</div>
+      </div>
+
+      <div class="card">
+        <div class="sec">系統清單（track_id | 檔名）</div>
+        <div id="systems" class="sys-list"></div>
+      </div>
+    </div>
+
+    <div id="map"></div>
+  </div>
+
+  <div class="legend" id="legend">
+    <div class="bar" id="legendText"></div>
+    <div class="tools">
+      <button class="btn" id="unitToggle" title="切換單位">單位：kt</button>
+      <button class="btn" id="btnShare" title="產生可分享連結">分享此視圖</button>
+      <button class="btn" id="btnPNG" title="匯出目前地圖為 PNG">匯出 PNG</button>
+    </div>
+  </div>
+
+  <div class="toast" id="toast">已複製連結！</div>
+
+  <script>
+    // ====== 基本狀態 ======
+    let preferredUnit = 'kt'; // 'kt' | 'ms' | 'kmh'
+    const KT_TO_MS = 0.514444, KT_TO_KMH = 1.852;
+    const tz = 'Asia/Taipei';
+
+    // 配色
+    const C_BLUE   = '#1e88e5';
+    const C_TEAL   = '#00d2a8';
+    const C_YELLOW = '#ffd166';
+    const C_ORANGE = '#ff8c42';
+    const C_DEEPOR = '#ff7043';
+    const C_RED    = '#e53935';
+    const C_PURPLE = '#8e24aa';
+
+    // UI refs
+    const rootStyle = document.documentElement.style;
+    const app=document.getElementById('app');
+    const btnCollapse=document.getElementById('btnCollapse');
+    const systemsDiv=document.getElementById('systems');
+    const slider=document.getElementById('timeSlider');
+    const timeLabel=document.getElementById('timeLabel');
+    const playBtn=document.getElementById('playPause');
+    const toggleDet=document.getElementById('toggleDet');
+    const toggleEns=document.getElementById('toggleEns');
+    const togglePts=document.getElementById('togglePts');
+    const toggleRadii=document.getElementById('toggleRadii');
+    const modeTracks=document.getElementById('modeTracks');
+    const modeProb=document.getElementById('modeProb');
+    const detBlack=document.getElementById('detBlack');
+    const detIntensity=document.getElementById('detIntensity');
+    const wsValue=document.getElementById('wsValue');
+    const wsUnit=document.getElementById('wsUnit');
+    const wsCalc=document.getElementById('wsCalc');
+    const wsOut=document.getElementById('wsOut');
+    const unitToggle=document.getElementById('unitToggle');
+    const btnShare=document.getElementById('btnShare');
+    const btnPNG=document.getElementById('btnPNG');
+    const loadSummary=document.getElementById('loadSummary');
+    const toastEl=document.getElementById('toast');
+    function showToast(msg){ toastEl.textContent=msg; toastEl.style.display='block'; setTimeout(()=>toastEl.style.display='none', 1400); }
+
+    // Online loader refs
+    const dmModelSel=document.getElementById('dmModel');
+    const dmCycleSel=document.getElementById('dmCycle');
+    const dmStatus=document.getElementById('dmStatus');
+    const btnLoadCycle=document.getElementById('btnLoadCycle');
+    const btnLatest=document.getElementById('btnLatest');
+
+    // App state
+    const systemLayers=new Map(); // key -> {group, det:[], ens:[], color, visible:true, label}
+    let allRows=[]; let timelineTicks=[]; let playing=false, playTimer=null;
+    let showTracks=true; let allDetVisible=true, allEnsVisible=true, showPts=true, showRadii=true;
+    let detUseBlack=true; let heatLayer=null;
+
+    // ====== Helpers ======
+    function toMsFromKt(kt){ return kt*KT_TO_MS; }
+    function toKmhFromKt(kt){ return kt*KT_TO_KMH; }
+
+    // Robust UTC parser → 不會造成 ...ZZ
+    function toUTCDate(s){
+      if(!s) return new Date(NaN);
+      const t = String(s).trim();
+      if (/[zZ]$/.test(t) || /[+\-]\d{2}:?\d{2}$/.test(t)) return new Date(t); // 已含 Z 或明確時區
+      if (t.includes('T')) return new Date(t + 'Z');                            // 有 T 無時區 → 視為 UTC
+      return new Date(t.replace(' ','T') + 'Z');                                 // 空白分隔 → 補 T 與 Z
+    }
+
+    function fmtTaiwan(sUTC){
+      const d = toUTCDate(sUTC);
+      return d.toLocaleString('zh-TW', { timeZone: tz, hour12:false, year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' });
+    }
+    function hashColor(key){let h=0;for(let i=0;i<key.length;i++){h=(h*31+key.charCodeAt(i))>>>0;}return `hsl(${h%360} 90% 55%)`; }
+    function offsetLatLon(lat, lon, bearingDeg, distKm){
+      const rad=Math.PI/180, deg=180/Math.PI;
+      const dByR=distKm/6371.0, φ1=lat*rad, λ1=lon*rad, θ=bearingDeg*rad;
+      const φ2=Math.asin(Math.sin(φ1)*Math.cos(dByR)+Math.cos(φ1)*Math.sin(dByR)*Math.cos(θ));
+      const λ2=λ1+Math.atan2(Math.sin(θ)*Math.sin(dByR)*Math.cos(φ1),Math.cos(dByR)-Math.sin(φ1)*Math.sin(φ2));
+      return [φ2*deg, ((λ2*deg+540)%360)-180];
+    }
+    function mergedRingOutline(center, rNE, rSE, rSW, rNW, stepDeg=3){
+      const arr=[];
+      for(let ang=0; ang<=360; ang+=stepDeg){
+        let r=0;
+        if(ang>=0 && ang<90) r = rNE||0;
+        else if(ang>=90 && ang<180) r = rSE||0;
+        else if(ang>=180 && ang<270) r = rSW||0;
+        else r = rNW||0;
+        arr.push(offsetLatLon(center[0], center[1], ang, r));
+      }
+      return arr;
+    }
+    function traverse(layer, fn){
+      if(layer && layer.eachLayer){ layer.eachLayer(l=>traverse(l, fn)); }
+      if(layer) fn(layer);
+    }
+
+    // ====== Color & Classification ======
+    function colorByKT6(kt){
+      if(kt==null || !isFinite(kt)) return C_BLUE;
+      if(kt<34) return C_BLUE;
+      if(kt<=63) return C_BLUE;     // 熱帶風暴
+      if(kt<=82) return C_TEAL;     // 一級
+      if(kt<=95) return C_YELLOW;   // 二級
+      if(kt<=113) return C_ORANGE;  // 三級
+      if(kt<=135) return C_RED;     // 四級
+      return C_PURPLE;              // 五級
+    }
+    function colorByKMH8_fromKT(kt){
+      if(kt==null || !isFinite(kt)) return C_BLUE;
+      if(kt<34)  return C_BLUE;    // <63
+      if(kt<64)  return C_TEAL;    // 63–117
+      if(kt<83)  return C_YELLOW;  // 118–152
+      if(kt<96)  return C_ORANGE;  // 153–176
+      if(kt<111) return C_DEEPOR;  // 178–209
+      if(kt<130) return C_RED;     // 210–247
+      if(kt<157) return '#d50000'; // 248–289
+      return C_PURPLE;             // ≥291
+    }
+    function colorByMS4(ms){
+      if(ms==null || !isFinite(ms)) return C_BLUE;
+      if(ms<=17.1) return C_BLUE;      // 熱帶性低氣壓
+      if(ms<=32.6) return C_TEAL;      // 輕度
+      if(ms<=50.9) return C_ORANGE;    // 中度（黃橘）
+      return C_RED;                    // 強烈
+    }
+    function classifyKT(kt){
+      if(kt==null || !isFinite(kt)) return '—';
+      if(kt<34) return '擾動/熱帶性低氣壓（<34 kt）';
+      if(kt<=63) return '熱帶風暴（34–63 kt）';
+      if(kt<=82) return '一級颱風（64–82 kt）';
+      if(kt<=95) return '二級颱風（83–95 kt）';
+      if(kt<=113) return '三級颱風（96–113 kt）';
+      if(kt<=135) return '四級颱風（114–135 kt）';
+      return '五級颱風（≥136 kt）';
+    }
+    function classifyMS(ms){
+      if(ms==null || !isFinite(ms)) return '—';
+      if(ms<=17.1) return '熱帶性低氣壓（≤17.1 m/s）';
+      if(ms<=32.6) return '輕度颱風（17.2–32.6 m/s）';
+      if(ms<=50.9) return '中度颱風（32.7–50.9 m/s）';
+      return '強烈顛風（≥51 m/s）';
+    }
+    function colorDynamic(kt){
+      if(preferredUnit==='ms'){
+        const ms = (kt!=null && isFinite(kt)) ? toMsFromKt(kt) : null;
+        return colorByMS4(ms);
+      } else if(preferredUnit==='kmh'){
+        return colorByKMH8_fromKT(kt);
+      } else {
+        return colorByKT6(kt);
+      }
+    }
+
+    // ====== Legend ======
+    function updateLegend(){
+      document.getElementById('unitToggle').textContent = '單位：' + preferredUnit;
+      const el = document.getElementById('legendText');
+      if(preferredUnit==='ms'){
+        el.innerHTML = `強度（<b>m/s</b> 四級）：
+          <span class="item"><span class="dot" style="background:${C_BLUE}"></span>熱帶性低氣壓</span>
+          <span class="item"><span class="dot" style="background:${C_TEAL}"></span>輕度颱風</span>
+          <span class="item"><span class="dot" style="background:${C_ORANGE}"></span>中度颱風</span>
+          <span class="item"><span class="dot" style="background:${C_RED}"></span>強烈颱風</span>`;
+      } else if(preferredUnit==='kmh'){
+        el.innerHTML = `強度（<b>km/h</b> 八級）：
+          <span class="item"><span class="dot" style="background:${C_BLUE}"></span>&lt;63</span>
+          <span class="item"><span class="dot" style="background:${C_TEAL}"></span>63–117</span>
+          <span class="item"><span class="dot" style="background:${C_YELLOW}"></span>118–152</span>
+          <span class="item"><span class="dot" style="background:${C_ORANGE}"></span>153–176</span>
+          <span class="item"><span class="dot" style="background:${C_DEEPOR}"></span>178–209</span>
+          <span class="item"><span class="dot" style="background:${C_RED}"></span>210–247</span>
+          <span class="item"><span class="dot" style="background:#d50000"></span>248–289</span>
+          <span class="item"><span class="dot" style="background:${C_PURPLE}"></span>≥291</span>`;
+      } else {
+        el.innerHTML = `強度（<b>kt</b> 六級）：
+          <span class="item"><span class="dot" style="background:${C_BLUE}"></span>熱帶風暴</span>
+          <span class="item"><span class="dot" style="background:${C_TEAL}"></span>一級</span>
+          <span class="item"><span class="dot" style="background:${C_YELLOW}"></span>二級</span>
+          <span class="item"><span class="dot" style="background:${C_ORANGE}"></span>三級</span>
+          <span class="item"><span class="dot" style="background:${C_RED}"></span>四級</span>
+          <span class="item"><span class="dot" style="background:${C_PURPLE}"></span>五級</span>`;
+      }
+    }
+    function cycleUnit(){
+      preferredUnit = (preferredUnit==='kt') ? 'ms' : (preferredUnit==='ms' ? 'kmh' : 'kt');
+      updateLegend();
+      recolorAll();
+      updateHashNow();
+    }
+
+    // ====== Map ======
+    const baseDark = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {attribution:'© Carto', maxZoom: 18});
+    const baseOSM  = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {attribution:'© OpenStreetMap', maxZoom: 18});
+    const baseSat  = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {attribution:'© Esri', maxZoom: 18});
+    const basemaps = {"Carto Dark":baseDark, "OSM":baseOSM, "Esri 衛星":baseSat};
+    let currentBase = "Carto Dark";
+    const map = L.map('map', { zoomControl:true, worldCopyJump:true, layers:[baseDark] }).setView([18,130], 3);
+    L.control.layers(basemaps, null, {position:'topright'}).addTo(map);
+    map.createPane('probPane');  map.getPane('probPane').style.zIndex  = 300;
+    map.createPane('ensPane');   map.getPane('ensPane').style.zIndex   = 500;
+    map.createPane('radiiPane'); map.getPane('radiiPane').style.zIndex = 700;
+    map.createPane('detPane');   map.getPane('detPane').style.zIndex   = 900;
+    map.on('baselayerchange', e=>{ currentBase = e.name; updateHashNow(); });
+
+    // ====== Build tracks ======
+    function buildColoredSegments(latlngs, winds, pane, isDet){
+      const segs=[];
+      for(let i=1;i<latlngs.length;i++){
+        const w = winds[i] ?? winds[i-1] ?? null;
+        const c = (isDet && detUseBlack) ? '#000000' : colorDynamic(w);
+        const seg = L.polyline([latlngs[i-1], latlngs[i]], {color:c, weight:isDet?5:3, opacity:0.98, pane});
+        seg.__meta = {type:'segment', isDet, wind:w};
+        segs.push(seg);
+      }
+      return segs;
+    }
+    function buildRadiiGroupsDet(pts){
+      const groups=[];
+      pts.forEach(p=>{
+        const center=[+p.lat,+p.lon];
+        const r34 = mergedRingOutline(center, p.r34ne||0,p.r34se||0,p.r34sw||0,p.r34nw||0, 3);
+        const r50 = mergedRingOutline(center, p.r50ne||0,p.r50se||0,p.r50sw||0,p.r50nw||0, 3);
+        const r64 = mergedRingOutline(center, p.r64ne||0,p.r64se||0,p.r64sw||0,p.r64nw||0, 3);
+        const fg=L.featureGroup(undefined,{pane:'radiiPane'});
+        if(r34.length) fg.addLayer(L.polygon(r34, {pane:'radiiPane', color:'#FF8000', fillColor:'#FF8000', fillOpacity:0.10, weight:1.4, opacity:0.85}));
+        if(r50.length) fg.addLayer(L.polygon(r50, {pane:'radiiPane', color:'#EA0000', fillColor:'#EA0000', fillOpacity:0.15, weight:1.4, opacity:0.85}));
+        if(r64.length) fg.addLayer(L.polygon(r64, {pane:'radiiPane', color:'#5B00AE', fillColor:'#5B00AE', fillOpacity:0.20, weight:1.6, opacity:0.90 }));
+        fg.__meta={type:'radii'};
+        groups.push(fg);
+      });
+      return groups;
+    }
+    function add24hTags(detPts){
+      if(!detPts.length) return [];
+      const first = toUTCDate(detPts[0].valid_time);
+      const tagLayers=[];
+      for(let i=1;i<detPts.length;i++){
+        const t = toUTCDate(detPts[i].valid_time);
+        const dh = Math.round((t-first)/36e5); // hours
+        if(dh>0 && dh%24===0){
+          const txt = `+${dh}h`;
+          const ic = L.divIcon({ className:'tag24', html: txt, iconAnchor: [-14, 10] });
+          const mk = L.marker([+detPts[i].lat, +detPts[i].lon], {icon: ic, pane:'detPane'});
+          mk.__meta = {type:'tag24', isDet:true};
+          tagLayers.push(mk);
+        }
+      }
+      return tagLayers;
+    }
+    function addSystemControl(key, color, label){
+      const name=document.createElement('div'); name.className='sys-name';
+      name.innerHTML=`<span class="dot" style="background:${color}"></span>${label}`;
+      const ctl=document.createElement('div'); ctl.className='toggle';
+      const cb=document.createElement('input'); cb.type='checkbox'; cb.checked=true;
+      cb.addEventListener('change',()=>{ const e=systemLayers.get(key); e.visible=cb.checked; refreshVisibility(); updateHashNow(); });
+      ctl.appendChild(cb);
+      systemsDiv.appendChild(name); systemsDiv.appendChild(ctl);
+    }
+    function addTrack(key, sample, pts, color, label){
+      pts.sort((a,b)=>toUTCDate(a.valid_time)-toUTCDate(b.valid_time));
+      const latlngs=pts.map(p=>[+p.lat,+p.lon]);
+      const winds  =pts.map(p=> p.wind!=null? +p.wind : null);
+      const isDet=(String(sample)==='-1' || sample==='auto-det');
+      const pane = isDet? 'detPane' : 'ensPane';
+
+      const segs = buildColoredSegments(latlngs, winds, pane, isDet);
+
+      const markers=[];
+      pts.forEach(p=>{
+        const kt = (p.wind!=null? +p.wind : null);
+        const ms = (kt!=null? toMsFromKt(kt) : null);
+        const kmh= (kt!=null? toKmhFromKt(kt) : null);
+        const c = (isDet && detUseBlack) ? '#000000' : colorDynamic(kt);
+        const m=L.circleMarker([+p.lat,+p.lon], {
+          pane, radius: isDet?5:3.5, color:'#111', weight: isDet? 1.2 : 0.8, fillColor:c, fillOpacity:1.0, opacity:0.95
+        });
+        m.__meta = {type:'marker', isDet, wind:kt};
+        const pres=(p.mslp!=null&&!isNaN(p.mslp))?p.mslp.toFixed(1)+' hPa':'—';
+        const twt = fmtTaiwan(p.valid_time);
+        const utc = p.valid_time;
+        let bestLine = '—';
+        if(kt!=null){
+          const sKt = `${kt.toFixed(0)} kt`, sMs = `${(ms).toFixed(2)} m/s`, sKmh = `${(kmh).toFixed(1)} km/h`;
+          if(preferredUnit==='kt') bestLine = `<b>${sKt}</b>｜${sMs}｜${sKmh}`;
+          if(preferredUnit==='ms') bestLine = `${sKt}｜<b>${sMs}</b>｜${sKmh}`;
+          if(preferredUnit==='kmh') bestLine = `${sKt}｜${sMs}｜<b>${sKmh}</b>`;
+        }
+        const ktClass = (kt!=null) ? classifyKT(kt) : '—';
+        const msClass = (ms!=null) ? classifyMS(ms) : '—';
+        m.bindPopup(`<b>${label}</b> | sample: <b>${sample}</b><br>
+          時間（台灣）：${twt}<br>時間（UTC）：${utc}<br>
+          位置：${(+p.lat).toFixed(2)}, ${(+p.lon).toFixed(2)}<br>
+          風速：${bestLine}<br>
+          分級（kt）：${ktClass}<br>
+          分級（m/s）：${msClass}<br>
+          中心氣壓：${pres}`);
+        markers.push(m);
+      });
+
+      const tag24s = isDet ? add24hTags(pts) : [];
+      const radiiGroups = isDet ? buildRadiiGroupsDet(pts) : [];
+      const group=L.featureGroup([...segs, ...markers, ...tag24s, ...radiiGroups]);
+      if(!systemLayers.has(key)) systemLayers.set(key, {group:L.featureGroup().addTo(map), det:[], ens:[], color, visible:true, label});
+      const entry=systemLayers.get(key);
+      entry.group.addLayer(group);
+      if(isDet) entry.det.push(group); else entry.ens.push(group);
+      return group;
+    }
+
+    // ====== Recolor / visibility ======
+    function recolorAll(){
+      systemLayers.forEach(entry=>{
+        entry.group.eachLayer(g=>{
+          traverse(g, (child)=>{
+            if(!child || !child.__meta) return;
+            if(child.__meta.type==='segment'){
+              const w = child.__meta.wind;
+              const isDet = child.__meta.isDet;
+              const c = (isDet && detUseBlack) ? '#000000' : colorDynamic(w);
+              child.setStyle({color:c, weight:isDet?5:3});
+            }else if(child.__meta.type==='marker'){
+              const w = child.__meta.wind;
+              const isDet = child.__meta.isDet;
+              const c = (isDet && detUseBlack) ? '#000000' : colorDynamic(w);
+              child.setStyle({fillColor:c});
+              if(child.isPopupOpen && child.isPopupOpen()){ child.closePopup().openPopup(); }
+            }
+          });
+        });
+      });
+      updateLegend();
+    }
+    function recolorDeterministic(){
+      systemLayers.forEach(entry=>{
+        entry.det.forEach(g=>{
+          traverse(g, (child)=>{
+            if(child && child.__meta && child.__meta.isDet){
+              if(child.__meta.type==='segment'){
+                const w = child.__meta.wind;
+                const c = detUseBlack ? '#000000' : colorDynamic(w);
+                child.setStyle({color:c, weight:5});
+              } else if(child.__meta.type==='marker'){
+                const w = child.__meta.wind;
+                const c = detUseBlack ? '#000000' : colorDynamic(w);
+                child.setStyle({fillColor:c});
+              }
+            }
+          });
+        });
+      });
+    }
+    function refreshVisibility(){
+      if(showTracks){
+        if(heatLayer){ map.removeLayer(heatLayer); heatLayer=null; }
+        systemLayers.forEach(entry=>{
+          entry.group.eachLayer(g=>map.removeLayer(g));
+          if(!entry.visible) return;
+          if(allEnsVisible) entry.ens.forEach(g=>g.addTo(map));
+          if(allDetVisible) entry.det.forEach(g=>g.addTo(map));
+        });
+        systemLayers.forEach(entry=>{
+          entry.group.eachLayer(g=>{
+            traverse(g, (child)=>{
+              if(child && child.__meta && (child.__meta.type==='marker' || child.__meta.type==='tag24')){
+                const isDetMarker = child.__meta.isDet;
+                const parentOn = isDetMarker ? allDetVisible : allEnsVisible;
+                if(showPts && parentOn) { child.addTo(map); } else { map.removeLayer(child); }
+              } else if(child && child.__meta && child.__meta.type==='radii'){
+                if(showRadii && allDetVisible) { child.addTo(map); } else { map.removeLayer(child); }
+              }
+            });
+          });
+        });
+      }else{
+        systemLayers.forEach(entry=>entry.group.eachLayer(g=>map.removeLayer(g)));
+        const t=timelineTicks[+slider.value]||null;
+        if(t) rebuildHeatForTime(t);
+      }
+    }
+
+    // ====== Probability ======
+    function rebuildHeatForTime(tStart){
+      if(heatLayer){ map.removeLayer(heatLayer); heatLayer=null; }
+      if(!timelineTicks.length) return;
+      const idx0 = timelineTicks.indexOf(tStart);
+      const pts=[];
+      allRows.forEach(r=>{
+        if(String(r.sample)==='-1') return;
+        const tIdx = timelineTicks.indexOf(r.valid_time);
+        if(tIdx >= idx0){
+          const w = (r.wind!=null && !isNaN(r.wind)) ? Math.min(1, Math.max(0, (r.wind-20)/120)) : 0.3;
+          pts.push([+r.lat, +r.lon, w]);
+        }
+      });
+      if(pts.length){
+        heatLayer = L.heatLayer(pts, {pane:'probPane', radius: 20, blur: 24, maxZoom: 6, minOpacity: 0.22});
+        heatLayer.addTo(map);
+      }
+    }
+
+    // ====== Timeline ======
+    function uniqueSortedTimes(rows){ const s=new Set(); rows.forEach(r=>{ if(r.valid_time) s.add(r.valid_time); }); return Array.from(s).sort((a,b)=>toUTCDate(a)-toUTCDate(b)); }
+    function updateTimeIndex(idx){
+      if(!timelineTicks.length) return;
+      idx=Math.max(0,Math.min(idx,timelineTicks.length-1)); slider.value=idx;
+      const t=timelineTicks[idx];
+      timeLabel.textContent='台灣時間：'+fmtTaiwan(t);
+      if(!showTracks){ rebuildHeatForTime(t); }
+      updateHashNow();
+    }
+    slider.addEventListener('input', e=>updateTimeIndex(+e.target.value));
+    function play(){ if(playing||timelineTicks.length<=1) return; playing=true; playBtn.textContent='⏸'; let i=+slider.value; playTimer=setInterval(()=>{ i=(i+1)%timelineTicks.length; updateTimeIndex(i); }, 650); }
+    function pause(){ playing=false; playBtn.textContent='▶︎'; if(playTimer) clearInterval(playTimer); playTimer=null; }
+    playBtn.addEventListener('click', ()=>{ if(playing) pause(); else play(); });
+
+    // ====== Mode & toggles ======
+    function setDetMode(useBlack){
+      detUseBlack = useBlack;
+      detBlack.dataset.active = useBlack ? 'true' : 'false';
+      detIntensity.dataset.active = useBlack ? 'false' : 'true';
+      recolorDeterministic();
+      updateHashNow();
+    }
+    modeTracks.addEventListener('click', ()=>{ showTracks=true; modeTracks.dataset.active='true'; modeProb.dataset.active='false'; refreshVisibility(); updateHashNow(); });
+    modeProb.addEventListener('click', ()=>{ showTracks=false; modeTracks.dataset.active='false'; modeProb.dataset.active='true'; refreshVisibility(); const t=timelineTicks[+slider.value]||null; if(t) rebuildHeatForTime(t); updateHashNow(); });
+    detBlack.addEventListener('click', ()=>setDetMode(true));
+    detIntensity.addEventListener('click', ()=>setDetMode(false));
+    toggleDet.addEventListener('change', ()=>{ allDetVisible=toggleDet.checked; refreshVisibility(); updateHashNow(); });
+    toggleEns.addEventListener('change', ()=>{ allEnsVisible=toggleEns.checked; refreshVisibility(); updateHashNow(); });
+    togglePts.addEventListener('change', ()=>{ showPts=togglePts.checked; refreshVisibility(); updateHashNow(); });
+    toggleRadii.addEventListener('change', ()=>{ showRadii=toggleRadii.checked; refreshVisibility(); updateHashNow(); });
+
+    // ====== PNG & Share ======
+    document.getElementById('btnPNG').addEventListener('click', async ()=>{
+      const mapEl = document.getElementById('map');
+      const legend = document.getElementById('legend'); const oldDisplay = legend.style.display; legend.style.display='none';
+      const canvas = await html2canvas(mapEl, {useCORS:true});
+      legend.style.display = oldDisplay;
+      canvas.toBlob((blob)=>{
+        const a=document.createElement('a'); const url=URL.createObjectURL(blob);
+        a.href=url; a.download='map_view.png'; a.click(); URL.revokeObjectURL(url);
+      });
+    });
+
+    // 分享用編解碼（現代安全）
+    function serializeState(){
+      const c = map.getCenter(), z = map.getZoom();
+      const sysVis = {}; systemLayers.forEach((e,k)=>{ sysVis[k]=!!e.visible; });
+      return {
+        u: preferredUnit, b: currentBase, c: [ +c.lat.toFixed(4), +c.lng.toFixed(4) ], z,
+        md: showTracks ? 0 : 1, det: +allDetVisible, ens: +allEnsVisible, pts: +showPts, rad: +showRadii, dm: +detUseBlack,
+        ti: +slider.value || 0, sv: sysVis
+      };
+    }
+    function encodeHash(obj){ return btoa(encodeURIComponent(JSON.stringify(obj))); }
+    function decodeHash(h){ try{ return JSON.parse(decodeURIComponent(atob(h))); }catch(e){ return null; } }
+    function updateHashNow(){ location.hash = 's=' + encodeHash(serializeState()); }
+    document.getElementById('btnShare').addEventListener('click', async ()=>{
+      updateHashNow();
+      const url = location.href;
+      try{ await navigator.clipboard.writeText(url); showToast('已複製連結！'); }
+      catch{ showToast('無法自動複製，請手動複製網址'); }
+    });
+    unitToggle.addEventListener('click', cycleUnit);
+
+    // ====== Converter ======
+    function round(n, d){ const p=Math.pow(10,d); return Math.round(n*p)/p; }
+    function updateWsOut(){
+      const v = parseFloat(wsValue.value);
+      const u = wsUnit.value;
+      if(isNaN(v)){ wsOut.innerHTML='<span class="muted">結果：</span>—'; return; }
+      let kt, ms, kmh;
+      if(u==='kt'){ kt=v; ms=kt*KT_TO_MS; kmh=kt*KT_TO_KMH; }
+      else if(u==='ms'){ ms=v; kt=ms/KT_TO_MS; kmh=kt*KT_TO_KMH; }
+      else { kmh=v; kt=kmh/KT_TO_KMH; ms=kt*KT_TO_MS; }
+      wsOut.innerHTML = `<span class="muted">結果：</span>${round(kt,2)} kt ｜ ${round(ms,2)} m/s ｜ ${round(kmh,1)} km/h`;
+    }
+    wsCalc.addEventListener('click', updateWsOut);
+
+    // ====== Import & render ======
+    function nnum(v){ const x=Number(v); return isFinite(x)?x:null; }
+    function pick(obj, keys){ for(const k of keys){ if(obj[k]!=null && obj[k]!=='' && obj[k]!=='NaN') return obj[k]; } return null; }
+    function normalizeRow(r, sourceName){
+      const time = pick(r, ['valid_time','Valid_Time','valid time','time','datetime','forecast_time','forecast valid','valid_time_utc','Valid Time']);
+      const lat  = pick(r, ['lat','latitude','Lat','LAT']);
+      const lon  = pick(r, ['lon','longitude','Lon','LON','long']);
+      const id   = pick(r, ['track_id','Track_ID','id','system','storm_id','stormid']);
+      const sample = pick(r, ['sample','Sample','member','ens_member','ensemble_member']);
+      const wind = pick(r, ['maximum_sustained_wind_speed_knots','max_wind','wind','Wind','Vmax','vmax_kt','Vmax_kt']);
+      const mslp = pick(r, ['minimum_sea_level_pressure_hpa','mslp','pressure','MSLP','Pmin']);
+      const r34ne = pick(r, ['radius_34_knot_winds_ne_km','r34ne','r34_ne_km','r34NE']);
+      const r34se = pick(r, ['radius_34_knot_winds_se_km','r34se','r34_se_km','r34SE']);
+      const r34sw = pick(r, ['radius_34_knot_winds_sw_km','r34sw','r34_sw_km','r34SW']);
+      const r34nw = pick(r, ['radius_34_knot_winds_nw_km','r34nw','r34_nw_km','r34NW']);
+      const r50ne = pick(r, ['radius_50_knot_winds_ne_km','r50ne']); const r50se = pick(r, ['radius_50_knot_winds_se_km','r50se']);
+      const r50sw = pick(r, ['radius_50_knot_winds_sw_km','r50sw']); const r50nw = pick(r, ['radius_50_knot_winds_nw_km','r50nw']);
+      const r64ne = pick(r, ['radius_64_knot_winds_ne_km','r64ne']); const r64se = pick(r, ['radius_64_knot_winds_se_km','r64se']);
+      const r64sw = pick(r, ['radius_64_knot_winds_sw_km','r64sw']); const r64nw = pick(r, ['radius_64_knot_winds_nw_km','r64nw']);
+      if(time==null || lat==null || lon==null) return null;
+      return {
+        source: sourceName, track_id: String(id ?? 'UNKNOWN').trim(), sample: (sample!=null ? sample : -1),
+        valid_time: String(time).trim(),
+        lat: nnum(lat), lon: nnum(lon),
+        wind: (wind!=null ? nnum(wind) : null),
+        mslp: (mslp!=null ? nnum(mslp) : null),
+        r34ne: nnum(r34ne), r34se: nnum(r34se), r34sw: nnum(r34sw), r34nw: nnum(r34nw),
+        r50ne: nnum(r50ne), r50se: nnum(r50se), r50sw: nnum(r50sw), r50nw: nnum(r50nw),
+        r64ne: nnum(r64ne), r64se: nnum(r64se), r64sw: nnum(r64sw), r64nw: nnum(r64nw),
+      };
+    }
+    function parseFiles(files){
+      const rowsAll=[]; let filesDone=0;
+      files.forEach(file=>{
+        const reader=new FileReader();
+        reader.onload=(ev)=>{
+          try{
+            let raw=ev.target.result;
+            if(raw.charCodeAt(0)===0xFEFF){ raw = raw.slice(1); }
+            const idx=raw.indexOf('# BEGIN DATA');
+            const text=idx>=0 ? raw.slice(idx+'# BEGIN DATA'.length) : raw;
+            const parsed=Papa.parse(text, {header:true, skipEmptyLines:true, dynamicTyping:false});
+            const cleaned = parsed.data.map(obj=>normalizeRow(obj, file.name)).filter(x=>x && isFinite(x.lat) && isFinite(x.lon));
+            rowsAll.push(...cleaned);
+            filesDone++;
+            if(filesDone===files.length){ renderAll(rowsAll); }
+          }catch(e){
+            alert('匯入錯誤：'+(e.message||e));
+          }
+        };
+        reader.readAsText(file);
+      });
+    }
+    function renderAll(rows){
+      const totalRows=rows.length;
+      if(!totalRows){
+        loadSummary.style.display='block';
+        loadSummary.innerHTML = '⚠️ 沒有可用的點位資料。';
+        return;
+      }
+      loadSummary.style.display='block';
+      loadSummary.textContent = `已載入 ${totalRows} 筆點位。`;
+      allRows = rows.slice();
+
+      timelineTicks = uniqueSortedTimes(rows);
+      slider.min=0; slider.max=Math.max(0,timelineTicks.length-1); slider.value=0;
+      timeLabel.textContent = timelineTicks.length? ('台灣時間：'+fmtTaiwan(timelineTicks[0])) : '台灣時間：—';
+      playBtn.disabled = timelineTicks.length<=1;
+
+      const bySys=new Map();
+      rows.forEach(r=>{
+        const key=`${r.source} | ${r.track_id}`;
+        if(!bySys.has(key)) bySys.set(key, new Map());
+        const m=bySys.get(key);
+        const sKey=String(r.sample);
+        if(!m.has(sKey)) m.set(sKey, []);
+        m.get(sKey).push(r);
+      });
+
+      const bounds=L.latLngBounds(); let has=false;
+      bySys.forEach((samples, key)=>{
+        const [source, track] = key.split(' | ');
+        const color=hashColor(key);
+        const label=`${track} (${source})`;
+
+        // ensemble
+        samples.forEach((pts, s)=>{
+          if(String(s)==='-1') return;
+          const g=addTrack(key, s, pts.slice(), color, label);
+          try{ bounds.extend(g.getBounds()); has=true; }catch{}
+        });
+        // deterministic (provided or auto-det)
+        if(samples.has('-1')){
+          const g=addTrack(key, -1, samples.get('-1').slice(), color, label);
+          try{ bounds.extend(g.getBounds()); has=true; }catch{}
+        }else{
+          const rep = buildAutoDet(samples);
+          if(rep){
+            const g=addTrack(key, 'auto-det', rep.rows.slice(), color, label);
+            try{ bounds.extend(g.getBounds()); has=true; }catch{}
+          }
+        }
+        addSystemControl(key, color, `${track} | ${source}`);
+      });
+
+      refreshVisibility();
+      if(has && bounds.isValid()){ map.fitBounds(bounds.pad(0.2)); } else { map.setView([18,130], 3); }
+
+      if(!showTracks){
+        const t=timelineTicks[+slider.value]||null;
+        if(t) rebuildHeatForTime(t);
+      }
+
+      updateLegend();
+      recolorAll();
+    }
+
+    // ====== Auto-det ======
+    const KM_PER_DEG=111.32;
+    function buildAutoDet(samplesMap){
+      const times=[]; const tsSet=new Set();
+      samplesMap.forEach(rows=>rows.forEach(r=>{ if(r.valid_time && !tsSet.has(r.valid_time)){ tsSet.add(r.valid_time); times.push(r.valid_time);} }));
+      times.sort((a,b)=>toUTCDate(a)-toUTCDate(b));
+      const centroids=new Map();
+      times.forEach(t=>{
+        const pts=[];
+        samplesMap.forEach(rows=>rows.forEach(r=>{ if(r.valid_time===t) pts.push([+r.lat,+r.lon]); }));
+        if(pts.length){
+          const mlat=pts.reduce((a,p)=>a+p[0],0)/pts.length;
+          const mlon=pts.reduce((a,p)=>a+p[1],0)/pts.length;
+          centroids.set(t,[mlat,mlon]);
+        }
+      });
+      let bestSample=null, bestScore=Infinity;
+      samplesMap.forEach((rows,sample)=>{
+        let s=0,n=0;
+        rows.forEach(r=>{
+          const c=centroids.get(r.valid_time);
+          if(c){
+            const dLat=(+r.lat-c[0]), dLon=(+r.lon-c[1])*Math.cos((+r.lat)*Math.PI/180);
+            const d=Math.sqrt(dLat*dLat + dLon*dLon)*KM_PER_DEG;
+            s+=d*d; n++;
+          }
+        });
+        if(n>0 && s<bestScore){ bestScore=s; bestSample=sample; }
+      });
+      if(bestSample==null) return null;
+      return { sample: bestSample, rows: samplesMap.get(bestSample) };
+    }
+
+    // ====== Online loader (URL 路徑依你指定) ======
+    const dmBase = 'https://deepmind.google.com/science/weatherlab/download/cyclones';
+    function pad(n){ return String(n).padStart(2,'0'); }
+    function buildDMUrl(model, dateUtc){
+      const yyyy = dateUtc.getUTCFullYear();
+      const MM = pad(dateUtc.getUTCMonth()+1);
+      const DD = pad(dateUtc.getUTCDate());
+      const HH = pad(dateUtc.getUTCHours());
+      const fname = `${model}_${yyyy}_${MM}_${DD}T${HH}_00_paired.csv`;
+      if(model==='GRPH'){
+        // 依你要求：/GRPH/paired/csv/GRPH_YYYY_MM_DDTHH_00_paired.csv
+        return `${dmBase}/GRPH/paired/csv/${fname}`;
+      }else{
+        // WeatherLab 其它模型的實際路徑
+        return `${dmBase}/${model}/ensemble/paired/csv/${fname}`;
+      }
+    }
+    function nearestCycleUTC(dateUtc){
+      const h = dateUtc.getUTCHours();
+      const cycle = h>=18 ? 18 : h>=12 ? 12 : h>=6 ? 6 : 0;
+      return new Date(Date.UTC(dateUtc.getUTCFullYear(), dateUtc.getUTCMonth(), dateUtc.getUTCDate(), cycle, 0, 0));
+    }
+    function makeLast48Cycles(){
+      const arr=[];
+      let t = nearestCycleUTC(new Date());
+      for(let i=0;i<8;i++){
+        const d = new Date(t.getTime() - i*6*3600*1000);
+        const label = d.toISOString().replace(/:\d{2}\.\d{3}Z$/,'Z').slice(0,13) + 'Z';
+        arr.push({date:d, label});
+      }
+      return arr;
+    }
+    function fillCycles(){
+      dmCycleSel.innerHTML='';
+      makeLast48Cycles().forEach((c, idx)=>{
+        const opt=document.createElement('option');
+        opt.value = c.date.toISOString();
+        opt.textContent = c.label;
+        if(idx===0) opt.selected = true;
+        dmCycleSel.appendChild(opt);
+      });
+    }
+    async function fetchOne(model, dateUtc){
+      const url = buildDMUrl(model, dateUtc);
+      const res = await fetch(url, {mode:'cors'});
+      if(!res.ok) throw new Error('HTTP '+res.status);
+      const text = await res.text();
+      return {url, text};
+    }
+    function showDmStatus(msg, ok=true){
+      dmStatus.style.display='block';
+      dmStatus.style.borderColor = ok ? '#334276' : '#8b2d2d';
+      dmStatus.textContent = msg;
+    }
+    function resetAndRenderFromText(csvText, virtualName){
+      try{
+        let raw=csvText;
+        if(raw.charCodeAt(0)===0xFEFF){ raw = raw.slice(1); }
+        const idx=raw.indexOf('# BEGIN DATA');
+        const text=idx>=0 ? raw.slice(idx+'# BEGIN DATA'.length) : raw;
+        const parsed=Papa.parse(text, {header:true, skipEmptyLines:true, dynamicTyping:false});
+        const cleaned = parsed.data.map(obj=>normalizeRow(obj, virtualName)).filter(x=>x && isFinite(x.lat) && isFinite(x.lon));
+        systemsDiv.innerHTML='';
+        systemLayers.forEach(e=>map.removeLayer(e.group)); systemLayers.clear();
+        if(heatLayer){ map.removeLayer(heatLayer); heatLayer=null; }
+        timelineTicks=[]; slider.min=0; slider.max=0; slider.value=0; timeLabel.textContent='台灣時間：—'; playBtn.disabled=true;
+        allRows=[]; loadSummary.style.display='none'; loadSummary.textContent='';
+        renderAll(cleaned);
+      }catch(e){
+        showDmStatus('資料解析失敗：'+(e.message||e), false);
+      }
+    }
+    btnLoadCycle.addEventListener('click', async ()=>{
+      const model = dmModelSel.value;
+      const iso = dmCycleSel.value;
+      const dateUtc = new Date(iso);
+      showDmStatus('下載中…');
+      try{
+        const out = await fetchOne(model, dateUtc);
+        showDmStatus('已載入：'+ out.url);
+        resetAndRenderFromText(out.text, `${model}_${iso}_online.csv`);
+      }catch(e){
+        showDmStatus('抓取失敗（可能未發布或 CORS 限制）：'+(e.message||e), false);
+      }
+    });
+    btnLatest.addEventListener('click', async ()=>{
+      const model = dmModelSel.value;
+      const cycles = makeLast48Cycles();
+      showDmStatus('測試最近循環…');
+      for(const c of cycles){
+        try{
+          const out = await fetchOne(model, c.date);
+          showDmStatus('已載入：'+ out.url);
+          resetAndRenderFromText(out.text, `${model}_${c.date.toISOString()}_online.csv`);
+          return;
+        }catch(e){}
+      }
+      showDmStatus('近 48h 皆無法抓取（可能未發布或 CORS 限制）', false);
+    });
+    fillCycles();
+    dmModelSel.addEventListener('change', fillCycles);
+
+    // ====== File UI ======
+    document.getElementById('csvFiles').addEventListener('change', (e)=>{
+      const files=Array.from(e.target.files||[]);
+      if(!files.length) return;
+      systemsDiv.innerHTML='';
+      systemLayers.forEach(e=>map.removeLayer(e.group)); systemLayers.clear();
+      if(heatLayer){ map.removeLayer(heatLayer); heatLayer=null; }
+      timelineTicks=[]; slider.min=0; slider.max=0; slider.value=0; timeLabel.textContent='台灣時間：—'; playBtn.disabled=true;
+      allRows=[]; loadSummary.style.display='none'; loadSummary.textContent='';
+      parseFiles(files);
+      e.target.value = "";
+    });
+
+    // ====== Collapse sidebar（同步 legend 位置） ======
+    btnCollapse.addEventListener('click', ()=>{
+      if(app.classList.contains('collapsed')){
+        app.classList.remove('collapsed');
+        rootStyle.setProperty('--sidebar-w','480px');
+        btnCollapse.textContent='隱藏資料欄';
+      }else{
+        app.classList.add('collapsed');
+        rootStyle.setProperty('--sidebar-w','0px');
+        btnCollapse.textContent='顯示資料欄';
+      }
+    });
+
+    // ====== Init ======
+    updateLegend();
+  </script>
+</body>
+</html>

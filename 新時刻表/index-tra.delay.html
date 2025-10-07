@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>列車時刻表 ‧ 即時狀態模擬</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --blue:#1f78b4; --blue-d:#145e8e; --red:#d93025;
+  --bg:#f4f6fa;   --card:#ffffff;  --border:#e1e5ec; --txt:#222;
+}
+*{box-sizing:border-box;font-family:"Noto Sans TC",sans-serif}
+body{margin:0;background:var(--bg);color:var(--txt);}
+header{background:var(--blue);color:#fff;padding:18px 28px}
+header h1{margin:0;font-size:1.5rem;font-weight:500}
+.container{max-width:1000px;margin:32px auto;padding:0 20px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:10px;box-shadow:0 6px 20px rgba(0,0,0,.06);padding:26px}
+.input-row{display:flex;gap:10px;flex-wrap:wrap}
+.autocomplete{flex:1 1 220px;position:relative}
+input[type=text]{width:100%;padding:8px 10px;font-size:1rem;border:1px solid #cfd5e1;border-radius:6px}
+button{padding:8px 20px;font-size:1rem;background:var(--blue);color:#fff;border:none;border-radius:6px;cursor:pointer}
+button:hover{background:var(--blue-d)}
+.suggestions{position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #cfd5e1;border-top:none;max-height:180px;overflow-y:auto;z-index:1000}
+.suggestions div{padding:6px 10px;cursor:pointer}
+.suggestions div:hover{background:#e7f0fa}
+.status-on{color:var(--blue);font-weight:600}
+.status-late,.status-stop{color:var(--red);font-weight:600}
+.table-wrap{overflow-x:auto;margin-top:24px}
+table{width:100%;border-collapse:collapse;font-size:.95rem}
+th,td{padding:10px 8px;border-bottom:1px solid var(--border);text-align:center}
+th{background:#e9eff6;font-weight:500}
+tr:nth-child(even){background:#fafcff}
+tr:last-child td{border-bottom:none}
+@media(max-width:640px){th:nth-child(2),td:nth-child(2){font-size:.85rem}}
+</style>
+</head>
+<body>
+<header><h1>列車時刻表 ＆ 即時狀態 (模擬)</h1></header>
+
+<div class="container">
+  <div class="card">
+    <div class="input-row">
+      <div class="autocomplete">
+        <input id="trainInput" placeholder="輸入車次… (如 101)" autocomplete="off">
+        <div id="suggestBox" class="suggestions" style="display:none"></div>
+      </div>
+      <button id="queryBtn">查詢</button>
+    </div>
+    <div id="resultArea" style="margin-top:26px;"></div>
+  </div>
+</div>
+
+<!-- 列車完整資料 -->
+<script src="train-schedule.js"></script>
+
+<script>
+/* ---------- 列車等級 → 優先權 ---------- */
+const rankMap={
+  '普悠瑪':0,'新自強':0.05,'加班車':0.1,'自強號(新)':0.15,'自強號':0.2,
+  '莒光號':0.3,'復興號':0.3,'區間快':0.4,'區間車':0.5
+};
+
+/* ---------- autocomplete ---------- */
+const input=document.getElementById('trainInput');
+const box=document.getElementById('suggestBox');
+input.addEventListener('input',()=>{
+  const kw=input.value.trim();
+  if(!kw){box.style.display='none';return;}
+  const list=Object.keys(trainSchedule).filter(no=>no.startsWith(kw));
+  if(!list.length){box.style.display='none';return;}
+  box.innerHTML=list.map(no=>`<div data-no="${no}">${no}　${trainSchedule[no]['車種']}</div>`).join('');
+  box.style.display='block';
+});
+box.addEventListener('click',e=>{
+  if(e.target.dataset.no){input.value=e.target.dataset.no;box.style.display='none';}
+});
+document.addEventListener('click',e=>{
+  if(!box.contains(e.target)&&e.target!==input) box.style.display='none';
+});
+
+/* ---------- 查詢 ---------- */
+document.getElementById('queryBtn').addEventListener('click',()=>{
+  const no=input.value.trim();
+  const data=trainSchedule[no];
+  const area=document.getElementById('resultArea');
+  if(!data){area.innerHTML=`<p style="color:var(--red)">找不到車次「${no}」。</p>`;return;}
+  area.innerHTML=renderTable(no,data);
+});
+
+/* ---------- 產表 ---------- */
+function renderTable(no,data){
+  const now=new Date();
+  const stops=data['車站時間'];
+  const prio = rankMap[data['車種']] ?? 5;
+
+  /* 擁擠係數：同小時發車數 / 10 (0–2) */
+  const hour=now.getHours();
+  let hCount=0;
+  Object.values(trainSchedule).forEach(t=>{
+    const [h]=t['車站時間'][0][1].split(':').map(Number);
+    if(h===hour) hCount++;
+  });
+  const cong=Math.min(2,hCount/10);
+
+  /* 找下一站 index */
+  let nextIdx=stops.findIndex(([_,ts])=>{
+    const [h,m]=ts.split(':').map(Number);
+    const d=new Date(now);d.setHours(h,m,0,0);
+    return d>now;
+  });
+  if(nextIdx===-1) nextIdx=stops.length;
+
+  /* 3% 停駛 */
+  let stopped=Math.random()<0.03;
+  let delay=stopped?'STOP':0;
+  let rows='';
+
+  stops.forEach(([st,t],idx)=>{
+    let txt='', css='';
+    if(stopped){
+      txt='停駛'; css='status-stop';
+    }else if(idx<nextIdx){                 // 已過站
+      ({txt,css,delay}=calcDelay(delay,prio,cong));
+    }else if(idx===nextIdx){               // 下一站
+      txt=delay>0?`晚 ${delay} 分`:'準點';
+      css=delay>0?'status-late':'status-on';
+    }
+    rows+=`<tr><td>${st}</td><td>${t}</td><td class="${css}">${txt}</td></tr>`;
+  });
+
+  return `
+    <h3 style="margin:0 0 12px;font-weight:500">
+      車次 ${no}　<span style="font-size:.9rem;color:#555">${data['車種']}</span>
+    </h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>站名</th><th>到站 (計畫)</th><th>狀態</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
+}
+
+/* ---------- 延遲計算 (可逐站追回) ---------- */
+function calcDelay(prev, prio, cong){
+  /* Δ = prio*rand(0-1.2) + cong*rand(0-1) - rand(0-1.5) */
+  let delta =  prio * rand(0,1.2) + cong * rand(0,1.0) - rand(0,1.5);
+
+  /* 若已誤點，40% 機率再追回 0-5 分 */
+  if(prev>0 && Math.random()<0.4) delta -= rand(0,5);
+
+  let delay=Math.max(0, prev + Math.round(delta));
+
+  /* 每站最多追回 5 分 */
+  if(delay < prev - 5) delay = prev - 5;
+
+  const txt = delay === 0 ? '準點' : `晚 ${delay} 分`;
+  const css = delay === 0 ? 'status-on' : 'status-late';
+  return { txt, css, delay };
+}
+function rand(min,max){return Math.random()*(max-min)+min;}
+</script>
+</body>
+</html>

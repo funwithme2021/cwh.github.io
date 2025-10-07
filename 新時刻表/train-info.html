@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>Train Information Board</title>
+
+  <!-- Google Fonts（可自行替換喜愛的字體） -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700&display=swap"
+    rel="stylesheet"
+  />
+
+  <style>
+    /* ===== Reset & Basic ===== */
+    * {
+      margin: 0; 
+      padding: 0; 
+      box-sizing: border-box;
+      font-family: 'Noto Sans TC', sans-serif;
+    }
+    body {
+      background: linear-gradient(to right, #e4ecfa, #f5f8ff);
+      color: #333;
+      transition: background-color 0.3s ease, color 0.3s ease;
+      padding-bottom: 40px;
+    }
+    /* Dark Mode */
+    body.dark-mode {
+      background: #121212;
+      color: #ddd;
+    }
+
+    /* ===== Navbar ===== */
+    .header {
+      background-color: #333;
+      color: #fff;
+      padding: 10px 20px;
+      text-align: center;
+    }
+    .header h1 {
+      margin: 0;
+      font-size: 24px;
+      font-weight: 700;
+      letter-spacing: 1px;
+    }
+    .header nav {
+      margin-top: 8px;
+    }
+    .header nav a {
+      color: #fff;
+      text-decoration: none;
+      font-size: 14px;
+      margin: 0 8px;
+      padding: 6px 10px;
+      border-radius: 4px;
+      transition: 0.3s;
+    }
+    .header nav a:hover {
+      background: #222;
+    }
+
+    /* ===== Dark Mode Toggle Button ===== */
+    .dark-mode-toggle {
+      position: fixed;
+      top: 10px;
+      right: 10px;
+      background-color: #444;
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      padding: 6px 12px;
+      cursor: pointer;
+      font-size: 14px;
+      z-index: 999;
+    }
+    .dark-mode-toggle:hover {
+      background-color: #222;
+    }
+
+    /* ===== Container ===== */
+    .container {
+      max-width: 900px;
+      margin: 20px auto;
+      background: #fff;
+      padding: 20px 25px;
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      transition: background-color 0.3s ease, color 0.3s ease;
+    }
+    body.dark-mode .container {
+      background: #1f1f1f;
+      color: #ddd;
+    }
+
+    /* Station/Direction Filters */
+    .filters {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 20px;
+      gap: 20px;
+    }
+    .filters label {
+      font-weight: 600;
+      margin-right: 5px;
+    }
+    .filters select {
+      padding: 6px 12px;
+      border-radius: 4px;
+      border: 1px solid #ccc;
+      outline: none;
+    }
+    body.dark-mode .filters select {
+      background: #2a2a2a;
+      color: #ccc;
+      border: 1px solid #555;
+    }
+
+    /* Current Info */
+    .current-info {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    .current-info h2 {
+      font-size: 22px;
+      margin: 5px 0;
+      font-weight: 700;
+    }
+    .current-info h3 {
+      font-size: 16px;
+      margin: 5px 0;
+      color: #4a4949;
+    }
+    body.dark-mode .current-info h3 {
+      color: #aaa;
+    }
+
+    /* Train Info Table */
+    .train-info-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 0;
+    }
+    .train-info-table th,
+    .train-info-table td {
+      padding: 8px 8px;
+      text-align: center;
+      border-bottom: 1px solid #eee;
+      white-space: nowrap;
+    }
+    .train-info-table thead th {
+      background-color: #333;
+      color: #fff;
+      font-weight: 500;
+      border: none;
+    }
+    body.dark-mode .train-info-table thead th {
+      background-color: #444;
+    }
+    .train-info-table tbody tr:nth-child(even) td {
+      background-color: #c3c3c3;
+    }
+    body.dark-mode .train-info-table tbody tr:nth-child(even) td {
+      background-color: #2a2a2a;
+    }
+
+    .no-train-info {
+      font-style: italic;
+      text-align: center;
+      color: #555;
+      padding: 15px 0;
+    }
+    body.dark-mode .no-train-info {
+      color: #aaa;
+    }
+
+    /* Next Train Marquee */
+    .next-train-marquee {
+      overflow: hidden;
+      white-space: nowrap;
+      border: 1px solid #e8e6e6;
+      padding: 7px;
+      margin-top: 0px;
+      background-color: #fcfeff;
+      box-shadow: 0 0 0px rgba(0,0,0,0);
+      border-radius: 0px;
+      position: relative;
+    }
+    body.dark-mode .next-train-marquee {
+      background-color: #333;
+      border-color: #555;
+    }
+    .next-train-marquee p {
+      margin: 0;
+      font-size: 15px;
+      animation: marquee 25s linear infinite;
+      display: inline-block;
+    }
+    @keyframes marquee {
+      from {transform: translateX(100%);} to {transform: translateX(-100%);}
+    }
+
+    /* Departure ball (閃爍小球) */
+    .departure-ball {
+      display: none;
+      width: 10px;
+      height: 10px;
+      background-color: red;
+      border-radius: 50%;
+      margin-right: 5px;
+      animation: ball-blink 1s infinite alternate;
+      vertical-align: middle;
+    }
+    @keyframes ball-blink {
+      0% {opacity: 0.2;}
+      100% {opacity: 1;}
+    }
+
+    /* Hover & Flash */
+    .flashing-text {
+      animation: flash-text 1s infinite alternate;
+    }
+    @keyframes flash-text {
+      0% {color: #333;}
+      100% {color: red;}
+    }
+  </style>
+</head>
+
+<body>
+  <!-- Dark Mode 按鈕 -->
+  <button class="dark-mode-toggle" onclick="toggleDarkMode()">Dark Mode</button>
+
+  <!-- Header / Navbar -->
+  <div class="header">
+    <h1>台鐵時刻表</h1>
+    <nav>
+      <a href="index-tra.html">時刻表</a>
+      <a href="index-tra.easy.html">簡式時刻表</a>
+      <a href="index-tra.type.html">依車種時刻表</a>
+      <a href="index-tra.info.html">車站資訊板</a>
+      <a href="index-tra.station.html">依車站時刻查詢</a>
+      <a href="index-tra.num.html">依車次時刻查詢</a>
+      <a href="index.trainrate.html">運用率查詢</a>
+    </nav>
+  </div>
+
+  <div class="container">
+    <!-- Station & Direction Filters -->
+    <div class="filters">
+      <div>
+        <label for="station">選擇車站：</label>
+        <select id="station"></select>
+      </div>
+      <div>
+        <label for="direction">選擇方向：</label>
+        <select id="direction">
+          <option value="north">北上</option>
+          <option value="south">南下</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Current Info (time & station) -->
+    <div class="current-info">
+      <h2 id="current-time"></h2>
+      <h3 id="current-station"></h3>
+    </div>
+
+    <!-- Upcoming Trains Table -->
+    <table class="train-info-table" id="upcoming-trains">
+      <thead>
+        <tr>
+          <th>車次</th>
+          <th>車種</th>
+          <th>開往</th>
+          <th>開車時間</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+
+    <!-- Marquee -->
+    <div class="next-train-marquee">
+      <p id="next-train-marquee"></p>
+    </div>
+  </div>
+
+  <!-- 假設 train-schedule.js 裡面定義了 stations[] 與 trainSchedule{} -->
+  <script src="train-schedule.js"></script>
+  <script>
+    /****************************************************
+      Dark Mode
+    ****************************************************/
+    function toggleDarkMode() {
+      document.body.classList.toggle('dark-mode');
+    }
+
+    /****************************************************
+      DOM Ready
+    ****************************************************/
+    document.addEventListener("DOMContentLoaded", function() {
+      const currentTimeElement = document.getElementById("current-time");
+      const currentStationElement = document.getElementById("current-station");
+      const upcomingTrainsTable = document.getElementById("upcoming-trains");
+      const nextTrainMarqueeElement = document.getElementById("next-train-marquee");
+      const stationSelect = document.getElementById("station");
+      const directionSelect = document.getElementById("direction");
+
+      // 動態生成車站選項
+      function generateStationOptions() {
+        for (let i=0; i<stations.length; i++) {
+          const option = document.createElement('option');
+          option.value = stations[i];
+          option.text = stations[i];
+          stationSelect.add(option);
+        }
+      }
+      generateStationOptions();
+
+      // 每秒更新列車資訊
+      setInterval(updateTrainInfo, 1000);
+
+      // 監聽車站/方向變更
+      stationSelect.addEventListener("change", updateTrainInfo);
+      directionSelect.addEventListener("change", updateTrainInfo);
+
+      /****************************************************
+        更新列車資訊
+      ****************************************************/
+      function updateTrainInfo() {
+        const now = new Date();
+        const hh = now.getHours().toString().padStart(2, '0');
+        const mm = now.getMinutes().toString().padStart(2, '0');
+        const ss = now.getSeconds().toString().padStart(2, '0');
+        const formattedCurrentTime = `${hh}:${mm}:${ss}`;
+
+        currentTimeElement.textContent = formattedCurrentTime;
+
+        const selectedStation = stationSelect.value;
+        currentStationElement.textContent = selectedStation ? `目前車站: ${selectedStation}` : '';
+
+        // 若沒有選擇車站，就清空
+        if (!selectedStation) {
+          upcomingTrainsTable.querySelector('tbody').innerHTML='';
+          nextTrainMarqueeElement.textContent = '';
+          return;
+        }
+
+        const selectedDirection = directionSelect.value;
+        const nextTrainList = findNextTrain(selectedStation, formattedCurrentTime, selectedDirection);
+
+        // 更新表格
+        const tbody = upcomingTrainsTable.querySelector('tbody');
+        tbody.innerHTML='';
+
+        if (nextTrainList.length === 0) {
+          let row = tbody.insertRow();
+          let cell = row.insertCell(0);
+          cell.colSpan=4;
+          cell.classList.add("no-train-info");
+          cell.textContent="本日已無列車";
+          nextTrainMarqueeElement.textContent='';
+          return;
+        }
+
+        for (let i=0; i<10; i++) {
+          if (!nextTrainList[i]) break;
+          const train = nextTrainList[i];
+          const row = tbody.insertRow();
+
+          // 車次
+          const cellTrainNo = row.insertCell(0);
+          cellTrainNo.innerHTML = `<span class="departure-ball"></span>${train.trainNumber}`;
+
+          // 閃爍小球
+          if (isTrainUpcoming(train.time) && isWithinThreeMinutes(train.time)) {
+            cellTrainNo.querySelector(".departure-ball").style.display="inline-block";
+            cellTrainNo.classList.add("flashing-text");
+          } else {
+            cellTrainNo.querySelector(".departure-ball").style.display="none";
+            cellTrainNo.classList.remove("flashing-text");
+          }
+
+          // 車種
+          const cellTrainType = row.insertCell(1);
+          cellTrainType.innerHTML = getTrainTypeWithColor(train.trainType);
+
+          // 開往
+          const cellDest = row.insertCell(2);
+          cellDest.textContent = train.destination;
+
+          // 開車時間
+          const cellTime = row.insertCell(3);
+          cellTime.textContent= train.time;
+        }
+
+        // 第一筆顯示在跑馬燈
+        const firstTrain = nextTrainList[0];
+        const upcomingStations = getUpcomingStations(selectedStation, firstTrain);
+        const stopsText = upcomingStations.length>0 ? '本列車沿途停靠：' + upcomingStations.join('、') : '本站為終點站。';
+
+        nextTrainMarqueeElement.innerHTML = `
+          ${firstTrain.time} 開往 ${firstTrain.destination} 的 
+          ${firstTrain.trainNumber} 次 ${getTrainTypeWithColor(firstTrain.trainType)} 即將進站，
+          ${stopsText}
+        `;
+      }
+
+      /****************************************************
+       查找接下來的列車
+      ****************************************************/
+      function findNextTrain(selectedStation, currentTime, selectedDirection) {
+        let nextTrainList = [];
+
+        for (let trainNumber in trainSchedule) {
+          let stationTimes = trainSchedule[trainNumber]["車站時間"];
+          let stationIndex = stationTimes.findIndex(entry => entry[0]===selectedStation);
+          if (stationIndex!==-1) {
+            let departureTime = stationTimes[stationIndex][1];
+            let destination = stationTimes[stationTimes.length -1][0];
+
+            // 方向判斷 (偶數=北上,奇數=南下) 
+            let isNorth = (parseInt(trainNumber)%2===0);
+            let directionFlag= isNorth ? 'north' : 'south';
+
+            if (compareTime(currentTime, departureTime)<0 && directionFlag===selectedDirection) {
+              nextTrainList.push({
+                trainNumber,
+                trainType: trainSchedule[trainNumber]["車種"],
+                destination,
+                time: departureTime
+              });
+            }
+          }
+        }
+
+        // 依出發時間排序
+        nextTrainList.sort((a,b)=> compareTime(a.time, b.time));
+
+        return nextTrainList;
+      }
+
+      function compareTime(t1, t2) {
+        let [hh1, mm1, ss1]= t1.split(':').map(Number);
+        let [hh2, mm2, ss2]= t2.split(':').map(Number);
+        if (hh1!==hh2) return hh1 - hh2;
+        if (mm1!==mm2) return mm1 - mm2;
+        return ss1 - ss2;
+      }
+
+      /****************************************************
+        取得後續停靠站
+      ****************************************************/
+      function getUpcomingStations(currentStation, train) {
+        let stationTimes = trainSchedule[train.trainNumber]["車站時間"];
+        let stationIndex = stationTimes.findIndex(e=> e[0]===currentStation);
+        if (stationIndex!==-1 && stationIndex< stationTimes.length-1) {
+          let upcomingStations=[];
+          for (let i= stationIndex+1; i< stationTimes.length; i++) {
+            upcomingStations.push(stationTimes[i][0]);
+          }
+          return upcomingStations;
+        }
+        return [];
+      }
+
+      /****************************************************
+        判斷列車是否即將到站
+      ****************************************************/
+      function isTrainUpcoming(departureTime) {
+        let now = new Date();
+        let [hh, mm, ss]= departureTime.split(':').map(Number);
+        let departureDateTime = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hh, mm, ss);
+        let diff= departureDateTime - now;
+        let mins= Math.floor(diff/(1000*60));
+        return (mins<=3 && mins>=0);
+      }
+
+      function isWithinThreeMinutes(departureTime) {
+        // 同 isTrainUpcoming
+        return true; // 也可合併
+      }
+
+      /****************************************************
+        車種帶顏色
+      ****************************************************/
+      function getTrainTypeWithColor(trainType) {
+  // 檢查目前是否為「暗色模式」(範例用法：若您有其他夜間模式檢測方式，請自行替換)
+  const isDarkMode = document.body.classList.contains('dark-mode');
+
+  let color = '#333'; // 預設
+
+  switch (trainType) {
+    case '新自強': color = '#8600FF'; break;
+    case '普悠瑪': color = '#FF1493'; break;
+    case '自強號': color = 'red';     break;
+    case '莒光號': color = 'orange';  break;
+    case '區間快': color = 'green';   break;
+    case '復興號': color = '#0080FF'; break;
+    case '區間車': 
+      // 若為暗色模式，改成白色；否則用黑色
+      color = isDarkMode ? '#fff' : 'black'; 
+      break;
+    case '自強號(新)': color = 'brown'; break;
+    case '加班車':      color = 'teal';  break;
+    default:            color = '#333';  break;
+  }
+
+  return `<span style="color: ${color};">${trainType}</span>`;
+}
+
+    });
+  </script>
+</body>
+</html>

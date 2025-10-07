@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>簡式列車時刻表</title>
+
+  <!-- Google Fonts: 可以自由更換字體 -->
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700&display=swap" rel="stylesheet"/>
+
+  <style>
+    /* ==== Reset & Basic ==== */
+    * {
+      margin: 0; 
+      padding: 0; 
+      box-sizing: border-box;
+      font-family: 'Noto Sans TC', sans-serif;
+    }
+    body {
+      background: linear-gradient(to right, #e4ecfa, #f5f8ff);
+      color: #333;
+      transition: background-color 0.3s ease, color 0.3s ease;
+      padding-bottom: 40px;
+    }
+    /* Dark Mode 主體背景與文字 */
+    body.dark-mode {
+      background: #121212;
+      color: #ddd;
+    }
+
+    /* ==== Header / Navbar ==== */
+    .header {
+      background-color: #333;
+      color: #fff;
+      text-align: center;
+      padding: 10px 20px;
+    }
+    .header h1 {
+      margin: 0;
+      font-size: 24px;
+      font-weight: 700;
+      letter-spacing: 1px;
+    }
+    .header nav {
+      margin-top: 8px;
+    }
+    .header nav a {
+      color: #fff;
+      text-decoration: none;
+      font-size: 14px;
+      margin: 0 8px;
+      
+      padding: 6px 10px;
+      border-radius: 4px;
+      transition: 0.3s;
+    }
+    .header nav a:hover {
+      background: #222;
+    }
+
+    /* ==== Dark Mode 按鈕（獨立） ==== */
+    .dark-mode-toggle {
+      position: fixed;
+      top: 10px;
+      right: 10px;
+      background: #444;
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      padding: 6px 12px;
+      cursor: pointer;
+      font-size: 14px;
+      z-index: 999;
+    }
+    .dark-mode-toggle:hover {
+      background: #222;
+    }
+
+    /* ==== Container 內容卡片 ==== */
+    .container {
+      max-width: 850px;
+      margin: 20px auto;
+      background: #fff;
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      padding: 20px;
+      transition: background-color 0.3s ease, color 0.3s ease;
+    }
+    body.dark-mode .container {
+      background: #373737;
+      color: #ddd;
+    }
+
+    /* ==== Form Group (station & direction) ==== */
+    .form-group {
+      margin-bottom: 20px;
+      text-align: center;
+    }
+    .form-group label {
+      margin-right: 6px;
+      font-weight: 600;
+    }
+    .form-group select {
+      padding: 6px 10px;
+      border-radius: 4px;
+      border: 1px solid #ccc;
+      margin-right: 15px;
+      outline: none;
+    }
+    body.dark-mode .form-group select {
+      background: #333;
+      color: #eee;
+      border: 1px solid #555;
+    }
+
+    /* ==== Schedule Display ==== */
+    #scheduleDisplay {
+      margin-top: 10px;
+    }
+    /* hour-block: 包含 (左)小時標籤 + (右)列車集合 */
+    .hour-block {
+      display: flex;
+      align-items: flex-start;
+      margin-bottom: 15px;
+      background: #fafafa;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      overflow: hidden;
+      transition: background-color 0.3s ease, border-color 0.3s ease;
+    }
+    body.dark-mode .hour-block {
+      background: #2a2a2a;
+      border-color: #444;
+    }
+
+    /* 小時標籤 (置左) */
+    .hour-label {
+      background-color: #ddd;
+      color: #333;
+      font-size: 22px;
+      font-weight: bold;
+      min-width: 70px;
+      text-align: center;
+      padding: 12px;
+      border-right: 1px solid #ccc;
+      transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
+    }
+    body.dark-mode .hour-label {
+      background-color: #444;
+      color: #eee;
+      border-color: #555;
+    }
+
+    /* 右側列車展示 */
+    .schedule-row {
+      flex: 1;
+      display: flex;
+      flex-wrap: wrap; 
+      padding: 10px;
+    }
+
+    .schedule-item {
+      width: calc(100% / 7 - 8px); 
+      background: #fff;
+      border: 1px solid #eee;
+      border-radius: 4px;
+      margin: 4px;
+      padding: 8px;
+      text-align: center;
+      cursor: pointer;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      transition: transform 0.2s, background-color 0.3s;
+    }
+    body.dark-mode .schedule-item {
+      background: #333;
+      border-color: #555;
+      color: #ddd;
+    }
+    .schedule-item:hover {
+      transform: scale(1.03);
+      background-color: #f1f1f1;
+    }
+    body.dark-mode .schedule-item:hover {
+      background-color: #3a3a3a;
+    }
+
+    /* 列車資訊文字 */
+    .train-type-number {
+      font-weight: normal;
+      font-size: 12px;
+      color: #666;
+      margin-bottom: 5px;
+    }
+    body.dark-mode .train-type-number {
+      color: #bbb;
+    }
+    .train-minute {
+      font-size: 36px; 
+      font-weight: 700;
+      color: #333;
+      line-height: 1.1;
+    }
+    body.dark-mode .train-minute {
+      color: #eee;
+    }
+    .train-destination {
+      margin-top: 5px;
+      font-size: 13px;
+      color: #444;
+    }
+    body.dark-mode .train-destination {
+      color: #ccc;
+    }
+
+    /* ==== Modal (Train Details) ==== */
+    #trainDetailsModal {
+      display: none;
+      position: fixed;
+      z-index: 998;
+      top: 0; 
+      left: 0; 
+      width: 100%; 
+      height: 100%;
+      background: rgba(0,0,0,0.5);
+    }
+    .modal-content {
+      background: #fff;
+      margin: 5% auto;
+      padding: 20px;
+      border-radius: 8px;
+      max-width: 600px;
+      position: relative;
+      animation: slide-down 0.3s ease-out;
+    }
+    @keyframes slide-down {
+      from { transform: translateY(-50%); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+    body.dark-mode .modal-content {
+      background: #2a2a2a;
+      color: #ddd;
+    }
+    .modal-header {
+      font-size: 18px;
+      font-weight: bold;
+      margin-bottom: 10px;
+    }
+    .close-btn {
+      position: absolute;
+      top: 8px;
+      right: 12px;
+      font-size: 24px;
+      font-weight: bold;
+      color: #666;
+      cursor: pointer;
+    }
+    body.dark-mode .close-btn {
+      color: #ccc;
+    }
+    .modal-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 8px;
+    }
+    .modal-table th, .modal-table td {
+      border-bottom: 1px solid #ddd;
+      padding: 8px;
+      white-space: nowrap;
+    }
+    .modal-table th {
+      background-color: #333;
+      color: #fff;
+      font-weight: 500;
+    }
+    .modal-table tr:nth-child(even) {
+      background-color: #f9f9f9;
+    }
+    body.dark-mode .modal-table th {
+      background-color: #444;
+    }
+    body.dark-mode .modal-table td,
+    body.dark-mode .modal-table tr:nth-child(even) {
+      background-color: #2a2a2a;
+    }
+  </style>
+</head>
+
+<body>
+  <!-- Dark Mode 切換按鈕 -->
+  <button class="dark-mode-toggle" onclick="toggleDarkMode()">Dark Mode</button>
+
+  <!-- 上方 Header / Navbar -->
+  <div class="header">
+    <nav>
+      <a href="index-speed.html"><strong>高鐵時刻表</strong></a>
+      <a href="index-thsr.html"><strong>高鐵時刻表(專用)</strong></a>
+      <a href="index.html"><strong>台鐵時刻表</strong></a>
+      <a href="index-tra.html"><strong>台鐵時刻表(專用)</strong></a>
+      <a href="people.html"><strong>台鐵運量查詢</strong></a>
+    </nav>
+  </div>
+  <div class="header">
+    <h1>簡式列車時刻表</h1>
+    <nav>
+      <a href="index-tra.html"><strong>時刻表</strong></a>
+      <a href="index-speed.html">高鐵時刻表</a>
+      <a href="index-thsr.html">高鐵時刻表(專用)</a>
+      <a href="index-tra.transfer.html">時刻表(含運用)</a>
+      <a href="index-tra.move.html">列車即時動態</a>
+      <a href="index-tra.easy.html">簡式時刻表</a>
+      <a href="index-tra.type.html">依車種時刻表</a>
+      <a href="train-info.html">車站資訊板</a>
+      <a href="people.html">運量查詢</a>
+      <a href="index.trainrate.html">運用率查詢</a>
+      <a href="index-tra.delay.html">列車狀態</a>
+      <a href="index-tra.book.html">訂票系統</a>
+      <a href="index-tra.make.html">列車排點</a>
+      <a href="index-tra.operation.html">運行圖</a>
+    </nav>
+  </div>
+
+
+
+  <!-- 主要內容卡片 -->
+  <div class="container">
+    <div class="form-group">
+      <label for="stationFilter">選擇車站:</label>
+      <select id="stationFilter" onchange="filterTrainsByStation()">
+        <option value="">--請選擇車站--</option>
+      </select>
+
+      <label for="directionFilter">選擇方向:</label>
+      <select id="directionFilter" onchange="filterTrainsByStation()">
+        <option value="north">北上</option>
+        <option value="south">南下</option>
+      </select>
+    </div>
+
+    <div id="scheduleDisplay"></div>
+  </div>
+
+  <!-- Modal (列車詳細資訊) -->
+  <div id="trainDetailsModal">
+    <div class="modal-content">
+      <span class="close-btn" onclick="closeTrainDetailsModal()">&times;</span>
+      <div id="modalTitle" class="modal-header"></div>
+      <table class="modal-table" id="modalTable">
+        <thead>
+          <tr>
+            <th>停靠站</th>
+            <th>時間</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- 假設 train-schedule.js (包含 stations 與 trainSchedule) -->
+  <script src="train-schedule.js"></script>
+  <script>
+    /***************************************************
+       Dark Mode 切換
+    ***************************************************/
+    function toggleDarkMode() {
+      document.body.classList.toggle('dark-mode');
+    }
+
+    /***************************************************
+       動態生成車站下拉選單
+    ***************************************************/
+    function generateStationFilterOptions() {
+      const stationSelect = document.getElementById('stationFilter');
+      stations.forEach(st => {
+        const opt = document.createElement('option');
+        opt.value = st;
+        opt.textContent = st;
+        stationSelect.add(opt);
+      });
+    }
+
+    /***************************************************
+       顯示列車詳細資訊 (Modal)
+    ***************************************************/
+    function showTrainDetails(trainNumber) {
+      const modal = document.getElementById('trainDetailsModal');
+      const modalTitle = document.getElementById('modalTitle');
+      const modalBody = document.getElementById('modalTable').getElementsByTagName('tbody')[0];
+      modalBody.innerHTML = '';
+
+      modalTitle.textContent = `列車詳細資訊 - 車次 ${trainNumber}`;
+
+      if (trainSchedule[trainNumber] && trainSchedule[trainNumber]['車站時間']) {
+        const stationTimes = trainSchedule[trainNumber]['車站時間'];
+        stationTimes.forEach(st => {
+          let row = modalBody.insertRow();
+          let c1 = row.insertCell(0);
+          let c2 = row.insertCell(1);
+          c1.textContent = st[0];
+          c2.textContent = st[1];
+        });
+      } else {
+        let row = modalBody.insertRow();
+        let c1 = row.insertCell(0);
+        c1.colSpan=2;
+        c1.textContent='查無此車次資訊';
+      }
+
+      modal.style.display = 'block';
+    }
+    function closeTrainDetailsModal() {
+      document.getElementById('trainDetailsModal').style.display='none';
+    }
+    window.onclick = function(e) {
+      const modal = document.getElementById('trainDetailsModal');
+      if (e.target===modal) {
+        modal.style.display='none';
+      }
+    };
+
+    /***************************************************
+       依車種顯示彩色名稱
+    ***************************************************/
+    function getTrainTypeWithColor(trainType) {
+  // 檢查目前是否為「暗色模式」(範例用法：若您有其他夜間模式檢測方式，請自行替換)
+  const isDarkMode = document.body.classList.contains('dark-mode');
+
+  let color = '#333'; // 預設
+
+  switch (trainType) {
+    case '新自強': color = '#8600FF'; break;
+    case '普悠瑪': color = '#FF1493'; break;
+    case '自強號': color = 'red';     break;
+    case '莒光號': color = 'orange';  break;
+    case '區間快': color = 'green';   break;
+    case '復興號': color = '#0080FF'; break;
+    case '區間車': 
+      // 若為暗色模式，改成白色；否則用黑色
+      color = isDarkMode ? '#fff' : 'black'; 
+      break;
+    case '自強號(新)': color = 'brown'; break;
+    case '加班車':      color = 'teal';  break;
+    default:            color = '#333';  break;
+  }
+
+  return `<span style="color: ${color};">${trainType}</span>`;
+}
+
+
+
+    /***************************************************
+       過濾顯示指定車站 & 方向的列車
+    ***************************************************/
+    function filterTrainsByStation() {
+      const station = document.getElementById('stationFilter').value;
+      const direction = document.getElementById('directionFilter').value;
+      const scheduleDisplay = document.getElementById('scheduleDisplay');
+      scheduleDisplay.innerHTML='';
+
+      // 若尚未選擇車站
+      if (!station) return;
+
+      /* 
+         hourlyTrains結構： 
+         {
+           hourNum: {
+             minuteNum: [ { number, type, destination }, ... ],
+             ...
+           },
+           ...
+         }
+      */
+      let hourlyTrains={};
+
+      for (let trainNo in trainSchedule) {
+        const stTimes = trainSchedule[trainNo]['車站時間'] || [];
+        // 找該車次是否停靠 station
+        const idx = stTimes.findIndex(s=> s[0]===station);
+        if (idx!==-1) {
+          // 該站時間
+          const timeStr = stTimes[idx][1];
+          const hour = parseInt(timeStr.split(':')[0],10);
+          const minute = parseInt(timeStr.split(':')[1],10);
+
+          // 判斷方向 (偶數=北上;奇數=南下,示範)
+          let numVal = parseInt(trainNo,10);
+          let trainDir = (numVal%2===0)? 'north':'south';
+          if (trainDir===direction) {
+            if (!hourlyTrains[hour]) { hourlyTrains[hour]={}; }
+            if (!hourlyTrains[hour][minute]) { hourlyTrains[hour][minute]=[]; }
+
+            // 終點
+            let dest = stTimes[ stTimes.length-1 ][0];
+            hourlyTrains[hour][minute].push({
+              number: trainNo,
+              type: trainSchedule[trainNo]['車種'],
+              destination: dest
+            });
+          }
+        }
+      }
+
+      // 按小時排序
+      let hours = Object.keys(hourlyTrains).map(h=> parseInt(h,10)).sort((a,b)=> a-b);
+      hours.forEach(h => {
+        // hour-block
+        let hourBlock = document.createElement('div');
+        hourBlock.classList.add('hour-block');
+
+        // 左側 hour-label
+        let hourLabel = document.createElement('div');
+        hourLabel.classList.add('hour-label');
+        hourLabel.textContent = `${h}時`;
+        hourBlock.appendChild(hourLabel);
+
+        // 右側 schedule-row
+        let scheduleRow = document.createElement('div');
+        scheduleRow.classList.add('schedule-row');
+
+        // 分鐘排序
+        let minutes= Object.keys(hourlyTrains[h]).map(m=> parseInt(m,10)).sort((a,b)=> a-b);
+        minutes.forEach(m => {
+          let trains= hourlyTrains[h][m];
+          trains.forEach(t => {
+            let itemDiv = document.createElement('div');
+            itemDiv.classList.add('schedule-item');
+            itemDiv.innerHTML=`
+              <div class="train-type-number">
+                ${getTrainTypeWithColor(t.type)} ${t.number}
+              </div>
+              <div class="train-minute">${m}</div>
+              <div class="train-destination">${t.destination}</div>
+            `;
+            itemDiv.onclick=()=> showTrainDetails(t.number);
+            scheduleRow.appendChild(itemDiv);
+          });
+        });
+
+        hourBlock.appendChild(scheduleRow);
+        scheduleDisplay.appendChild(hourBlock);
+      });
+    }
+
+    /***************************************************
+       初始化
+    ***************************************************/
+    generateStationFilterOptions(); // 生成車站清單
+  </script>
+</body>
+</html>
