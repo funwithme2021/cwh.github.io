@@ -977,35 +977,59 @@ window.fetchCollegeDiscount = async function() {
 };
 
 async function runStartEndSearch() {
-    const st = extractStationNameFromInput(document.getElementById('startStation').value);
-    const ed = extractStationNameFromInput(document.getElementById('endStation').value);
-    const queryDate = document.getElementById('mainQueryDate').value;
-    const todayStr = fmtDate(new Date());
+  // 1. 必須最先獲取日期與站名 (解決 ReferenceError)
+  const queryDate = document.getElementById('mainQueryDate').value;
+  const stInput = document.getElementById('startStation').value;
+  const edInput = document.getElementById('endStation').value;
+  
+  const st = extractStationNameFromInput(stInput);
+  const ed = extractStationNameFromInput(edInput);
+  const todayStr = fmtDate(new Date());
 
-    if(!st || !ed) return;
+  if (!st || !ed || !queryDate) return;
 
-    // --- 同步隱藏表格標題 ---
-    const isPastOrToday = queryDate <= todayStr;
-    const seatHeaders = document.querySelectorAll('.seat-col-header');
-    seatHeaders.forEach(th => {
-        th.style.display = isPastOrToday ? 'none' : '';
-    });
+  // 2. 更新 UI 狀態
+  document.getElementById('startStation').value = st;
+  document.getElementById('endStation').value = ed;
 
-    lastStartEndQuery = { st, ed };
-    const h = loadHistory().filter(x=>!(x.s===st && x.e===ed));
-    h.unshift({s:st, e:ed});
-    saveHistory(h);
-    renderHistory();
+  // 3. 判斷是否隱藏座位欄位 (當天或過去則隱藏)
+  const isPastOrToday = queryDate <= todayStr;
+  document.querySelectorAll('.seat-col-header').forEach(th => {
+    th.style.display = isPastOrToday ? 'none' : '';
+  });
 
-    buildDirectList(st, ed);
-    
-    // 只有未來日期才需要抓取座位，並確保執行渲染
-    if (!isPastOrToday) {
-        await refreshSeatForCurrentOD(st, ed); 
-    } else {
-        currentSeatMap = {}; // 清空座位紀錄，防止殘留
-        renderStartEndTable();
-    }
+  // 4. 執行基本查詢 (移除大學生優惠呼叫，解決 TypeError)
+  lastStartEndQuery = { st, ed };
+  buildDirectList(st, ed);
+  renderStartEndTable();
+
+  // 5. 關鍵修正：只有「未來日期」才呼叫座位 API (解決 400 Bad Request)
+  if (!isPastOrToday) {
+    await refreshSeatForCurrentOD(st, ed);
+  } else {
+    currentSeatMap = {};
+    renderStartEndTable();
+  }
+
+  // 6. 紀錄查詢歷史
+  lastStartEndQuery = { st, ed };
+  const h = loadHistory().filter(x => !(x.s === st && x.e === ed));
+  h.unshift({ s: st, e: ed });
+  saveHistory(h);
+  renderHistory();
+
+  // 7. 建立車次清單並執行基礎渲染 (移除大學生優惠呼叫，修復 TypeError)
+  buildDirectList(st, ed);
+  renderStartEndTable(); 
+
+  // 8. 關鍵邏輯：只有「未來日期」才呼叫座位 API (修復 400 Bad Request)
+  if (!isPastOrToday) {
+    await refreshSeatForCurrentOD(st, ed);
+  } else {
+    // 當天或過去則清空快取，確保介面乾淨
+    currentSeatMap = {};
+    renderStartEndTable();
+  }
 }
 
 async function refreshSeatForCurrentOD(st, ed){
@@ -1030,85 +1054,117 @@ async function refreshSeatForCurrentOD(st, ed){
     renderStartEndTable(); 
 }
 
-  function buildDirectList(st, ed){
-    const list = [];
-    const onlyDirect = document.getElementById('onlyDirect')?.checked;
+  function buildDirectList(st, ed) {
+  const list = [];
+  const queryDate = document.getElementById('mainQueryDate').value;
+  const onlyDirect = document.getElementById('onlyDirect')?.checked;
 
-    const prevDateStr = addDays(currentQueryDateStr, -1);
-    const sources = [
-      { map: baseSchedule, origin: currentQueryDateStr },
-      { map: prevSchedule, origin: prevDateStr }
-    ];
+  // 定義來源：今天（主要）與 昨天（處理跨日車）
+  const sources = [
+    { map: baseSchedule, origin: queryDate }, 
+    { map: prevSchedule, origin: addDays(queryDate, -1) } 
+  ];
 
-    sources.forEach(src=>{
-      const sch = src.map || {};
-      const origin = src.origin;
-      Object.keys(sch).forEach(trainNo=>{
-        const t = sch[trainNo];
-        const stops = t?.['車站時間']||[];
-        const i1 = stops.findIndex(x=>sameStation(x[0], st));
-        const i2 = stops.findIndex(x=>sameStation(x[0], ed));
-        if(i1<0 || i2<0 || i2<=i1) return;
+  sources.forEach(src => {
+    Object.keys(src.map || {}).forEach(trainNo => {
+      // 取得該車次各站的實際日期
+      const adjStops = getStopsWithAdjustedDate(trainNo, src.origin, src.map);
+      const i1 = adjStops.findIndex(x => sameStation(x.name, st));
+      const i2 = adjStops.findIndex(x => sameStation(x.name, ed));
+      
+      // 基本過濾：站名必須存在且順序正確
+      if (i1 < 0 || i2 < 0 || i2 <= i1) return;
 
-        // 起訖站查詢：以「起站(查詢出發站)的日期」決定列在哪一天
-        const depDate = stopDisplayDate(origin, stops, i1);
-        if(depDate !== currentQueryDateStr) return;
+      const start = adjStops[i1];
+      const end = adjStops[i2];
 
-        const ad1 = splitArrDep(stops[i1]);
-        const ad2 = splitArrDep(stops[i2]);
-        const dep = ad1.dep || ad1.arr || '';
-        const arr = ad2.arr || ad2.dep || '';
+      // --- 核心修正：嚴格過濾掉不屬於「今天」的昨日車次 ---
+      if (src.origin !== queryDate) {
+          const depMin = parseTime(start.time);
+          // 只有在凌晨 04:00 前從該站出發的「前一日車次」才算入今日行程
+          if (depMin === null || depMin > 240) return; 
+      }
+      
+      // 最終檢查：該車次起點站的「實際日期」必須等於「查詢日期」
+      if (start.actualDate !== queryDate) return;
 
-        const depMin = parseTime(dep);
-        const arrMin = parseTime(arr);
-        let durMin = null;
-        if(depMin!==null && arrMin!==null){
-          durMin = arrMin - depMin;
-          if(durMin < 0) durMin += 1440;
-        }
+      const dur = (parseTime(end.time) - parseTime(start.time) + 1440) % 1440;
+      if (onlyDirect && (i2 - i1 - 1) > 0) return;
 
-        const stopBetween = Math.max(0, i2 - i1 - 1);
-        if(onlyDirect && stopBetween>0) return;
-
-        const midStops = (stopBetween>0)
-          ? stops.slice(i1+1, i2).map(x=>{
-              const ad = splitArrDep(x);
-              return { name: x[0], time: ad.arr || ad.dep || '' };
-            })
-          : [];
-
-        const range = `${stops[0]?.[0]||''}➝${stops.slice(-1)[0]?.[0]||''}`;
-        const status = getStatusLabel(origin, dep, arr, 'list');
-
-        list.push({
-          trainNo,
-          range,
-          dep,
-          arr,
-          durMin,
-          stopBetween,
-          midStops,
-          status,
-          qStart: st,
-          qEnd: ed,
-          originDate: origin
-        });
+      list.push({
+        trainNo,
+        dep: start.time,
+        arr: end.time,
+        durMin: dur,
+        range: `${adjStops[0].name}➝${adjStops.slice(-1)[0].name}`,
+        stopBetween: i2 - i1 - 1,
+        status: getStatusLabel(start.originDate, start.time, end.time, 'list'),
+        originDate: start.originDate,
+        midStops: adjStops.slice(i1 + 1, i2)
       });
     });
+  });
 
-    // 預設依出發時間排序
-    list.sort((a,b)=>{
-      const aa = parseTime(a.dep); const bb = parseTime(b.dep);
-      if(aa===null && bb===null) return String(a.trainNo).localeCompare(String(b.trainNo),'en');
-      if(aa===null) return 1;
-      if(bb===null) return -1;
-      return aa-bb;
+  // 1. 資料排序
+  currentStartEndList = list.sort((a,b) => parseTime(a.dep) - parseTime(b.dep));
+
+  // 2. 【補上這行】將結果渲染到畫面上，否則畫面不會動
+  renderStartEndTable(); 
+  // --- 關鍵：補上遺失的工具函數 (解決 ReferenceError) ---
+function getStopsWithAdjustedDate(trainNo, originDateStr, scheduleMap) {
+  const t = scheduleMap[trainNo];
+  if (!t) return [];
+  const stops = t['車站時間'] || [];
+  let dayOffset = 0;
+  let prevMin = -1;
+
+  return stops.map((stop) => {
+    const ad = splitArrDep(stop);
+    const timeStr = ad.dep || ad.arr || '';
+    const currentMin = parseTime(timeStr);
+    // 如果當前站時間小於前一站，代表跨日了
+    if (prevMin !== -1 && currentMin !== null && currentMin < prevMin) dayOffset++;
+    if (currentMin !== null) prevMin = currentMin;
+
+    return {
+      name: stop[0],
+      time: timeStr,
+      actualDate: addDays(originDateStr, dayOffset),
+      originDate: originDateStr
+    };
+  });
+}
+
+// --- 修正後的搜尋函數 (解決日期跳掉與 400 報錯) ---
+async function runStartEndSearch() {
+    // 1. 最先獲取輸入框日期，確保 queryDate 正確初始化
+    const dateInput = document.getElementById('mainQueryDate');
+    const queryDate = dateInput ? dateInput.value : fmtDate(new Date());
+    const todayStr = fmtDate(new Date());
+
+    const st = extractStationNameFromInput(document.getElementById('startStation').value);
+    const ed = extractStationNameFromInput(document.getElementById('endStation').value);
+    if(!st || !ed) return;
+
+    // 2. 判斷是否為今天或過去 (避免呼叫座位 API 造成 400)
+    const isPastOrToday = queryDate <= todayStr;
+    document.querySelectorAll('.seat-col-header').forEach(th => {
+        th.style.display = isPastOrToday ? 'none' : '';
     });
 
-    currentStartEndList = list;
-    // 觸發剩餘座位查詢（不影響主功能；失敗會略過）
-    refreshSeatForCurrentOD(st, ed);
-  }
+    // 3. 執行列表查詢 (buildDirectList 內部會呼叫補齊的工具函數)
+    buildDirectList(st, ed);
+    renderStartEndTable();
+
+    // 4. 只有未來日期才呼叫座位 API
+    if (!isPastOrToday) {
+        await refreshSeatForCurrentOD(st, ed);
+    } else {
+        currentSeatMap = {};
+        renderStartEndTable();
+    }
+}
+}
 
 async function refreshSeatForCurrentOD(st, ed){
   try{
@@ -1154,29 +1210,26 @@ function getSeatIcon(trainNo, type, originDateStr) {
 
 function renderStartEndTable() {
     const tbody = document.querySelector('#scheduleTableByStation tbody');
+    if (!tbody) return;
     tbody.innerHTML = '';
     
     const queryDate = document.getElementById('mainQueryDate').value;
     const todayStr = fmtDate(new Date());
     const isPastOrToday = queryDate <= todayStr;
-    const colSpanNum = isPastOrToday ? 8 : 10; // 動態調整跨欄數
+    const colSpanNum = isPastOrToday ? 8 : 10;
 
     if (!currentStartEndList.length) {
-        const tr = document.createElement('tr');
-        tr.innerHTML = `<td colspan="${colSpanNum}" style="color:var(--text-muted); text-align:center;">查無符合條件的車次</td>`;
-        tbody.appendChild(tr);
+        tbody.innerHTML = `<tr><td colspan="${colSpanNum}" style="text-align:center; color:var(--text-muted);">查無符合條件的車次</td></tr>`;
         return;
     }
 
-    const now = new Date();
-    const nowMin = now.getHours() * 60 + now.getMinutes();
-    const maxDur = Math.max(1, ...currentStartEndList.map(x => x.durMin || 0));
+    const nowMin = new Date().getHours() * 60 + new Date().getMinutes();
 
     currentStartEndList.forEach(row => {
         const tr = document.createElement('tr');
         const depMin = parseTime(row.dep);
 
-        // 訂票按鈕邏輯
+        // 訂票按鈕邏輯：10分鐘內停止預訂
         const canBook = (row.originDate > todayStr) || 
                         (row.originDate === todayStr && depMin !== null && (depMin - nowMin) > 10);
 
@@ -1184,13 +1237,7 @@ function renderStartEndTable() {
             ? `<button class="ticket-btn" onclick="event.stopPropagation(); openTHSRBooking('${row.trainNo}')">🎫</button>`
             : `<span style="color:var(--text-light); font-size: 12px;">停止預訂</span>`;
 
-        const stopHtml = (row.stopBetween <= 0)
-            ? `<span style="font-weight:800">直達</span>`
-            : `<span class="stop-toggle" data-train="${row.trainNo}" style="display:inline-flex;align-items:center;gap:6px;font-weight:800;cursor:pointer;">
-                 ${row.stopBetween}站 <span class="toggle-arrow">${expandedStops.has(String(row.trainNo)) ? '▲' : '▼'}</span>
-               </span>`;
-
-        // 根據日期決定是否加入座位欄位
+        // 決定是否顯示座位 TD
         let seatCells = '';
         if (!isPastOrToday) {
             seatCells = `
@@ -1204,45 +1251,36 @@ function renderStartEndTable() {
             <td><span class="train-route">${row.range}</span></td>
             <td>${row.dep || '--'}</td>
             <td>${row.arr || '--'}</td>
-            <td>
-              <div style="display:flex;flex-direction:column;gap:4px;">
-                <div style="font-weight:800">${durationText(0, row.durMin).replace('0h ','')}</div>
-                <div class="progress-bar" style="width:80px;">
-                  <div class="progress-fill" style="width:${Math.round((row.durMin / maxDur) * 100)}%;"></div>
-                </div>
-              </div>
-            </td>
-            <td>${stopHtml}</td>
+            <td>${durationText(0, row.durMin).replace('0h ','')}</td>
+            <td>${row.stopBetween <= 0 ? '直達' : `<span class="stop-toggle" data-train="${row.trainNo}">${row.stopBetween}站</span>`}</td>
             <td>${statusBadge(row.status)}</td>
             ${seatCells}
             <td style="text-align:center;">${ticketBtnHtml}</td>
         `;
         
-        tr.addEventListener('click', () => showTrainDetails(row.trainNo, row.originDate));
+        tr.onclick = () => showTrainDetails(row.trainNo, row.originDate);
         tbody.appendChild(tr);
 
+        // 處理停靠站展開 (需在 forEach 內)
         if (expandedStops.has(String(row.trainNo))) {
             const tr2 = document.createElement('tr');
             tr2.className = 'stops-row';
             const text = row.midStops && row.midStops.length
-                ? row.midStops.map(s => `${s.name}(${s.time || '--'})`).join('、')
+                ? row.midStops.map(s => s.name).join('、')
                 : '無中間停靠站';
-            tr2.innerHTML = `<td colspan="${colSpanNum}" style="background:var(--bg-body); font-size:0.85rem; color:var(--text-muted); padding:10px 20px;">
-                沿途停靠：${text}
-            </td>`;
+            tr2.innerHTML = `<td colspan="${colSpanNum}" style="background:var(--bg-body); padding:10px;">沿途停靠：${text}</td>`;
             tbody.appendChild(tr2);
         }
-    }); // 確保 forEach 正確閉合
+    }); // <--- 修正後的 forEach 閉合處
 
-    // 重新綁定事件
+    // 綁定展開事件
     tbody.querySelectorAll('.stop-toggle').forEach(el => {
-        el.addEventListener('click', (e) => {
+        el.onclick = (e) => {
             e.stopPropagation();
-            const train = el.getAttribute('data-train');
-            if (expandedStops.has(train)) expandedStops.delete(train);
-            else expandedStops.add(train);
-            renderStartEndTable(); 
-        });
+            const tn = el.dataset.train;
+            expandedStops.has(tn) ? expandedStops.delete(tn) : expandedStops.add(tn);
+            renderStartEndTable();
+        };
     });
 }
   // ===== 車站時刻表 =====
