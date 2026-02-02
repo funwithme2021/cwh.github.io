@@ -724,7 +724,7 @@ td{ border-bottom: 1px solid rgba(255,255,255,0.06); }
         <table id="scheduleTableByStation">
           <thead>
             <tr>
-              <th>車次</th><th>車種 (區間)</th><th>出發 <span id="sortDepIcon">↕</span></th><th>抵達 <span id="sortArrIcon">↕</span></th><th>耗時 <span id="sortDurIcon">↕</span></th><th>停靠</th><th>狀態</th>
+              <th>車次</th><th>車種</th><th>出發 <span id="sortDepIcon">↕</span></th><th>抵達 <span id="sortArrIcon">↕</span></th><th>耗時 <span id="sortDurIcon">↕</span></th><th>停靠</th><th>狀態</th>
             </tr>
           </thead>
           <tbody></tbody>
@@ -882,8 +882,8 @@ let modalCtx = null;            // {trainNo, originDate}
     if(!dl) return;
 
     const k = normLoose(keyword||'');
-    // ★ 手機效能：最多只顯示前 30 筆，且一次 innerHTML 寫入（避免大量 DOM append）
-    const limit = 500;
+    // ★ 手機效能：最多只顯示前 50 筆，且一次 innerHTML 寫入（避免大量 DOM append）
+    const limit = 50;
     let out = '';
     let count = 0;
 
@@ -916,7 +916,7 @@ let modalCtx = null;            // {trainNo, originDate}
 
     const k = String(keyword||'').trim();
     // ★ 手機效能：最多只顯示前 50 筆，且一次 innerHTML 寫入
-    const limit = 2000;
+    const limit = 50;
     let out = '';
     let count = 0;
 
@@ -2050,7 +2050,7 @@ function toggleMoreRow(mainTr, r, idx, btn){
     const theadTr = table?.querySelector('thead tr');
     if(theadTr){
       theadTr.innerHTML = `
-        <th>車次</th><th>車種 (區間)</th>
+        <th>車次</th><th>車種</th>
         <th>出發 <span id="sortDepIcon">↕</span></th>
         <th>抵達 <span id="sortArrIcon">↕</span></th>
         <th>耗時 <span id="sortDurIcon">↕</span></th>
@@ -2488,7 +2488,7 @@ function renderTransferTable(){
   if(theadTr){
     theadTr.innerHTML = `
       <th>車次</th>
-      <th>車種 (區間)</th>
+      <th>車種</th>
       <th>出發 <span id="sortDepIcon">↕</span></th>
       <th>轉乘</th>
       <th>抵達 <span id="sortArrIcon">↕</span></th>
