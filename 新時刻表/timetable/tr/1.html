@@ -236,7 +236,7 @@ body.light-mode {
   .badge-sea { font-size: 0.7rem; padding: 2px 6px; border-radius: 4px; background: #0ea5e9; color: #fff; margin-left: 4px; }
   
   .train-route { font-size: 0.85rem; color: var(--text-muted); margin-left: 6px; }
-  .progress-bar { width: 100px; height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; margin-top: 4px; }
+  .progress-bar { width: 80px; height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; margin-top: 4px; }
   .progress-fill { height: 100%; background: var(--primary); border-radius: 3px; }
 
   /* ===== 6. Modal (彈窗) & 時間軸 ===== */
@@ -615,10 +615,14 @@ td{ border-bottom: 1px solid rgba(255,255,255,0.06); }
       .table-wrapper{ border-radius: 18px; }
 
       /* 起訖站結果：隱藏「停靠/狀態/訂票」，改用「＋」展開 */
+      /* 手機：車種欄只顯示車種，區間移到「＋」展開 */
+      #scheduleTableByStation td:nth-child(2) .train-route{ display:none !important; }
+      #scheduleTableByStation td:nth-child(2){ white-space: nowrap !important; }
+      /* 手機：狀態是重點欄位，強制不換行 */
+      #scheduleTableByStation td.col-status, #scheduleTableByStation th:nth-child(7){ white-space: nowrap !important; }
+
       #scheduleTableByStation th:nth-child(6),
       #scheduleTableByStation td:nth-child(6),
-      #scheduleTableByStation th:nth-child(7),
-      #scheduleTableByStation td:nth-child(7),
       #scheduleTableByStation th:nth-child(8),
       #scheduleTableByStation td:nth-child(8){
         display:none;
@@ -629,7 +633,9 @@ td{ border-bottom: 1px solid rgba(255,255,255,0.06); }
     }
 
     /* Desktop: 顯示 chips、隱藏 mobile filter */
+    @media (min-width: 761px){
     .mobile-type-filter{ display:none; }
+  }
   </style>
 
 </head>
@@ -876,8 +882,8 @@ let modalCtx = null;            // {trainNo, originDate}
     if(!dl) return;
 
     const k = normLoose(keyword||'');
-    // ★ 手機效能：最多只顯示前 50 筆，且一次 innerHTML 寫入（避免大量 DOM append）
-    const limit = 50;
+    // ★ 手機效能：最多只顯示前 30 筆，且一次 innerHTML 寫入（避免大量 DOM append）
+    const limit = 500;
     let out = '';
     let count = 0;
 
@@ -909,8 +915,8 @@ let modalCtx = null;            // {trainNo, originDate}
     if(!dl) return;
 
     const k = String(keyword||'').trim();
-    // ★ 手機效能：最多只顯示前 100 筆，且一次 innerHTML 寫入
-    const limit =100 ;
+    // ★ 手機效能：最多只顯示前 50 筆，且一次 innerHTML 寫入
+    const limit = 2000;
     let out = '';
     let count = 0;
 
@@ -1973,11 +1979,25 @@ function renderTimeWithDelay(trainNo, schedHHMM, queryDateStr, opts){
 }
 
   // ===== 手機：結果列「＋」展開更多資訊（不影響原本點整列開 modal） =====
-  function toggleMoreRow(mainTr, r, idx){
+  // ===== 手機：一鍵收合所有展開（含 more-row 與 stops-row） =====
+  function collapseAllExpansions(){
+    document.querySelectorAll('tr.more-row, tr.stops-row').forEach(x=>x.remove());
+    document.querySelectorAll('button.more-btn').forEach(b=>{
+      b.textContent = '＋';
+      b.setAttribute('aria-label','展開更多');
+    });
+  }
+
+function toggleMoreRow(mainTr, r, idx, btn){
     if(!mainTr || !r) return;
+    if(btn && btn.textContent.trim()==='－'){
+      collapseAllExpansions();
+      return;
+    }
     const next = mainTr.nextElementSibling;
     if(next && next.classList.contains('more-row')){
       next.remove();
+      if(btn){ btn.textContent='＋'; btn.setAttribute('aria-label','展開更多'); }
       return;
     }
 
@@ -2001,13 +2021,14 @@ function renderTimeWithDelay(trainNo, schedHHMM, queryDateStr, opts){
 
     td.innerHTML = `
       <div class="more-box">
-        <div class="more-grid">
+        <div class="more-grid" style="grid-template-columns: repeat(3, minmax(0, 1fr));">
           <div class="more-item"><span>停靠</span><b>${stopsSummary}</b></div>
           <div class="more-item"><span>狀態</span><b>${colorStatus(r.status)}</b></div>
+          <div class="more-item"><span>區間</span><b>${r.range}</b></div>
         </div>
         <div class="more-actions">
-          <div class="left">
-            <div class="more-item" style="padding:10px 12px;"><span>區間</span><b>${r.range}</b></div>
+          <div class="left" style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+            <span style="color:var(--text-muted);font-weight:800;font-size:.8rem;">更多功能</span>
           </div>
           <div class="right" style="display:flex; gap:10px; align-items:center;">
             ${ticketHtml}
@@ -2019,6 +2040,7 @@ function renderTimeWithDelay(trainNo, schedHHMM, queryDateStr, opts){
 
     // 插入在 mainTr 後面（若緊接著是 stops-row，more-row 會插在它前面，點 ▼ 還是可運作）
     mainTr.insertAdjacentElement('afterend', moreTr);
+    if(btn){ btn.textContent='－'; btn.setAttribute('aria-label','收合全部'); }
   }
 
 
@@ -2055,7 +2077,7 @@ function renderTimeWithDelay(trainNo, schedHHMM, queryDateStr, opts){
         const idx = Number(tr.dataset.idx);
         const r = currentStartEndList[idx];
         if(!r) return;
-        toggleMoreRow(tr, r, idx);
+        toggleMoreRow(tr, r, idx, moreBtn);
         return;
       }
 
@@ -2188,6 +2210,7 @@ function renderTimeWithDelay(trainNo, schedHHMM, queryDateStr, opts){
     const next=tr.nextElementSibling;
     if(next && next.classList.contains('stops-row')){
       next.remove();
+      if(btn){ btn.textContent='＋'; btn.setAttribute('aria-label','展開更多'); }
       return;
     }
     const t=baseSchedule[num]; if(!t) return;
@@ -2204,7 +2227,7 @@ function renderTimeWithDelay(trainNo, schedHHMM, queryDateStr, opts){
     const row=document.createElement('tr');
     row.className='stops-row';
     const td=document.createElement('td');
-    td.colSpan=8;
+    td.colSpan=(tr.children.length||8);
     td.textContent=stops?`沿途停靠：${stops}`:'（無中途停靠）';
     row.appendChild(td);
     tr.parentNode.insertBefore(row, tr.nextSibling);
@@ -3186,7 +3209,8 @@ document.addEventListener('click', () => {
     if (favDropdown) favDropdown.style.display = 'none';
 });
 
-
+// 執行生成
+renderQuickFavs();
 });
 
 </script>
