@@ -780,8 +780,8 @@ let modalCtx = null;            // {trainNo, originDate}
     if(!dl) return;
 
     const k = normLoose(keyword||'');
-    // ★ 手機效能：最多只顯示前 30 筆，且一次 innerHTML 寫入（避免大量 DOM append）
-    const limit = 500;
+    // ★ 手機效能：最多只顯示前 50 筆，且一次 innerHTML 寫入（避免大量 DOM append）
+    const limit = 50;
     let out = '';
     let count = 0;
 
@@ -813,8 +813,8 @@ let modalCtx = null;            // {trainNo, originDate}
     if(!dl) return;
 
     const k = String(keyword||'').trim();
-    // ★ 手機效能：最多只顯示前 50 筆，且一次 innerHTML 寫入
-    const limit = 2000;
+    // ★ 手機效能：最多只顯示前 100 筆，且一次 innerHTML 寫入
+    const limit = 100;
     let out = '';
     let count = 0;
 
