@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>時刻表 Real-time</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --tr-color: #3b82f6;      
+            --thsr-color: #fb923c;     
+            --bg-dark: #020617;        
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --glass-bg: rgba(30, 41, 59, 0.45); 
+            --glass-border: rgba(255, 255, 255, 0.1);
+            --dock-bg: rgba(15, 23, 42, 0.7);
+            --modal-bg: rgba(15, 23, 42, 0.98);
+        }
+
+        body.light-mode {
+            --bg-dark: #f8fafc;
+            --text-main: #0f172a;
+            --text-muted: #475569;
+            --glass-bg: rgba(255, 255, 255, 0.85);
+            --glass-border: rgba(15, 23, 42, 0.08);
+            --dock-bg: rgba(255, 255, 255, 0.9);
+            --modal-bg: rgba(255, 255, 255, 1);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Inter', 'Noto Sans TC', sans-serif; background-color: var(--bg-dark); color: var(--text-main); min-height: 100vh; display: flex; flex-direction: column; align-items: center; transition: background-color 0.5s ease; overflow-x: hidden; }
+
+        .bg-blobs { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; filter: blur(120px); opacity: 0.4; }
+        .blob { position: absolute; width: 60vw; height: 60vw; border-radius: 50%; animation: float 25s infinite alternate ease-in-out; }
+        .blob-1 { background: var(--tr-color); top: -10%; left: -10%; }
+        .blob-2 { background: var(--thsr-color); bottom: -10%; right: -10%; }
+        @keyframes float { 0% { transform: translate(0, 0); } 100% { transform: translate(10%, 15%); } }
+
+        .top-nav { width: 100%; padding: 25px 40px; display: flex; justify-content: space-between; align-items: center; z-index: 100; }
+        .logo { font-weight: 900; font-size: 1.2rem; color: var(--text-muted); letter-spacing: 1px; }
+
+        .content { width: 90%; max-width: 1000px; padding-top: 40px; padding-bottom: 120px; text-align: center; }
+        .header h1 { font-size: 3.5rem; font-weight: 900; margin-bottom: 12px; letter-spacing: -2px; }
+        .header p { color: var(--text-muted); font-size: 1.15rem; margin-bottom: 60px; }
+
+        .entry-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; }
+        .entry-card { background: var(--glass-bg); border: 1px solid var(--glass-border); backdrop-filter: blur(30px); border-radius: 42px; padding: 50px 30px; text-decoration: none; color: inherit; transition: all 0.5s; display: flex; flex-direction: column; align-items: center; cursor: pointer; }
+        .entry-card:hover { transform: translateY(-12px); border-color: rgba(255,255,255,0.3); box-shadow: 0 40px 80px rgba(0,0,0,0.4); }
+        .icon-box { width: 90px; height: 90px; border-radius: 28px; background: rgba(15,23,42,0.3); display: flex; align-items: center; justify-content: center; font-size: 3.2rem; margin-bottom: 25px; transition: 0.6s; }
+        .entry-card:hover .icon-box { transform: rotate(10deg) scale(1.1); }
+        .entry-card h2 { font-size: 2.5rem; margin-bottom: 20px; font-weight: 900; }
+
+        .desc-list { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; list-style: none; }
+        .desc-list li { background: rgba(255, 255, 255, 0.05); padding: 6px 14px; border-radius: 50px; font-size: 0.85rem; font-weight: 700; transition: 0.3s; }
+        .fav-tag { background: rgba(59, 130, 246, 0.2) !important; border: 1px solid var(--tr-color) !important; cursor: pointer; }
+        .thsr-fav-tag { background: rgba(251, 146, 60, 0.2) !important; border: 1px solid var(--thsr-color) !important; cursor: pointer; }
+
+        .dock-container { position: fixed; bottom: 40px; z-index: 1000; }
+        .dock { background: var(--dock-bg); backdrop-filter: blur(40px); border: 1px solid var(--glass-border); padding: 12px 28px; border-radius: 100px; display: flex; gap: 20px; box-shadow: 0 30px 60px rgba(0,0,0,0.5); }
+        .dock-item { width: 55px; height: 55px; border-radius: 20px; display: flex; align-items: center; justify-content: center; font-size: 1.8rem; transition: 0.4s; cursor: pointer; }
+        .dock-item:hover { transform: translateY(-15px) scale(1.3); }
+
+        /* 設定 Modal 優化 */
+        #settingsModal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 2000; align-items: center; justify-content: center; backdrop-filter: blur(15px); }
+        .modal-content { background: var(--modal-bg); width: 95%; max-width: 480px; border-radius: 40px; padding: 35px; border: 1px solid var(--glass-border); max-height: 85vh; overflow-y: auto; color: var(--text-main); }
+        .section-title { font-size: 0.85rem; color: var(--text-muted); font-weight: 800; text-transform: uppercase; margin-bottom: 15px; display: block; letter-spacing: 1px; border-left: 3px solid var(--tr-color); padding-left: 10px; }
+        .setting-group { background: rgba(255,255,255,0.03); padding: 20px; border-radius: 24px; margin-bottom: 25px; border: 1px solid rgba(255,255,255,0.05); }
+        .setting-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+        .setting-input { background: var(--bg-dark); border: 1px solid var(--glass-border); color: var(--text-main); padding: 8px 12px; border-radius: 10px; width: 130px; outline: none; }
+        .fav-row { display: flex; gap: 5px; margin-bottom: 8px; }
+        .fav-row input { width: 50%; }
+        .danger-btn { width: 100%; background: rgba(239, 68, 68, 0.1); border: 1px solid #ef4444; color: #ef4444; padding: 12px; border-radius: 15px; cursor: pointer; font-weight: 700; margin-bottom: 15px; }
+        .save-btn { width: 100%; background: var(--tr-color); padding: 18px; border-radius: 20px; border: none; color: white; font-weight: 900; font-size: 1.1rem; cursor: pointer; }
+
+        @media (max-width: 640px) { .entry-grid { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body class="dark-mode">
+
+    <nav class="top-nav">
+        <div class="logo">Real-time</div>
+        <select class="lang-switch" id="langSelect" onchange="changeLanguage(this.value)" style="background:var(--glass-bg); color:var(--text-main); border-radius:10px; padding:5px 10px; border:1px solid var(--glass-border); outline:none;">
+            <option value="zh">繁體中文</option>
+            <option value="en">English</option>
+            <option value="jp">日本語</option>
+        </select>
+    </nav>
+
+    <div class="bg-blobs">
+        <div class="blob blob-1"></div>
+        <div class="blob blob-2"></div>
+    </div>
+
+    <main class="content">
+        <header class="header">
+            <h1 data-i18n="title">新時刻表</h1>
+            <p data-i18n="subtitle">探索即時鐵道數據</p>
+        </header>
+
+        <div class="entry-grid">
+            <div class="entry-card" onclick="goToSystem('tr')">
+                <div class="icon-box">🚆</div>
+                <h2 data-i18n="tra">臺鐵</h2>
+                <ul class="desc-list" id="trList">
+                    <li data-i18n="f1">起訖查詢</li><li data-i18n="f3">即時時刻</li>
+                </ul>
+            </div>
+
+            <div class="entry-card" onclick="goToSystem('thsr')">
+                <div class="icon-box">🚅</div>
+                <h2 data-i18n="thsr">高鐵</h2>
+                <ul class="desc-list" id="thsrList">
+                    <li data-i18n="f5">直達查詢</li><li data-i18n="f7">車站時刻</li>
+                </ul>
+            </div>
+        </div>
+    </main>
+
+    <div id="settingsModal" onclick="toggleSettings(false)">
+        <div class="modal-content" onclick="event.stopPropagation()">
+            <h2 style="margin-bottom:25px; font-weight:900;" data-i18n="settings">系統設定</h2>
+            
+            <span class="section-title">一般設定</span>
+            <div class="setting-group">
+                <div class="setting-row">
+                    <span data-i18n="dark_mode">主題模式</span>
+                    <button id="modeBtn" onclick="toggleDarkMode()" style="background:var(--glass-bg); color:var(--text-main); border:1px solid var(--glass-border); padding:8px 15px; border-radius:10px; cursor:pointer; font-weight:700;">Dark Mode</button>
+                </div>
+            </div>
+
+            <span class="section-title">臺鐵 (TR)</span>
+            <div class="setting-group">
+                <div class="setting-row">
+                    <span>常用車站</span>
+                    <input type="text" id="tr_home" class="setting-input" placeholder="如: 萬華">
+                </div>
+                <div style="margin-top:10px;">
+                    <span style="font-size:0.85rem; color:var(--text-muted); display:block; margin-bottom:8px;">常用行程 (最多三組)</span>
+                    <div class="fav-row"><input type="text" id="tr_s1" class="setting-input" placeholder="起1"><input type="text" id="tr_e1" class="setting-input" placeholder="迄1"></div>
+                    <div class="fav-row"><input type="text" id="tr_s2" class="setting-input" placeholder="起2"><input type="text" id="tr_e2" class="setting-input" placeholder="迄2"></div>
+                    <div class="fav-row"><input type="text" id="tr_s3" class="setting-input" placeholder="起3"><input type="text" id="tr_e3" class="setting-input" placeholder="迄3"></div>
+                </div>
+            </div>
+
+            <span class="section-title">高鐵 (THSR)</span>
+            <div class="setting-group">
+                <div class="setting-row">
+                    <span>常用車站</span>
+                    <input type="text" id="thsr_home" class="setting-input" placeholder="如: 台北">
+                </div>
+                <div style="margin-top:10px;">
+                    <span style="font-size:0.85rem; color:var(--text-muted); display:block; margin-bottom:8px;">常用行程 (最多三組)</span>
+                    <div class="fav-row"><input type="text" id="thsr_s1" class="setting-input" placeholder="起1"><input type="text" id="thsr_e1" class="setting-input" placeholder="迄1"></div>
+                    <div class="fav-row"><input type="text" id="thsr_s2" class="setting-input" placeholder="起2"><input type="text" id="thsr_e2" class="setting-input" placeholder="迄2"></div>
+                    <div class="fav-row"><input type="text" id="thsr_s3" class="setting-input" placeholder="起3"><input type="text" id="thsr_e3" class="setting-input" placeholder="迄3"></div>
+                </div>
+            </div>
+
+            <button class="danger-btn" onclick="clearData()">🗑️ 清除所有快取與設定</button>
+            <button class="save-btn" onclick="saveSettings()" data-i18n="done">儲存並完成</button>
+        </div>
+    </div>
+
+    <div class="dock-container">
+        <nav class="dock">
+            <div class="dock-item" onclick="location.reload()">🏠</div>
+            <div class="dock-item" onclick="goToSystem('tr')">🚆</div>
+            <div class="dock-item" onclick="goToSystem('thsr')">🚅</div>
+            <div class="dock-item" onclick="toggleSettings(true)">⚙️</div>
+        </nav>
+    </div>
+
+    <script>
+        const translations = {
+            zh: { title: "新時刻表", subtitle: "探索即時鐵道數據", tra: "臺鐵", thsr: "高鐵", f1: "起訖查詢", f3: "即時時刻", f5: "直達查詢", f7: "車站時刻", settings: "系統設定", dark_mode: "主題模式", done: "儲存並完成" },
+            en: { title: "Timetable", subtitle: "Live Railway Data", tra: "TR", thsr: "THSR", f1: "Routes", f3: "Live Board", f5: "Direct", f7: "Stations", settings: "Settings", dark_mode: "Theme", done: "Save" },
+            jp: { title: "時刻表+", subtitle: "リアルタイム運行", tra: "台鉄", thsr: "高鉄", f1: "ルート", f3: "掲示板", f5: "直行", f7: "駅時刻", settings: "設定", dark_mode: "モード", done: "完了" }
+        };
+
+        function goToSystem(sys) {
+            const home = localStorage.getItem(`${sys}_home`) || '';
+            const baseUrl = sys === 'tr' ? '../tr/tr.html' : '../thsr/thsr.html';
+            // 自動帶入常用車站到 URL，連動車站查詢
+            const url = home ? `${baseUrl}?station=${encodeURIComponent(home)}` : baseUrl;
+            window.location.href = url;
+        }
+
+        function renderFavs() {
+            ['tr', 'thsr'].forEach(sys => {
+                const list = document.getElementById(`${sys}List`);
+                for (let i = 1; i <= 3; i++) {
+                    const s = localStorage.getItem(`${sys}_s${i}`), e = localStorage.getItem(`${sys}_e${i}`);
+                    if (s && e) {
+                        const li = document.createElement('li');
+                        li.className = sys === 'tr' ? 'fav-tag' : 'thsr-fav-tag';
+                        li.innerHTML = `📍 ${s}→${e}`;
+                        li.onclick = (event) => {
+                            event.stopPropagation();
+                            window.location.href = `../${sys}/${sys}.html?start=${encodeURIComponent(s)}&end=${encodeURIComponent(e)}`;
+                        };
+                        list.prepend(li);
+                    }
+                }
+            });
+        }
+
+        function toggleSettings(show) {
+            document.getElementById('settingsModal').style.display = show ? 'flex' : 'none';
+            if(show) {
+                const keys = ['tr_home','thsr_home','tr_s1','tr_e1','tr_s2','tr_e2','tr_s3','tr_e3','thsr_s1','thsr_e1','thsr_s2','thsr_e2','thsr_s3','thsr_e3'];
+                keys.forEach(k => document.getElementById(k).value = localStorage.getItem(k) || '');
+            }
+        }
+
+        function toggleDarkMode() {
+            document.body.classList.toggle('light-mode');
+            const isLight = document.body.classList.contains('light-mode');
+            localStorage.setItem('theme', isLight ? 'light' : 'dark');
+            document.getElementById('modeBtn').innerText = isLight ? 'Light Mode' : 'Dark Mode';
+        }
+
+        function saveSettings() {
+            const keys = ['tr_home','thsr_home','tr_s1','tr_e1','tr_s2','tr_e2','tr_s3','tr_e3','thsr_s1','thsr_e1','thsr_s2','thsr_e2','thsr_s3','thsr_e3'];
+            keys.forEach(k => localStorage.setItem(k, document.getElementById(k).value));
+            location.reload();
+        }
+
+        function clearData() {
+            if(confirm('確定要清除所有快取與設定嗎？')) { localStorage.clear(); location.reload(); }
+        }
+
+        function changeLanguage(lang) {
+            document.querySelectorAll('[data-i18n]').forEach(el => el.innerText = translations[lang][el.getAttribute('data-i18n')]);
+            localStorage.setItem('lang', lang);
+        }
+
+        window.onload = () => {
+            const lang = localStorage.getItem('lang') || 'zh';
+            document.getElementById('langSelect').value = lang;
+            changeLanguage(lang);
+            if(localStorage.getItem('theme') === 'light') { document.body.classList.add('light-mode'); document.getElementById('modeBtn').innerText = 'Light Mode'; }
+            renderFavs();
+        };
+    </script>
+</body>
+</html>
