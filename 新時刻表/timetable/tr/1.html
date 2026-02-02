@@ -242,7 +242,7 @@ body.light-mode {
   /* ===== 6. Modal (彈窗) & 時間軸 ===== */
   .modal {
     display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-    background: rgba(0, 0, 0, 0.6); backdrop-filter: blur(2px);
+    background: rgba(0, 0, 0, 0.6);
     z-index: 2000; justify-content: center; align-items: center;
     opacity: 0; transition: opacity 0.3s;
   }
@@ -561,6 +561,75 @@ td{ border-bottom: 1px solid rgba(255,255,255,0.06); }
     /* stops 展開箭頭（原本就有） */
     .toggle-arrow{ color: var(--text-muted); margin-left: 6px; font-size: .85rem; cursor:pointer; }
     .stops-row td{ background: var(--bg-body); color: var(--text-muted); font-size: .85rem; }
+
+    /* ===== 手機閱讀優化：縮短頂部、表格精簡 + 逐列展開 ===== */
+    .more-btn{
+      border:1px solid var(--border);
+      background: var(--bg-body);
+      color: var(--text-main);
+      width: 30px; height: 30px;
+      border-radius: 10px;
+      font-weight: 900;
+      cursor: pointer;
+      line-height: 1;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      user-select: none;
+    }
+    .more-btn:active{ transform: scale(.98); }
+    .more-row td{ background: var(--bg-body); color: var(--text-main); }
+    .more-box{ padding: 10px 12px; display: grid; gap: 10px; }
+    .more-grid{ display:grid; grid-template-columns: 1fr 1fr; gap: 8px 10px; }
+    .more-item{ border:1px solid var(--border); background: var(--bg-surface); border-radius: 14px; padding: 10px 10px; }
+    .more-item span{ display:block; font-size: .78rem; font-weight: 800; color: var(--text-muted); margin-bottom: 4px; }
+    .more-item b{ font-size: .95rem; font-variant-numeric: tabular-nums; }
+    .more-actions{ display:flex; gap: 10px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+    .more-actions .left{ display:flex; gap: 10px; align-items:center; flex-wrap:wrap; }
+
+    /* Desktop 預設不顯示「＋」欄（手機會打開） */
+    #scheduleTableByStation th.col-more,
+    #scheduleTableByStation td.col-more,
+    #scheduleTableByStationName th.col-more,
+    #scheduleTableByStationName td.col-more{ display:none; }
+
+    /* Mobile: header 更緊湊、篩選收納、表格只顯示重點欄位 */
+    @media (max-width: 760px){
+      .header{ padding: 8px 10px; }
+      .header-content{ flex-wrap: wrap; gap: 8px; }
+      .logo{ font-size: 1rem; }
+      .logo span{ display:none; }
+      .date-picker{ width: 100%; display:flex; flex-wrap:wrap; gap: 8px; align-items:center; }
+      .date-picker label{ display:none; }
+      #mainQueryDate{ flex: 1 1 auto; min-width: 140px; }
+      #refreshBtn{ padding: 6px 12px !important; }
+      #themeToggle{ padding: 6px 10px; }
+
+      /* 車種 chips 改為按鈕進入篩選 */
+      .query-panel .chip-group{ display:none !important; }
+      .mobile-type-filter{ display:flex; gap: 10px; align-items:center; margin: 0 0 14px 0; }
+      .mobile-type-filter .btn-ghost{ width: 100%; justify-content:center; }
+
+      /* 表格欄位精簡：只保留 1~5 欄 + 展開按鈕 */
+      table{ min-width: 0 !important; white-space: normal; }
+      .table-wrapper{ border-radius: 18px; }
+
+      /* 起訖站結果：隱藏「停靠/狀態/訂票」，改用「＋」展開 */
+      #scheduleTableByStation th:nth-child(6),
+      #scheduleTableByStation td:nth-child(6),
+      #scheduleTableByStation th:nth-child(7),
+      #scheduleTableByStation td:nth-child(7),
+      #scheduleTableByStation th:nth-child(8),
+      #scheduleTableByStation td:nth-child(8){
+        display:none;
+      }
+      #scheduleTableByStation th.col-more,
+      #scheduleTableByStation td.col-more{ display: table-cell; text-align:center; width: 52px; }
+      /* 車站時刻表：預設欄位本來就少；保留原樣 */
+    }
+
+    /* Desktop: 顯示 chips、隱藏 mobile filter */
+    .mobile-type-filter{ display:none; }
   </style>
 
 </head>
@@ -641,6 +710,9 @@ td{ border-bottom: 1px solid rgba(255,255,255,0.06); }
       </div>
 
       <div class="chip-group" id="trainTypeChipsStartEnd"></div>
+      <div class="mobile-type-filter">
+        <button class="btn-ghost" id="openTypeFilterStartEnd" type="button">車種篩選（複選） ▾</button>
+      </div>
 
       <div class="table-wrapper">
         <table id="scheduleTableByStation">
@@ -674,6 +746,9 @@ td{ border-bottom: 1px solid rgba(255,255,255,0.06); }
       </div>
 
       <div class="chip-group" id="trainTypeChipsStation"></div>
+      <div class="mobile-type-filter">
+        <button class="btn-ghost" id="openTypeFilterStation" type="button">車種篩選（複選） ▾</button>
+      </div>
 
       <div class="table-wrapper">
         <table id="scheduleTableByStationName">
@@ -723,6 +798,27 @@ td{ border-bottom: 1px solid rgba(255,255,255,0.06); }
       <div class="close" id="modalClose">✕</div>
     </div>
     <div class="modal-body" id="modalBody"></div>
+  </div>
+</div>
+
+<!-- 車種篩選 Modal（手機用；不影響原本 chips 邏輯） -->
+<div id="typeFilterModal" class="modal" aria-hidden="true">
+  <div class="modal-content" style="max-width: 520px;">
+    <div class="modal-header">
+      <div>
+        <div class="modal-title-main">車種篩選</div>
+        <div class="modal-title-sub">可複選，套用後即更新目前結果</div>
+      </div>
+      <div class="close" id="typeFilterClose">✕</div>
+    </div>
+    <div class="modal-body" style="padding: 14px 16px;">
+      <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:12px;">
+        <button class="btn-ghost" id="typeFilterSelectAll" type="button">全選</button>
+        <button class="btn-ghost" id="typeFilterClear" type="button">清除</button>
+        <button class="btn-primary" id="typeFilterApply" type="button" style="margin-left:auto;">套用</button>
+      </div>
+      <div id="typeFilterList" class="chip-group" style="display:flex; flex-wrap:wrap; gap:10px;"></div>
+    </div>
   </div>
 </div>
 
@@ -780,8 +876,8 @@ let modalCtx = null;            // {trainNo, originDate}
     if(!dl) return;
 
     const k = normLoose(keyword||'');
-    // ★ 手機效能：最多只顯示前 30 筆，且一次 innerHTML 寫入（避免大量 DOM append）
-    const limit = 500;
+    // ★ 手機效能：最多只顯示前 50 筆，且一次 innerHTML 寫入（避免大量 DOM append）
+    const limit = 50;
     let out = '';
     let count = 0;
 
@@ -813,8 +909,8 @@ let modalCtx = null;            // {trainNo, originDate}
     if(!dl) return;
 
     const k = String(keyword||'').trim();
-    // ★ 手機效能：最多只顯示前 50 筆，且一次 innerHTML 寫入
-    const limit = 2000;
+    // ★ 手機效能：最多只顯示前 100 筆，且一次 innerHTML 寫入
+    const limit =100 ;
     let out = '';
     let count = 0;
 
@@ -1285,12 +1381,23 @@ if (jumpUrl) {
       btn.textContent = '🌙 深夜模式';
     }
 
+    // 手機版可能要縮成 icon
+    try{ adjustHeaderForMobile(); }catch(e){}
+
+    // 手機時縮短顯示
+    try{ adjustHeaderForMobile(); }catch(e){}
+
     btn.addEventListener('click', async ()=>{
       document.body.classList.toggle('dark-mode');
       const isDark = document.body.classList.contains('dark-mode');
       document.body.classList.toggle('light-mode', !isDark);
       localStorage.setItem('tra_theme', isDark ? 'dark' : 'light');
       btn.textContent = isDark ? '☀️ 日間模式' : '🌙 深夜模式';
+
+      try{ adjustHeaderForMobile(); }catch(e){}
+      try{ adjustHeaderForMobile(); }catch(e){}
+
+      try{ adjustHeaderForMobile(); }catch(e){}
 
       // 顏色可能會跟著改（車種顏色），重新渲染可見結果
       try{
@@ -1304,9 +1411,123 @@ if (jumpUrl) {
     const btn = document.getElementById('homeBtn');
     if(!btn) return;
     btn.addEventListener('click', ()=>{
-      // tr.html 通常在 /tr/ 目錄下，回到上一層的 index.html
+      // 依你的專案結構：/tr/tr.html 回到 /home/index.html
       location.href = '../home/index.html';
     });
+  }
+
+  // ===== 手機：車種篩選（複選下拉/彈窗） =====
+  let _typeFilterCtx = { containerId: '', apply: null };
+
+  function openTypeFilter(containerId, applyFn){
+    const modal = document.getElementById('typeFilterModal');
+    const list = document.getElementById('typeFilterList');
+    if(!modal || !list) return;
+
+    _typeFilterCtx = { containerId, apply: applyFn };
+
+    // 建立清單：用 chips 的勾選狀態當作目前狀態
+    const selected = new Set(getSelectedTypes(containerId));
+    const types = new Set(Object.keys(baseSchedule||{}).map(k=>baseSchedule[k]?.['車種']).filter(Boolean));
+    const arr = Array.from(types).sort();
+
+    list.innerHTML = arr.map(t=>{
+      const checked = selected.has(t) ? 'checked' : '';
+      return `<label class="chip-label" style="margin:0;">
+        <input type="checkbox" value="${t}" ${checked}>
+        <span>${t}</span>
+      </label>`;
+    }).join('');
+
+    modal.style.display = 'flex';
+  }
+
+  function closeTypeFilter(){
+    const modal = document.getElementById('typeFilterModal');
+    if(modal) modal.style.display = 'none';
+  }
+
+  function applyTypeFilterSelection(){
+    const containerId = _typeFilterCtx.containerId;
+    if(!containerId) return;
+    const picked = Array.from(document.querySelectorAll('#typeFilterList input[type="checkbox"]:checked')).map(x=>x.value);
+    const pickedSet = new Set(picked);
+    // 同步回原本 chips（雖然手機隱藏，但仍保留作為資料來源）
+    document.querySelectorAll(`#${containerId} input[type="checkbox"]`).forEach(cb=>{
+      cb.checked = pickedSet.has(cb.value);
+    });
+
+    closeTypeFilter();
+    if(typeof _typeFilterCtx.apply === 'function') _typeFilterCtx.apply();
+  }
+
+  function initTypeFilterUI(){
+    const btnStartEnd = document.getElementById('openTypeFilterStartEnd');
+    if(btnStartEnd){
+      btnStartEnd.addEventListener('click', ()=>{
+        openTypeFilter('trainTypeChipsStartEnd', ()=>{
+          // 套用後：重跑目前面板的結果（不改你原本邏輯）
+          if(lastStartEndQuery){
+            selectedTrainTypesStartEnd = getSelectedTypes('trainTypeChipsStartEnd');
+            if(lastStartEndQuery.accept){
+              buildTransferList(lastStartEndQuery.st, lastStartEndQuery.ed);
+              renderTransferTable();
+            }else{
+              buildDirectList(lastStartEndQuery.st, lastStartEndQuery.ed);
+              renderStartEndTable();
+            }
+          }
+        });
+      });
+    }
+
+    const btnStation = document.getElementById('openTypeFilterStation');
+    if(btnStation){
+      btnStation.addEventListener('click', ()=>{
+        openTypeFilter('trainTypeChipsStation', ()=>{
+          filterTrainScheduleByStationName();
+        });
+      });
+    }
+
+    const closeBtn = document.getElementById('typeFilterClose');
+    if(closeBtn) closeBtn.addEventListener('click', closeTypeFilter);
+
+    const applyBtn = document.getElementById('typeFilterApply');
+    if(applyBtn) applyBtn.addEventListener('click', applyTypeFilterSelection);
+
+    const selAllBtn = document.getElementById('typeFilterSelectAll');
+    if(selAllBtn) selAllBtn.addEventListener('click', ()=>{
+      document.querySelectorAll('#typeFilterList input[type="checkbox"]').forEach(cb=>cb.checked=true);
+    });
+
+    const clearBtn = document.getElementById('typeFilterClear');
+    if(clearBtn) clearBtn.addEventListener('click', ()=>{
+      document.querySelectorAll('#typeFilterList input[type="checkbox"]').forEach(cb=>cb.checked=false);
+    });
+
+    // 點背景關閉
+    const modal = document.getElementById('typeFilterModal');
+    if(modal){
+      modal.addEventListener('click', (e)=>{
+        if(e.target === modal) closeTypeFilter();
+      });
+    }
+  }
+
+  // ===== 手機：縮短深夜模式按鈕文字（不影響功能） =====
+  function adjustHeaderForMobile(){
+    const btn = document.getElementById('themeToggle');
+    if(!btn) return;
+    const isMobile = window.matchMedia && window.matchMedia('(max-width: 760px)').matches;
+    // 只在手機時縮短顯示；桌機維持原文案
+    if(isMobile){
+      const isDark = document.body.classList.contains('dark-mode');
+      btn.textContent = isDark ? '☀️' : '🌙';
+    }else{
+      const isDark = document.body.classList.contains('dark-mode');
+      btn.textContent = isDark ? '☀️ 日間模式' : '🌙 深夜模式';
+    }
   }
 
 
@@ -1408,6 +1629,9 @@ function renderHistory(){
     initDatePickerWindow();
     setupThemeToggle();
     setupHomeBtn();
+    initTypeFilterUI();
+    adjustHeaderForMobile();
+    window.addEventListener('resize', adjustHeaderForMobile, { passive: true });
 
     const dateInput = document.getElementById('mainQueryDate');
     await refreshData(dateInput?.value);
@@ -1748,6 +1972,55 @@ function renderTimeWithDelay(trainNo, schedHHMM, queryDateStr, opts){
   `;
 }
 
+  // ===== 手機：結果列「＋」展開更多資訊（不影響原本點整列開 modal） =====
+  function toggleMoreRow(mainTr, r, idx){
+    if(!mainTr || !r) return;
+    const next = mainTr.nextElementSibling;
+    if(next && next.classList.contains('more-row')){
+      next.remove();
+      return;
+    }
+
+    // 若下一列是 stops-row（你原本停靠展開），先不動它；more-row 插入在它前面/後面都可以
+    const colspan = mainTr.children.length || 9;
+    const moreTr = document.createElement('tr');
+    moreTr.className = 'more-row';
+    const td = document.createElement('td');
+    td.colSpan = colspan;
+
+    // 停靠摘要（仍保留你原本「▼」展開停靠站細節的互動）
+    const stopsSummary = (r.stopsCount>0)
+      ? `${r.stopsCount}站 <span class="toggle-arrow">▼</span>`
+      : `<span style="color:#16a34a;font-weight:700">直達</span>`;
+
+    // 訂票（沿用原本判斷）
+    const elig = getBookingEligibilityByRow(r);
+    const ticketHtml = elig.ok
+      ? `<button class="ticket-btn" data-idx="${idx}" title="⚠️限使用手機或平板開啟「台鐵e訂通」APP">🎫</button>`
+      : `<span style="color:var(--text-muted);font-weight:800">不可訂票</span>`;
+
+    td.innerHTML = `
+      <div class="more-box">
+        <div class="more-grid">
+          <div class="more-item"><span>停靠</span><b>${stopsSummary}</b></div>
+          <div class="more-item"><span>狀態</span><b>${colorStatus(r.status)}</b></div>
+        </div>
+        <div class="more-actions">
+          <div class="left">
+            <div class="more-item" style="padding:10px 12px;"><span>區間</span><b>${r.range}</b></div>
+          </div>
+          <div class="right" style="display:flex; gap:10px; align-items:center;">
+            ${ticketHtml}
+          </div>
+        </div>
+      </div>
+    `;
+    moreTr.appendChild(td);
+
+    // 插入在 mainTr 後面（若緊接著是 stops-row，more-row 會插在它前面，點 ▼ 還是可運作）
+    mainTr.insertAdjacentElement('afterend', moreTr);
+  }
+
 
   function renderStartEndTable(){
     // 動態切換表頭（起訖站/直達模式）
@@ -1762,6 +2035,7 @@ function renderTimeWithDelay(trainNo, schedHHMM, queryDateStr, opts){
         <th>停靠</th>
         <th>狀態</th>
         <th style="text-align:center">訂票</th>
+        <th class="col-more" style="text-align:center">＋</th>
       `;
       initStartEndSorting();
       updateStartEndSortIcons();
@@ -1773,6 +2047,18 @@ function renderTimeWithDelay(trainNo, schedHHMM, queryDateStr, opts){
 
     // 單一事件代理：列點擊開詳情；票券按鈕點擊跳 APP；停靠展開
     tbody.onclick = async (e)=>{
+      const moreBtn = e.target.closest('.more-btn');
+      if(moreBtn){
+        e.stopPropagation();
+        const tr = moreBtn.closest('tr');
+        if(!tr) return;
+        const idx = Number(tr.dataset.idx);
+        const r = currentStartEndList[idx];
+        if(!r) return;
+        toggleMoreRow(tr, r, idx);
+        return;
+      }
+
       const ticket = e.target.closest('.ticket-btn');
       if(ticket){
         e.stopPropagation();
@@ -1820,7 +2106,11 @@ function renderTimeWithDelay(trainNo, schedHHMM, queryDateStr, opts){
       const arrow = e.target.closest('.toggle-arrow');
       if(arrow){
         e.stopPropagation();
-        const tr = arrow.closest('tr');
+        let tr = arrow.closest('tr');
+        if(tr && !tr.dataset?.idx){
+          // 如果是在 more-row 裡點到箭頭，真正的主列在上一列
+          tr = tr.previousElementSibling;
+        }
         const idx = Number(tr?.dataset?.idx);
         const r = currentStartEndList[idx];
         if(!r) return;
@@ -1862,65 +2152,37 @@ function renderTimeWithDelay(trainNo, schedHHMM, queryDateStr, opts){
         </div>`;
 
       let stopsCell = tr.insertCell();
+      stopsCell.className = 'col-stops';
       if(r.stopsCount>0){
         stopsCell.innerHTML = `${r.stopsCount}站 <span class="toggle-arrow">▼</span>`;
       } else {
         stopsCell.innerHTML = '<span style="color:#16a34a;font-weight:600">直達</span>';
       }
 
-      tr.insertCell().innerHTML = colorStatus(r.status);
+      const statusCell = tr.insertCell();
+      statusCell.className = 'col-status';
+      statusCell.innerHTML = colorStatus(r.status);
 
       // 訂票：僅起訖站直達模式提供
       // 在 renderStartEndTable 內
-const ticketCell = tr.insertCell();
-ticketCell.style.textAlign = 'center';
+      const ticketCell = tr.insertCell();
+      ticketCell.className = 'col-booking';
+      ticketCell.style.textAlign = 'center';
 
-const elig = getBookingEligibilityByRow(r);
-if (elig.ok) {
-    // 這裡整合你截圖中的 HTML 結構
-    ticketCell.innerHTML = `
-        <button class="ticket-btn" data-idx="${idx}" title="⚠️限使用手機或平板開啟「台鐵e訂通」APP">🎫</button>
-    `;
-} 
+      const elig = getBookingEligibilityByRow(r);
+      if (elig.ok) {
+        ticketCell.innerHTML = `<button class="ticket-btn" data-idx="${idx}" title="⚠️限使用手機或平板開啟「台鐵e訂通」APP">🎫</button>`;
+      } else {
+        // 不能訂票就不要有按鈕（依你的要求）
+        ticketCell.innerHTML = '';
+      }
+
+      // 手機展開按鈕（桌機會被 CSS 隱藏）
+      const moreCell = tr.insertCell();
+      moreCell.className = 'col-more';
+      moreCell.innerHTML = `<button class="more-btn" type="button" aria-label="展開更多">＋</button>`;
     });
   };
-
-    const mins = currentStartEndList.map(r=>r.travelMin).filter(x=>Number.isFinite(x)).sort((a,b)=>a-b);
-    const cap = percentile(mins, 0.95); // P95 當上限，極端值塗滿
-
-    currentStartEndList.forEach(r=>{
-      let tr=tbody.insertRow();
-      tr.insertCell().innerHTML=String(r.num).includes('A')?`<b>${r.num}</b><span class="badge-sea">海</span>`:`<b>${r.num}</b>`;
-      tr.insertCell().innerHTML=`${colorType(r.type)} <span class="train-route">(${r.range})</span>`;
-      tr.insertCell().innerHTML = r.depHTML;
-      tr.insertCell().innerHTML = r.arrHTML;
-
-      const bar = getTravelBarStyle(r.travelMin, cap);
-
-      let cell=tr.insertCell();
-      cell.innerHTML=`
-        <div style="font-size:.85rem;font-weight:600">
-          ${r.travel}${bar.isExtreme ? ' <span style="color:var(--text-muted);font-weight:600"></span>' : ''}
-        </div>
-        <div class="progress-bar">
-          <div class="progress-fill" style="
-            width:${bar.widthPct.toFixed(1)}%;
-            background:${bar.fillBg};
-          "></div>
-        </div>`;
-
-      let stopsCell=tr.insertCell();
-      if(r.stopsCount>0){
-        stopsCell.innerHTML=`${r.stopsCount}站 <span class="toggle-arrow">▼</span>`;
-        stopsCell.querySelector('.toggle-arrow').addEventListener('click',e=>{
-          e.stopPropagation();
-          toggleStopsRow(tr,r.startStation,r.endStation,r.num);
-        });
-      } else stopsCell.innerHTML='<span style="color:#16a34a;font-weight:600">直達</span>';
-
-      tr.insertCell().innerHTML=colorStatus(r.status);
-      tr.addEventListener('click',()=>showTrainDetails(r.num, currentQueryDateStr));
-    });
 
   function toggleStopsRow(tr, st, ed, num){
     const next=tr.nextElementSibling;
@@ -2924,8 +3186,7 @@ document.addEventListener('click', () => {
     if (favDropdown) favDropdown.style.display = 'none';
 });
 
-// 執行生成
-renderQuickFavs();
+
 });
 
 </script>
