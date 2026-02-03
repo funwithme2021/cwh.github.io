@@ -39,7 +39,7 @@
         * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
         body { font-family: 'Inter', 'Noto Sans TC', sans-serif; background-color: var(--bg-dark); color: var(--text-main); min-height: 100vh; display: flex; flex-direction: column; align-items: center; transition: background-color 0.4s ease; overflow-x: hidden; padding-top: var(--status-bar-h); }
 
-        /* 背景流動動畫 (已還原) */
+        /* 背景流動動畫 */
         .bg-blobs { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; pointer-events: none; overflow: hidden; }
         .blob { position: absolute; width: 60vw; height: 60vw; border-radius: 50%; filter: blur(80px); opacity: 0.45; animation: float 25s infinite alternate ease-in-out; }
         .blob-1 { background: radial-gradient(circle, var(--tr-color), transparent 60%); top: -10%; left: -10%; animation-delay: 0s; }
@@ -49,7 +49,7 @@
         @keyframes float { 0% { transform: translate(0, 0); } 100% { transform: translate(10%, 15%); } }
         @keyframes floatReverse { 0% { transform: translate(0, 0); } 100% { transform: translate(-10%, -15%); } }
 
-        /* 頂部即時狀態欄 (滾動優化) */
+        /* 頂部即時狀態欄 */
         .status-bar {
             position: fixed; top: 0; left: 0; width: 100%; height: var(--status-bar-h);
             background: var(--dock-bg); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
@@ -68,7 +68,6 @@
         .status-dot.ok { background: var(--success); box-shadow: 0 0 8px var(--success); }
         .status-dot.warn { background: var(--warning); box-shadow: 0 0 8px var(--warning); }
         
-        /* 單向跑馬燈動畫 */
         .status-text-wrap { display: inline-block; white-space: nowrap; }
         .status-text-wrap.alert-scroll { padding-left: 100%; animation: scroll-linear 30s linear infinite; }
         @keyframes scroll-linear { 0% { transform: translateX(0); } 100% { transform: translateX(-150%); } }
@@ -112,7 +111,6 @@
             transition: transform 0.1s ease-out, border-color 0.3s;
             cursor: pointer; 
             box-shadow: 0 10px 40px -10px rgba(0,0,0,0.3); overflow: hidden;
-            /* 調整間距，因為按鈕變少了 */
             padding-bottom: 40px;
         }
         .entry-card:hover { border-color: var(--card-hover-border); transform: translateY(-5px); }
@@ -150,7 +148,6 @@
         }
         .light-mode .geo-btn { background: rgba(0,0,0,0.05); color: var(--text-main); border-color: rgba(0,0,0,0.1); }
         .geo-btn:hover { background: var(--text-main); color: var(--bg-dark); transform: scale(1.02); }
-        /* 載入中狀態 */
         .geo-btn.loading { opacity: 0.6; cursor: not-allowed; }
 
         .desc-list { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; list-style: none; width: 100%; z-index: 10; }
@@ -166,11 +163,6 @@
         .tr-card .fav-tag:hover { background: var(--tr-color); color: white; transform: translateY(-2px); }
         .thsr-card .thsr-fav-tag { background: rgba(251, 146, 60, 0.15); color: #fb923c; border-color: rgba(251, 146, 60, 0.3); }
         .thsr-card .thsr-fav-tag:hover { background: var(--thsr-color); color: white; transform: translateY(-2px); }
-
-        .action-btns { display:flex; gap:10px; width:100%; margin-top:10px; z-index: 10; }
-        .action-btn { flex:1; background:rgba(255,255,255,0.05); list-style:none; padding:10px; border-radius:12px; cursor:pointer; border:1px solid var(--glass-border); font-weight: 600; font-size: 0.9rem; transition: 0.2s; }
-        .light-mode .action-btn { background: rgba(255,255,255,0.6); border-color: rgba(0,0,0,0.05); }
-        .action-btn:hover { background: rgba(255,255,255,0.1); }
 
         /* Dock */
         .dock-container { position: fixed; bottom: 30px; width: 100%; display: flex; flex-direction: column; align-items: center; gap: 15px; pointer-events: none; z-index: 1000; }
@@ -333,13 +325,21 @@
             <span class="section-title">🔔 即時誤點監控</span>
             <div class="setting-group" style="border: 1px solid var(--tr-color);">
                 <div class="setting-row">
-                    <span style="font-size:0.9rem;">啟用台鐵列車監控通知</span>
+                    <span style="font-size:0.9rem;">啟用台鐵列車監控</span>
                     <label class="switch">
-                        <input type="checkbox" id="notifySwitch" onchange="toggleNotify(this)">
+                        <input type="checkbox" id="monitorSwitch" onchange="toggleMonitor(this)">
                         <span class="slider"></span>
                     </label>
                 </div>
                 <div id="monitorConfig" style="display:none; margin-top:15px; border-top:1px solid var(--glass-border); padding-top:15px;">
+                    <div class="setting-row" style="margin-bottom:15px; border-bottom:1px solid var(--glass-border); padding-bottom:15px;">
+                        <span style="font-size:0.9rem;">接收誤點推播通知</span>
+                        <label class="switch">
+                            <input type="checkbox" id="pushSwitch" onchange="togglePush(this)">
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+
                     <p style="font-size:0.8rem; color:var(--text-muted); margin-bottom:10px;">系統將每分鐘檢查誤點狀況並計算目標站抵達時間。</p>
                     <div class="fav-row">
                         <input type="text" id="mon_train" class="setting-input" placeholder="車次 (例: 408)">
@@ -393,7 +393,6 @@
     </div>
 
     <script>
-        // 設定檔
         const TDX_CONFIG = {
             clientId: 'r36144112-d7b2ebdd-ce4c-40c3',
             clientSecret: '141d81d1-a450-4610-9309-412c8151cc3d'
@@ -401,15 +400,12 @@
 
         let tdxToken = null;
         let monitorInterval = null;
-        // 預設空的資料庫，稍後由 API 填滿
         let stationDB = { tr: [], thsr: [] };
 
-        // 0. 通用函式：自動將「台」轉為「臺」
         function normalizeName(str) {
             return str ? str.replace(/台/g, '臺') : '';
         }
 
-        // 1. 取得 TDX Token
         async function getTdxToken() {
             try {
                 const params = new URLSearchParams();
@@ -426,62 +422,34 @@
                 if(data.access_token) {
                     tdxToken = data.access_token;
                     checkSystemAlerts();
-                    // Token 取得後，立刻下載車站資料
                     fetchAllStations();
                     return true;
                 }
-            } catch (e) {
-                console.error("Token Error:", e);
-            }
+            } catch (e) { console.error("Token Error:", e); }
             return false;
         }
 
-        // 下載全台車站資料 (TR & THSR)
         async function fetchAllStations() {
             if(!tdxToken) return;
             const headers = { 'Authorization': `Bearer ${tdxToken}` };
-
             try {
-                // 1. 抓取臺鐵所有車站
                 const trRes = await fetch('https://tdx.transportdata.tw/api/basic/v3/Rail/TRA/Station?%24format=JSON', { headers });
                 const trData = await trRes.json();
-                stationDB.tr = trData.Stations.map(st => ({
-                    name: st.StationName.Zh_tw,
-                    lat: st.StationPosition.PositionLat,
-                    lon: st.StationPosition.PositionLon
-                }));
-                // 更新按鈕狀態
-                const trBtn = document.getElementById('trGeoBtn');
-                trBtn.classList.remove('loading');
-                trBtn.querySelector('span').innerText = '📍 定位並查看最近車站';
+                stationDB.tr = trData.Stations.map(st => ({ name: st.StationName.Zh_tw, lat: st.StationPosition.PositionLat, lon: st.StationPosition.PositionLon }));
+                document.getElementById('trGeoBtn').classList.remove('loading');
+                document.getElementById('trGeoBtn').querySelector('span').innerText = '📍 定位並查看最近車站';
 
-                // 2. 抓取高鐵所有車站
                 const thsrRes = await fetch('https://tdx.transportdata.tw/api/basic/v2/Rail/THSR/Station?%24format=JSON', { headers });
                 const thsrData = await thsrRes.json();
-                stationDB.thsr = thsrData.map(st => ({
-                    name: st.StationName.Zh_tw,
-                    lat: st.StationPosition.PositionLat,
-                    lon: st.StationPosition.PositionLon
-                }));
-                // 更新按鈕狀態
-                const thsrBtn = document.getElementById('thsrGeoBtn');
-                thsrBtn.classList.remove('loading');
-                thsrBtn.querySelector('span').innerText = '📍 定位並查看最近車站';
-
-                console.log(`車站資料更新完成：臺鐵 ${stationDB.tr.length} 站，高鐵 ${stationDB.thsr.length} 站`);
-
-            } catch(e) {
-                console.error("車站資料下載失敗", e);
-                document.getElementById('trGeoBtn').querySelector('span').innerText = '⚠️ 車站資料下載失敗';
-            }
+                stationDB.thsr = thsrData.map(st => ({ name: st.StationName.Zh_tw, lat: st.StationPosition.PositionLat, lon: st.StationPosition.PositionLon }));
+                document.getElementById('thsrGeoBtn').classList.remove('loading');
+                document.getElementById('thsrGeoBtn').querySelector('span').innerText = '📍 定位並查看最近車站';
+            } catch(e) { console.error(e); }
         }
 
-
-        // 2. 檢查營運阻斷 (Alert) - 單向跑馬燈
         async function checkSystemAlerts() {
             if(!tdxToken) return;
             const headers = { 'Authorization': `Bearer ${tdxToken}` };
-
             try {
                 const trRes = await fetch('https://tdx.transportdata.tw/api/basic/v3/Rail/TRA/Alert?%24format=JSON', { headers });
                 const trData = await trRes.json();
@@ -492,7 +460,6 @@
                 if (trData.Alerts && trData.Alerts.length > 0) {
                     const alert = trData.Alerts[0];
                     let msg = alert.Description || alert.Title;
-                    
                     trText.innerText = `臺鐵: ${msg}`;
                     trDot.className = 'status-dot warn';
                     trText.style.color = "#fbbf24";
@@ -504,23 +471,21 @@
                     trWrap.classList.remove('alert-scroll');
                 }
             } catch(e) { console.log(e); }
-
-            // 高鐵 (模擬)
             document.getElementById('thsrStatusText').innerText = "高鐵: 全線正常";
             document.getElementById('thsrStatusDot').className = 'status-dot ok';
         }
 
-        // 3. 監控邏輯
+        // ===== 監控核心邏輯 =====
         async function startRealMonitor() {
             if(monitorInterval) clearInterval(monitorInterval);
             
+            // 只要主開關開著，就執行監控 (跑馬燈)
+            const isMonitorOn = localStorage.getItem('monitor_enabled') === 'true';
             const trainNo = localStorage.getItem('mon_train');
             const targetStation = normalizeName(localStorage.getItem('mon_station'));
-            const isEnabled = localStorage.getItem('notify') === 'true';
-
             const marquee = document.getElementById('monitorStatusText');
 
-            if(!isEnabled || !trainNo) {
+            if(!isMonitorOn || !trainNo) {
                 marquee.innerText = "監控未啟用";
                 marquee.className = "monitor-text static";
                 return;
@@ -579,20 +544,70 @@
                 marquee.innerText = displayMsg;
                 marquee.style.color = delay > 0 ? "#f87171" : ""; 
 
-                if (localStorage.getItem('notify') === 'true' && delay > 0) {
+                // 通知邏輯：只有在「副開關 (push_enabled)」開啟時才發送
+                const isPushOn = localStorage.getItem('push_enabled') === 'true';
+                if (isPushOn && delay > 0) {
                     sendNotification(`🚆 ${trainNo}次 誤點通報`, `${statusStr}於 ${currentStn}${arrivalStr}`);
                 }
 
             } catch (e) { console.error(e); }
         }
 
+        // ===== 設定與開關邏輯 =====
+        function toggleSettings(show) {
+            const modal = document.getElementById('settingsModal');
+            if(show) {
+                modal.style.display = 'flex';
+                setTimeout(() => modal.classList.add('show'), 10);
+                
+                // 載入資料
+                const keys = ['tr_home','thsr_home','tr_s1','tr_e1','tr_s2','tr_e2','tr_s3','tr_e3','thsr_s1','thsr_e1','thsr_s2','thsr_e2','thsr_s3','thsr_e3','mon_train','mon_station'];
+                keys.forEach(k => { const el = document.getElementById(k); if(el) el.value = localStorage.getItem(k) || ''; });
+
+                // 載入開關狀態
+                const monitorOn = localStorage.getItem('monitor_enabled') === 'true';
+                document.getElementById('monitorSwitch').checked = monitorOn;
+                document.getElementById('monitorConfig').style.display = monitorOn ? 'block' : 'none';
+
+                const pushOn = localStorage.getItem('push_enabled') === 'true';
+                document.getElementById('pushSwitch').checked = pushOn;
+
+            } else {
+                modal.classList.remove('show');
+                setTimeout(() => modal.style.display = 'none', 300);
+            }
+        }
+
+        // 主開關：只控制 UI 與跑馬燈
+        function toggleMonitor(el) {
+            const config = document.getElementById('monitorConfig');
+            localStorage.setItem('monitor_enabled', el.checked);
+            config.style.display = el.checked ? 'block' : 'none';
+            // 立即生效，不需重整
+            startRealMonitor();
+        }
+
+        // 副開關：控制推播權限
+        function togglePush(el) {
+            if (el.checked) {
+                Notification.requestPermission().then(p => {
+                    if (p === 'granted') {
+                        localStorage.setItem('push_enabled', 'true');
+                        new Notification("通知測試", { body: "推播通知已啟用！" });
+                    } else {
+                        el.checked = false;
+                        localStorage.setItem('push_enabled', 'false');
+                        alert("請允許瀏覽器通知權限以使用推播功能");
+                    }
+                });
+            } else {
+                localStorage.setItem('push_enabled', 'false');
+            }
+        }
+
         function sendNotification(title, body) {
             if (Notification.permission === "granted") {
                 new Notification(title, { body: body, icon: '🚆' });
-            } else if (Notification.permission !== 'denied') {
-                Notification.requestPermission().then(p => {
-                    if (p === 'granted') new Notification(title, { body: body, icon: '🚆' });
-                });
             }
         }
 
@@ -600,109 +615,10 @@
             if (Notification.permission === "granted") {
                 new Notification("🔔 測試成功", { body: "瀏覽器通知功能正常運作中！" });
             } else {
-                alert("通知權限未開啟，請檢查瀏覽器網址列旁的設定。");
-                Notification.requestPermission();
+                alert("通知權限未開啟，請開啟「接收誤點推播通知」開關。");
             }
         }
 
-        function initTilt() {
-            if (window.innerWidth <= 768) return;
-            document.querySelectorAll('.entry-card').forEach(card => {
-                card.addEventListener('mousemove', (e) => {
-                    const rect = card.getBoundingClientRect();
-                    const x = e.clientX - rect.left - rect.width / 2;
-                    const y = e.clientY - rect.top - rect.height / 2;
-                    card.style.transform = `perspective(1000px) rotateX(${y / -15}deg) rotateY(${x / 15}deg)`;
-                });
-                card.addEventListener('mouseleave', () => card.style.transform = 'perspective(1000px) rotateX(0) rotateY(0)');
-            });
-        }
-
-        function goToSystem(sys) {
-            const home = normalizeName(localStorage.getItem(`${sys}_home`)) || '';
-            const baseUrl = sys === 'tr' ? '../tr/tr.html' : '../thsr/thsr.html';
-            window.location.href = home ? `${baseUrl}?station=${encodeURIComponent(home)}` : baseUrl;
-        }
-
-        function findNearest(sys) {
-            // 防呆：如果資料還沒載入完
-            if (stationDB[sys].length === 0) {
-                alert("車站資料正在下載中，請稍後再試...");
-                return;
-            }
-
-            if (!navigator.geolocation) { alert("瀏覽器不支援定位"); return; }
-            const btns = document.querySelectorAll('.geo-btn span');
-            const targetSpan = sys === 'tr' ? btns[0] : btns[1];
-            const originalText = targetSpan.innerText;
-            targetSpan.innerText = "🛰️ ...";
-            
-            navigator.geolocation.getCurrentPosition((pos) => {
-                let nearest = null, minDist = Infinity;
-                stationDB[sys].forEach(st => {
-                    const d = Math.hypot(st.lat - pos.coords.latitude, st.lon - pos.coords.longitude);
-                    if(d < minDist) { minDist = d; nearest = st.name; }
-                });
-                if (nearest) {
-                    targetSpan.innerText = `📍 最近: ${nearest}`;
-                    setTimeout(() => {
-                        const baseUrl = sys === 'tr' ? '../tr/tr.html' : '../thsr/thsr.html';
-                        window.location.href = `${baseUrl}?station=${encodeURIComponent(nearest)}`;
-                    }, 800);
-                }
-            }, () => { targetSpan.innerText = originalText; alert("無法取得位置"); });
-        }
-
-        function toggleSettings(show) {
-            const modal = document.getElementById('settingsModal');
-            if(show) {
-                modal.style.display = 'flex';
-                setTimeout(() => modal.classList.add('show'), 10);
-                const keys = ['tr_home','thsr_home','tr_s1','tr_e1','tr_s2','tr_e2','tr_s3','tr_e3','thsr_s1','thsr_e1','thsr_s2','thsr_e2','thsr_s3','thsr_e3','mon_train','mon_station'];
-                keys.forEach(k => {
-                    const el = document.getElementById(k);
-                    if(el) el.value = localStorage.getItem(k) || '';
-                });
-                const isOn = localStorage.getItem('notify') === 'true';
-                document.getElementById('notifySwitch').checked = isOn;
-                document.getElementById('monitorConfig').style.display = isOn ? 'block' : 'none';
-            } else {
-                modal.classList.remove('show');
-                setTimeout(() => modal.style.display = 'none', 300);
-            }
-        }
-
-        function toggleNotify(el) {
-            const configArea = document.getElementById('monitorConfig');
-            
-            if (el.checked) {
-                // 1. 立即顯示介面 (不管權限狀態)
-                configArea.style.display = 'block';
-                
-                // 2. 背景非同步處理權限
-                if (Notification.permission === "granted") {
-                    localStorage.setItem('notify', 'true');
-                    new Notification("通知測試", { body: "監控通知已成功啟用！" });
-                } else {
-                    Notification.requestPermission().then(p => {
-                        if (p === "granted") {
-                            localStorage.setItem('notify', 'true');
-                            new Notification("通知測試", { body: "監控通知已成功啟用！" });
-                        } else {
-                            // 若使用者拒絕，才把開關關掉並隱藏介面
-                            el.checked = false;
-                            localStorage.setItem('notify', 'false');
-                            configArea.style.display = 'none';
-                            alert("需允許通知權限以使用監控功能");
-                        }
-                    });
-                }
-            } else {
-                localStorage.setItem('notify', 'false');
-                configArea.style.display = 'none';
-            }
-        }
-        
         function toggleDarkMode() {
             document.body.classList.toggle('light-mode');
             const isLight = document.body.classList.contains('light-mode');
@@ -747,6 +663,52 @@
             changeLanguage(localStorage.getItem('lang') || 'zh');
         }
 
+        function initTilt() {
+            if (window.innerWidth <= 768) return;
+            document.querySelectorAll('.entry-card').forEach(card => {
+                card.addEventListener('mousemove', (e) => {
+                    const rect = card.getBoundingClientRect();
+                    const x = e.clientX - rect.left - rect.width / 2;
+                    const y = e.clientY - rect.top - rect.height / 2;
+                    card.style.transform = `perspective(1000px) rotateX(${y / -15}deg) rotateY(${x / 15}deg)`;
+                });
+                card.addEventListener('mouseleave', () => card.style.transform = 'perspective(1000px) rotateX(0) rotateY(0)');
+            });
+        }
+
+        function goToSystem(sys) {
+            const home = normalizeName(localStorage.getItem(`${sys}_home`)) || '';
+            const baseUrl = sys === 'tr' ? '../tr/tr.html' : '../thsr/thsr.html';
+            window.location.href = home ? `${baseUrl}?station=${encodeURIComponent(home)}` : baseUrl;
+        }
+
+        function findNearest(sys) {
+            if (stationDB[sys].length === 0) {
+                alert("車站資料正在下載中，請稍後再試...");
+                return;
+            }
+            if (!navigator.geolocation) { alert("瀏覽器不支援定位"); return; }
+            const btns = document.querySelectorAll('.geo-btn span');
+            const targetSpan = sys === 'tr' ? btns[0] : btns[1];
+            const originalText = targetSpan.innerText;
+            targetSpan.innerText = "🛰️ ...";
+            
+            navigator.geolocation.getCurrentPosition((pos) => {
+                let nearest = null, minDist = Infinity;
+                stationDB[sys].forEach(st => {
+                    const d = Math.hypot(st.lat - pos.coords.latitude, st.lon - pos.coords.longitude);
+                    if(d < minDist) { minDist = d; nearest = st.name; }
+                });
+                if (nearest) {
+                    targetSpan.innerText = `📍 最近: ${nearest}`;
+                    setTimeout(() => {
+                        const baseUrl = sys === 'tr' ? '../tr/tr.html' : '../thsr/thsr.html';
+                        window.location.href = `${baseUrl}?station=${encodeURIComponent(nearest)}`;
+                    }, 800);
+                }
+            }, () => { targetSpan.innerText = originalText; alert("無法取得位置"); });
+        }
+
         const translations = {
             zh: { title: "新時刻表", subtitle: "Real-time Railway Data", tra: "臺鐵", thsr: "高鐵", settings: "系統設定", done: "儲存並離開" },
             en: { title: "Timetable Pro", subtitle: "Live Railway Data", tra: "TRA", thsr: "THSR", settings: "Settings", done: "Save & Exit" },
@@ -773,7 +735,6 @@
             initTilt();
             renderFavs();
             if(localStorage.getItem('theme') === 'light') document.body.classList.add('light-mode');
-            
             const success = await getTdxToken();
             if(success) startRealMonitor();
         };
