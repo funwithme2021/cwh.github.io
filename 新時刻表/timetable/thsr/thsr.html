@@ -6,7 +6,10 @@
   <title>台灣高鐵時刻表 (真實數據即時版)</title>
   <link href="https://fonts.googleapis.com" rel="preconnect"/><link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&amp;family=Noto+Sans+TC:wght@400;500;700&amp;display=swap" rel="stylesheet"/>
   <style> 
-  /* ===== 1. 核心變數與 Reset ===== */
+  /* ===== 全域效能優化 (Performance) ===== */
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  /* ===== 核心變數與 Reset ===== */
   :root {
     --font-main: 'Inter', 'Noto Sans TC', sans-serif;
     --bg-body: #f8fafc;
@@ -16,22 +19,112 @@
     --text-muted: #64748b;
     --text-light: #94a3b8;
     --border: #e2e8f0;
-    --primary: #2563eb;
-    --primary-bg: rgba(37, 99, 235, 0.1);
+    --primary: #fb923c; /* 高鐵橘 */
+    --primary-bg: rgba(251, 146, 60, 0.1);
     --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
     --radius: 10px;
   }
+
   /* 狀態文字顏色 */
   .status-text-未發車 { color: var(--text-muted); }
   .status-text-行駛中, .status-text-準點 { color: #22c55e; font-weight: 600; }
   .status-text-已過站, .status-text-已到終點 { color: var(--text-light); }
 
   /* 剩餘座位圖示 */
-  .seat-icon { font-size: 1.2rem; font-weight: bold; }
+  .seat-icon { font-size: 1.1rem; font-weight: bold; display: inline-block; width: 1.2em; text-align: center; }
   .seat-o { color: #22c55e; }
   .seat-l { color: #f59e0b; }
   .seat-x { color: #ef4444; }
   .seat-none { color: var(--text-light); opacity: 0.5; }
+
+  /* ===== 行動裝置優化增強 (Mobile Overrides) ===== */
+  @media (max-width: 760px) {
+    /* 1. 隱藏背景特效以解決卡頓 */
+    .bg-blobs { display: none !important; }
+    .header, .navbar, .card, .modal-content {
+        backdrop-filter: none !important;
+        -webkit-backdrop-filter: none !important;
+        background: var(--bg-surface) !important;
+    }
+
+    /* 2. 手機版欄位顯示控制 */
+    .col-range, .col-stops, .col-seat-biz, .col-ticket { display: none !important; }
+    /* 強制顯示標準座(col-seat-std)與其他重要資訊 */
+    
+    /* 3. 調整表格字體與內距 */
+    table { font-size: 0.85rem; }
+    th, td { padding: 12px 4px !important; }
+    
+    /* 4. 展開按鈕樣式 */
+    .mobile-expand-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 24px; height: 24px;
+        background: var(--primary-bg);
+        color: var(--primary);
+        border-radius: 50%;
+        margin-right: 6px;
+        font-weight: bold;
+        font-size: 16px;
+        cursor: pointer;
+        user-select: none;
+    }
+
+    /* 5. 手機版詳情行樣式 */
+    .mobile-detail-row td {
+        background: var(--bg-body) !important;
+        padding: 12px 16px !important;
+        border-left: 4px solid var(--primary);
+        box-shadow: inset 0 2px 6px rgba(0,0,0,0.02);
+    }
+
+    /* 詳情頁面佈局 */
+    .detail-row-flex {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 8px;
+        padding-bottom: 8px;
+        border-bottom: 1px dashed var(--border);
+    }
+    
+    .detail-seats-row {
+        display: flex; gap: 16px; margin-bottom: 10px;
+        font-size: 0.9rem; color: var(--text-main);
+        background: rgba(0,0,0,0.02); padding: 8px; border-radius: 8px;
+    }
+
+    .detail-range-info {
+        font-weight: 700;
+        font-size: 1rem;
+        color: var(--text-main);
+    }
+
+    .detail-label {
+        font-size: 0.8rem;
+        color: var(--text-muted);
+        font-weight: 700;
+        margin-bottom: 6px;
+        display: block;
+    }
+  }
+
+  /* 非手機端樣式 */
+  @media (min-width: 761px) {
+    .mobile-expand-btn { display: none; }
+  }
+
+  /* 通用：停靠站 Grid 排版 */
+  .stops-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(6.5em, 1fr));
+      gap: 6px 8px;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      line-height: 1.4;
+  }
+  .stop-item { white-space: nowrap; display: inline-block; }
 
   body.dark-mode {
     --bg-body: #0f172a;
@@ -41,12 +134,10 @@
     --text-muted: #94a3b8;
     --text-light: #64748b;
     --border: #334155;
-    --primary: #60a5fa;
-    --primary-bg: rgba(96, 165, 250, 0.15);
+    --primary: #fb923c;
+    --primary-bg: rgba(251, 146, 60, 0.15);
   }
 
-  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-  
   body {
     font-family: var(--font-main);
     background: var(--bg-body);
@@ -55,43 +146,33 @@
     padding-bottom: 40px;
   }
 
-  /* ===== 2. 導航列 ===== */
-  .navbar {
-    position: sticky; top: 0; z-index: 100;
-    display: flex; justify-content: space-between; align-items: center;
-    padding: 0.8rem 1.5rem;
-    background: var(--bg-header);
-    backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
-    border-bottom: 1px solid var(--border);
+  /* ===== 導航列 ===== */
+  .header{
+      position: sticky; top:0; z-index: 120;
+      background: var(--bg-header);
+      backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border); padding: 12px 16px;
   }
-  .navbar .brand { font-weight: 700; font-size: 1.1rem; color: var(--primary); display: flex; align-items: center; gap: 8px; }
-  .nav-links { display: flex; gap: 4px; align-items: center; }
-  .nav-links a {
-    color: var(--text-muted); text-decoration: none; font-size: 0.9rem; font-weight: 500;
-    padding: 6px 12px; border-radius: 6px; transition: 0.2s;
+  .header-content{
+      max-width: 1200px; margin: 0 auto;
+      display:flex; align-items:center; justify-content:space-between; gap: 12px;
   }
-  .nav-links a:hover { background: var(--bg-body); color: var(--primary); }
-  .theme-btn {
-    border: 1px solid var(--border); background: var(--bg-surface); color: var(--text-main);
-    padding: 6px 12px; border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 6px;
+  .logo{
+      font-weight: 800; letter-spacing: .5px; color: var(--primary);
+      display:flex; align-items: baseline; gap: 6px;
   }
-  .hamburger { display: none; flex-direction: column; gap: 5px; cursor: pointer; padding: 5px; }
-  .hamburger span { width: 24px; height: 2px; background: var(--text-main); }
-
-  @media(max-width: 900px) {
-    .nav-links {
-      position: absolute; top: 100%; left: 0; width: 100%;
-      background: var(--bg-surface); border-bottom: 1px solid var(--border);
-      flex-direction: column; align-items: flex-start; padding: 0;
-      max-height: 0; overflow: hidden; opacity: 0; transition: 0.3s;
-    }
-    .nav-links.open { max-height: 500px; opacity: 1; padding: 1rem; }
-    .nav-links a { width: 100%; padding: 10px; }
-    .hamburger { display: flex; }
+  .logo span{ font-weight: 600; color: var(--text-muted); font-size: .85rem; }
+  .date-picker{ display:flex; align-items:center; gap: 8px; }
+  
+  .btn-ghost{
+      border:1px solid var(--border); background: transparent; color: var(--text-main);
+      padding: 6px 12px; border-radius: 999px; cursor:pointer; font-weight:700;
   }
+  .btn-ghost:hover{ background: rgba(148,163,184,0.14); }
 
   /* ===== 3. 主要容器 ===== */
   .container { max-width: 1200px; margin: 20px auto; padding: 0 16px; }
+  @media (max-width: 760px){ .container{ width: 94%; margin: 18px auto; } .header{ padding: 12px 14px; } }
   .grid { display: grid; gap: 24px; }
 
   .card {
@@ -101,6 +182,7 @@
     padding: 24px;
     box-shadow: var(--shadow-sm);
   }
+  @media (max-width: 760px){ .card{ padding: 16px 14px; border-radius: 20px; } }
 
   .section-title {
     font-size: 1.1rem; font-weight: 700; margin-bottom: 16px;
@@ -110,6 +192,7 @@
 
   /* ===== 4. 表單與篩選 ===== */
   .form-row { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-bottom: 16px; position: relative; }
+  @media (max-width: 760px){ .form-row{ gap: 10px; } }
   
   .input-group { 
     display: flex; align-items: center; gap: 8px; 
@@ -117,10 +200,16 @@
     border: 1px solid var(--border); border-radius: 8px; 
     flex: 1; min-width: 120px;
   }
+  @media (max-width: 760px){ .input-group{ padding: 8px 10px; min-width: 130px; } }
+
   .input-group label { font-size: 0.85rem; color: var(--text-muted); font-weight: 600; white-space: nowrap; }
   input, select {
     border: none; background: transparent; color: var(--text-main); 
     font-size: 0.95rem; padding: 6px; outline: none; width: 100%; 
+  }
+  .input-field{
+      border:1px solid var(--border); background: var(--bg-surface); color: var(--text-main);
+      padding: 6px 10px; border-radius: 8px; outline: none; font-family: var(--font-main);
   }
 
   /* 互換按鈕 */
@@ -138,25 +227,18 @@
     cursor: pointer; white-space: nowrap;
   }
 
-  /* 常用行程按鈕樣式 */
+  /* 常用行程按鈕 */
   .btn-fav {
-    background: #3b82f6; 
-    color: white;
-    border: none;
-    border-radius: 20px; 
-    padding: 6px 14px;
-    font-size: 0.9rem;
-    font-weight: 700;
+    background: var(--primary); 
+    color: white; border: none; border-radius: 20px; 
+    padding: 6px 14px; font-size: 0.9rem; font-weight: 700;
     display: flex; align-items: center; gap: 4px;
-    cursor: pointer;
-    box-shadow: 0 2px 5px rgba(59,130,246,0.3);
-    white-space: nowrap;
-    transition: 0.2s;
+    cursor: pointer; box-shadow: 0 2px 5px rgba(251, 146, 60, 0.3);
+    white-space: nowrap; transition: 0.2s;
   }
-  .btn-fav:hover { background: #2563eb; transform: translateY(-1px); }
-  .fav-star { color: #facc15; font-size: 1.1em; } /* 黃色星星 */
+  .btn-fav:hover { filter: brightness(1.1); transform: translateY(-1px); }
+  .fav-star { color: #fff; font-size: 1.1em; }
 
-  /* 常用行程彈出選單 */
   .fav-popup {
      position: absolute; top: 100%; left: 0; z-index: 50;
      background: var(--bg-surface); border: 1px solid var(--border);
@@ -174,7 +256,7 @@
   .fav-item:hover { background: var(--bg-body); color: var(--primary); }
   .fav-empty { padding: 10px; color: var(--text-muted); font-size: 0.85rem; text-align: center; }
 
-  /* 歷史紀錄 Chips */
+  /* Chips */
   .history-chips { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
   .history-chip {
     font-size: 0.8rem; padding: 4px 10px; border-radius: 12px;
@@ -183,8 +265,6 @@
   }
   .history-chip:hover { background: var(--primary-bg); color: var(--primary); border-color: var(--primary); }
 
-  /* 標籤式 Checkbox */
-  .chip-group { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
   .chip-label {
     display: inline-flex; align-items: center; gap: 6px;
     padding: 5px 10px; border-radius: 20px;
@@ -200,7 +280,7 @@
   .chip-label input:checked + span { color: var(--primary); }
 
   /* ===== 5. 表格樣式 ===== */
-  .table-wrapper { overflow-x: auto; border: 1px solid var(--border); border-radius: 8px; }
+  .table-wrapper { overflow-x: auto; border: 1px solid var(--border); border-radius: 8px; -webkit-overflow-scrolling: touch; }
   table { width: 100%; border-collapse: collapse; font-size: 0.9rem; white-space: nowrap; }
   
   th {
@@ -214,9 +294,9 @@
 
   td { font-feature-settings: "tnum"; font-variant-numeric: tabular-nums; }
   
-  .badge-sea { font-size: 0.7rem; padding: 2px 6px; border-radius: 4px; background: #0ea5e9; color: #fff; margin-left: 4px; }
   .train-route { font-size: 0.85rem; color: var(--text-muted); margin-left: 6px; }
-  .progress-bar { width: 100px; height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; margin-top: 4px; }
+  /* 進度條寬度在 JS 中動態控制，手機版已要求縮短 */
+  .progress-bar { height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; margin-top: 4px; }
   .progress-fill { height: 100%; background: linear-gradient(90deg, #22c55e 0%, #f59e0b 55%, #ef4444 100%); border-radius: 3px; }
 
   /* ===== 6. Modal (彈窗) & 時間軸 ===== */
@@ -257,33 +337,24 @@
     color: var(--text-main); padding-right: 15px; padding-top: 2px;
     font-variant-numeric: tabular-nums;
   }
-  
-  .tl-marker {
-    display: flex; flex-direction: column; align-items: center; width: 20px; position: relative;
-  }
+  .tl-marker { display: flex; flex-direction: column; align-items: center; width: 20px; position: relative; }
   .tl-line { width: 2px; background: var(--border); flex-grow: 1; margin-top: 4px; margin-bottom: -4px; }
   .timeline-item:last-child .tl-line { display: none; }
   .tl-dot {
     width: 10px; height: 10px; border-radius: 50%; background: var(--border);
     border: 2px solid var(--bg-surface); z-index: 1; flex-shrink: 0; transition: all 0.3s;
   }
-  
   .tl-content { padding-left: 15px; padding-bottom: 24px; flex-grow: 1; }
   .timeline-item:last-child .tl-content { padding-bottom: 10px; }
-  
   .tl-station { font-size: 1rem; font-weight: 600; color: var(--text-main); display: flex; align-items: center; }
   .st-arr{ font-size:0.55em; font-weight:600; color:var(--text-muted); margin-left:8px; font-variant-numeric: tabular-nums; }
-  
   .timeline-item.passed .tl-time, .timeline-item.passed .tl-station { opacity: 0.4; filter: grayscale(1); }
   .timeline-item.passed .tl-dot { background: var(--border); }
-
   .timeline-item.next .tl-dot { 
     background: #22c55e; width: 14px; height: 14px; 
-    box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.2); 
-    border-color: #fff; 
+    box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.2); border-color: #fff; 
   }
   .timeline-item.next .tl-station { color: #15803d; font-weight: 700; }
-  body.dark-mode .timeline-item.next .tl-station { color: #4ade80; }
   
   .badge-next {
     display: inline-flex; align-items: center; gap: 4px;
@@ -297,12 +368,12 @@
   .query-tab{appearance:none;border:1px solid var(--border);background:var(--card-bg);color:var(--text-main);
     padding:10px 12px;border-radius:12px;font-weight:700;cursor:pointer;transition:.15s}
   .query-tab:hover{transform:translateY(-1px)}
-  .query-tab.active{background:linear-gradient(135deg,#3b82f6,#2563eb);color:#fff;border-color:transparent}
+  .query-tab.active{background:linear-gradient(135deg, var(--primary), #ea580c);color:#fff;border-color:transparent}
   .query-panel.hidden{display:none}
 
   .ticket-btn{
     border:1px solid var(--border); background:var(--bg-body); color:var(--text-main);
-    border-radius:10px; padding:6px 10px; cursor:pointer; font-size:16px; line-height:1;
+    border-radius:10px; padding:6px 12px; cursor:pointer; font-size:14px; line-height:1; font-weight: 700;
   }
   .ticket-btn:active{ transform:scale(.98); }
   .ticket-btn[disabled]{ opacity:.45; cursor:not-allowed; transform:none; }
@@ -321,37 +392,20 @@
   }
   @keyframes spin { to{ transform: rotate(360deg);} }
 
-  .header{
-      position: sticky; top:0; z-index: 120;
-      background: var(--bg-header);
-      backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
-      border-bottom: 1px solid var(--border); padding: 12px 16px;
-  }
-  .header-content{
-      max-width: 1200px; margin: 0 auto;
-      display:flex; align-items:center; justify-content:space-between; gap: 12px;
-  }
-  .logo{
-      font-weight: 800; letter-spacing: .5px; color: var(--primary);
-      display:flex; align-items: baseline; gap: 6px;
-  }
-  .logo span{ font-weight: 600; color: var(--text-muted); font-size: .85rem; }
-  .date-picker{ display:flex; align-items:center; gap: 8px; }
-  .btn-ghost{
-      border:1px solid var(--border); background: transparent; color: var(--text-main);
-      padding: 6px 12px; border-radius: 999px; cursor:pointer; font-weight:700;
-  }
-  .btn-ghost:hover{ background: rgba(148,163,184,0.14); }
-
-  .input-field{
-      border:1px solid var(--border); background: var(--bg-surface); color: var(--text-main);
-      padding: 6px 10px; border-radius: 8px; outline: none; font-family: var(--font-main);
-  }
-  .toggle-arrow{ color: var(--text-muted); margin-left: 6px; font-size: .85rem; cursor:pointer; }
-  .stops-row td{ background: var(--bg-body); color: var(--text-muted); font-size: .85rem; }
+  /* ===== 背景裝飾 (桌面版) ===== */
+  .bg-blobs { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; filter: blur(120px); opacity: 0.42; pointer-events:none; }
+  .blob { position: absolute; width: 60vw; height: 60vw; border-radius: 50%; animation: float 25s infinite alternate ease-in-out; }
+  .blob-1 { background: #fb923c; top: -10%; left: -10%; }
+  .blob-2 { background: #2563eb; bottom: -10%; right: -10%; }
+  @keyframes float { 0% { transform: translate(0, 0); } 100% { transform: translate(10%, 15%); } }
 </style>
 </head>
-<body>
+<body class="light-mode">
+
+<div class="bg-blobs" aria-hidden="true">
+  <div class="blob blob-1"></div>
+  <div class="blob blob-2"></div>
+</div>
 
 <div id="loading-overlay">
   <div class="spinner"></div>
@@ -418,12 +472,16 @@
         <table id="scheduleTableByStation">
           <thead>
             <tr>
-              <th>車次</th><th>區間</th>
+              <th>車次</th>
+              <th class="col-range">區間</th>
               <th>出發 <span id="sortDepIcon">↕</span></th>
               <th>抵達 <span id="sortArrIcon">↕</span></th>
-              <th>耗時 <span id="sortDurIcon">↕</span></th>
-              <th>停靠</th><th>狀態</th>
-              <th class="seat-col-header">標準</th> <th class="seat-col-header">商務</th> <th>訂票</th>
+              <th class="col-dur">耗時 <span id="sortDurIcon">↕</span></th>
+              <th class="col-stops">停靠</th>
+              <th>狀態</th>
+              <th class="seat-col-header col-seat-std">標準</th> 
+              <th class="seat-col-header col-seat-biz">商務</th> 
+              <th class="col-ticket">訂票</th>
             </tr>
           </thead>
           <tbody></tbody>
@@ -496,7 +554,6 @@
   let lastStartEndQuery = null;
   let lastStationQuery  = null;
   let lastTrainQuery    = null;
-  let expandedStops = new Set();
   let modalCtx = null;
   let currentSeatMap = {}; 
   let currentStartEndList = [];
@@ -609,8 +666,12 @@
     if (!st || !ed || !queryDate) return;
     document.getElementById('startStation').value = st;
     document.getElementById('endStation').value = ed;
+    
+    // 設定是否為過去日期，影響是否顯示座位
     const isPastDate = queryDate < todayStr;
+    // 手機版會隱藏標頭，這裡主要是給桌面版
     document.querySelectorAll('.seat-col-header').forEach(th => { th.style.display = isPastDate ? 'none' : ''; });
+    
     lastStartEndQuery = { st, ed };
     buildDirectList(st, ed);
     renderStartEndTable();
@@ -642,7 +703,8 @@
           range: `${adjStops[0].name}➝${adjStops.slice(-1)[0].name}`,
           stopBetween: i2 - i1 - 1,
           status: getStatusLabel(start.originDate, start.time, end.time, firstDep, 'list'),
-          originDate: start.originDate, midStops: adjStops.slice(i1 + 1, i2)
+          originDate: start.originDate, midStops: adjStops.slice(i1 + 1, i2),
+          startStation: st, endStation: ed
         });
       });
     });
@@ -669,31 +731,152 @@
 
   function getSeatIcon(trainNo, type, originDateStr) {
     const key = `${String(trainNo)}|${originDateStr}`; const info = currentSeatMap?.[key]; const status = info ? info[type] : '--';
-    if(status==='O') return '<span class="seat-icon seat-o">○</span>'; if(status==='L') return '<span class="seat-icon seat-l">△</span>'; if(status==='X') return '<span class="seat-icon seat-x">✕</span>'; return '<span class="seat-none">--</span>';
+    if(status==='O') return '<span class="seat-icon seat-o">○</span>'; if(status==='L') return '<span class="seat-icon seat-l">△</span>'; if(status==='X') return '<span class="seat-icon seat-x">✕</span>'; return '<span class="seat-icon seat-none">--</span>';
   }
 
   function renderStartEndTable() {
     const tbody = document.querySelector('#scheduleTableByStation tbody'); if (!tbody) return;
     tbody.innerHTML = '';
-    const queryDate = document.getElementById('mainQueryDate').value; const todayStr = fmtDate(new Date()); const isPastDate = queryDate < todayStr; const colSpanNum = isPastDate ? 8 : 10;
-    if (!currentStartEndList.length) { tbody.innerHTML = `<tr><td colspan="${colSpanNum}" style="text-align:center;">查無資料</td></tr>`; return; }
-    const nowMin = new Date().getHours() * 60 + new Date().getMinutes(); const maxDur = Math.max(1, ...currentStartEndList.map(x => x.durMin || 0));
-    currentStartEndList.forEach(row => {
-        const tr = document.createElement('tr'); const depMin = parseTime(row.dep);
-        const canBook = (row.originDate > todayStr) || (row.originDate === todayStr && depMin !== null && (depMin - nowMin) > 10);
-        const ticketBtn = canBook ? `<button class="ticket-btn" onclick="event.stopPropagation(); openTHSRBookingDeepLink('${row.trainNo}', '${row.originDate}', '${row.dep}')">🎫</button>` : `<span style="font-size:12px;color:var(--text-light);">停止預訂</span>`;
-        let seatCells = isPastDate ? '' : `<td style="text-align:center;">${getSeatIcon(row.trainNo, 'standard', row.originDate)}</td><td style="text-align:center;">${getSeatIcon(row.trainNo, 'business', row.originDate)}</td>`;
-        const isExpanded = expandedStops.has(String(row.trainNo)); const toggleIcon = isExpanded ? '▲' : '▼';
-        const stopText = row.stopBetween <= 0 ? '直達' : `<span class="stop-toggle" data-train="${row.trainNo}" style="cursor:pointer; color:var(--text-main); font-weight:600;">${row.stopBetween}站 <span style="font-size:0.8em; margin-left:2px;">${toggleIcon}</span></span>`;
-        tr.innerHTML = `<td style="font-weight:800">${row.trainNo}</td><td><span class="train-route">${row.range}</span></td><td>${row.dep}</td><td>${row.arr}</td><td><div style="display:flex;flex-direction:column;gap:4px;"><div style="font-weight:800">${durationText(0, row.durMin).replace('0h ','')}</div><div class="progress-bar" style="width:80px;"><div class="progress-fill" style="width:${Math.round((row.durMin / maxDur) * 100)}%;"></div></div></div></td><td>${stopText}</td><td>${statusBadge(row.status)}</td>${seatCells}<td style="text-align:center;">${ticketBtn}</td>`;
-        tr.onclick = () => showTrainDetails(row.trainNo, row.originDate);
-        tbody.appendChild(tr);
-        if (isExpanded) {
-            const tr2 = document.createElement('tr'); const stopsStr = row.midStops.map(s => `${s.name}(${s.arr || s.time})`).join('、');
-            tr2.innerHTML = `<td colspan="${colSpanNum}" class="stops-row">沿途停靠：${stopsStr}</td>`; tbody.appendChild(tr2);
+    const queryDate = document.getElementById('mainQueryDate').value; const todayStr = fmtDate(new Date()); const isPastDate = queryDate < todayStr;
+    
+    if (!currentStartEndList.length) { tbody.innerHTML = `<tr><td colspan="10" style="text-align:center;">查無資料</td></tr>`; return; }
+    
+    const nowMin = new Date().getHours() * 60 + new Date().getMinutes(); 
+    const maxDur = Math.max(1, ...currentStartEndList.map(x => x.durMin || 0));
+
+    // 事件代理 (手機版摺疊 + 訂票 + 停靠站展開)
+    tbody.onclick = async (e) => {
+        // A. 手機版展開按鈕
+        const expandBtn = e.target.closest('.mobile-expand-btn');
+        if(expandBtn){
+            e.stopPropagation();
+            const tr = expandBtn.closest('tr');
+            const idx = Number(expandBtn.dataset.idx);
+            const r = currentStartEndList[idx];
+
+            if(tr.nextElementSibling && tr.nextElementSibling.classList.contains('mobile-detail-row')){
+                tr.nextElementSibling.remove();
+                expandBtn.textContent = '+';
+            } else {
+                const detailRow = document.createElement('tr');
+                detailRow.className = 'mobile-detail-row';
+                
+                // 停靠站 Grid
+                let stopsHTML = '';
+                if(r.midStops && r.midStops.length > 0){
+                    const stopsSpans = r.midStops.map(s => `<span class="stop-item">${s.name}(${s.time})</span>`).join('');
+                    stopsHTML = `<div class="stops-grid">${stopsSpans}</div>`;
+                } else {
+                    stopsHTML = '<span style="color:#16a34a;font-weight:600">直達（無中途停靠）</span>';
+                }
+
+                // 訂票按鈕邏輯
+                const depMin = parseTime(r.dep);
+                const canBook = (r.originDate > todayStr) || (r.originDate === todayStr && depMin !== null && (depMin - nowMin) > 10);
+                let btnHTML = '';
+                if(canBook){
+                    btnHTML = `<button class="ticket-btn" onclick="openTHSRBookingDeepLink('${r.trainNo}', '${r.originDate}', '${r.dep}')">🎫 立即訂票</button>`;
+                } else {
+                    btnHTML = `<button class="ticket-btn" disabled style="opacity:0.5;cursor:not-allowed">停止預訂</button>`;
+                }
+
+                // 座位狀態 HTML
+                const seatStd = getSeatIcon(r.trainNo, 'standard', r.originDate);
+                const seatBiz = getSeatIcon(r.trainNo, 'business', r.originDate);
+
+                detailRow.innerHTML = `
+                    <td colspan="10">
+                        <div class="detail-row-flex">
+                            <div class="detail-range-info">${r.range}</div>
+                            <div>${btnHTML}</div>
+                        </div>
+                        <div class="detail-seats-row">
+                            <div>標準: ${seatStd}</div>
+                            <div>商務: ${seatBiz}</div>
+                        </div>
+                        <div class="detail-label">停靠站</div>
+                        ${stopsHTML}
+                    </td>
+                `;
+                tr.parentNode.insertBefore(detailRow, tr.nextSibling);
+                expandBtn.textContent = '-';
+            }
+            return;
         }
+
+        // B. 訂票按鈕 (PC)
+        const ticket = e.target.closest('.ticket-btn');
+        if(ticket && !ticket.disabled){
+            e.stopPropagation(); // 阻止冒泡避免觸發 row click
+            // 已經在 onclick 處理
+            return;
+        }
+
+        // C. 停靠站展開箭頭 (PC)
+        const toggle = e.target.closest('.stop-toggle');
+        if(toggle){
+            e.stopPropagation();
+            const tr = toggle.closest('tr');
+            const idx = Number(tr.dataset.idx);
+            const r = currentStartEndList[idx];
+            
+            const next = tr.nextElementSibling;
+            if(next && next.classList.contains('stops-row')){
+                next.remove();
+            } else {
+                const tr2 = document.createElement('tr');
+                const stopsStr = r.midStops.map(s => `${s.name}(${s.arr || s.time})`).join('、');
+                tr2.innerHTML = `<td colspan="10" class="stops-row">沿途停靠：${stopsStr}</td>`;
+                tr.parentNode.insertBefore(tr2, tr.nextSibling);
+            }
+            return;
+        }
+
+        // D. 列點擊 (開啟 Modal)
+        const tr = e.target.closest('tr');
+        if(!tr || tr.parentElement !== tbody || tr.classList.contains('mobile-detail-row') || tr.classList.contains('stops-row')) return;
+        const idx = Number(tr.dataset.idx);
+        const r = currentStartEndList[idx];
+        if(!r) return;
+        showTrainDetails(r.trainNo, r.originDate);
+    };
+
+    currentStartEndList.forEach((row, idx) => {
+        const tr = document.createElement('tr');
+        tr.dataset.idx = idx;
+        tr.className = "main-row";
+
+        const depMin = parseTime(row.dep);
+        const canBook = (row.originDate > todayStr) || (row.originDate === todayStr && depMin !== null && (depMin - nowMin) > 10);
+        const ticketBtn = canBook ? `<button class="ticket-btn">🎫</button>` : `<span style="font-size:12px;color:var(--text-light);">停止</span>`;
+        
+        let seatCells = `<td class="col-seat-std" style="text-align:center;">${getSeatIcon(row.trainNo, 'standard', row.originDate)}</td><td class="col-seat-biz" style="text-align:center;">${getSeatIcon(row.trainNo, 'business', row.originDate)}</td>`;
+        if(isPastDate) seatCells = `<td class="col-seat-std" style="text-align:center;">--</td><td class="col-seat-biz" style="text-align:center;">--</td>`;
+
+        const stopText = row.stopBetween <= 0 ? '直達' : `<span class="stop-toggle" style="cursor:pointer; color:var(--text-main); font-weight:600;">${row.stopBetween}站 ▼</span>`;
+
+        tr.innerHTML = `
+            <td>
+                <span class="mobile-expand-btn" data-idx="${idx}">+</span>
+                <b>${row.trainNo}</b>
+            </td>
+            <td class="col-range"><span class="train-route">${row.range}</span></td>
+            <td>${row.dep}</td>
+            <td>${row.arr}</td>
+            <td class="col-dur">
+                <div style="display:flex;flex-direction:column;gap:4px;">
+                    <div style="font-weight:800;font-size:0.85rem;">${durationText(0, row.durMin).replace('0h ','')}</div>
+                    <div class="progress-bar" style="width:60px;">
+                        <div class="progress-fill" style="width:${Math.round((row.durMin / maxDur) * 100)}%;"></div>
+                    </div>
+                </div>
+            </td>
+            <td class="col-stops">${stopText}</td>
+            <td>${statusBadge(row.status)}</td>
+            ${seatCells}
+            <td class="col-ticket" style="text-align:center;">${ticketBtn}</td>`;
+        tbody.appendChild(tr);
     });
-    tbody.querySelectorAll('.stop-toggle').forEach(el => { el.onclick = (e) => { e.stopPropagation(); const tn = el.dataset.train; expandedStops.has(tn)?expandedStops.delete(tn):expandedStops.add(tn); renderStartEndTable(); }; });
   }
 
   function filterTrainScheduleByStationName(){
@@ -835,9 +1018,6 @@
     } catch (e) { console.error("Deep Link Error:", e); alert("系統發生錯誤，請稍後再試"); }
   }
 
-  // ===============================================
-  // 新增功能：處理 URL 參數與常用行程按鈕邏輯
-  // ===============================================
   function handleUrlParams() {
     const p = new URLSearchParams(window.location.search);
     const pStart = p.get('start');
@@ -883,7 +1063,7 @@
             hasFav = true;
             const item = document.createElement('div');
             item.className = 'fav-item';
-            item.innerHTML = `<span style="color:#3b82f6;">📍</span> ${s} → ${e}`;
+            item.innerHTML = `<span style="color:var(--primary);">📍</span> ${s} → ${e}`;
             item.onclick = () => {
                 document.getElementById('startStation').value = s;
                 document.getElementById('endStation').value = e;
