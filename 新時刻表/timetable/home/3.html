@@ -39,7 +39,7 @@
         * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
         body { font-family: 'Inter', 'Noto Sans TC', sans-serif; background-color: var(--bg-dark); color: var(--text-main); min-height: 100vh; display: flex; flex-direction: column; align-items: center; transition: background-color 0.4s ease; overflow-x: hidden; padding-top: var(--status-bar-h); }
 
-        /* 背景流動動畫 */
+        /* 背景流動動畫 (已還原) */
         .bg-blobs { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; pointer-events: none; overflow: hidden; }
         .blob { position: absolute; width: 60vw; height: 60vw; border-radius: 50%; filter: blur(80px); opacity: 0.45; animation: float 25s infinite alternate ease-in-out; }
         .blob-1 { background: radial-gradient(circle, var(--tr-color), transparent 60%); top: -10%; left: -10%; animation-delay: 0s; }
@@ -112,6 +112,8 @@
             transition: transform 0.1s ease-out, border-color 0.3s;
             cursor: pointer; 
             box-shadow: 0 10px 40px -10px rgba(0,0,0,0.3); overflow: hidden;
+            /* 調整間距，因為按鈕變少了 */
+            padding-bottom: 40px;
         }
         .entry-card:hover { border-color: var(--card-hover-border); transform: translateY(-5px); }
         .light-mode .entry-card { box-shadow: 0 10px 30px -10px rgba(0,0,0,0.1); }
@@ -297,11 +299,6 @@
                     </button>
 
                     <ul class="desc-list" id="trList"></ul>
-                    
-                     <div class="action-btns">
-                        <div class="action-btn" onclick="event.stopPropagation(); goToSystem('tr')">起訖查詢</div>
-                        <div class="action-btn" onclick="event.stopPropagation(); goToSystem('tr')">即時時刻</div>
-                     </div>
                 </div>
             </div>
 
@@ -316,11 +313,6 @@
                     </button>
 
                     <ul class="desc-list" id="thsrList"></ul>
-                    
-                     <div class="action-btns">
-                        <div class="action-btn" onclick="event.stopPropagation(); goToSystem('thsr')">直達查詢</div>
-                        <div class="action-btn" onclick="event.stopPropagation(); goToSystem('thsr')">車站時刻</div>
-                     </div>
                 </div>
             </div>
         </div>
@@ -341,7 +333,7 @@
             <span class="section-title">🔔 即時誤點監控</span>
             <div class="setting-group" style="border: 1px solid var(--tr-color);">
                 <div class="setting-row">
-                    <span style="font-size:0.9rem;">啟用 API 監控通知</span>
+                    <span style="font-size:0.9rem;">啟用台鐵列車監控通知</span>
                     <label class="switch">
                         <input type="checkbox" id="notifySwitch" onchange="toggleNotify(this)">
                         <span class="slider"></span>
@@ -444,7 +436,7 @@
             return false;
         }
 
-        // 新增：下載全台車站資料 (TR & THSR)
+        // 下載全台車站資料 (TR & THSR)
         async function fetchAllStations() {
             if(!tdxToken) return;
             const headers = { 'Authorization': `Bearer ${tdxToken}` };
@@ -681,21 +673,33 @@
         }
 
         function toggleNotify(el) {
+            const configArea = document.getElementById('monitorConfig');
+            
             if (el.checked) {
-                Notification.requestPermission().then(p => {
-                    if (p === "granted") {
-                        localStorage.setItem('notify', 'true');
-                        document.getElementById('monitorConfig').style.display = 'block';
-                        new Notification("通知測試", { body: "監控通知已成功啟用！" });
-                    } else {
-                        el.checked = false;
-                        localStorage.setItem('notify', 'false');
-                        alert("請在瀏覽器設定中「允許通知」才能使用監控功能。");
-                    }
-                });
+                // 1. 立即顯示介面 (不管權限狀態)
+                configArea.style.display = 'block';
+                
+                // 2. 背景非同步處理權限
+                if (Notification.permission === "granted") {
+                    localStorage.setItem('notify', 'true');
+                    new Notification("通知測試", { body: "監控通知已成功啟用！" });
+                } else {
+                    Notification.requestPermission().then(p => {
+                        if (p === "granted") {
+                            localStorage.setItem('notify', 'true');
+                            new Notification("通知測試", { body: "監控通知已成功啟用！" });
+                        } else {
+                            // 若使用者拒絕，才把開關關掉並隱藏介面
+                            el.checked = false;
+                            localStorage.setItem('notify', 'false');
+                            configArea.style.display = 'none';
+                            alert("需允許通知權限以使用監控功能");
+                        }
+                    });
+                }
             } else {
                 localStorage.setItem('notify', 'false');
-                document.getElementById('monitorConfig').style.display = 'none';
+                configArea.style.display = 'none';
             }
         }
         
