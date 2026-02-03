@@ -18,41 +18,7 @@
   @media (max-width: 760px) {
     /* 1. 隱藏背景特效以解決卡頓 */
     .bg-blobs { display: none !important; }
-
-    /* 0. 手機版頂部固定區：更緊湊、避免太多字 */
-    .header{ padding: 10px 12px; }
-    .header-content{ width: 100%; gap: 8px; flex-wrap: nowrap; align-items: center; justify-content: space-between; }
-    .logo{ font-size: 14px; }
-    .logo span{ display:none; } /* 只留 TR */
-    .date-picker label{ display:none !important; }
-    .date-picker{ display:flex; flex-wrap: wrap; gap: 8px; align-items:center; justify-content:flex-end; }
-
-    .date-picker input[type="date"]{ min-width: 138px; }
-
-  }
-
-  /* 更小螢幕：表頭使用 2x2 grid 排列（不可巢狀 media） */
-  @media (max-width: 520px){
-    .header-content{ display: grid; grid-template-columns: 1fr auto; grid-template-rows: auto auto; row-gap: 8px; }
-    .logo{ grid-column: 1 / 2; grid-row: 1; }
-    #homeBtn{ grid-column: 2; grid-row: 1; justify-self: end; }
-    .date-picker{ grid-column: 1 / 2; grid-row: 2; justify-self: start; }
-    .header-actions{ grid-column: 2; grid-row: 2; justify-self: end; display:flex; gap:8px; }
-    .header-actions .btn-primary{ padding: 10px 12px; }
-    .header-actions .mode-toggle{ padding: 10px 12px; }
-  }
-
-  /* 回到手機樣式延伸 */
-  @media (max-width: 760px) {
-    .date-picker .btn-ghost, .date-picker button.btn-primary{ padding: 8px 12px; font-size: 12px; }
-    .toggle-theme{ padding: 8px 10px; font-size: 12px; }
-
-    /* 表頭：全部不可換行，行動版以圖示為主 */
-    .header, .header *{ white-space: nowrap; }
-    .header .btn-text{ display: none; }
-    .header .ico{ font-size: 16px; line-height: 1; }
-    #homeBtn, #refreshBtn, #themeToggle{ display:flex; align-items:center; justify-content:center; gap:6px; }
-
+    
     /* 2. 手機版欄位顯示控制 */
     .col-range, .col-stops, .col-ticket { display: none !important; }
     .col-type, .col-duration { display: table-cell !important; }
@@ -261,7 +227,6 @@ body.light-mode {
   body.dark-mode {
     --bg-body: #0f172a;
     --bg-surface: #1e293b;
-    --glass-bg: #1e293b;
     --bg-header: rgba(30, 41, 59, 0.9);
     --text-main: #f1f5f9;
     --text-muted: #94a3b8;
@@ -269,7 +234,6 @@ body.light-mode {
     --border: #334155;
     --primary: #60a5fa;
     --primary-bg: rgba(96, 165, 250, 0.15);
-    --glass-border: rgba(255, 255, 255, 0.12);
   }
 
   body {
@@ -370,23 +334,7 @@ body.light-mode {
     background: var(--bg-body); color: var(--text-muted);
     border: 1px solid var(--border); cursor: pointer; display: flex; align-items: center; gap: 4px;
   }
-  .history-chips.history-collapsed{ max-height: 44px; overflow-x: auto; overflow-y: hidden; flex-wrap: nowrap; -webkit-overflow-scrolling: touch; }
-  .history-chips.history-collapsed .history-chip{ flex: 0 0 auto; }
-  .history-toggle{ margin: -8px 0 14px 0; padding: 6px 10px; font-size: 0.8rem; }
-
-  
-  /* 手機版：起訖站區塊更省空間（不改邏輯，只改排版） */
-  @media (max-width: 760px){
-    #panel-startend .form-row{ gap: 8px; }
-    #panel-startend .input-group label{ font-size: 0.78rem; }
-    #panel-startend #favMenuBtn{ padding: 10px 10px; border-radius: 14px; }
-    #panel-startend #favMenuBtn span{ margin-right: 0; }
-    #panel-startend .swap-btn{ width: 40px; height: 40px; border-radius: 14px; }
-    #panel-startend .chip-label{ padding: 10px 10px; border-radius: 14px; }
-    #panel-startend .btn-primary#runStartEndBtn{ padding: 10px 14px; border-radius: 14px; }
-  }
-
-.history-chip:hover { background: var(--primary-bg); color: var(--primary); border-color: var(--primary); }
+  .history-chip:hover { background: var(--primary-bg); color: var(--primary); border-color: var(--primary); }
 
   /* 標籤式 Checkbox (Desktop) */
   .chip-group { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
@@ -675,202 +623,6 @@ td{ border-bottom: 1px solid rgba(255,255,255,0.06); }
   .form-row{ gap: 10px; }
   .input-group{ padding: 10px 10px; min-width: 140px; }
 }
-
-/* ===== Mobile compact header + trip controls (v16) ===== */
-@media (max-width: 520px){
-  .header-content{flex-wrap:nowrap; gap:10px;}
-  .logo{white-space:nowrap;}
-  .logo span{display:none;}
-  .date-picker{flex-wrap:nowrap; gap:8px; white-space:nowrap;}
-  .date-picker label{display:none !important;}
-  #mainQueryDate{max-width: 140px; padding: 6px 10px;}
-  /* icon-only buttons on mobile (no wrapping) */
-  #homeBtn, #refreshBtn, #themeToggle{white-space:nowrap;}
-  #homeBtn{font-size:0; padding:6px 10px;}
-  #homeBtn::before{content:"←"; font-size:14px;}
-  #refreshBtn{font-size:0; padding:6px 10px; min-width:38px;}
-  #refreshBtn::before{content:""; font-size:14px;}
-  #themeToggle{font-size:0; padding:6px 10px; min-width:38px;}
-  #themeToggle::before{content:"🌙"; font-size:14px;}
-
-  /* history chips: single-row, compact */
-  .history-chips{
-    flex-wrap:nowrap !important;
-    overflow-x:auto !important;
-    -webkit-overflow-scrolling:touch;
-    padding-bottom:6px;
-    gap:8px;
-  }
-  .history-chips::-webkit-scrollbar{height:6px;}
-}
-
-/* Trip compact bar */
-.mobile-only{display:none;}
-@media (max-width: 520px){
-  .mobile-only{display:flex;}
-
-  /* compact bar */
-  .trip-compact-bar{
-    display:flex; align-items:center; gap:10px;
-    background: var(--bg-surface);
-    border:1px solid var(--border);
-    border-radius:16px;
-    padding:10px 12px;
-    margin: 10px 0 6px 0;
-    box-shadow: var(--shadow);
-  }
-  .trip-open-btn{
-    display:flex; align-items:center; gap:8px;
-    flex:1 1 auto;
-    min-width:0;
-    border:none;
-    background: rgba(37,99,235,0.10);
-    color: var(--text);
-    border-radius:14px;
-    padding:10px 12px;
-    white-space:nowrap;
-    overflow:hidden;
-  }
-  .trip-open-btn .ico{flex:0 0 auto;}
-  .trip-open-btn .label{flex:0 0 auto; font-weight:800;}
-  .trip-open-btn .summary{
-    flex:1 1 auto;
-    min-width:0;
-    font-size:13px;
-    color: var(--text-muted);
-    white-space:nowrap;
-    overflow:hidden;
-    text-overflow:ellipsis;
-  }
-
-  .trip-icon-btn{
-    flex:0 0 auto;
-    border:none;
-    background: rgba(37,99,235,0.12);
-    color: #2563eb;
-    border-radius:999px;
-    padding:10px 12px;
-    font-weight:800;
-    white-space:nowrap;
-  }
-
-  /* fixed sheet */
-  .trip-sheet-backdrop{
-    display:none;
-    position:fixed;
-    inset:0;
-    background: rgba(0,0,0,0.35);
-    z-index:999;
-  }
-  .trip-sheet-backdrop.show{display:block;}
-
-  .trip-sheet{
-    position:fixed;
-    left:0; right:0; bottom:0;
-    z-index:1000;
-    background: var(--bg-surface);
-    border-top:1px solid var(--border);
-    border-radius:18px 18px 0 0;
-    box-shadow: var(--shadow);
-    max-height:72vh;
-    overflow:auto;
-    transform: translateY(105%);
-    transition: transform .22s ease;
-  }
-  .trip-sheet.is-open{ transform: translateY(0); }
-
-  .trip-sheet-header{
-    position:sticky;
-    top:0;
-    background: var(--bg-surface);
-    display:flex;
-    align-items:center;
-    justify-content:space-between;
-    padding:12px 14px;
-    border-bottom:1px solid var(--border);
-    white-space:nowrap;
-  }
-  .trip-sheet-title{ font-weight:900; }
-  .trip-sheet-close{
-    border:none;
-    background: transparent;
-    font-size:18px;
-    padding:6px 10px;
-    line-height:1;
-    white-space:nowrap;
-  }
-  .trip-sheet-body{ padding:12px 14px 16px; }
-
-  /* make the existing form-row stable + non-jumpy on mobile */
-  .trip-sheet .form-row{
-    display:grid;
-    grid-template-columns: 1fr 44px 1fr;
-    gap:10px;
-    align-items:end;
-  }
-  .trip-sheet .fav-wrap{ grid-column: 1 / -1; }
-  .trip-sheet #favMenuBtn{ width:100%; justify-content:center; }
-  .trip-sheet .chip-label{ grid-column: 1 / -1; }
-  .trip-sheet #searchBtn{ grid-column: 1 / -1; width:100%; }
-
-  /* history chips: single row scroll */
-  .history-chips{
-    overflow-x:auto;
-    white-space:nowrap;
-    -webkit-overflow-scrolling: touch;
-    padding-bottom: 2px;
-  }
-
-  /* header: no wrapping */
-  header .right-actions, header .left-actions, header .header-inner{
-    white-space:nowrap;
-  }
-  header .btn-text{ display:none !important; } /* icon-only on mobile */
-}
-
-/* 強制在電腦版顯示查詢控制區塊 */
-@media (min-width: 521px) {
-  #tripControlsWrap.trip-sheet {
-    display: block !important;
-    position: relative !important;
-    transform: none !important;
-    max-height: none !important;
-    background: transparent !important;
-    border: none !important;
-    padding: 0 !important;
-    box-shadow: none !important;
-  }
-  
-  .trip-sheet-header.mobile-only {
-    display: none !important;
-  }
-
-  .trip-sheet-body {
-    padding: 0 !important;
-  }
-}
-
-
-
-/* ===== FINAL layout overrides (prevent duplicated .container rules from fighting) ===== */
-.container{
-  max-width: 1200px !important;
-  width: 100% !important;
-  margin: 20px auto !important;
-  padding: 0 16px !important;
-  box-sizing: border-box;
-}
-@media (max-width: 520px){
-  .container{
-    margin: 12px auto !important;
-    padding: 0 12px !important;
-  }
-}
-/* Trip sheet / mobile tripbar should never affect desktop layout */
-@media (min-width: 521px){
-  .tripbar, .trip-sheet-backdrop, .trip-sheet{ display:none !important; }
-}
-
 </style>
 
   <style>
@@ -933,67 +685,7 @@ td{ border-bottom: 1px solid rgba(255,255,255,0.06); }
     /* stops 展開箭頭（原本就有） */
     .toggle-arrow{ color: var(--text-muted); margin-left: 6px; font-size: .85rem; cursor:pointer; }
     .stops-row td{ background: var(--bg-body); color: var(--text-muted); font-size: .85rem; }
-  
-/* ===== Mobile compact header + trip controls (v16) ===== */
-@media (max-width: 520px){
-  .header-content{flex-wrap:nowrap; gap:10px;}
-  .logo{white-space:nowrap;}
-  .logo span{display:none;}
-  .date-picker{flex-wrap:nowrap; gap:8px; white-space:nowrap;}
-  .date-picker label{display:none !important;}
-  #mainQueryDate{max-width: 140px; padding: 6px 10px;}
-  /* icon-only buttons on mobile (no wrapping) */
-  #homeBtn, #refreshBtn, #themeToggle{white-space:nowrap;}
-  #homeBtn{font-size:0; padding:6px 10px;}
-  #homeBtn::before{content:"←"; font-size:14px;}
-  #refreshBtn{font-size:0; padding:6px 10px; min-width:38px;}
-  #refreshBtn::before{content:""; font-size:14px;}
-  #themeToggle{font-size:0; padding:6px 10px; min-width:38px;}
-  #themeToggle::before{content:"🌙"; font-size:14px;}
-
-  /* history chips: single-row, compact */
-  .history-chips{
-    flex-wrap:nowrap !important;
-    overflow-x:auto !important;
-    -webkit-overflow-scrolling:touch;
-    padding-bottom:6px;
-    gap:8px;
-  }
-  .history-chips::-webkit-scrollbar{height:6px;}
-}
-
-
-
-
-  /* ===== Desktop overrides for trip sheet (ensure start/end controls are visible) ===== */
-  @media (min-width: 761px){
-    /* Hide mobile-only compact bar/backdrop on desktop */
-    .mobile-only{ display:none !important; }
-
-    /* Trip controls should behave like a normal in-flow block on desktop */
-    #tripControlsWrap{
-      position:static !important;
-      left:auto !important; right:auto !important; bottom:auto !important;
-      z-index:auto !important;
-      background: transparent !important;
-      border:none !important;
-      border-radius:0 !important;
-      box-shadow:none !important;
-      max-height:none !important;
-      overflow:visible !important;
-      transform:none !important;
-      transition:none !important;
-      padding:0 !important;
-      margin-top: 14px;
-    }
-
-    /* The sheet header is mobile-only UI; hide on desktop */
-    #tripControlsWrap .trip-sheet-header{ display:none !important; }
-
-    /* If the element still has trip-sheet hiding transform, force it visible */
-    .trip-sheet{ transform:none !important; }
-  }
-</style>
+  </style>
 
 </head>
 
@@ -1014,11 +706,11 @@ td{ border-bottom: 1px solid rgba(255,255,255,0.06); }
     <div class="logo">TR <span>Real-time</span></div>
 
     <div class="date-picker">
-      <button class="btn-ghost" id="homeBtn" type="button" title="回到首頁"><span class="ico">🏠</span><span class="btn-text">首頁</span></button>
-      <label style="font-size: 0.8em; color: var(--text-muted);">選擇查詢日期：</label>
+      <button class="btn-ghost" id="homeBtn" type="button" title="回到首頁">← 🏠</button>
+      <label style="font-size: 0.8em; color: var(--text-muted);"></label>
       <input type="date" id="mainQueryDate" class="input-field" style="width: auto; display: inline-block;">
-      <button class="btn-primary" id="refreshBtn" style="padding: 6px 12px;"><span class="ico">⟳</span><span class="btn-text">更新資料</span></button>
-      <button class="btn-ghost" id="themeToggle" type="button" title="切換深夜模式"><span class="ico">🌙</span><span class="btn-text">深夜模式</span></button>
+      <button class="btn-primary" id="refreshBtn" style="padding: 6px 12px;">更新</button>
+      <button class="btn-ghost" id="themeToggle" type="button" title="切換深夜模式">🌙 </button>
     </div>
   </div>
 </header>
@@ -1036,29 +728,11 @@ td{ border-bottom: 1px solid rgba(255,255,255,0.06); }
     <section id="panel-startend" class="card query-panel">
       <div class="section-title">起訖站 / 轉乘查詢</div>
       <datalist id="stationList"></datalist>
-      
-      <!-- Mobile compact trip bar (fixed sheet + summary + search) -->
-      <div class="trip-compact-bar mobile-only" id="tripCompactBar">
-        <button class="trip-open-btn" id="tripOpenBtn" type="button" title="行程設定">
-          <span class="ico">⚙️</span>
-          <span class="label">行程</span>
-          <span class="summary" id="tripSummaryText">出發 → 到達</span>
-        </button>
-        <button class="trip-icon-btn" id="tripCompactSearch" type="button" title="查詢">🔍</button>
-      </div>
-      <div class="trip-sheet-backdrop mobile-only" id="tripSheetBackdrop" aria-hidden="true"></div>
-<div id="tripControlsWrap" class="trip-controls-wrap trip-sheet is-collapsed">
-  <div class="trip-sheet-body">
-      <div class="trip-sheet-header mobile-only">
-        <div class="trip-sheet-title">行程設定</div>
-        <button type="button" class="trip-sheet-close" id="tripSheetClose" title="關閉">✕</button>
-      </div>
-      <div class="trip-sheet-body">
-
       <div id="searchHistory" class="history-chips"></div>
+
       <div class="form-row">
         
-        <div class="fav-wrap" style="position: relative; display: inline-block;">
+        <div style="position: relative; display: inline-block;">
             <button type="button" class="btn-primary" id="favMenuBtn" 
                     style="background: #2563eb; border: none; display: flex; align-items: center; gap: 6px;">
                 <span style="font-size: 1.1rem;">⭐</span> 常用行程
@@ -1084,11 +758,6 @@ td{ border-bottom: 1px solid rgba(255,255,255,0.06); }
         </label>
 
         <button class="btn-primary" id="searchBtn">查詢</button>
-      </div>
-
-
-      </div>
-      </div>
       </div>
 
       <div class="mobile-filter-container">
@@ -1457,105 +1126,57 @@ function splitArrDep(stopRow){
     return addDays(originDateStr, dayOffset);
   }
 
-  
-  // ===== 日期/跨日輔助（用於跨日車狀態與下一站判斷）=====
-  function parseDateYMD(ymd){
-    if(!ymd) return null;
-    const p = String(ymd).split('-').map(x=>parseInt(x,10));
-    if(p.length!==3 || p.some(n=>!Number.isFinite(n))) return null;
-    return new Date(p[0], p[1]-1, p[2]);
-  }
-  function diffDays(fromYMD, toYMD){
-    const a = parseDateYMD(fromYMD);
-    const b = parseDateYMD(toYMD);
-    if(!a || !b) return 0;
-    return Math.round((b - a) / 86400000);
-  }
-  function getNowAbsFromOrigin(originDateStr){
-    const now = new Date();
-    const todayStr = fmtDate(now);
-    const dayDiff = originDateStr ? diffDays(originDateStr, todayStr) : 0;
-    const nowMin = now.getHours()*60 + now.getMinutes();
-    return dayDiff*1440 + nowMin;
-  }
-  function getFirstLastAbs(firstTimeStr, lastTimeStr){
-    const f = parseTime(firstTimeStr||'');
-    const l = parseTime(lastTimeStr||'');
-    if(f===null || l===null) return { firstAbs: f, lastAbs: l, crosses: false };
-    const crosses = l < f;
-    return { firstAbs: f, lastAbs: crosses ? (l + 1440) : l, crosses };
-  }
-  function getAbsFromHHMMMaybeCross(hhmm, firstAbs){
-    const m = parseTime(hhmm||'');
-    if(m===null) return null;
-    // 若列車跨日且此站時間看起來「比起站時間更早」，視為跨日後
-    if(firstAbs!==null && firstAbs!==undefined && m < firstAbs) return m + 1440;
-    return m;
-  }
-// ===== 狀態：用「發車日」判斷（不是站別跨日後的日期） =====
-  
-  // ===== 狀態：用「發車日」判斷（支援跨日車仍在跑的情境） =====
-  // passedStationAbsOrTime：可傳入「查詢站的 absMin（相對於發車日）」；若仍傳 HH:MM 字串也可相容
-  function getTrainStatusLabel(trainNo, originDateStr, firstTimeStr, lastTimeStr, passedStationAbsOrTime){
+  // ===== 狀態：用「發車日」判斷（不是站別跨日後的日期） =====
+  function getTrainStatusLabel(trainNo, originDateStr, firstTimeStr, lastTimeStr, passedStationTimeStr){
     const todayStr = fmtDate(new Date());
-    const yestStr  = addDays(todayStr, -1);
 
     // 未來發車日：一律未發車
     if(originDateStr && originDateStr > todayStr) return '未發車';
+    // 過去發車日：一律已到終點
+    if(originDateStr && originDateStr < todayStr) return '已到終點';
 
-    const { firstAbs, lastAbs, crosses } = getFirstLastAbs(firstTimeStr, lastTimeStr);
-    const nowAbs = getNowAbsFromOrigin(originDateStr || todayStr);
-
-    // 判斷「此班次是否仍可能在運行窗口內」
-    const isActiveWindow =
-      (originDateStr === todayStr) ||
-      (originDateStr === yestStr && crosses && Number.isFinite(lastAbs) && nowAbs <= (lastAbs + 10));
-
-    // 過去發車日：通常已到終點；但「昨天發車 + 跨日 + 仍在窗口」要保留即時狀態
-    if(originDateStr && originDateStr < todayStr && !isActiveWindow) return '已到終點';
-
-    // 只有在運行窗口內才抓即時（避免跨太久日誤導）
-    let raw = '';
-    if(isActiveWindow){
-      try{ if(typeof getDelayStatus==='function') raw = getDelayStatus(String(trainNo)) || ''; }catch(e){ raw=''; }
-    }
+    // 只有「今天發車」才抓即時
+    let raw='';
+    try{ if(typeof getDelayStatus==='function') raw = getDelayStatus(String(trainNo)) || ''; }catch(e){ raw=''; }
 
     // 停駛/截短等優先顯示（比已過站更重要）
     if(raw && /停駛|取消|暫停|終止|運轉整理|截短|折返|部分停駛/i.test(raw)) return raw;
 
-    // 已過站：以「查詢站」的 absMin 判斷（支援跨日）
-    if(passedStationAbsOrTime !== null && passedStationAbsOrTime !== undefined){
-      let passAbs = null;
+    // 已過站：以「查詢的站（出發站 / 指定車站）」的「開車時間」判斷
+    if(passedStationTimeStr && originDateStr === todayStr){
+      const now = new Date();
+      const nowMin = now.getHours()*60 + now.getMinutes();
+      const passMin = parseTime(passedStationTimeStr);
+      if(passMin !== null && nowMin > passMin) return '已過站';
+    }
 
-      if(typeof passedStationAbsOrTime === 'number'){
-        passAbs = passedStationAbsOrTime;
-      }else if(typeof passedStationAbsOrTime === 'string'){
-        // 相容舊版：用 HH:MM，並以起站時間推估是否跨日
-        passAbs = getAbsFromHHMMMaybeCross(passedStationAbsOrTime, firstAbs);
+    // 即時準點/誤點
+    if(raw){
+      if(/準點/.test(raw)) return '準點';
+      const m = raw.match(/晚\s*([\-\d]+)\s*分/);
+      if(m){
+        const d = parseInt(m[1],10);
+        if(Number.isFinite(d) && d>0) return `誤點 ${d} 分`;
+        if(Number.isFinite(d) && d<0) return `提早 ${Math.abs(d)} 分`;
+        return '準點';
       }
-
-      if(passAbs !== null && Number.isFinite(passAbs) && Number.isFinite(nowAbs) && nowAbs > passAbs){
-        return '已過站';
-      }
+      return raw || '即時';
     }
 
-    // 還沒到起站時間 → 未發車
-    if(firstAbs !== null && Number.isFinite(firstAbs) && Number.isFinite(nowAbs) && nowAbs < firstAbs){
-      return '未發車';
+    // 沒即時資訊：用時間粗判
+    const f = parseTime(firstTimeStr);
+    const l = parseTime(lastTimeStr);
+    const now = new Date();
+    const nowMin = now.getHours()*60 + now.getMinutes();
+
+    if(f !== null && nowMin < f) return '未發車';
+    if(f !== null && l !== null){
+      const crosses = l < f;
+      const endMin = crosses ? l+1440 : l;
+      const nowAdj = crosses && nowMin < f ? nowMin+1440 : nowMin;
+      if(nowAdj > endMin + 10) return '已到終點';
     }
-
-    // 已過終點（保留 10 分鐘緩衝）
-    if(lastAbs !== null && Number.isFinite(lastAbs) && Number.isFinite(nowAbs) && nowAbs > (lastAbs + 10)){
-      return '已到終點';
-    }
-
-    // 誤點/準點
-    if(!isActiveWindow) return '準點';
-
-    let d = 0;
-    try{ if(typeof getDelayMinutes==='function') d = Number(getDelayMinutes(String(trainNo)) || 0); }catch(e){ d = 0; }
-    if(Number.isFinite(d) && d > 0) return `誤點${d}分`;
-    return '準點';
+    return '無即時資訊';
   }
 
   // ===== 狀態顏色：黑 / 綠 / 紅 / 灰(已過站) =====
@@ -1568,39 +1189,55 @@ function splitArrDep(stopRow){
   }
 
   // ===== 詳細視窗用狀態（不顯示「已過站」） =====
-  
   function getStatusForModal(trainNo, originDateStr, stopsArr){
     const todayStr = fmtDate(new Date());
-    const yestStr  = addDays(todayStr, -1);
 
-    const firstTimeStr = (stopsArr?.[0]?.[2]||stopsArr?.[0]?.[1]||'');
-    const lastTimeStr  = (stopsArr?.slice(-1)?.[0]?.[1]||stopsArr?.slice(-1)?.[0]?.[2]||'');
-    const { firstAbs, lastAbs, crosses } = getFirstLastAbs(firstTimeStr, lastTimeStr);
-
-    const nowAbs = getNowAbsFromOrigin(originDateStr || todayStr);
-    const isActiveWindow =
-      (originDateStr === todayStr) ||
-      (originDateStr === yestStr && crosses && Number.isFinite(lastAbs) && nowAbs <= (lastAbs + 10));
-
+    // 未來/過去：直接固定
     if(originDateStr && originDateStr > todayStr) return '未發車';
-    if(originDateStr && originDateStr < todayStr && !isActiveWindow) return '已到終點';
+    if(originDateStr && originDateStr < todayStr) return '已到終點站';
 
-    // 若還未到起站時間，也顯示未發車（比「準點」更直覺）
-    if(firstAbs !== null && Number.isFinite(firstAbs) && Number.isFinite(nowAbs) && nowAbs < firstAbs) return '未發車';
-    if(lastAbs !== null && Number.isFinite(lastAbs) && Number.isFinite(nowAbs) && nowAbs > (lastAbs + 10)) return '已到終點';
-
+    // 只有查今天才有即時意義
     let raw = '';
-    if(isActiveWindow){
-      try{ if(typeof getDelayStatus==='function') raw = getDelayStatus(String(trainNo)) || ''; }catch(e){ raw=''; }
+    try{ if(typeof getDelayStatus==='function') raw = getDelayStatus(String(trainNo)) || ''; }catch(e){ raw=''; }
+
+    if(raw && /停駛|取消|暫停|終止|運轉整理|截短|折返|部分停駛/i.test(raw)) return '停駛';
+
+    const first = (splitArrDep(stopsArr?.[0]||[]).dep || splitArrDep(stopsArr?.[0]||[]).arr || '');
+    const last  = (splitArrDep(stopsArr?.[stopsArr.length-1]||[]).arr || splitArrDep(stopsArr?.[stopsArr.length-1]||[]).dep || '');
+
+    const f = parseTime(first);
+    const l = parseTime(last);
+    const now = new Date();
+    const nowMin = now.getHours()*60 + now.getMinutes();
+
+    // 若已超過終點抵達時間（含跨日），優先顯示「已到終點站」（不要再顯示準點）
+    if(f !== null && l !== null){
+      const crosses = l < f;
+      const endMin = crosses ? l+1440 : l;
+      const nowAdj = crosses && nowMin < f ? nowMin+1440 : nowMin;
+      if(nowAdj > endMin + 10) return '已到終點站';
+      if(nowAdj < f) return '未發車';
+    }else{
+      if(f !== null && nowMin < f) return '未發車';
     }
 
-    if(raw && /停駛|取消|暫停|終止|運轉整理|截短|折返|部分停駛/i.test(raw)) return raw;
+    // 先用即時誤點顯示（若有）
+    if(raw){
+      if(/準點/.test(raw)) return '準點';
+      const m = raw.match(/晚\s*([\-\d]+)\s*分/);
+      if(m){
+        const d = parseInt(m[1],10);
+        if(Number.isFinite(d) && d>0) return `誤點 ${d} 分`;
+        if(Number.isFinite(d) && d<0) return `提早 ${Math.abs(d)} 分`;
+        return '準點';
+      }
+    }else{
+      const d = isQueryToday(originDateStr) ? getDelayMinutes(trainNo) : 0;
+      if(d>0) return `誤點 ${d} 分`;
+      if(d<0) return `提早 ${Math.abs(d)} 分`;
+      if(isQueryToday(originDateStr)) return '準點';
+    }
 
-    if(!isActiveWindow) return '準點';
-
-    let d = 0;
-    try{ if(typeof getDelayMinutes==='function') d = Number(getDelayMinutes(String(trainNo)) || 0); }catch(e){ d = 0; }
-    if(Number.isFinite(d) && d > 0) return `誤點${d}分`;
     return '準點';
   }
 
@@ -1734,59 +1371,22 @@ if (jumpUrl) {
     const w = idx - lo;
     return sortedArr[lo] * (1 - w) + sortedArr[hi] * w;
   }
-  
-  // ===== 耗時條：最短只塗一點 + P95 cap + 單色漸層（綠→黃→橘→紅→紫）=====
-  function lerp(a,b,t){ return a + (b-a)*t; }
-  function hexToRgb(hex){
-    const h = String(hex||'').replace('#','').trim();
-    if(h.length===3){
-      const r=parseInt(h[0]+h[0],16), g=parseInt(h[1]+h[1],16), b=parseInt(h[2]+h[2],16);
-      return {r,g,b};
-    }
-    if(h.length===6){
-      const r=parseInt(h.slice(0,2),16), g=parseInt(h.slice(2,4),16), b=parseInt(h.slice(4,6),16);
-      return {r,g,b};
-    }
-    return {r:100,g:116,b:139}; // slate-500
-  }
-  function rgbToCss({r,g,b}){ return `rgb(${Math.round(r)},${Math.round(g)},${Math.round(b)})`; }
-
-  function travelColorSolid(norm01){
+  function travelColor(norm01){
     const t = Math.max(0, Math.min(1, norm01));
-    // 5 段色階：綠/黃/橘/紅/紫（避免看起來像彩虹）
-    const stops = [
-      {p:0.00, c:'#22c55e'}, // green
-      {p:0.25, c:'#eab308'}, // yellow
-      {p:0.50, c:'#f97316'}, // orange
-      {p:0.75, c:'#ef4444'}, // red
-      {p:1.00, c:'#8b5cf6'}  // purple
-    ];
-    let a = stops[0], b = stops[stops.length-1];
-    for(let i=0;i<stops.length-1;i++){
-      if(t>=stops[i].p && t<=stops[i+1].p){ a=stops[i]; b=stops[i+1]; break; }
-    }
-    const tt = (b.p===a.p) ? 0 : (t - a.p)/(b.p - a.p);
-    const ra = hexToRgb(a.c), rb = hexToRgb(b.c);
-    return rgbToCss({ r: lerp(ra.r, rb.r, tt), g: lerp(ra.g, rb.g, tt), b: lerp(ra.b, rb.b, tt) });
+    const hue = 120 + (10 - 120) * t; // 綠 -> 紅
+    return {
+      a: `hsl(${hue.toFixed(1)}, 85%, 52%)`,
+      b: `hsl(${hue.toFixed(1)}, 85%, 40%)`
+    };
   }
-
-  // minMin：列表最短耗時；capMin：P95 上限（極端值填滿）
-  function getTravelBarStyle(travelMin, minMin, capMin){
+  function getTravelBarStyle(travelMin, capMin){
     const cap = Math.max(1, capMin || 1);
-    const minv = Math.max(0, minMin || 0);
-
-    const t = Math.max(0, Math.min(travelMin, cap));
-    const denom = Math.max(1, cap - minv);
-
-    // 最短只塗一點
-    const minWidthPct = 10; // 10% 作為視覺起點
-    const norm = Math.max(0, Math.min(1, (t - minv) / denom));
-    const widthPct = minWidthPct + norm * (100 - minWidthPct);
-
-    const fillColor = travelColorSolid(norm);
     const isExtreme = travelMin >= cap;
-
-    return { widthPct, isExtreme, fillColor };
+    const norm = isExtreme ? 1 : (travelMin / cap);
+    const widthPct = Math.max(0, Math.min(1, norm)) * 100;
+    const {a,b} = travelColor(norm);
+    const fillBg = `linear-gradient(90deg, ${a}, ${b})`;
+    return { widthPct, isExtreme, fillBg };
   }
 
 
@@ -1823,11 +1423,11 @@ if (jumpUrl) {
     if(saved === 'dark'){
       document.body.classList.add('dark-mode');
       document.body.classList.remove('light-mode');
-      btn.textContent = '☀️ 日間模式';
+      btn.textContent = '☀️';
     }else{
       document.body.classList.remove('dark-mode');
       document.body.classList.add('light-mode');
-      btn.textContent = '🌙 深夜模式';
+      btn.textContent = '🌙';
     }
 
     btn.addEventListener('click', async ()=>{
@@ -1835,7 +1435,7 @@ if (jumpUrl) {
       const isDark = document.body.classList.contains('dark-mode');
       document.body.classList.toggle('light-mode', !isDark);
       localStorage.setItem('tra_theme', isDark ? 'dark' : 'light');
-      btn.textContent = isDark ? '☀️ 日間模式' : '🌙 深夜模式';
+      btn.textContent = isDark ? '☀️' : '🌙';
 
       // 顏色可能會跟著改（車種顏色），重新渲染可見結果
       try{
@@ -1858,10 +1458,8 @@ if (jumpUrl) {
 function renderHistory(){
     const box=document.getElementById('searchHistory');
     if(!box) return;
-
     const list=loadHistory();
     box.innerHTML='';
-
     list.forEach(item=>{
       const chip=document.createElement('div');
       chip.className='history-chip';
@@ -1874,8 +1472,6 @@ function renderHistory(){
       });
       box.appendChild(chip);
     });
-    // 手機版：歷史行程改為橫向滑動，不使用「更多/收合」
-    box.classList.remove('history-collapsed');
   }
 
   // ===== 車種篩選 Chips =====
@@ -2236,7 +1832,7 @@ setInterval(async ()=>{
         originDate,
         (arr[0]?.[2]||arr[0]?.[1]||''),
         (arr.slice(-1)[0]?.[1]||arr.slice(-1)[0]?.[2]||''),
-        stAbs
+        depSched
       );
 
       list.push({
@@ -2575,8 +2171,7 @@ function renderTimeWithDelay(trainNo, schedHHMM, queryDateStr, opts){
     };
 
     const mins = currentStartEndList.map(r=>r.travelMin).filter(x=>Number.isFinite(x)).sort((a,b)=>a-b);
-    const minv = mins.length ? mins[0] : 0;
-    const cap = percentile(mins, 0.95); // P95 當上限（極端值塗滿）
+    const cap = percentile(mins, 0.95); // P95 當上限，極端值塗滿
 
     // 渲染資料列
     currentStartEndList.forEach((r, idx) => {
@@ -2604,13 +2199,13 @@ function renderTimeWithDelay(trainNo, schedHHMM, queryDateStr, opts){
         tr.insertCell().innerHTML = r.arrHTML;
 
         // 5. 耗時 (PC顯示，手機隱藏)
-        const bar = getTravelBarStyle(r.travelMin, minv, cap);
+        const bar = getTravelBarStyle(r.travelMin, cap);
         let durCell = tr.insertCell();
         durCell.className = "col-duration"; // 改用 class 控制
         durCell.innerHTML = `
             <div style="font-size:.85rem;font-weight:600">${r.travel}</div>
             <div class="progress-bar">
-                <div class="progress-fill" style="width:${bar.widthPct.toFixed(1)}%;background:${bar.fillColor};"></div>
+                <div class="progress-fill" style="width:${bar.widthPct.toFixed(1)}%;background:${bar.fillBg};"></div>
             </div>`;
 
         // 6. 停靠站 (手機隱藏)
@@ -2728,7 +2323,7 @@ function buildTransferList(st, ed){
               originDate1,
               (a1[0]?.[2]||a1[0]?.[1]||''),
               (a1.slice(-1)[0]?.[1]||a1.slice(-1)[0]?.[2]||''),
-              stDepAbs
+              stDepStr
             );
 
             const endArrAdj = getAdjustedTime(n1, endArrStr, currentQueryDateStr);
@@ -2748,7 +2343,7 @@ function buildTransferList(st, ed){
               transferStation: null,
 
               originStation,
-              stDepAbs,
+              stDepStr,
               depSched: stDepStr,
               depHTML: renderTimeWithDelay(n1, stDepStr, currentQueryDateStr, { suppressStrike: status==='已過站' }),
               startDepAtQueryStation: stDepStr,
@@ -2830,7 +2425,7 @@ function buildTransferList(st, ed){
           originDate1,
           (a1[0]?.[2]||a1[0]?.[1]||''),
           (a1.slice(-1)[0]?.[1]||a1.slice(-1)[0]?.[2]||''),
-          stDepAbs
+          stDepStr
         );
 
         const endArrAdj2 = getAdjustedTime(n2, endArrStr2, currentQueryDateStr);
@@ -2850,7 +2445,7 @@ function buildTransferList(st, ed){
           transferStation: mid,
 
           originStation,
-          stDepAbs,
+          stDepStr,
           depSched: stDepStr,
           depHTML: renderTimeWithDelay(n1, stDepStr, currentQueryDateStr, { suppressStrike: status==='已過站' }),
 
@@ -2981,7 +2576,6 @@ function renderTransferTable(){
   };
 
   const mins = currentTransferList.map(r=>r.travelMin).filter(x=>Number.isFinite(x)).sort((a,b)=>a-b);
-  const minv = mins.length ? mins[0] : 0;
   const cap = percentile(mins, 0.95);
 
   currentTransferList.forEach((r, idx)=>{
@@ -3015,13 +2609,13 @@ function renderTransferTable(){
 
     tr.insertCell().innerHTML = r.arrHTML;
 
-    const bar = getTravelBarStyle(r.travelMin, minv, cap);
+    const bar = getTravelBarStyle(r.travelMin, cap);
     let cell = tr.insertCell();
     cell.className = "col-duration"; // 轉乘表格的耗時欄位也加上 desktop-only
     cell.innerHTML = `
       <div style="font-size:.85rem;font-weight:600">${r.travel}${bar.isExtreme ? ' <span style="color:var(--text-muted);font-weight:600"></span>' : ''}</div>
       <div class="progress-bar">
-        <div class="progress-fill" style="width:${bar.widthPct.toFixed(1)}%;background:${bar.fillColor};"></div>
+        <div class="progress-fill" style="width:${bar.widthPct.toFixed(1)}%;background:${bar.fillBg};"></div>
       </div>
     `;
 
@@ -3095,7 +2689,7 @@ function renderTransferTable(){
         originDate, // 狀態永遠用發車日
         (arr[0]?.[2]||arr[0]?.[1]||''),
         (arr.slice(-1)[0]?.[1]||arr.slice(-1)[0]?.[2]||''),
-        absMin // 用本站 absMin 判斷已過站
+        dep // 用本站開車判斷已過站
       );
 
       const depAdj = getAdjustedTime(trainNo, dep, currentQueryDateStr);
@@ -3122,48 +2716,54 @@ function renderTransferTable(){
   }
 
   // ===== 車次查詢（以查詢日 currentQueryDateStr 的發車資料為主） =====
-  
-function filterTrainScheduleByNumber(){
-  const num = extractTrainNoFromInput(document.getElementById('trainNumberInput').value);
-  lastTrainQuery = { trainNo: num };
+  function filterTrainScheduleByNumber(){
+    const num = extractTrainNoFromInput(document.getElementById('trainNumberInput').value);
+    lastTrainQuery = { trainNo: num };
 
-  document.getElementById('trainNumberInput').value = num;
+    document.getElementById('trainNumberInput').value = num;
 
-  const tbody=document.querySelector('#scheduleTableByNumber tbody');
-  tbody.innerHTML='';
+    const tbody=document.querySelector('#scheduleTableByNumber tbody');
+    tbody.innerHTML='';
+  // 單一事件代理（避免每列綁 click，手機效能更好）
+  tbody.onclick = (e)=>{
+    const tr = e.target.closest('tr');
+    if(!tr || tr.parentElement !== tbody) return;
+    const idx = Number(tr.dataset.idx);
+    if(!Number.isFinite(idx)) return;
+    const r = currentTransferList[idx];
+    if(!r) return;
+    if(r.isDirect) showTrainDetails(r.n1, r.originDate1||currentQueryDateStr);
+    else showTransferDetails(r);
+  };
+    const t=baseSchedule[num];
+    if (!t) {
+        let tr = tbody.insertRow();
+        let td = tr.insertCell();
+        td.colSpan = 3;
+        td.style.textAlign = 'center';
+        td.style.padding = '20px';
+        td.innerHTML = `<span style="color:#ef4444; font-weight:700;">❌ 查無${num}車次，請確認輸入車次或發車日期是否正確。</span>`;
+        return;
+    }
+    if(!t) return;
 
-  // ✅ 車次查詢：完全以「使用者選的顯示日期 currentQueryDateStr」作為發車日
-  // 也就是：你選 2/3 就查 2/3 發車的 181；不自動切到前一日跨日車 instance
-  //（起迄站/車站查詢那邊的跨日呈現保持原樣，不在這裡動）
-  const originDateStr = currentQueryDateStr;
-  const t = baseSchedule[num] || null;
+    const arr=t['車站時間']||[];
+    const status = getTrainStatusLabel(
+  num,
+  currentQueryDateStr,
+  (arr[0]?.[2]||arr[0]?.[1]||''),
+  (arr.slice(-1)[0]?.[1]||arr.slice(-1)[0]?.[2]||'')
+);
 
-  if (!t) {
-    let tr = tbody.insertRow();
-    let td = tr.insertCell();
-    td.colSpan = 3;
-    td.style.textAlign = 'center';
-    td.style.padding = '20px';
-    td.innerHTML = `<span style="color:#ef4444; font-weight:700;">❌ 查無${num}車次，請確認輸入車次或發車日期是否正確。</span>`;
-    return;
+
+    let tr=tbody.insertRow();
+    tr.insertCell().innerHTML=String(num).includes('A')?`<b>${num}</b><span class="badge-sea">海</span>`:`<b>${num}</b>`;
+    tr.insertCell().innerHTML=`${colorType(t['車種'])} <span class="train-route">(${arr[0][0]}➝${arr.slice(-1)[0][0]})</span>`;
+    tr.insertCell().innerHTML=colorStatus(status);
+    tr.addEventListener('click',()=>showTrainDetails(num, currentQueryDateStr));
   }
 
-  const arr=t['車站時間']||[];
-  const status = getTrainStatusLabel(
-    num,
-    originDateStr,
-    (arr[0]?.[2]||arr[0]?.[1]||''),
-    (arr.slice(-1)[0]?.[1]||arr.slice(-1)[0]?.[2]||'')
-  );
-
-  let tr=tbody.insertRow();
-  tr.insertCell().innerHTML=String(num).includes('A')?`<b>${num}</b><span class="badge-sea">海</span>`:`<b>${num}</b>`;
-  tr.insertCell().innerHTML=`${colorType(t['車種'])} <span class="train-route">(${arr[0][0]}➝${arr.slice(-1)[0][0]})</span>`;
-  tr.insertCell().innerHTML=colorStatus(status);
-  tr.addEventListener('click',()=>showTrainDetails(num, originDateStr));
-}
-
-// ===== Modal: 列車詳情（顯示站別用開車優先，並且跨日顯示正確日期）（顯示站別用開車優先，並且跨日顯示正確日期） =====
+  // ===== Modal: 列車詳情（顯示站別用開車優先，並且跨日顯示正確日期） =====
   const modal=document.getElementById('trainModal');
   const modalClose=document.getElementById('modalClose');
 
@@ -3202,36 +2802,25 @@ function filterTrainScheduleByNumber(){
     const abs = buildAbsMinutes(arr);
 
     const todayStr = fmtDate(new Date());
-    const yestStr  = addDays(todayStr, -1);
-    const tomoStr  = addDays(todayStr,  1);
-
     const isTodayOrigin = (originDateStr === todayStr);
 
-    // 用 absMin 判斷跨日與「仍在運行窗口」
-    const lastAbs = (abs && abs.length) ? (abs[abs.length-1]?.abs ?? null) : null;
-    const crosses = (lastAbs !== null && Number.isFinite(lastAbs) && lastAbs >= 1440);
+    // 下一站只在「今天發車」且「使用者查今天」才標（避免誤導）
+    const isTodayUI = (currentQueryDateStr === todayStr);
+    const canNext = isTodayOrigin && isTodayUI;
 
-    const nowAbs = getNowAbsFromOrigin(originDateStr || todayStr);
-    const isActiveWindow =
-      (originDateStr === todayStr) ||
-      (originDateStr === yestStr && crosses && Number.isFinite(lastAbs) && nowAbs <= (lastAbs + 10));
-
-    // 下一站：只在「仍在運行窗口」才標；允許跨日車在「查詢隔天」仍顯示（避免 23:xx 查 00:xx 看不到）
-    const canNext = isActiveWindow;
-
+    const now=new Date();
+    const nowMin=now.getHours()*60+now.getMinutes();
     let nextIndex=-1;
+
     if(canNext){
       for(let i=0;i<arr.length;i++){
-        const a = abs?.[i]?.abs;
-        if(a!==null && a!==undefined && Number.isFinite(a) && Number.isFinite(nowAbs) && a >= nowAbs){
-          nextIndex=i; break;
-        }
+        const tStr = (splitArrDep(arr[i]||[]).dep || splitArrDep(arr[i]||[]).arr || '');
+        const m=parseTime(tStr);
+        if(m!==null && m>=nowMin){ nextIndex=i; break; }
       }
-      if(nextIndex===-1) nextIndex = arr.length-1;
     }
 
-
-arr.forEach((s, i)=>{
+    arr.forEach((s, i)=>{
       const item=document.createElement('div');
       item.className='timeline-item';
 
@@ -3392,7 +2981,7 @@ arr.forEach((s, i)=>{
     const sec1 = document.createElement('div');
     sec1.className = 'transfer-section';
     sec1.innerHTML = `<div class="transfer-sec-title">${plan.n1}｜${t1['車種']} <span class="train-route">(${arr1[0]?.[0]||''}➝${arr1.slice(-1)[0]?.[0]||''})</span></div>`;
-    sec1.appendChild(buildTimelineForTrain(plan.n1, originDateStr1, arr1, plan.transferStation));
+    sec1.appendChild(buildTimelineForTrain(plan.n1, arr1, plan.transferStation));
     wrap.appendChild(sec1);
 
     const banner2 = document.createElement('div');
@@ -3411,7 +3000,7 @@ arr.forEach((s, i)=>{
     sec2.className = 'transfer-section';
     sec2.style.marginTop = '10px';
     sec2.innerHTML = `<div class="transfer-sec-title">${plan.n2}｜${t2['車種']} <span class="train-route">(${arr2[0]?.[0]||''}➝${arr2.slice(-1)[0]?.[0]||''})</span></div>`;
-    sec2.appendChild(buildTimelineForTrain(plan.n2, originDateStr2, arr2, plan.transferStation));
+    sec2.appendChild(buildTimelineForTrain(plan.n2, arr2, plan.transferStation));
     wrap.appendChild(sec2);
 
     body.appendChild(wrap);
@@ -3420,60 +3009,39 @@ arr.forEach((s, i)=>{
   }
 
 
-  function buildTimelineForTrain(trainNo, originDateStr, arr, transferStation){
+  function buildTimelineForTrain(trainNo, arr, transferStation){
     const timeline = document.createElement('div');
     timeline.className = 'timeline';
 
     const abs = buildAbsMinutes(arr);
 
     const todayStr = fmtDate(new Date());
-    const yestStr  = addDays(todayStr, -1);
-    const tomoStr  = addDays(todayStr,  1);
+    const isTodayOrigin = (currentQueryDateStr === todayStr); // 這頁本來就只顯示查詢日
+    const canNext = isTodayOrigin; // 只有查今天才顯示下一站
 
-    const lastAbs = (abs && abs.length) ? (abs[abs.length-1]?.abs ?? null) : null;
-    const crosses = (lastAbs !== null && Number.isFinite(lastAbs) && lastAbs >= 1440);
-
-    const nowAbs = getNowAbsFromOrigin(originDateStr || todayStr);
-    const isActiveWindow =
-      (originDateStr === todayStr) ||
-      (originDateStr === yestStr && crosses && Number.isFinite(lastAbs) && nowAbs <= (lastAbs + 10));
-
-    const canNext =
-      isActiveWindow &&
-      (
-        (currentQueryDateStr === todayStr) ||
-        (originDateStr === todayStr && crosses && currentQueryDateStr === tomoStr)
-      );
-
+    const now = new Date();
+    const nowMin = now.getHours()*60 + now.getMinutes();
     let nextIndex = -1;
+
     if(canNext){
       for(let i=0;i<arr.length;i++){
-        const a = abs?.[i]?.abs;
-        if(a!==null && a!==undefined && Number.isFinite(a) && Number.isFinite(nowAbs) && a >= nowAbs){
-          nextIndex=i; break;
-        }
+        const tStr = (splitArrDep(arr[i]||[]).dep || splitArrDep(arr[i]||[]).arr || '');
+        const m = parseTime(tStr);
+        if(m!==null && m>=nowMin){ nextIndex=i; break; }
       }
-      if(nextIndex===-1) nextIndex = arr.length-1;
     }
 
-    arr.forEach((s, i)=>{
+    arr.forEach((s,i)=>{
       const item = document.createElement('div');
       item.className = 'timeline-item';
 
       const ad = splitArrDep(s);
       const depTime = ad.dep || ad.arr || '--';
       const arrTime = ad.arr || '';
+      const passedHere = canNext && (nextIndex===-1 ? true : i < nextIndex);
 
-      const passedHere = canNext && (nextIndex===-1 ? false : i < nextIndex);
-
-      let depHTML, arrHTML;
-      if(passedHere){
-        depHTML = `<span style="color:var(--text-muted);">${depTime}</span>`;
-        arrHTML = arrTime ? `<span class="st-arr" style="color:var(--text-muted);">${arrTime}</span>` : '';
-      }else{
-        depHTML = renderTimeWithDelay(trainNo, depTime, currentQueryDateStr);
-        arrHTML = arrTime ? renderTimeWithDelay(trainNo, arrTime, currentQueryDateStr) : '';
-      }
+      const depHTML = renderTimeWithDelay(trainNo, depTime, currentQueryDateStr, { suppressStrike: passedHere });
+      const arrHTML = arrTime ? renderTimeWithDelay(trainNo, arrTime, currentQueryDateStr, { suppressStrike: passedHere }) : '';
 
       const badgeNext = (canNext && i===nextIndex) ? ` <span class="badge-next">下一站</span>` : '';
       const badgeXfer = (transferStation && s[0]===transferStation) ? ` <span class="badge-xfer">轉乘</span>` : '';
@@ -3716,111 +3284,6 @@ renderQuickFavs();
 
 </script>
 
-
-
-<script>
-(function(){
-  const wrap = document.getElementById('tripControlsWrap');
-  const openBtn = document.getElementById('tripOpenBtn');
-  const sum = document.getElementById('tripSummaryText');
-  const quickSearchBtn = document.getElementById('tripCompactSearch');
-  const backdrop = document.getElementById('tripSheetBackdrop');
-  const closeBtn = document.getElementById('tripSheetClose');
-  if(!wrap || !openBtn || !sum || !quickSearchBtn) return;
-
-  const isMobile = () => window.matchMedia && window.matchMedia('(max-width: 520px)').matches;
-
-  function getVal(id){
-    const el = document.getElementById(id);
-    return (el && el.value) ? el.value.trim() : '';
-  }
-
-
-  let prevOverflow = '';
-  function lockScroll(on){
-    if(!isMobile()) return;
-    if(on){
-      prevOverflow = document.body.style.overflow || '';
-      document.body.style.overflow = 'hidden';
-    }else{
-      document.body.style.overflow = prevOverflow;
-    }
-  }
-
-  function openSheet(){
-    if(!isMobile()) return;
-    wrap.classList.add('is-open');
-    wrap.classList.remove('is-collapsed');
-    if(backdrop) backdrop.classList.add('show');
-    lockScroll(true);
-  }
-
-  function closeSheet(){
-    wrap.classList.remove('is-open');
-    if(backdrop) backdrop.classList.remove('show');
-    if(isMobile()) wrap.classList.add('is-collapsed');
-    lockScroll(false);
-  }
-
-  function syncByViewport(){
-    if(isMobile()){
-      closeSheet();
-    }else{
-      wrap.classList.remove('is-collapsed');
-      wrap.classList.remove('is-open');
-      if(backdrop) backdrop.classList.remove('show');
-      lockScroll(false);
-    }
-    updateSummary();
-  }
-
-  window.addEventListener('resize', syncByViewport);
-  syncByViewport();
-
-  openBtn.addEventListener('click', ()=>{
-    if(!isMobile()) return;
-    const isOpen = wrap.classList.contains('is-open');
-    if(isOpen) closeSheet(); else openSheet();
-  });
-
-  if(closeBtn){
-    closeBtn.addEventListener('click', closeSheet);
-  }
-  if(backdrop){
-    backdrop.addEventListener('click', closeSheet);
-  }
-
-  quickSearchBtn.addEventListener('click', ()=>{
-    updateSummary();
-    const realBtn = document.getElementById('searchBtn');
-    if(realBtn) realBtn.click();
-    if(isMobile()) closeSheet();
-  });
-
-  ['startStation','endStation'].forEach(id=>{
-    const el = document.getElementById(id);
-    if(el) el.addEventListener('input', updateSummary);
-  });
-  const acc = document.getElementById('acceptTransfers');
-  if(acc) acc.addEventListener('change', updateSummary);
-
-  const realBtn = document.getElementById('searchBtn');
-  if(realBtn){
-    realBtn.addEventListener('click', ()=>{
-      updateSummary();
-      if(isMobile()) closeSheet();
-    });
-  }
-
-  function updateSummary(){
-    const st = getVal('startStation') || '出發';
-    const ed = getVal('endStation')   || '到達';
-    const acc = document.getElementById('acceptTransfers');
-    const accTxt = acc && acc.checked ? '轉乘' : '直達';
-    sum.textContent = `${st} → ${ed} · ${accTxt}`;
-  }
-})();
-</script>
 
 </body>
 </html>

@@ -3,1110 +3,831 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>台灣高鐵時刻表 (真實數據即時版)</title>
-  <link href="https://fonts.googleapis.com" rel="preconnect"/><link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&amp;family=Noto+Sans+TC:wght@400;500;700&amp;display=swap" rel="stylesheet"/>
-  <style> 
-  /* ===== 全域效能優化 (Performance) ===== */
-  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  <title>高鐵時刻表</title>
+  
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
 
-  /* ===== 核心變數與 Reset ===== */
+  <style>
+  /* ===== 1. 核心變數與 Reset (高鐵橘配色) ===== */
   :root {
-    --font-main: 'Inter', 'Noto Sans TC', sans-serif;
+    --thsr-color: #f97316; /* Orange-500 */
+    --thsr-dark: #c2410c;
+
+    /* Light Mode */
     --bg-body: #f8fafc;
     --bg-surface: #ffffff;
-    --bg-header: rgba(255, 255, 255, 0.9);
+    --bg-header: rgba(255, 255, 255, 0.85);
     --text-main: #0f172a;
     --text-muted: #64748b;
-    --text-light: #94a3b8;
-    --border: #e2e8f0;
-    --primary: #fb923c; /* 高鐵橘 */
-    --primary-bg: rgba(251, 146, 60, 0.1);
-    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-    --radius: 10px;
-  }
-
-  /* 狀態文字顏色 */
-  .status-text-未發車 { color: var(--text-muted); }
-  .status-text-行駛中, .status-text-準點 { color: #22c55e; font-weight: 600; }
-  .status-text-已過站, .status-text-已到終點 { color: var(--text-light); }
-
-  /* 剩餘座位圖示 */
-  .seat-icon { font-size: 1.1rem; font-weight: bold; display: inline-block; width: 1.2em; text-align: center; }
-  .seat-o { color: #22c55e; }
-  .seat-l { color: #f59e0b; }
-  .seat-x { color: #ef4444; }
-  .seat-none { color: var(--text-light); opacity: 0.5; }
-
-  /* ===== 行動裝置優化增強 (Mobile Overrides) ===== */
-  @media (max-width: 760px) {
-    /* 1. 隱藏背景特效以解決卡頓 */
-    .bg-blobs { display: none !important; }
-    .header, .navbar, .card, .modal-content {
-        backdrop-filter: none !important;
-        -webkit-backdrop-filter: none !important;
-        background: var(--bg-surface) !important;
-    }
-
-    /* 2. 手機版欄位顯示控制 */
-    .col-range, .col-stops, .col-seat-biz, .col-ticket { display: none !important; }
-    /* 強制顯示標準座(col-seat-std)與其他重要資訊 */
     
-    /* 3. 調整表格字體與內距 */
-    table { font-size: 0.85rem; }
-    th, td { padding: 12px 4px !important; }
+    --glass-bg: #ffffff;
+    --glass-border: rgba(15, 23, 42, 0.08);
     
-    /* 4. 展開按鈕樣式 */
-    .mobile-expand-btn {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        width: 24px; height: 24px;
-        background: var(--primary-bg);
-        color: var(--primary);
-        border-radius: 50%;
-        margin-right: 6px;
-        font-weight: bold;
-        font-size: 16px;
-        cursor: pointer;
-        user-select: none;
-    }
-
-    /* 5. 手機版詳情行樣式 */
-    .mobile-detail-row td {
-        background: var(--bg-body) !important;
-        padding: 12px 16px !important;
-        border-left: 4px solid var(--primary);
-        box-shadow: inset 0 2px 6px rgba(0,0,0,0.02);
-    }
-
-    /* 詳情頁面佈局 */
-    .detail-row-flex {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 8px;
-        padding-bottom: 8px;
-        border-bottom: 1px dashed var(--border);
-    }
+    --border: var(--glass-border);
+    --primary: var(--thsr-color);
+    --primary-bg: rgba(249, 115, 22, 0.12); /* 淺橘色背景 */
     
-    .detail-seats-row {
-        display: flex; gap: 16px; margin-bottom: 10px;
-        font-size: 0.9rem; color: var(--text-main);
-        background: rgba(0,0,0,0.02); padding: 8px; border-radius: 8px;
-    }
-
-    .detail-range-info {
-        font-weight: 700;
-        font-size: 1rem;
-        color: var(--text-main);
-    }
-
-    .detail-label {
-        font-size: 0.8rem;
-        color: var(--text-muted);
-        font-weight: 700;
-        margin-bottom: 6px;
-        display: block;
-    }
+    --shadow-sm: 0 18px 45px rgba(2, 6, 23, 0.08);
+    --radius: 28px;
   }
 
-  /* 非手機端樣式 */
-  @media (min-width: 761px) {
-    .mobile-expand-btn { display: none; }
-  }
-
-  /* 通用：停靠站 Grid 排版 */
-  .stops-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(6.5em, 1fr));
-      gap: 6px 8px;
-      font-size: 0.85rem;
-      color: var(--text-muted);
-      line-height: 1.4;
-  }
-  .stop-item { white-space: nowrap; display: inline-block; }
-
+  /* 深色模式變數 (依照要求：不透明、圓角變小) */
   body.dark-mode {
-    --bg-body: #0f172a;
-    --bg-surface: #1e293b;
-    --bg-header: rgba(30, 41, 59, 0.9);
+    --bg-body: #0f172a;      /* Slate-900 */
+    --bg-surface: #1e293b;   /* Slate-800 (不透明底色) */
+    --bg-header: #1e293b;
+    
     --text-main: #f1f5f9;
     --text-muted: #94a3b8;
-    --text-light: #64748b;
-    --border: #334155;
-    --primary: #fb923c;
+    
+    --glass-bg: #1e293b;     /* 關鍵：改為不透明深色 */
+    --glass-border: #334155;
+    
+    --border: var(--glass-border);
+    --primary: #fb923c;      /* Orange-400 (深色模式下亮一點的橘) */
     --primary-bg: rgba(251, 146, 60, 0.15);
+    
+    --radius: 16px;          /* 關鍵：圓角變小 */
+    --shadow-sm: none;
   }
 
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  
   body {
-    font-family: var(--font-main);
+    font-family: 'Inter', 'Noto Sans TC', sans-serif;
     background: var(--bg-body);
     color: var(--text-main);
     line-height: 1.5;
+    margin: 0;
     padding-bottom: 40px;
+    transition: background-color 0.3s, color 0.3s;
   }
 
-  /* ===== 導航列 ===== */
-  .header{
-      position: sticky; top:0; z-index: 120;
-      background: var(--bg-header);
-      backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
-      border-bottom: 1px solid var(--border); padding: 12px 16px;
-  }
-  .header-content{
-      max-width: 1200px; margin: 0 auto;
-      display:flex; align-items:center; justify-content:space-between; gap: 12px;
-  }
-  .logo{
-      font-weight: 800; letter-spacing: .5px; color: var(--primary);
-      display:flex; align-items: baseline; gap: 6px;
-  }
-  .logo span{ font-weight: 600; color: var(--text-muted); font-size: .85rem; }
-  .date-picker{ display:flex; align-items:center; gap: 8px; }
-  
-  .btn-ghost{
-      border:1px solid var(--border); background: transparent; color: var(--text-main);
-      padding: 6px 12px; border-radius: 999px; cursor:pointer; font-weight:700;
-  }
-  .btn-ghost:hover{ background: rgba(148,163,184,0.14); }
-
-  /* ===== 3. 主要容器 ===== */
-  .container { max-width: 1200px; margin: 20px auto; padding: 0 16px; }
-  @media (max-width: 760px){ .container{ width: 94%; margin: 18px auto; } .header{ padding: 12px 14px; } }
-  .grid { display: grid; gap: 24px; }
+  /* ===== 2. 佈局容器 ===== */
+  .container { max-width: 1000px; margin: 26px auto; padding: 0 20px; }
+  @media (max-width: 520px){ .container{ margin: 16px auto; padding: 0 12px; } }
 
   .card {
-    background: var(--bg-surface);
+    background: var(--glass-bg);
     border: 1px solid var(--border);
     border-radius: var(--radius);
     padding: 24px;
     box-shadow: var(--shadow-sm);
+    /* 電腦版可能有毛玻璃，但深色模式會被覆蓋 */
+    backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
   }
-  @media (max-width: 760px){ .card{ padding: 16px 14px; border-radius: 20px; } }
 
-  .section-title {
-    font-size: 1.1rem; font-weight: 700; margin-bottom: 16px;
-    display: flex; align-items: center; gap: 8px;
+  /* 強制深色模式卡片不透明 & 圓角修正 */
+  body.dark-mode .card, 
+  body.dark-mode .modal-content,
+  body.dark-mode .header {
+      background: var(--bg-surface) !important;
+      backdrop-filter: none !important;
+      -webkit-backdrop-filter: none !important;
+      border-radius: var(--radius) !important;
   }
-  .section-title::before { content: ''; width: 4px; height: 18px; background: var(--primary); border-radius: 2px; }
+  body.dark-mode .input-group,
+  body.dark-mode button.btn-primary {
+      border-radius: 12px !important;
+  }
 
-  /* ===== 4. 表單與篩選 ===== */
-  .form-row { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-bottom: 16px; position: relative; }
-  @media (max-width: 760px){ .form-row{ gap: 10px; } }
+  /* ===== 3. Header ===== */
+  .header {
+    position: sticky; top: 0; z-index: 100;
+    background: var(--bg-header);
+    border-bottom: 1px solid var(--border);
+    padding: 14px 20px;
+    backdrop-filter: blur(12px);
+  }
+  .header-content {
+    max-width: 1000px; margin: 0 auto;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .logo { font-weight: 900; font-size: 1.2rem; color: var(--text-muted); display: flex; align-items: baseline; gap: 6px; }
+  .logo span { color: var(--primary); }
+
+  .header-actions { display: flex; gap: 10px; align-items: center; }
+
+  /* Buttons */
+  button { font-family: inherit; }
+  .btn-primary {
+    background: linear-gradient(135deg, var(--thsr-color), #ea580c);
+    color: #fff; border: none;
+    padding: 10px 18px; border-radius: 999px;
+    font-weight: 700; cursor: pointer;
+    box-shadow: 0 4px 12px rgba(249, 115, 22, 0.25);
+    transition: transform 0.1s;
+  }
+  .btn-primary:active { transform: scale(0.96); }
+
+  .btn-ghost {
+    background: transparent; border: 1px solid var(--border);
+    color: var(--text-main); padding: 8px 14px; border-radius: 999px;
+    font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 6px;
+  }
+  .btn-ghost:hover { background: var(--bg-surface); }
+
+  .input-field {
+    background: var(--bg-surface); border: 1px solid var(--border);
+    color: var(--text-main); padding: 8px 12px; border-radius: 12px;
+    font-size: 0.95rem; outline: none;
+  }
+
+  /* ===== 4. 表單樣式 (Desktop) ===== */
+  .form-row { display: flex; gap: 12px; align-items: center; margin-bottom: 20px; }
   
-  .input-group { 
-    display: flex; align-items: center; gap: 8px; 
-    background: var(--bg-body); padding: 4px 8px; 
-    border: 1px solid var(--border); border-radius: 8px; 
-    flex: 1; min-width: 120px;
+  .input-group {
+    flex: 1; display: flex; align-items: center; gap: 10px;
+    background: rgba(255,255,255,0.03); border: 1px solid var(--border);
+    padding: 10px 16px; border-radius: 20px;
   }
-  @media (max-width: 760px){ .input-group{ padding: 8px 10px; min-width: 130px; } }
-
-  .input-group label { font-size: 0.85rem; color: var(--text-muted); font-weight: 600; white-space: nowrap; }
-  input, select {
-    border: none; background: transparent; color: var(--text-main); 
-    font-size: 0.95rem; padding: 6px; outline: none; width: 100%; 
-  }
-  .input-field{
-      border:1px solid var(--border); background: var(--bg-surface); color: var(--text-main);
-      padding: 6px 10px; border-radius: 8px; outline: none; font-family: var(--font-main);
+  .input-group label { font-size: 0.85rem; font-weight: 700; color: var(--text-muted); white-space: nowrap; }
+  .input-group select {
+    width: 100%; border: none; background: transparent;
+    color: var(--text-main); font-size: 1rem; font-weight: 600; cursor: pointer; outline: none;
   }
 
-  /* 互換按鈕 */
   .swap-btn {
-    width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--border);
-    background: var(--bg-surface); color: var(--primary);
-    display: flex; justify-content: center; align-items: center;
-    cursor: pointer; transition: 0.2s; font-size: 1.1rem;
-  }
-  .swap-btn:hover { background: var(--bg-body); transform: rotate(180deg); }
-
-  button.btn-primary {
-    background: var(--primary); color: #fff; border: none;
-    padding: 8px 16px; border-radius: 8px; font-weight: 600;
-    cursor: pointer; white-space: nowrap;
-  }
-
-  /* 常用行程按鈕 */
-  .btn-fav {
-    background: var(--primary); 
-    color: white; border: none; border-radius: 20px; 
-    padding: 6px 14px; font-size: 0.9rem; font-weight: 700;
-    display: flex; align-items: center; gap: 4px;
-    cursor: pointer; box-shadow: 0 2px 5px rgba(251, 146, 60, 0.3);
-    white-space: nowrap; transition: 0.2s;
-  }
-  .btn-fav:hover { filter: brightness(1.1); transform: translateY(-1px); }
-  .fav-star { color: #fff; font-size: 1.1em; }
-
-  .fav-popup {
-     position: absolute; top: 100%; left: 0; z-index: 50;
-     background: var(--bg-surface); border: 1px solid var(--border);
-     border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.15);
-     padding: 8px; min-width: 220px; margin-top: 5px;
-     display: none; flex-direction: column; gap: 4px;
-  }
-  .fav-popup.show { display: flex; }
-  .fav-item {
-     padding: 10px 12px; border-radius: 8px; cursor: pointer;
-     font-size: 0.9rem; color: var(--text-main); font-weight: 600;
-     display: flex; align-items: center; gap: 8px;
-     transition: background 0.1s;
-  }
-  .fav-item:hover { background: var(--bg-body); color: var(--primary); }
-  .fav-empty { padding: 10px; color: var(--text-muted); font-size: 0.85rem; text-align: center; }
-
-  /* Chips */
-  .history-chips { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
-  .history-chip {
-    font-size: 0.8rem; padding: 4px 10px; border-radius: 12px;
-    background: var(--bg-body); color: var(--text-muted);
-    border: 1px solid var(--border); cursor: pointer; display: flex; align-items: center; gap: 4px;
-  }
-  .history-chip:hover { background: var(--primary-bg); color: var(--primary); border-color: var(--primary); }
-
-  .chip-label {
-    display: inline-flex; align-items: center; gap: 6px;
-    padding: 5px 10px; border-radius: 20px;
+    width: 40px; height: 40px; border-radius: 50%;
     border: 1px solid var(--border); background: var(--bg-surface);
-    color: var(--text-muted); font-size: 0.85rem; cursor: pointer;
-    user-select: none; transition: 0.2s;
+    color: var(--primary); display: flex; justify-content: center; align-items: center;
+    cursor: pointer; font-size: 1.2rem; flex-shrink: 0;
   }
-  .chip-label:hover { background: var(--bg-body); }
-  .chip-label input { display: none; }
-  .chip-label:has(input:checked) {
-    background: var(--primary-bg); color: var(--primary); border-color: var(--primary); font-weight: 500;
-  }
-  .chip-label input:checked + span { color: var(--primary); }
+  .swap-btn:hover { background: var(--primary-bg); }
 
   /* ===== 5. 表格樣式 ===== */
-  .table-wrapper { overflow-x: auto; border: 1px solid var(--border); border-radius: 8px; -webkit-overflow-scrolling: touch; }
-  table { width: 100%; border-collapse: collapse; font-size: 0.9rem; white-space: nowrap; }
-  
-  th {
-    background: var(--bg-body); color: var(--text-muted); font-weight: 600; text-align: left;
-    padding: 12px 16px; border-bottom: 1px solid var(--border);
-  }
-  th.sortable { cursor: pointer; }
-  td { padding: 12px 16px; border-bottom: 1px solid var(--border); color: var(--text-main); }
+  .table-wrapper { overflow-x: auto; border: 1px solid var(--border); border-radius: 20px; }
+  table { width: 100%; border-collapse: collapse; min-width: 600px; white-space: nowrap; }
+  th { text-align: left; padding: 14px 16px; color: var(--text-muted); font-size: 0.85rem; background: rgba(128,128,128,0.03); border-bottom: 1px solid var(--border); }
+  td { padding: 16px; border-bottom: 1px solid var(--border); color: var(--text-main); font-size: 0.95rem; font-variant-numeric: tabular-nums; }
   tr:last-child td { border-bottom: none; }
-  tr:hover { background: var(--bg-body); cursor: pointer; }
-
-  td { font-feature-settings: "tnum"; font-variant-numeric: tabular-nums; }
   
-  .train-route { font-size: 0.85rem; color: var(--text-muted); margin-left: 6px; }
-  /* 進度條寬度在 JS 中動態控制，手機版已要求縮短 */
-  .progress-bar { height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; margin-top: 4px; }
-  .progress-fill { height: 100%; background: linear-gradient(90deg, #22c55e 0%, #f59e0b 55%, #ef4444 100%); border-radius: 3px; }
+  /* 行互動 */
+  .main-row { cursor: pointer; transition: background 0.1s; }
+  .main-row:hover { background: rgba(128,128,128,0.03); }
 
-  /* ===== 6. Modal (彈窗) & 時間軸 ===== */
-  .modal {
-    display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-    background: rgba(0, 0, 0, 0.6); backdrop-filter: blur(2px);
-    z-index: 2000; justify-content: center; align-items: center;
-    opacity: 0; transition: opacity 0.3s;
+  /* 徽章 */
+  .badge-direct { color: var(--thsr-color); font-weight: 700; background: var(--primary-bg); padding: 4px 10px; border-radius: 8px; font-size: 0.85rem; }
+  .badge-normal { color: var(--text-muted); font-size: 0.85rem; }
+
+  /* 訂票按鈕 */
+  .ticket-btn {
+    display: inline-block; text-decoration: none;
+    background: var(--bg-surface); border: 1px solid var(--border);
+    color: var(--text-main); padding: 6px 12px; border-radius: 10px;
+    font-size: 0.85rem; font-weight: 700;
   }
-  .modal[style*="display: flex"] { opacity: 1; }
+  .ticket-btn:hover { border-color: var(--primary); color: var(--primary); }
+
+  /* ===== 6. Mobile 專用樣式 (Sheet & Compact Bar) ===== */
+  .mobile-only { display: none; }
+
+  @media (max-width: 760px) {
+    /* 隱藏桌面元素 */
+    .desktop-only, .col-stops, .col-ticket { display: none !important; }
+    .mobile-only { display: flex; }
+
+    /* Header 簡化 */
+    .header { padding: 10px 16px; }
+    .logo span { display: none; }
+    .date-picker-label { display: none; }
+    #queryDate { width: 130px; }
+
+    /* Compact Bar (浮動摘要條) */
+    .trip-compact-bar {
+      align-items: center; gap: 10px;
+      background: var(--bg-surface); border: 1px solid var(--border);
+      border-radius: 16px; padding: 10px 12px; margin-bottom: 16px;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+    }
+    .trip-open-btn {
+      flex: 1; display: flex; align-items: center; gap: 8px;
+      background: var(--primary-bg); border: none;
+      padding: 10px 14px; border-radius: 12px;
+      text-align: left; color: var(--text-main);
+    }
+    .trip-open-btn .label { font-weight: 800; color: var(--primary); font-size: 0.9rem; }
+    .trip-open-btn .summary { font-size: 0.9rem; margin-left: auto; opacity: 0.8; }
+    
+    .trip-icon-btn {
+      width: 42px; height: 42px; display: flex; align-items: center; justify-content: center;
+      background: var(--primary); color: white; border: none; border-radius: 50%;
+      font-size: 1.2rem; box-shadow: 0 4px 10px rgba(249, 115, 22, 0.3);
+    }
+
+    /* Bottom Sheet (底部抽屜) */
+    .sheet-backdrop {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 998;
+      opacity: 0; pointer-events: none; transition: opacity 0.3s;
+    }
+    .sheet-backdrop.show { opacity: 1; pointer-events: auto; }
+
+    .sheet-panel {
+      position: fixed; left: 0; right: 0; bottom: 0; z-index: 999;
+      background: var(--bg-surface);
+      border-top-left-radius: 24px; border-top-right-radius: 24px;
+      box-shadow: 0 -10px 40px rgba(0,0,0,0.2);
+      transform: translateY(110%); transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+      padding: 20px; padding-bottom: max(20px, env(safe-area-inset-bottom));
+    }
+    .sheet-panel.show { transform: translateY(0); }
+
+    .sheet-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+    .sheet-title { font-weight: 800; font-size: 1.1rem; }
+    .sheet-close { font-size: 1.5rem; color: var(--text-muted); padding: 5px; }
+
+    /* Sheet 內的表單佈局 */
+    .sheet-form { display: grid; grid-template-columns: 1fr auto 1fr; gap: 10px; align-items: end; }
+    .sheet-form .input-group { flex-direction: column; align-items: flex-start; gap: 6px; border-radius: 14px; }
+    .sheet-form #swapBtn { margin-bottom: 4px; }
+    .sheet-form #searchBtn { grid-column: 1 / -1; margin-top: 10px; width: 100%; padding: 14px; border-radius: 16px; font-size: 1rem; }
+
+    /* Mobile Expandable Row */
+    .mobile-expand-btn {
+      display: inline-flex; width: 24px; height: 24px; border-radius: 50%;
+      background: var(--primary-bg); color: var(--primary);
+      align-items: center; justify-content: center; font-weight: 800; margin-right: 8px;
+    }
+    
+    .mobile-detail-row td {
+      background: var(--bg-body); padding: 12px 16px;
+      border-left: 4px solid var(--primary);
+    }
+    .detail-content { display: flex; justify-content: space-between; align-items: center; }
+  }
+
+  /* ===== 7. Timeline Modal ===== */
+  .modal {
+    position: fixed; inset: 0; z-index: 2000;
+    display: none; align-items: center; justify-content: center;
+    background: rgba(0,0,0,0.6); backdrop-filter: blur(4px);
+    opacity: 0; transition: opacity 0.2s;
+  }
+  .modal.show { opacity: 1; }
 
   .modal-content {
-    background: var(--bg-surface); width: 95%; max-width: 500px; max-height: 85vh;
-    border-radius: 16px; box-shadow: 0 10px 25px rgba(0,0,0,0.2);
-    overflow: hidden; display: flex; flex-direction: column;
-    transform: translateY(20px); transition: transform 0.3s;
+    width: 90%; max-width: 420px; max-height: 80vh;
+    background: var(--bg-surface); border-radius: 24px;
+    box-shadow: 0 20px 50px rgba(0,0,0,0.4);
+    display: flex; flex-direction: column; overflow: hidden;
+    transform: scale(0.95); transition: transform 0.2s;
   }
-  .modal[style*="display: flex"] .modal-content { transform: translateY(0); }
+  .modal.show .modal-content { transform: scale(1); }
 
   .modal-header {
-    padding: 16px 20px; border-bottom: 1px solid var(--border);
+    padding: 16px 20px; background: var(--bg-header);
+    border-bottom: 1px solid var(--border);
     display: flex; justify-content: space-between; align-items: center;
-    background: var(--bg-body);
   }
-  .modal-title-main { font-size: 1.1rem; font-weight: 700; color: var(--text-main); }
-  .modal-title-sub { font-size: 0.85rem; color: var(--text-muted); margin-top: 2px; }
-  .close{font-size:26px;color:var(--text-muted);background:transparent;width:auto;height:auto;display:flex;align-items:center;justify-content:center;border-radius:10px;cursor:pointer;user-select:none;flex:0 0 auto;padding:6px 10px;line-height:1;}
-  .close:hover{background:rgba(148,163,184,0.18);color:var(--text-main);}
-
-  .modal-body { padding: 0; overflow-y: auto; background: var(--bg-surface); }
-
-  /* 時間軸樣式 */
-  .timeline { padding: 10px 20px; }
-  .timeline-item { display: flex; position: relative; padding-bottom: 0; }
   
-  .tl-time {
-    width: 50px; text-align: right; font-size: 0.9rem; font-weight: 600; 
-    color: var(--text-main); padding-right: 15px; padding-top: 2px;
-    font-variant-numeric: tabular-nums;
-  }
-  .tl-marker { display: flex; flex-direction: column; align-items: center; width: 20px; position: relative; }
-  .tl-line { width: 2px; background: var(--border); flex-grow: 1; margin-top: 4px; margin-bottom: -4px; }
+  .timeline { flex: 1; overflow-y: auto; padding: 20px; }
+  .timeline-item { display: flex; margin-bottom: 0; position: relative; }
+  
+  .tl-time { width: 50px; text-align: right; font-weight: 700; font-size: 0.9rem; color: var(--text-main); padding-right: 15px; }
+  .tl-line-container { display: flex; flex-direction: column; align-items: center; width: 20px; }
+  .tl-dot { width: 12px; height: 12px; border-radius: 50%; background: var(--border); z-index: 2; border: 2px solid var(--bg-surface); transition: background 0.3s; }
+  .tl-line { width: 2px; background: var(--border); flex: 1; margin: 4px 0; }
   .timeline-item:last-child .tl-line { display: none; }
-  .tl-dot {
-    width: 10px; height: 10px; border-radius: 50%; background: var(--border);
-    border: 2px solid var(--bg-surface); z-index: 1; flex-shrink: 0; transition: all 0.3s;
-  }
-  .tl-content { padding-left: 15px; padding-bottom: 24px; flex-grow: 1; }
-  .timeline-item:last-child .tl-content { padding-bottom: 10px; }
-  .tl-station { font-size: 1rem; font-weight: 600; color: var(--text-main); display: flex; align-items: center; }
-  .st-arr{ font-size:0.55em; font-weight:600; color:var(--text-muted); margin-left:8px; font-variant-numeric: tabular-nums; }
-  .timeline-item.passed .tl-time, .timeline-item.passed .tl-station { opacity: 0.4; filter: grayscale(1); }
-  .timeline-item.passed .tl-dot { background: var(--border); }
-  .timeline-item.next .tl-dot { 
-    background: #22c55e; width: 14px; height: 14px; 
-    box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.2); border-color: #fff; 
-  }
-  .timeline-item.next .tl-station { color: #15803d; font-weight: 700; }
   
-  .badge-next {
-    display: inline-flex; align-items: center; gap: 4px;
-    background: #22c55e; color: #fff; font-size: 0.7rem; 
-    padding: 2px 8px; border-radius: 10px; margin-left: 8px;
-    animation: pulse 2s infinite;
-  }
-  @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.7; } 100% { opacity: 1; } }
+  .tl-info { padding-left: 15px; padding-bottom: 24px; flex: 1; }
+  .tl-station { font-weight: 700; font-size: 1rem; color: var(--text-main); }
+  
+  /* Timeline Active/Passed States */
+  .timeline-item.passed .tl-dot { background: var(--border); }
+  .timeline-item.passed .tl-station, .timeline-item.passed .tl-time { opacity: 0.5; }
+  
+  .timeline-item.active .tl-dot { background: var(--primary); box-shadow: 0 0 0 4px var(--primary-bg); }
+  .timeline-item.active .tl-station { color: var(--primary); }
 
-  .query-tabs{display:flex;gap:10px;flex-wrap:wrap;margin:0 0 14px 0}
-  .query-tab{appearance:none;border:1px solid var(--border);background:var(--card-bg);color:var(--text-main);
-    padding:10px 12px;border-radius:12px;font-weight:700;cursor:pointer;transition:.15s}
-  .query-tab:hover{transform:translateY(-1px)}
-  .query-tab.active{background:linear-gradient(135deg, var(--primary), #ea580c);color:#fff;border-color:transparent}
-  .query-panel.hidden{display:none}
-
-  .ticket-btn{
-    border:1px solid var(--border); background:var(--bg-body); color:var(--text-main);
-    border-radius:10px; padding:6px 12px; cursor:pointer; font-size:14px; line-height:1; font-weight: 700;
+  /* Loading */
+  #loading-overlay {
+    position: fixed; inset: 0; background: rgba(15,23,42,0.4); z-index: 9999;
+    display: none; align-items: center; justify-content: center; backdrop-filter: blur(5px);
   }
-  .ticket-btn:active{ transform:scale(.98); }
-  .ticket-btn[disabled]{ opacity:.45; cursor:not-allowed; transform:none; }
-  .est-tip{ font-size:12px; opacity:.55; cursor:help; line-height:1; }
-
-  #loading-overlay{
-      position: fixed; inset: 0; background: rgba(15, 23, 42, 0.35);
-      display:none; align-items:center; justify-content:center; flex-direction:column;
-      z-index: 9999; backdrop-filter: blur(6px);
+  .spinner {
+    width: 40px; height: 40px; border: 4px solid rgba(255,255,255,0.3);
+    border-top-color: #fff; border-radius: 50%; animation: spin 0.8s linear infinite;
   }
-  .spinner{
-      width: 44px; height: 44px; border-radius: 50%;
-      border: 4px solid rgba(255,255,255,0.35);
-      border-top-color: rgba(255,255,255,0.95);
-      animation: spin 1s linear infinite; margin-bottom: 12px;
-  }
-  @keyframes spin { to{ transform: rotate(360deg);} }
+  @keyframes spin { to { transform: rotate(360deg); } }
 
-  /* ===== 背景裝飾 (桌面版) ===== */
-  .bg-blobs { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; filter: blur(120px); opacity: 0.42; pointer-events:none; }
-  .blob { position: absolute; width: 60vw; height: 60vw; border-radius: 50%; animation: float 25s infinite alternate ease-in-out; }
-  .blob-1 { background: #fb923c; top: -10%; left: -10%; }
-  .blob-2 { background: #2563eb; bottom: -10%; right: -10%; }
-  @keyframes float { 0% { transform: translate(0, 0); } 100% { transform: translate(10%, 15%); } }
-</style>
+  </style>
 </head>
 <body class="light-mode">
 
-<div class="bg-blobs" aria-hidden="true">
-  <div class="blob blob-1"></div>
-  <div class="blob blob-2"></div>
-</div>
-
-<div id="loading-overlay">
-  <div class="spinner"></div>
-  <div id="loading-text">正在初始化高鐵真實數據...</div>
-</div>
-
-<header class="header">
-  <div class="header-content">
-    <div class="logo">THSR <span>Real-time</span></div>
-
-    <div class="date-picker">
-      <button class="btn-ghost" onclick="window.location.href='../home/index.html'" style="margin-right:8px;">← 首頁</button>
-      
-      <label style="font-size: 0.8em; color: var(--text-muted);">選擇查詢日期：</label>
-      <input type="date" id="mainQueryDate" class="input-field" style="width: auto; display: inline-block;">
-      <button class="btn-primary" id="refreshBtn" style="padding: 6px 12px;">更新資料</button>
-      <button class="btn-ghost" id="themeToggle" type="button" title="切換深夜模式">🌙 深夜模式</button>
-    </div>
+  <div style="position:fixed;top:0;left:0;width:100%;height:100%;z-index:-1;overflow:hidden;pointer-events:none;">
+    <div style="position:absolute;top:-10%;left:-10%;width:50vw;height:50vw;background:var(--primary);filter:blur(120px);opacity:0.1;border-radius:50%;"></div>
+    <div style="position:absolute;bottom:-10%;right:-10%;width:60vw;height:60vw;background:var(--primary);filter:blur(140px);opacity:0.08;border-radius:50%;"></div>
   </div>
-</header>
 
-<main class="container">
-  <div class="grid">
+  <div id="loading-overlay"><div class="spinner"></div></div>
 
-    <div class="query-tabs" role="tablist" aria-label="查詢模式">
-      <button class="query-tab active" id="tab-startend" type="button" data-target="panel-startend">起訖站查詢</button>
-      <button class="query-tab" id="tab-station" type="button" data-target="panel-station">車站時刻表</button>
-      <button class="query-tab" id="tab-trainno" type="button" data-target="panel-trainno">車次查詢</button>
+  <header class="header">
+    <div class="header-content">
+      <div class="logo">THSR <span>High Speed Rail</span></div>
+      <div class="header-actions">
+        <label class="date-picker-label" style="font-size:0.85rem;font-weight:600;color:var(--text-muted)">日期：</label>
+        <input type="date" id="queryDate" class="input-field">
+        <button class="btn-primary desktop-only" id="refreshBtn">更新</button>
+        <button class="btn-ghost" id="themeToggle" title="切換模式">🌙</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="container">
+    
+    <div class="trip-compact-bar mobile-only">
+      <button class="trip-open-btn" id="openSheetBtn">
+        <span class="label">📍 行程設定</span>
+        <span class="summary" id="mobileSummary">南港 → 左營</span>
+      </button>
+      <button class="trip-icon-btn" id="quickSearchBtn">🔍</button>
     </div>
 
-    <section id="panel-startend" class="card query-panel">
-      <div class="section-title">起訖站查詢</div>
+    <div class="card">
+      <div class="section-title desktop-only" style="font-weight:800;font-size:1.2rem;margin-bottom:20px;display:flex;align-items:center;gap:8px;">
+        <span style="width:4px;height:20px;background:var(--primary);border-radius:2px;"></span>
+        高鐵時刻查詢
+      </div>
 
-      <datalist id="stationList"></datalist>
-
-      <div id="searchHistory" class="history-chips"></div>
-
-      <div class="form-row" style="position:relative;">
-        <button class="btn-fav" id="favBtn" type="button">
-           <span class="fav-star">★</span> 常用行程
-        </button>
-        <div class="fav-popup" id="favPopup"></div>
-
+      <div class="form-row desktop-only">
         <div class="input-group">
           <label>出發</label>
-          <input list="stationList" id="startStation" placeholder="請輸入站名或站碼">
+          <select id="startStation"></select>
         </div>
-
-        <button class="swap-btn" id="swapBtn" title="互換">⇄</button>
-
+        <button class="swap-btn" id="swapBtn">⇄</button>
         <div class="input-group">
           <label>到達</label>
-          <input list="stationList" id="endStation" placeholder="請輸入站名或站碼">
+          <select id="endStation"></select>
         </div>
-
-        <label class="chip-label" style="flex:0 0 auto;">
-          <input type="checkbox" id="onlyDirect">
-          <span>只顯示直達</span>
-        </label>
-        <button class="btn-primary" id="searchBtn">查詢</button>
+        <button class="btn-primary" id="searchBtn">查詢時刻</button>
       </div>
 
       <div class="table-wrapper">
-        <table id="scheduleTableByStation">
+        <table id="resultTable">
           <thead>
             <tr>
               <th>車次</th>
-              <th class="col-range">區間</th>
-              <th>出發 <span id="sortDepIcon">↕</span></th>
-              <th>抵達 <span id="sortArrIcon">↕</span></th>
-              <th class="col-dur">耗時 <span id="sortDurIcon">↕</span></th>
-              <th class="col-stops">停靠</th>
-              <th>狀態</th>
-              <th class="seat-col-header col-seat-std">標準</th> 
-              <th class="seat-col-header col-seat-biz">商務</th> 
-              <th class="col-ticket">訂票</th>
+              <th>出發</th>
+              <th>抵達</th>
+              <th class="col-duration">耗時</th>
+              <th class="col-stops">模式</th>
+              <th class="col-ticket" style="text-align:center">訂票</th>
             </tr>
           </thead>
           <tbody></tbody>
         </table>
       </div>
-    </section>
-
-    <section id="panel-station" class="card query-panel hidden">
-      <div class="section-title">車站時刻表</div>
-      <div class="form-row">
-        <div class="input-group">
-          <label>車站</label>
-          <input list="stationList" id="stationNameInput" placeholder="請輸入站名或站碼">
-        </div>
-        <div class="input-group" style="max-width: 220px;">
-          <label>方向</label>
-          <select id="directionSelect"><option value="south">南下</option><option value="north">北上</option></select>
-        </div>
-        <button class="btn-primary" id="stationSearchBtn">查詢</button>
-      </div>
-      <div class="table-wrapper">
-        <table id="scheduleTableByStationName">
-          <thead><tr><th>車次</th><th>區間</th><th>時間</th><th>狀態</th></tr></thead>
-          <tbody></tbody>
-        </table>
-      </div>
-    </section>
-
-    <section id="panel-trainno" class="card query-panel hidden">
-      <div class="section-title">車次查詢</div>
-      <datalist id="trainNumberList"></datalist>
-      <div class="form-row">
-        <div class="input-group">
-          <label>車次</label>
-          <input id="trainNumberInput" list="trainNumberList" placeholder="請輸入車次">
-        </div>
-        <button class="btn-primary" id="trainNumberBtn">查詢</button>
-      </div>
-      <div class="table-wrapper">
-        <table id="scheduleTableByNumber">
-          <thead><tr><th>車次</th><th>區間</th><th>狀態</th></tr></thead>
-          <tbody></tbody>
-        </table>
-      </div>
-    </section>
-
-  </div>
-</main>
-
-<div id="trainModal" class="modal">
-  <div class="modal-content">
-    <div class="modal-header">
-      <div>
-        <div class="modal-title-main" id="modalTitleMain">列車資訊</div>
-        <div class="modal-title-sub" id="modalTitleSub">—</div>
-      </div>
-      <div class="close" id="modalClose">✕</div>
     </div>
-    <div class="modal-body" id="modalBody"></div>
+  </main>
+
+  <div class="sheet-backdrop" id="sheetBackdrop"></div>
+  <div class="sheet-panel" id="sheetPanel">
+    <div class="sheet-header">
+      <div class="sheet-title">行程設定</div>
+      <div class="sheet-close" id="closeSheetBtn">✕</div>
+    </div>
+    <div class="sheet-form">
+      <div class="input-group">
+        <label>出發站</label>
+        <select id="mStartStation"></select>
+      </div>
+      <button class="swap-btn" id="mSwapBtn" style="align-self:center">⇄</button>
+      <div class="input-group">
+        <label>到達站</label>
+        <select id="mEndStation"></select>
+      </div>
+      <button class="btn-primary" id="mSearchBtn">查詢時刻</button>
+    </div>
   </div>
-</div>
 
-<script src="./thsr.real-schedule.js"></script>
-<script>
-  let nameToId = {};
-  let stationListSorted = [];
-  let currentQueryDateStr = '';
-  let baseSchedule = {};
-  let prevSchedule = {};
-  let lastStartEndQuery = null;
-  let lastStationQuery  = null;
-  let lastTrainQuery    = null;
-  let modalCtx = null;
-  let currentSeatMap = {}; 
-  let currentStartEndList = [];
-  let currentStationList = [];
+  <div id="trainModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div>
+          <div style="font-weight:800;font-size:1.1rem" id="modalTrainNo">--</div>
+          <div style="font-size:0.85rem;color:var(--text-muted)" id="modalRoute">--</div>
+        </div>
+        <div class="sheet-close" id="closeModalBtn" style="font-size:1.5rem;cursor:pointer">✕</div>
+      </div>
+      <div class="timeline" id="modalTimeline"></div>
+    </div>
+  </div>
 
-  function fmtDate(d){ return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
-  function addDays(dateStr, delta){ const [y,m,d] = dateStr.split('-').map(Number); const dt = new Date(y, m-1, d); dt.setDate(dt.getDate()+delta); return fmtDate(dt); }
-  function normTW(s){ return String(s||'').trim().replace(/台/g,'臺'); }
-  function sameStation(a,b){ return normTW(a) === normTW(b); }
-  const THSR_STATION_ORDER = ['南港','臺北','板橋','桃園','新竹','苗栗','臺中','彰化','雲林','嘉義','臺南','左營'];
-  function normTHSRStationName(s){ const n = normTW(s||''); if(n==='高雄' || n==='新左營') return '左營'; return n; }
-  function thsrStationIndex(name){ return THSR_STATION_ORDER.indexOf(normTHSRStationName(name)); }
-  function parseTime(t){ if(!t || !/\d{1,2}:\d{2}/.test(t)) return null; let [h,m]=t.split(':').map(x=>parseInt(x,10)); return h*60+m; }
-  function durationText(depMin, arrMin){ if(depMin===null || arrMin===null) return '--'; let d = arrMin - depMin; if(d < 0) d += 1440; const hh = Math.floor(d/60); const mm = d%60; return `${hh}h ${String(mm).padStart(2,'0')}m`; }
-  function isQueryToday(dateStr){ return dateStr === fmtDate(new Date()); }
-  function splitArrDep(stopRow){ const t1 = stopRow?.[1] || ''; const t2 = stopRow?.[2] || ''; if(!t2) return { arr: t1, dep: t1 }; if(!t1) return { arr: t2, dep: t2 }; const m1 = parseTime(t1); const m2 = parseTime(t2); if(m1===null || m2===null) return { arr: t1, dep: t2 }; if(m2 <= m1) return { arr: t2, dep: t1 }; return { arr: t1, dep: t2 }; }
+  <script src="./thsr.schedule.js"></script>
+  <script>
+    // ===== 1. 資料與初始化 =====
+    const stations = [
+        {id:"0990", name:"南港"}, {id:"1000", name:"台北"}, {id:"1010", name:"板橋"},
+        {id:"1020", name:"桃園"}, {id:"1030", name:"新竹"}, {id:"1035", name:"苗栗"},
+        {id:"1040", name:"台中"}, {id:"1043", name:"彰化"}, {id:"1047", name:"雲林"},
+        {id:"1050", name:"嘉義"}, {id:"1060", name:"台南"}, {id:"1070", name:"左營"}
+    ];
 
-  function getStopsWithAdjustedDate(trainNo, originDateStr, scheduleMap) {
-    const t = scheduleMap[trainNo]; if (!t) return [];
-    const stops = t['車站時間'] || [];
-    let dayOffset = 0; let prevMin = -1;
-    return stops.map((stop) => {
-      const ad = splitArrDep(stop); const timeStr = ad.dep || ad.arr || ''; const currentMin = parseTime(timeStr);
-      if (prevMin !== -1 && currentMin !== null && currentMin < prevMin) dayOffset++;
-      if (currentMin !== null) prevMin = currentMin;
-      return { name: stop[0], time: timeStr, arr: ad.arr, actualDate: addDays(originDateStr, dayOffset), originDate: originDateStr };
-    });
-  }
+    let trainData = []; // 存放當日班次
 
-  function stopDisplayDate(originDateStr, stops, idx){
-    let dayOffset = 0; let prevMin = -1;
-    for(let i=0; i<=idx; i++){
-        const ad = splitArrDep(stops[i]); const m = parseTime(ad.dep || ad.arr || '');
-        if(prevMin !== -1 && m !== null && m < prevMin) dayOffset++;
-        if(m !== null) prevMin = m;
-    }
-    return addDays(originDateStr, dayOffset);
-  }
-
-  function getStatusLabel(originDateStr, depTimeStr, arrTimeStr, firstDepTimeStr, mode) {
-    const now = new Date(); const todayStr = fmtDate(now);
-    if (originDateStr > todayStr) return '未發車'; if (originDateStr < todayStr) return '已到終點';
-    const nowMin = now.getHours() * 60 + now.getMinutes();
-    const depMin = parseTime(depTimeStr || ''); const arrMin = parseTime(arrTimeStr || ''); const firstDepMin = parseTime(firstDepTimeStr || ''); 
-    if (depMin === null) return '未發車';
-    let adjustedArrMin = arrMin; if (arrMin !== null && arrMin < depMin) adjustedArrMin += 1440;
-    if (nowMin < depMin) { if (firstDepMin !== null && nowMin >= firstDepMin) { return '行駛中'; } return '未發車'; } 
-    else if (adjustedArrMin !== null && nowMin < adjustedArrMin) { return (mode === 'train') ? '行駛中' : '已過站'; } 
-    else { return '已到終點'; }
-  }
-
-  function statusBadge(label){ const s = String(label||''); const tip = '狀態依預定時刻與目前時間推估'; return `<span class="status-badge est" style="background:transparent; display:inline-flex; align-items:center; gap:4px; white-space:nowrap; padding:0;"><span class="status-text-${s}">${s}</span><span class="est-tip" title="${tip}" style="opacity:0.5; cursor:help;">ⓘ</span></span>`; }
-
-  function bindStationInput(inputId){
-    const input = document.getElementById(inputId); if(!input) return;
-    input.addEventListener('focus', ()=> fillStationDatalist(input.value));
-    input.addEventListener('input', ()=> fillStationDatalist(input.value));
-    input.addEventListener('blur', ()=>{ const resolved = extractStationNameFromInput(input.value); if(resolved) input.value = resolved; });
-  }
-  function bindTrainInput(inputId){
-    const input = document.getElementById(inputId); if(!input) return;
-    input.addEventListener('focus', ()=> fillTrainDatalist(input.value));
-    input.addEventListener('input', ()=> fillTrainDatalist(input.value));
-    input.addEventListener('blur', ()=>{ const no = extractTrainNoFromInput(input.value); if(no) input.value = no; });
-  }
-  function extractStationNameFromInput(raw){ 
-    const v=String(raw||'').trim(); if(!v) return ''; 
-    const m=v.match(/^(\d{3,6})\s*-\s*(.+)$/); 
-    if(m&&window.stationMap&&window.stationMap[m[1]]) return window.stationMap[m[1]]; 
-    if(window.stationMap&&window.stationMap[v]) return window.stationMap[v]; 
-    const asTai=normTW(v); 
-    if(asTai==='高雄'||asTai==='新左營') return '左營'; 
-    if(nameToId[asTai]) return asTai; 
-    return normTW(v); 
-  }
-  function fillStationDatalist(k){ const dl=document.getElementById('stationList'); if(!dl) return; dl.innerHTML=stationListSorted.filter(s=>s.name.includes(normTW(k))||String(s.id).includes(k)).slice(0,30).map(s=>`<option value="${s.id}-${s.name}"></option>`).join(''); }
-  function fillTrainDatalist(k){ 
-    const dl=document.getElementById('trainNumberList'); if(!dl) return; 
-    const nums = Object.keys(baseSchedule).filter(n=>n.includes(k)).sort();
-    const limit = 50; let out = '';
-    for(let i=0; i<nums.length; i++){ if(i >= limit) break; const n = nums[i]; const t = baseSchedule[n]; const stops = t?.['車站時間']||[]; const first = stops[0]?.[0] || ''; const last = stops.slice(-1)[0]?.[0] || ''; const range = (first && last) ? `${first}➝${last}` : ''; out += `<option value="${n} - ${range}"></option>`; }
-    dl.innerHTML = out; 
-  }
-  function extractTrainNoFromInput(v){ let no=String(v||'').trim().split('-')[0].trim(); if(/^\d{3}$/.test(no)) no='0'+no; return no; }
-  function buildStationIndex(){ nameToId={}; stationListSorted=[]; if(!window.stationMap) return; Object.entries(window.stationMap).forEach(([id,n])=>{ const nn=normTW(n); nameToId[nn]=id; stationListSorted.push({id,name:nn}); }); stationListSorted.sort((a,b)=>String(a.id).localeCompare(String(b.id))); }
-
-  async function refreshData(dateStr){
-    currentQueryDateStr = dateStr || '';
-    document.getElementById('loading-overlay').style.display = 'flex';
-    document.getElementById('loading-text').textContent = `正在獲取 ${dateStr} 資料...`;
-    await fetchRealData(dateStr);
-    baseSchedule = (typeof structuredClone==='function') ? structuredClone(window.trainSchedule) : JSON.parse(JSON.stringify(window.trainSchedule||{}));
-    const prevDateStr = addDays(dateStr, -1);
-    await fetchRealData(prevDateStr);
-    prevSchedule = (typeof structuredClone==='function') ? structuredClone(window.trainSchedule) : JSON.parse(JSON.stringify(window.trainSchedule||{}));
-    window.trainSchedule = structuredClone(baseSchedule);
-    buildStationIndex(); fillStationDatalist(''); fillTrainDatalist(''); renderHistory();
-    document.getElementById('loading-overlay').style.display = 'none';
-    rerenderVisibleResults();
-  }
-
-  async function runStartEndSearch() {
-    const dateInput = document.getElementById('mainQueryDate');
-    const queryDate = dateInput ? dateInput.value : fmtDate(new Date());
-    const todayStr = fmtDate(new Date());
-    const stInput = document.getElementById('startStation').value;
-    const edInput = document.getElementById('endStation').value;
-    const st = extractStationNameFromInput(stInput);
-    const ed = extractStationNameFromInput(edInput);
-    if (!st || !ed || !queryDate) return;
-    document.getElementById('startStation').value = st;
-    document.getElementById('endStation').value = ed;
-    
-    // 設定是否為過去日期，影響是否顯示座位
-    const isPastDate = queryDate < todayStr;
-    // 手機版會隱藏標頭，這裡主要是給桌面版
-    document.querySelectorAll('.seat-col-header').forEach(th => { th.style.display = isPastDate ? 'none' : ''; });
-    
-    lastStartEndQuery = { st, ed };
-    buildDirectList(st, ed);
-    renderStartEndTable();
-    if (queryDate >= todayStr) { await refreshSeatForCurrentOD(st, ed); } else { currentSeatMap = {}; renderStartEndTable(); }
-    const h = loadHistory().filter(x => !(x.s === st && x.e === ed));
-    h.unshift({ s: st, e: ed });
-    saveHistory(h); renderHistory();
-  }
-
-  function buildDirectList(st, ed) {
-    const list = [];
-    const queryDate = document.getElementById('mainQueryDate').value;
-    const onlyDirect = document.getElementById('onlyDirect')?.checked;
-    const sources = [{ map: baseSchedule, origin: queryDate }, { map: prevSchedule, origin: addDays(queryDate, -1) }];
-    sources.forEach(src => {
-      Object.keys(src.map || {}).forEach(trainNo => {
-        const adjStops = getStopsWithAdjustedDate(trainNo, src.origin, src.map);
-        const i1 = adjStops.findIndex(x => sameStation(x.name, st));
-        const i2 = adjStops.findIndex(x => sameStation(x.name, ed));
-        if (i1 < 0 || i2 < 0 || i2 <= i1) return;
-        const start = adjStops[i1]; const end = adjStops[i2];
-        if (src.origin !== queryDate) { const depMin = parseTime(start.time); if (depMin === null || depMin > 240) return; }
-        if (start.actualDate !== queryDate) return;
-        const dur = (parseTime(end.time) - parseTime(start.time) + 1440) % 1440;
-        if (onlyDirect && (i2 - i1 - 1) > 0) return;
-        const firstDep = adjStops[0].time; 
-        list.push({
-          trainNo, dep: start.time, arr: end.time, durMin: dur,
-          range: `${adjStops[0].name}➝${adjStops.slice(-1)[0].name}`,
-          stopBetween: i2 - i1 - 1,
-          status: getStatusLabel(start.originDate, start.time, end.time, firstDep, 'list'),
-          originDate: start.originDate, midStops: adjStops.slice(i1 + 1, i2),
-          startStation: st, endStation: ed
-        });
-      });
-    });
-    currentStartEndList = list.sort((a,b) => parseTime(a.dep) - parseTime(b.dep));
-  }
-
-  async function refreshSeatForCurrentOD(st, ed){
-    const dateStr = document.getElementById('mainQueryDate').value;
-    const todayStr = fmtDate(new Date());
-    const oId = nameToId[normTW(st)]; const dId = nameToId[normTW(ed)];
-    if(!dateStr || !oId || !dId) return;
-    currentSeatMap = {};
-    if (dateStr === todayStr) {
-        const mToday = await window.fetchSeatStatusOD(dateStr, oId, dId).catch(()=>({}));
-        Object.keys(mToday||{}).forEach(k=>{ currentSeatMap[`${String(k)}|${dateStr}`] = mToday[k]; });
-    } else {
-        const prevDateStr = addDays(dateStr, -1);
-        const [mToday, mPrev] = await Promise.all([ window.fetchSeatStatusOD(dateStr, oId, dId).catch(()=>({})), window.fetchSeatStatusOD(prevDateStr, oId, dId).catch(()=>({})) ]);
-        Object.keys(mPrev||{}).forEach(k=>{ currentSeatMap[`${String(k)}|${prevDateStr}`] = mPrev[k]; });
-        Object.keys(mToday||{}).forEach(k=>{ currentSeatMap[`${String(k)}|${dateStr}`] = mToday[k]; });
-    }
-    renderStartEndTable();
-  }
-
-  function getSeatIcon(trainNo, type, originDateStr) {
-    const key = `${String(trainNo)}|${originDateStr}`; const info = currentSeatMap?.[key]; const status = info ? info[type] : '--';
-    if(status==='O') return '<span class="seat-icon seat-o">○</span>'; if(status==='L') return '<span class="seat-icon seat-l">△</span>'; if(status==='X') return '<span class="seat-icon seat-x">✕</span>'; return '<span class="seat-icon seat-none">--</span>';
-  }
-
-  function renderStartEndTable() {
-    const tbody = document.querySelector('#scheduleTableByStation tbody'); if (!tbody) return;
-    tbody.innerHTML = '';
-    const queryDate = document.getElementById('mainQueryDate').value; const todayStr = fmtDate(new Date()); const isPastDate = queryDate < todayStr;
-    
-    if (!currentStartEndList.length) { tbody.innerHTML = `<tr><td colspan="10" style="text-align:center;">查無資料</td></tr>`; return; }
-    
-    const nowMin = new Date().getHours() * 60 + new Date().getMinutes(); 
-    const maxDur = Math.max(1, ...currentStartEndList.map(x => x.durMin || 0));
-
-    // 事件代理 (手機版摺疊 + 訂票 + 停靠站展開)
-    tbody.onclick = async (e) => {
-        // A. 手機版展開按鈕
-        const expandBtn = e.target.closest('.mobile-expand-btn');
-        if(expandBtn){
-            e.stopPropagation();
-            const tr = expandBtn.closest('tr');
-            const idx = Number(expandBtn.dataset.idx);
-            const r = currentStartEndList[idx];
-
-            if(tr.nextElementSibling && tr.nextElementSibling.classList.contains('mobile-detail-row')){
-                tr.nextElementSibling.remove();
-                expandBtn.textContent = '+';
-            } else {
-                const detailRow = document.createElement('tr');
-                detailRow.className = 'mobile-detail-row';
-                
-                // 停靠站 Grid
-                let stopsHTML = '';
-                if(r.midStops && r.midStops.length > 0){
-                    const stopsSpans = r.midStops.map(s => `<span class="stop-item">${s.name}(${s.time})</span>`).join('');
-                    stopsHTML = `<div class="stops-grid">${stopsSpans}</div>`;
-                } else {
-                    stopsHTML = '<span style="color:#16a34a;font-weight:600">直達（無中途停靠）</span>';
-                }
-
-                // 訂票按鈕邏輯
-                const depMin = parseTime(r.dep);
-                const canBook = (r.originDate > todayStr) || (r.originDate === todayStr && depMin !== null && (depMin - nowMin) > 10);
-                let btnHTML = '';
-                if(canBook){
-                    btnHTML = `<button class="ticket-btn" onclick="openTHSRBookingDeepLink('${r.trainNo}', '${r.originDate}', '${r.dep}')">🎫 立即訂票</button>`;
-                } else {
-                    btnHTML = `<button class="ticket-btn" disabled style="opacity:0.5;cursor:not-allowed">停止預訂</button>`;
-                }
-
-                // 座位狀態 HTML
-                const seatStd = getSeatIcon(r.trainNo, 'standard', r.originDate);
-                const seatBiz = getSeatIcon(r.trainNo, 'business', r.originDate);
-
-                detailRow.innerHTML = `
-                    <td colspan="10">
-                        <div class="detail-row-flex">
-                            <div class="detail-range-info">${r.range}</div>
-                            <div>${btnHTML}</div>
-                        </div>
-                        <div class="detail-seats-row">
-                            <div>標準: ${seatStd}</div>
-                            <div>商務: ${seatBiz}</div>
-                        </div>
-                        <div class="detail-label">停靠站</div>
-                        ${stopsHTML}
-                    </td>
-                `;
-                tr.parentNode.insertBefore(detailRow, tr.nextSibling);
-                expandBtn.textContent = '-';
-            }
-            return;
-        }
-
-        // B. 訂票按鈕 (PC)
-        const ticket = e.target.closest('.ticket-btn');
-        if(ticket && !ticket.disabled){
-            e.stopPropagation(); // 阻止冒泡避免觸發 row click
-            // 已經在 onclick 處理
-            return;
-        }
-
-        // C. 停靠站展開箭頭 (PC)
-        const toggle = e.target.closest('.stop-toggle');
-        if(toggle){
-            e.stopPropagation();
-            const tr = toggle.closest('tr');
-            const idx = Number(tr.dataset.idx);
-            const r = currentStartEndList[idx];
-            
-            const next = tr.nextElementSibling;
-            if(next && next.classList.contains('stops-row')){
-                next.remove();
-            } else {
-                const tr2 = document.createElement('tr');
-                const stopsStr = r.midStops.map(s => `${s.name}(${s.arr || s.time})`).join('、');
-                tr2.innerHTML = `<td colspan="10" class="stops-row">沿途停靠：${stopsStr}</td>`;
-                tr.parentNode.insertBefore(tr2, tr.nextSibling);
-            }
-            return;
-        }
-
-        // D. 列點擊 (開啟 Modal)
-        const tr = e.target.closest('tr');
-        if(!tr || tr.parentElement !== tbody || tr.classList.contains('mobile-detail-row') || tr.classList.contains('stops-row')) return;
-        const idx = Number(tr.dataset.idx);
-        const r = currentStartEndList[idx];
-        if(!r) return;
-        showTrainDetails(r.trainNo, r.originDate);
-    };
-
-    currentStartEndList.forEach((row, idx) => {
-        const tr = document.createElement('tr');
-        tr.dataset.idx = idx;
-        tr.className = "main-row";
-
-        const depMin = parseTime(row.dep);
-        const canBook = (row.originDate > todayStr) || (row.originDate === todayStr && depMin !== null && (depMin - nowMin) > 10);
-        const ticketBtn = canBook ? `<button class="ticket-btn">🎫</button>` : `<span style="font-size:12px;color:var(--text-light);">停止</span>`;
+    window.addEventListener('load', async () => {
+        setupTheme();
+        initDateInput();
+        renderStationSelects(); // 同步 Desktop & Mobile 選單
         
-        let seatCells = `<td class="col-seat-std" style="text-align:center;">${getSeatIcon(row.trainNo, 'standard', row.originDate)}</td><td class="col-seat-biz" style="text-align:center;">${getSeatIcon(row.trainNo, 'business', row.originDate)}</td>`;
-        if(isPastDate) seatCells = `<td class="col-seat-std" style="text-align:center;">--</td><td class="col-seat-biz" style="text-align:center;">--</td>`;
+        // 嘗試載入資料
+        await loadData();
+        
+        // 初始渲染
+        doSearch();
 
-        const stopText = row.stopBetween <= 0 ? '直達' : `<span class="stop-toggle" style="cursor:pointer; color:var(--text-main); font-weight:600;">${row.stopBetween}站 ▼</span>`;
+        // 綁定事件
+        bindEvents();
+    });
 
-        tr.innerHTML = `
-            <td>
-                <span class="mobile-expand-btn" data-idx="${idx}">+</span>
-                <b>${row.trainNo}</b>
-            </td>
-            <td class="col-range"><span class="train-route">${row.range}</span></td>
-            <td>${row.dep}</td>
-            <td>${row.arr}</td>
-            <td class="col-dur">
-                <div style="display:flex;flex-direction:column;gap:4px;">
-                    <div style="font-weight:800;font-size:0.85rem;">${durationText(0, row.durMin).replace('0h ','')}</div>
-                    <div class="progress-bar" style="width:60px;">
-                        <div class="progress-fill" style="width:${Math.round((row.durMin / maxDur) * 100)}%;"></div>
+    // ===== 2. 邏輯處理 =====
+    
+    // 初始化日期輸入框
+    function initDateInput() {
+        const d = new Date();
+        const str = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+        document.getElementById('queryDate').value = str;
+    }
+
+    // 產生車站選項 (同步兩個 Select)
+    function renderStationSelects() {
+        const opts = stations.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+        
+        ['startStation', 'endStation', 'mStartStation', 'mEndStation'].forEach(id => {
+            document.getElementById(id).innerHTML = opts;
+        });
+
+        // 預設值
+        setStation('startStation', '0990'); // 南港
+        setStation('mStartStation', '0990');
+        setStation('endStation', '1070');   // 左營
+        setStation('mEndStation', '1070');
+        
+        updateSummary();
+    }
+
+    function setStation(id, val) {
+        document.getElementById(id).value = val;
+    }
+
+    // 更新 Mobile 摘要文字
+    function updateSummary() {
+        const sId = document.getElementById('mStartStation').value;
+        const eId = document.getElementById('mEndStation').value;
+        const sName = stations.find(s=>s.id===sId)?.name;
+        const eName = stations.find(s=>s.id===eId)?.name;
+        document.getElementById('mobileSummary').textContent = `${sName} → ${eName}`;
+        
+        // 同步回 Desktop (若從 Mobile 操作)
+        setStation('startStation', sId);
+        setStation('endStation', eId);
+    }
+    
+    // 交換起訖站
+    function swapStations(isMobile) {
+        const sId = isMobile ? 'mStartStation' : 'startStation';
+        const eId = isMobile ? 'mEndStation' : 'endStation';
+        
+        const sVal = document.getElementById(sId).value;
+        const eVal = document.getElementById(eId).value;
+        
+        setStation(sId, eVal);
+        setStation(eId, sVal);
+        
+        // 同步另一組
+        const otherS = isMobile ? 'startStation' : 'mStartStation';
+        const otherE = isMobile ? 'endStation' : 'mEndStation';
+        setStation(otherS, eVal);
+        setStation(otherE, sVal);
+        
+        updateSummary();
+    }
+
+    // 模擬或讀取資料
+    async function loadData() {
+        const overlay = document.getElementById('loading-overlay');
+        overlay.style.display = 'flex';
+        
+        // 模擬延遲
+        await new Promise(r => setTimeout(r, 400));
+        
+        if (typeof window.thsrSchedule !== 'undefined') {
+            trainData = window.thsrSchedule;
+        } else {
+            // 如果沒有外部 JS，產生一些假資料展示用 (避免空白)
+            console.warn("No thsr.schedule.js found, using mock data.");
+            trainData = generateMockData(); 
+        }
+        
+        overlay.style.display = 'none';
+    }
+
+    // 執行查詢與渲染表格
+    function doSearch() {
+        const startId = document.getElementById('startStation').value;
+        const endId = document.getElementById('endStation').value;
+        const tbody = document.querySelector('#resultTable tbody');
+        tbody.innerHTML = '';
+
+        if(startId === endId) {
+            tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:24px;color:#ef4444;font-weight:700">起訖站不能相同</td></tr>`;
+            return;
+        }
+
+        // 判斷方向
+        const sIdx = stations.findIndex(s=>s.id===startId);
+        const eIdx = stations.findIndex(s=>s.id===endId);
+        const direction = sIdx < eIdx ? 0 : 1; // 0:南下, 1:北上
+
+        // 過濾班次
+        const results = Object.values(trainData).filter(t => {
+            if (t.Direction !== direction) return false;
+            const sStop = t.Stops.find(s=>s.StationID===startId);
+            const eStop = t.Stops.find(s=>s.StationID===endId);
+            if(!sStop || !eStop) return false;
+            return sStop.DepartureTime < eStop.ArrivalTime; // 時間順序正確
+        });
+
+        // 排序
+        results.sort((a,b) => {
+            const tA = a.Stops.find(s=>s.StationID===startId).DepartureTime;
+            const tB = b.Stops.find(s=>s.StationID===startId).DepartureTime;
+            return tA.localeCompare(tB);
+        });
+
+        if(results.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--text-muted)">查無班次</td></tr>`;
+            return;
+        }
+
+        // 產生 Row
+        results.forEach((t, idx) => {
+            const sStop = t.Stops.find(s=>s.StationID===startId);
+            const eStop = t.Stops.find(s=>s.StationID===endId);
+            
+            // 計算耗時
+            const duration = calcDuration(sStop.DepartureTime, eStop.ArrivalTime);
+            
+            // 判斷模式 (停靠站數)
+            const stopCount = Math.abs(stations.findIndex(s=>s.id===endId) - stations.findIndex(s=>s.id===startId));
+            const realStops = countRealStops(t.Stops, startId, endId);
+            const isDirect = (realStops <= 1); // 簡單邏輯：中間停 <= 1 站算直達
+
+            const tr = document.createElement('tr');
+            tr.className = 'main-row';
+            tr.dataset.idx = idx;
+            
+            // 訂票連結
+            const bookLink = "https://irs.thsrc.com.tw/IMINT/";
+
+            tr.innerHTML = `
+                <td>
+                    <div style="display:flex;align-items:center;">
+                        <span class="mobile-expand-btn mobile-only" onclick="event.stopPropagation(); toggleMobileDetail(this, ${idx})">+</span>
+                        <b style="font-size:1.1rem">${t.TrainNo}</b>
                     </div>
+                </td>
+                <td style="font-weight:700;font-size:1.05rem">${sStop.DepartureTime}</td>
+                <td style="font-weight:700;font-size:1.05rem">${eStop.ArrivalTime}</td>
+                <td class="col-duration">${duration}</td>
+                <td class="col-stops">
+                    ${isDirect ? '<span class="badge-direct">直達</span>' : '<span class="badge-normal">站站停</span>'}
+                </td>
+                <td class="col-ticket" style="text-align:center">
+                    <a href="${bookLink}" target="_blank" class="ticket-btn" onclick="event.stopPropagation()">訂票</a>
+                </td>
+            `;
+            
+            // 綁定點擊開啟 Timeline
+            tr.addEventListener('click', () => openTimeline(t));
+            
+            tbody.appendChild(tr);
+        });
+    }
+
+    // ===== 3. 行動版互動 (Sheet & Detail Row) =====
+    
+    // Sheet 控制
+    const sheetBackdrop = document.getElementById('sheetBackdrop');
+    const sheetPanel = document.getElementById('sheetPanel');
+    
+    function openSheet() {
+        sheetBackdrop.classList.add('show');
+        sheetPanel.classList.add('show');
+        document.body.style.overflow = 'hidden'; // 防止背景捲動
+    }
+    
+    function closeSheet() {
+        sheetBackdrop.classList.remove('show');
+        sheetPanel.classList.remove('show');
+        document.body.style.overflow = '';
+        updateSummary(); // 關閉時更新摘要
+        
+        // 同步 Mobile 選單值到 Desktop (如果沒按查詢)
+        setStation('startStation', document.getElementById('mStartStation').value);
+        setStation('endStation', document.getElementById('mEndStation').value);
+    }
+
+    // Mobile Detail Row (展開詳情)
+    window.toggleMobileDetail = function(btn, idx) {
+        const tr = btn.closest('tr');
+        const next = tr.nextElementSibling;
+        
+        if (next && next.classList.contains('mobile-detail-row')) {
+            next.remove();
+            btn.textContent = '+';
+            return;
+        }
+
+        const duration = tr.querySelector('.col-duration').textContent;
+        // 取得隱藏的模式文字 (從 dataset 或重新計算，這裡簡化直接抓)
+        // 更好的方式是從 trainData[idx] 抓，但需注意 idx 是過濾後的 index
+        // 這裡僅做 UI 展示，顯示訂票按鈕與耗時
+        
+        const newRow = document.createElement('tr');
+        newRow.className = 'mobile-detail-row';
+        newRow.innerHTML = `
+            <td colspan="6">
+                <div class="detail-content">
+                    <div>
+                        <div style="font-weight:700;color:var(--text-main)">耗時：${duration}</div>
+                        <div style="font-size:0.85rem;color:var(--text-muted);margin-top:4px;">點擊查看完整停靠站</div>
+                    </div>
+                    <a href="https://irs.thsrc.com.tw/IMINT/" target="_blank" class="ticket-btn">🎫 立即訂票</a>
                 </div>
             </td>
-            <td class="col-stops">${stopText}</td>
-            <td>${statusBadge(row.status)}</td>
-            ${seatCells}
-            <td class="col-ticket" style="text-align:center;">${ticketBtn}</td>`;
-        tbody.appendChild(tr);
-    });
-  }
-
-  function filterTrainScheduleByStationName(){
-    const st = extractStationNameFromInput(document.getElementById('stationNameInput').value); document.getElementById('stationNameInput').value = st;
-    const dir = document.getElementById('directionSelect').value; if(!st) return;
-    lastStationQuery = { station: st, dir }; const list = [];
-    const sources = [{ map: baseSchedule, origin: currentQueryDateStr }, { map: prevSchedule, origin: addDays(currentQueryDateStr, -1) }];
-    sources.forEach(src=>{
-      const sch = src.map || {}; const origin = src.origin;
-      Object.keys(sch||{}).forEach(trainNo=>{
-        const t = sch[trainNo]; const stops = t?.['車站時間']||[];
-        const idx = stops.findIndex(x=>sameStation(x[0], st)); if(idx<0) return;
-        const d = stopDisplayDate(origin, stops, idx); if(d !== currentQueryDateStr) return;
-        const first = stops[0]?.[0] || ''; const last  = stops.slice(-1)[0]?.[0] || '';
-        const fi = thsrStationIndex(first); const li = thsrStationIndex(last);
-        const isSouth = (fi>=0 && li>=0) ? (fi < li) : ((first && last) ? (first.localeCompare(last,'zh-Hant') < 0) : true);
-        if(dir==='south' && !isSouth) return; if(dir==='north' && isSouth) return;
-        const ad = splitArrDep(stops[idx]); const time = ad.dep || ad.arr || ''; const lastArr = (splitArrDep(stops[stops.length-1]||[]).arr || splitArrDep(stops[stops.length-1]||[]).dep || '');
-        const range = `${first}➝${last}`; const firstDep = splitArrDep(stops[0]).dep; const status = getStatusLabel(origin, time, lastArr, firstDep, 'list');
-        list.push({trainNo, range, time, status, originDate: origin});
-      });
-    });
-    list.sort((a,b)=>{
-      const aa = parseTime(a.time); const bb = parseTime(b.time);
-      if(aa===null && bb===null) return String(a.trainNo).localeCompare(String(b.trainNo),'en'); if(aa===null) return 1; if(bb===null) return -1; return aa-bb;
-    });
-    currentStationList = list; renderStationTable();
-  }
-
-  function renderStationTable(){
-    const tbody = document.querySelector('#scheduleTableByStationName tbody'); tbody.innerHTML = '';
-    currentStationList.forEach(row=>{
-      const tr = document.createElement('tr');
-      tr.innerHTML = `<td style="font-weight:800">${row.trainNo}</td><td><span class="train-route">${row.range}</span></td><td>${row.time || '--'}</td><td>${statusBadge(row.status)}</td>`;
-      tr.addEventListener('click', ()=>showTrainDetails(row.trainNo, row.originDate || currentQueryDateStr));
-      tbody.appendChild(tr);
-    });
-    if(!currentStationList.length){ tbody.innerHTML = `<tr style="text-align:center;"><td colspan="4" style="color:var(--text-muted)">查無資料</td></tr>`; }
-  }
-
-  function filterTrainScheduleByNumber(){
-    const trainNo = extractTrainNoFromInput(document.getElementById('trainNumberInput').value); document.getElementById('trainNumberInput').value = trainNo;
-    if(!trainNo) return; lastTrainQuery = {trainNo};
-    const tbody = document.querySelector('#scheduleTableByNumber tbody'); tbody.innerHTML = '';
-    const t = baseSchedule[trainNo];
-    if(!t){ tbody.innerHTML = `<tr><td colspan="3" style="text-align:center; padding:24px; color:#ef4444; font-weight:700; font-size:1rem;">❌ 查無${trainNo}車次，請確認輸入車次或發車日期是否正確。</td></tr>`; return; }
-    const stops = t['車站時間']||[]; const range = (stops.length>=2)?`${stops[0][0]}➝${stops.slice(-1)[0][0]}`:'';
-    const firstDep = splitArrDep(stops[0]||[]).dep || splitArrDep(stops[0]||[]).arr || '';
-    const lastStop = stops[stops.length - 1] || []; const lastArrTime = splitArrDep(lastStop).arr || '';
-    const status = getStatusLabel(currentQueryDateStr, firstDep, lastArrTime, firstDep, 'train');
-    const tr=document.createElement('tr');
-    tr.innerHTML = `<td style="font-weight:800">${trainNo}</td><td><span class="train-route">${range}</span></td><td>${statusBadge(status)}</td>`;
-    tr.addEventListener('click', ()=>showTrainDetails(trainNo, currentQueryDateStr));
-    tbody.appendChild(tr);
-  }
-
-  function loadHistory(){ try{ return JSON.parse(localStorage.getItem('thsr_search_history_v1')||'[]'); }catch{ return []; } }
-  function renderHistory(){ const b=document.getElementById('searchHistory'); if(!b)return; b.innerHTML=loadHistory().map(i=>`<div class="history-chip" onclick="document.getElementById('startStation').value='${i.s}';document.getElementById('endStation').value='${i.e}';runStartEndSearch()">${i.s}→${i.e}</div>`).join(''); }
-  function saveHistory(list){ localStorage.setItem('thsr_search_history_v1', JSON.stringify(list.slice(0,10))); }
-  
-  function initDatePickerWindow(){ const el=document.getElementById('mainQueryDate'); const t=new Date(); el.value=fmtDate(t); el.addEventListener('change',()=>refreshData(el.value)); }
-  function setupThemeToggle(){ document.getElementById('themeToggle').addEventListener('click',()=>{ document.body.classList.toggle('dark-mode'); rerenderVisibleResults(); }); }
-  function bindButtons(){ 
-    document.getElementById('searchBtn').addEventListener('click',runStartEndSearch); 
-    document.getElementById('swapBtn').addEventListener('click',()=>{ const a=document.getElementById('startStation'),b=document.getElementById('endStation'),t=a.value;a.value=b.value;b.value=t; });
-    document.getElementById('stationSearchBtn').addEventListener('click', filterTrainScheduleByStationName);
-    document.getElementById('trainNumberBtn').addEventListener('click', filterTrainScheduleByNumber);
-    document.getElementById('refreshBtn').addEventListener('click', async ()=>{ await refreshData(document.getElementById('mainQueryDate')?.value); });
-  }
-  
-  function bindQueryTabs(){ document.querySelectorAll('.query-tab').forEach(btn=>{ btn.addEventListener('click',()=>switchQueryPanel(btn.dataset.target)); }); }
-  function switchQueryPanel(panelId){ document.querySelectorAll('.query-tab').forEach(b=>b.classList.remove('active')); document.querySelectorAll('.query-panel').forEach(p=>p.classList.add('hidden')); const tab = document.querySelector(`.query-tab[data-target="${panelId}"]`); const panel = document.getElementById(panelId); if(tab) tab.classList.add('active'); if(panel) panel.classList.remove('hidden'); }
-
-  const modal = document.getElementById('trainModal');
-  document.getElementById('modalClose').addEventListener('click', ()=> modal.style.display='none');
-  modal.addEventListener('click', (e)=>{ if(e.target===modal) modal.style.display='none'; });
-
-  function getScheduleMapByOrigin(originDateStr){
-    const prevDateStr = addDays(currentQueryDateStr, -1); if(originDateStr === currentQueryDateStr) return baseSchedule; if(originDateStr === prevDateStr) return prevSchedule; return baseSchedule;
-  }
-
-  function showTrainDetails(trainNo, originDateStr){
-    const sch = getScheduleMapByOrigin(originDateStr); const t = sch?.[trainNo]; if(!t) return;
-    const stops = t['車站時間']||[]; const first=stops[0][0], last=stops.slice(-1)[0][0];
-    const firstDep = splitArrDep(stops[0]).dep; const status = getStatusLabel(originDateStr, splitArrDep(stops[0]).dep, splitArrDep(stops.slice(-1)[0]).arr, firstDep, 'train');
-    document.getElementById('modalTitleMain').innerHTML = `${trainNo} <span style="font-weight:400;color:var(--text-muted); margin:0 4px;">|</span> 高鐵`;
-    const statusClass = `status-text-${status}`;
-    document.getElementById('modalTitleSub').innerHTML = `${first} → ${last} <span style="margin:0 4px; color:var(--text-light);">|</span> 狀態：<span class="${statusClass}">${status}</span> <span style="margin:0 4px; color:var(--text-light);">|</span> <span style="color:var(--text-muted); font-weight:500;">發車日：${originDateStr}</span><div style="font-size:0.85rem; color:var(--text-muted); margin-top:4px;">狀態依預定時刻與目前時間推估，非即時列車動態</div>`;
-    modalCtx={trainNo,originDate:originDateStr}; renderTimeline(stops, originDateStr); modal.style.display='flex';
-  }
-
-  function renderTimeline(stops, originDateStr){
-    const nowMin = new Date().getHours()*60 + new Date().getMinutes(); const today = isQueryToday(originDateStr);
-    let nextIdx = -1; if(today){ for(let i=0;i<stops.length;i++){ const ad = splitArrDep(stops[i]); if(parseTime(ad.dep||'') >= nowMin){ nextIdx=i; break; } } }
-    const html = stops.map((s,i)=>{
-      const ad = splitArrDep(s); const tm = (i===stops.length-1)?ad.arr:ad.dep; let cls = ''; let badge = '';
-      if(today){ if(i < nextIdx) cls = 'passed'; else if(i === nextIdx) { cls = 'next'; badge = '<span class="badge-next">下一站</span>'; } }
-      const arrInfo = (ad.arr && ad.arr !== tm) ? `<span class="st-arr">到 ${ad.arr}</span>` : '';
-      return `<div class="timeline-item ${cls}"><div class="tl-time">${tm || '--'}</div><div class="tl-marker"><div class="tl-dot"></div><div class="tl-line"></div></div><div class="tl-content"><div class="tl-station">${s[0]} ${badge} ${arrInfo}</div></div></div>`;
-    }).join('');
-    document.getElementById('modalBody').innerHTML = `<div class="timeline">${html}</div>`;
-  }
-  
-  function rerenderVisibleResults(){ 
-    if(lastStartEndQuery) runStartEndSearch(); if(lastStationQuery) filterTrainScheduleByStationName(); if(lastTrainQuery) filterTrainScheduleByNumber();
-  }
-
-  let sortState = { key:'dep', dir:1 };
-  function initStartEndSorting(){
-    document.getElementById('sortDepIcon').addEventListener('click', (e)=>{ e.stopPropagation(); toggleSort('dep'); });
-    document.getElementById('sortArrIcon').addEventListener('click', (e)=>{ e.stopPropagation(); toggleSort('arr'); });
-    document.getElementById('sortDurIcon').addEventListener('click', (e)=>{ e.stopPropagation(); toggleSort('dur'); });
-  }
-  function toggleSort(key){
-    if(sortState.key === key) sortState.dir *= -1; else sortState = { key, dir:1 };
-    currentStartEndList.sort((a,b)=>{
-      const dir = sortState.dir; if(key==='dur'){ return ((a.durMin||0)-(b.durMin||0))*dir; }
-      const ta = parseTime(key==='dep'?a.dep:a.arr); const tb = parseTime(key==='dep'?b.dep:b.arr); return (ta-tb)*dir;
-    });
-    renderStartEndTable();
-  }
-
-  async function openTHSRBookingDeepLink(trainNo, dateStr, timeStr){ 
-    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-    if (!isMobile) { alert("限使用行動裝置並以下載高鐵T Express行動購票App使用"); return; }
-    try {
-        let st = extractStationNameFromInput(document.getElementById('startStation').value);
-        let ed = extractStationNameFromInput(document.getElementById('endStation').value);
-        if(!st || !ed){ alert("請先選擇起訖站"); return; }
-        st = st.replace(/臺/g, '台'); ed = ed.replace(/臺/g, '台');
-        if (typeof getAccessToken !== 'function') { alert("系統錯誤：無法取得授權函式"); return; }
-        const token = await getAccessToken(); if(!token) { alert("授權失敗，無法連接 TDX"); return; }
-        const apiUrl = `https://tdx.transportdata.tw/api/maas-thsr/booking/deeplink/direct/hsr?start_station=${encodeURIComponent(st)}&end_station=${encodeURIComponent(ed)}&train_date=${dateStr}&train_time=${encodeURIComponent(timeStr)}&train_number=${trainNo}`;
-        const res = await fetch(apiUrl, { method: 'GET', headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' } });
-        if(!res.ok) { if(res.status === 401) alert("API 存取被拒 (401): Access key not found"); else alert(`訂票連結取得失敗: HTTP ${res.status}`); return; }
-        const result = await res.json();
-        const jumpUrl = result.url || (result.data && result.data.deeplink) || result.DeepLinkUrl;
-        if (jumpUrl) { window.location.href = jumpUrl; } else { console.error("API 回傳結構異常:", result); alert("無法取得 App 喚醒連結"); }
-    } catch (e) { console.error("Deep Link Error:", e); alert("系統發生錯誤，請稍後再試"); }
-  }
-
-  function handleUrlParams() {
-    const p = new URLSearchParams(window.location.search);
-    const pStart = p.get('start');
-    const pEnd = p.get('end');
-    const pStation = p.get('station');
-
-    if (pStart && pEnd) {
-        document.getElementById('startStation').value = pStart;
-        document.getElementById('endStation').value = pEnd;
-        setTimeout(runStartEndSearch, 600);
-    } else if (pStation) {
-        document.getElementById('startStation').value = pStation;
-        document.getElementById('stationNameInput').value = pStation;
-    }
-  }
-
-  function initFavButton() {
-    const btn = document.getElementById('favBtn');
-    const popup = document.getElementById('favPopup');
-    
-    btn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        renderFavPopup();
-        popup.classList.toggle('show');
-    });
-
-    document.addEventListener('click', (e) => {
-        if (!popup.contains(e.target) && e.target !== btn) {
-            popup.classList.remove('show');
-        }
-    });
-  }
-
-  function renderFavPopup() {
-    const popup = document.getElementById('favPopup');
-    popup.innerHTML = '';
-    
-    let hasFav = false;
-    for(let i=1; i<=3; i++) {
-        const s = localStorage.getItem(`thsr_s${i}`);
-        const e = localStorage.getItem(`thsr_e${i}`);
-        if(s && e) {
-            hasFav = true;
-            const item = document.createElement('div');
-            item.className = 'fav-item';
-            item.innerHTML = `<span style="color:var(--primary);">📍</span> ${s} → ${e}`;
-            item.onclick = () => {
-                document.getElementById('startStation').value = s;
-                document.getElementById('endStation').value = e;
-                popup.classList.remove('show');
-                runStartEndSearch();
-            };
-            popup.appendChild(item);
-        }
+        `;
+        tr.parentNode.insertBefore(newRow, tr.nextSibling);
+        btn.textContent = '-';
     }
 
-    if (!hasFav) {
-        const empty = document.createElement('div');
-        empty.className = 'fav-empty';
-        empty.innerText = '尚無常用行程，請至首頁設定';
-        popup.appendChild(empty);
+    // ===== 4. Timeline Modal =====
+    const modal = document.getElementById('trainModal');
+    
+    function openTimeline(train) {
+        document.getElementById('modalTrainNo').textContent = `${train.TrainNo} 次`;
+        
+        const sId = document.getElementById('startStation').value;
+        const eId = document.getElementById('endStation').value;
+        const sName = stations.find(s=>s.id===sId).name;
+        const eName = stations.find(s=>s.id===eId).name;
+        document.getElementById('modalRoute').textContent = `${sName} ➝ ${eName}`;
+        
+        const container = document.getElementById('modalTimeline');
+        container.innerHTML = '';
+        
+        // 模擬現在時間，判斷過站
+        const now = new Date();
+        const nowHHMM = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+        
+        train.Stops.forEach((stop, i) => {
+            const stName = stations.find(s=>s.id===stop.StationID)?.name || stop.StationID;
+            const time = stop.DepartureTime || stop.ArrivalTime;
+            
+            // 判斷狀態
+            const isPassed = time < nowHHMM;
+            // 簡單判斷：如果是這班車的下一站 (上一站已過，這一站未過)
+            const isActive = !isPassed && (i > 0 && (train.Stops[i-1].DepartureTime || train.Stops[i-1].ArrivalTime) < nowHHMM);
+            
+            const div = document.createElement('div');
+            div.className = `timeline-item ${isPassed ? 'passed' : ''} ${isActive ? 'active' : ''}`;
+            
+            div.innerHTML = `
+                <div class="tl-time">${time}</div>
+                <div class="tl-line-container">
+                    <div class="tl-dot"></div>
+                    <div class="tl-line"></div>
+                </div>
+                <div class="tl-info">
+                    <div class="tl-station">${stName}</div>
+                </div>
+            `;
+            container.appendChild(div);
+        });
+        
+        modal.style.display = 'flex';
+        // 些微延遲觸發 transition
+        requestAnimationFrame(() => modal.classList.add('show'));
     }
-  }
 
-  window.addEventListener('load', async ()=>{
-    bindQueryTabs();
-    switchQueryPanel('panel-startend');
-    initDatePickerWindow();
-    setupThemeToggle();
-    bindButtons();
-    bindStationInput('startStation');
-    bindStationInput('endStation');
-    bindStationInput('stationNameInput');
-    bindTrainInput('trainNumberInput');
-    initStartEndSorting();
-    
-    initFavButton();
-    
-    document.getElementById('startStation').addEventListener('focus',()=>fillStationDatalist(''));
-    document.getElementById('endStation').addEventListener('focus',()=>fillStationDatalist(''));
+    function closeModal() {
+        modal.classList.remove('show');
+        setTimeout(() => modal.style.display = 'none', 200);
+    }
 
-    await refreshData(document.getElementById('mainQueryDate').value);
+    // ===== 5. 綁定事件 =====
+    function bindEvents() {
+        // Theme Toggle
+        document.getElementById('themeToggle').addEventListener('click', () => {
+            document.body.classList.toggle('dark-mode');
+        });
 
-    handleUrlParams();
+        // Desktop Search
+        document.getElementById('searchBtn').addEventListener('click', doSearch);
+        document.getElementById('swapBtn').addEventListener('click', () => swapStations(false));
+        document.getElementById('refreshBtn').addEventListener('click', loadData);
 
-    setInterval(()=>{ if(document.getElementById('mainQueryDate').value === fmtDate(new Date())) rerenderVisibleResults(); }, 60000);
-  });
-  
-  window.fetchCollegeDiscount = async function(){ return {}; };
-</script>
+        // Mobile Sheet Triggers
+        document.getElementById('openSheetBtn').addEventListener('click', openSheet);
+        document.getElementById('closeSheetBtn').addEventListener('click', closeSheet);
+        sheetBackdrop.addEventListener('click', closeSheet);
+        
+        // Mobile Sheet Actions
+        document.getElementById('mSwapBtn').addEventListener('click', () => swapStations(true));
+        document.getElementById('mSearchBtn').addEventListener('click', () => {
+            closeSheet();
+            doSearch();
+        });
+        
+        // Quick Search (放大鏡)
+        document.getElementById('quickSearchBtn').addEventListener('click', () => {
+            // 直接以當前設定查詢
+            doSearch();
+            // 視覺回饋
+            const btn = document.getElementById('quickSearchBtn');
+            btn.style.transform = 'scale(0.9)';
+            setTimeout(() => btn.style.transform = '', 100);
+        });
+
+        // Sync Mobile Selects
+        document.getElementById('mStartStation').addEventListener('change', updateSummary);
+        document.getElementById('mEndStation').addEventListener('change', updateSummary);
+
+        // Modal Close
+        document.getElementById('closeModalBtn').addEventListener('click', closeModal);
+        modal.addEventListener('click', (e) => {
+            if(e.target === modal) closeModal();
+        });
+    }
+
+    // 工具：計算時間差
+    function calcDuration(start, end) {
+        const [h1, m1] = start.split(':').map(Number);
+        const [h2, m2] = end.split(':').map(Number);
+        let diff = (h2*60 + m2) - (h1*60 + m1);
+        if(diff < 0) diff += 24*60;
+        const h = Math.floor(diff/60);
+        const m = diff % 60;
+        return `${h}小時${m}分`;
+    }
+
+    // 工具：計算中間停靠站數
+    function countRealStops(stops, sId, eId) {
+        const sIdx = stops.findIndex(s=>s.StationID===sId);
+        const eIdx = stops.findIndex(s=>s.StationID===eId);
+        if(sIdx===-1 || eIdx===-1) return 0;
+        return Math.abs(eIdx - sIdx) - 1;
+    }
+
+    // Mock Data Generator (若無 JS 檔時使用)
+    function generateMockData() {
+        const mocks = [];
+        // 產生一些假班次
+        const baseTimes = [
+            {no:"0803", dep:"06:15", arr:"08:30", dir:0, type:"stop"},
+            {no:"0203", dep:"06:30", arr:"08:10", dir:0, type:"direct"},
+            {no:"0805", dep:"07:15", arr:"09:30", dir:0, type:"stop"},
+            {no:"0108", dep:"07:30", arr:"09:10", dir:0, type:"direct"},
+            {no:"0602", dep:"07:00", arr:"09:00", dir:1, type:"stop"} // 北上
+        ];
+        
+        baseTimes.forEach(b => {
+            const stops = [];
+            if(b.type === "direct") {
+                // 直達: 南港, 台北, 板橋, 台中, 左營
+                stops.push({StationID:"0990", DepartureTime: b.dep}); // 南港
+                stops.push({StationID:"1000", DepartureTime: addTime(b.dep, 10)}); // 台北
+                stops.push({StationID:"1010", DepartureTime: addTime(b.dep, 20)}); // 板橋
+                stops.push({StationID:"1040", DepartureTime: addTime(b.dep, 60)}); // 台中
+                stops.push({StationID:"1070", ArrivalTime: b.arr}); // 左營
+            } else {
+                // 站站停
+                stations.forEach((s, i) => {
+                    stops.push({
+                        StationID: s.id, 
+                        DepartureTime: addTime(b.dep, i*12),
+                        ArrivalTime: addTime(b.dep, i*12)
+                    });
+                });
+            }
+            
+            mocks.push({
+                TrainNo: b.no,
+                Direction: b.dir,
+                Stops: stops
+            });
+        });
+        return mocks;
+    }
+
+    function addTime(time, mins) {
+        const [h, m] = time.split(':').map(Number);
+        const d = new Date(); d.setHours(h); d.setMinutes(m + mins);
+        return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+    }
+
+  </script>
 </body>
 </html>
