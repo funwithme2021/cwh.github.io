@@ -11,7 +11,6 @@
 
   /* ===== 核心變數與 Reset ===== */
   :root {
-    --bg-card: #ffffff;
     --font-main: 'Inter', 'Noto Sans TC', sans-serif;
     --bg-body: #f8fafc;
     --bg-surface: #ffffff;
@@ -129,7 +128,6 @@
 
   body.dark-mode {
     --bg-body: #0f172a;
-    --bg-card: #0b1220;
     --bg-surface: #1e293b;
     --bg-header: rgba(30, 41, 59, 0.9);
     --text-main: #f1f5f9;
@@ -299,7 +297,7 @@
   .train-route { font-size: 0.85rem; color: var(--text-muted); margin-left: 6px; }
   /* 進度條寬度在 JS 中動態控制，手機版已要求縮短 */
   .progress-bar { height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; margin-top: 4px; }
-  .progress-fill { height: 100%; background: var(--primary); border-radius: 3px; }
+  .progress-fill { height: 100%; background: linear-gradient(90deg, #22c55e 0%, #f59e0b 55%, #ef4444 100%); border-radius: 3px; }
 
   /* ===== 6. Modal (彈窗) & 時間軸 ===== */
   .modal {
@@ -400,212 +398,6 @@
   .blob-1 { background: #fb923c; top: -10%; left: -10%; }
   .blob-2 { background: #2563eb; bottom: -10%; right: -10%; }
   @keyframes float { 0% { transform: translate(0, 0); } 100% { transform: translate(10%, 15%); } }
-
-  /* ===== 行動版：表頭與查詢設定收合（同台鐵）===== */
-  @media (max-width: 720px){
-    .header-content{ flex-wrap: nowrap; gap: 8px; }
-    .logo{ white-space: nowrap; }
-    .date-picker{ flex-wrap: nowrap; gap: 8px; min-width: 0; }
-    .date-picker label{ display:none; }
-    #refreshBtn{ padding: 6px 10px !important; white-space: nowrap; }
-    #homeBtn{ padding: 6px 10px !important; }
-  }
-
-  /* ===== 全新整合式搜尋列設計 ===== */
-  /* 外層容器變成「大膠囊」：承載背景與陰影 */
-  .trip-compact-bar {
-    display: none; /* 電腦版隱藏 */
-    align-items: center;
-    /* 關鍵：背景跟陰影移到這裡，讓它看起來是一個整體 */
-    background: var(--bg-surface);
-    border: 1px solid var(--border);
-    border-radius: 99px; /* 全圓角 */
-    box-shadow: 0 8px 24px rgba(0,0,0,0.08); /* 漂亮的懸浮陰影 */
-    margin: 12px 0 24px 0; /* 下方留白 */
-    padding: 4px; /* 內部留白，讓按鈕不會貼邊 */
-    position: relative;
-  }
-
-  /* 左側：原本的 Pill 變成透明容器 */
-  .trip-pill {
-    flex: 1; /* 佔滿剩餘空間 */
-    display: flex;
-    align-items: center;
-    background: transparent; /* 變透明 */
-    border: none; /* 無邊框 */
-    box-shadow: none; /* 無陰影 */
-    padding-left: 12px;
-    height: 48px; /* 高度與按鈕一致 */
-  }
-
-  /* 圖示區 */
-  .trip-pill-left {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    color: var(--primary);
-    font-weight: 900;
-    white-space: nowrap;
-    padding-right: 12px;
-    margin-right: 12px;
-    border-right: 1px solid var(--border); /* 分隔線 1 */
-    height: 24px;
-  }
-
-  .trip-pill-left .trip-open-btn {
-    width: auto;
-    height: auto;
-    border-radius: 0;
-    padding: 0;
-    /* 移除所有框線背景 */
-    border: none !important;
-    background: transparent !important;
-    font-size: 1.2rem;
-  }
-
-  .trip-pill .trip-summary {
-    flex: 1 1 auto;
-    min-width: 0;
-    font-size: 0.95rem;
-    color: var(--text-main);
-    font-weight: 700;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    text-align: left; /* 靠左對齊 */
-  }
-
-  /* 右側：搜尋按鈕整合進來 */
-  .trip-compact-bar .trip-search-btn {
-    width: 48px;
-    height: 48px;
-    border-radius: 50%; /* 圓形 */
-    
-    /* ★★★ 移除實心橘色背景，改為透明 ★★★ */
-    background: transparent;
-    color: var(--primary); /* 圖示改用主色 (橘色) */
-    
-    border: none;
-    box-shadow: none; /* 移除陰影 */
-    font-size: 1.4rem; /* 圖示稍微放大 */
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    position: relative;
-    padding: 0;
-  }
-
-  /* 在搜尋按鈕左邊加一條細分隔線，增加層次感 */
-  .trip-compact-bar .trip-search-btn::before {
-    content: '';
-    position: absolute;
-    left: 0;
-    top: 10px; 
-    bottom: 10px;
-    width: 1px;
-    background: var(--border);
-  }
-
-  .trip-compact-bar .trip-search-btn:active {
-    transform: scale(0.9);
-    background: rgba(0,0,0,0.05); /* 點擊時微微變灰 */
-  }
-
-  /* 深色模式微調 */
-  body.dark-mode .trip-compact-bar {
-    background: rgba(30, 41, 59, 0.85); /* 深色半透明背景 */
-    border-color: rgba(255,255,255,0.1);
-    box-shadow: 0 8px 24px rgba(0,0,0,0.3);
-  }
-  body.dark-mode .trip-search-btn {
-    color: var(--primary); /* 深色模式下圖示仍亮橘色 */
-  }
-  body.dark-mode .trip-search-btn:active {
-    background: rgba(255,255,255,0.1);
-  }
-
-  .trip-sheet-backdrop{
-    display:none;
-    position:fixed; inset:0;
-    background: rgba(0,0,0,.45);
-    z-index: 90;
-  }
-  .trip-sheet{
-    display:none;
-    position:fixed;
-    left:0; right:0; bottom:0;
-    z-index: 91;
-    background: var(--bg-card);
-    border-top-left-radius: 18px;
-    border-top-right-radius: 18px;
-    box-shadow: 0 -12px 40px rgba(0,0,0,.2);
-    max-height: 82vh;
-    overflow:hidden;
-  }
-  .trip-sheet-hd{
-    display:flex;
-    align-items:center;
-    justify-content:space-between;
-    padding: 12px 14px;
-    border-bottom: 1px solid var(--border);
-  }
-  .trip-sheet-title{ font-weight: 700; }
-  .trip-sheet-body{
-    padding: 12px 14px 18px;
-    overflow:auto;
-    max-height: calc(82vh - 56px);
-  }
-
-  @media (max-width: 720px){
-    /* 行動版：把原本那排 form-row 收起來，改放在底部 sheet */
-    #panel-startend .form-row{ display:none; }
-    .trip-compact-bar{ display:flex; }
-    /* 歷史行程左右滑動 */
-    #searchHistory{ overflow-x:auto; white-space: nowrap; }
-  }
-
-
-  .hide-mobile{display:inline;}
-  .icon-btn .ico{display:inline-block;}
-  .icon-btn .txt{display:inline-block;}
-  .home-btn .ico{display:inline-block;}
-  .home-btn .txt{display:inline-block;}
-
-  /* 行動版：表頭精簡（同台鐵） */
-  @media (max-width: 720px){
-    .hide-mobile{display:none !important;}
-    .home-btn .txt{display:none !important;}
-    .icon-btn .txt{display:none !important;}
-    .logo span{display:none !important;}
-    .date-picker{gap:8px;}
-    .date-picker input[type="date"]{min-width: 150px;}
-    #refreshBtn{min-width:44px; padding: 8px 10px !important;}
-    #themeToggle{min-width:44px; padding: 8px 10px !important;}
-  }
-
-  /* 行動版查詢設定：背景不透明、固定排版 */
-  @media (max-width: 720px){
-    #searchHistory{display:none !important;}
-    .trip-sheet{background: var(--bg-card); box-shadow: 0 -10px 40px rgba(0,0,0,0.25);}
-    .trip-sheet-body{padding-top: 10px;}
-    .trip-sheet .form-row{display:grid !important; grid-template-columns: 1fr auto 1fr; gap: 10px; align-items:center; position: relative;}
-    .trip-sheet .btn-fav{grid-column: 1 / span 3;}
-    .trip-sheet .fav-popup{grid-column: 1 / span 3;}
-    .trip-sheet .input-group{min-width:0;}
-    .trip-sheet .swap-btn{justify-self:center; align-self:center; width: 36px; height:36px; flex:0 0 auto;}
-    .trip-sheet label.chip-label{grid-column: 1 / span 3; margin-top: 2px;}
-    .trip-sheet #searchBtn{grid-column: 1 / span 3;}
-    /* 行動版歷史行程：固定一排、左右滑動 */
-    #searchHistoryMobile{display:flex; flex-wrap: nowrap; overflow-x:auto; gap: 10px; padding: 6px 2px 10px; margin-bottom: 6px; -webkit-overflow-scrolling: touch;}
-    #searchHistoryMobile .history-chip{flex: 0 0 auto; white-space: nowrap;}
-    #searchHistoryMobile::-webkit-scrollbar{height:6px;}
-    #searchHistoryMobile::-webkit-scrollbar-thumb{background: rgba(148,163,184,0.35); border-radius: 999px;}
-    .trip-sheet .fav-popup{position: static; display:none; flex-direction: row; overflow-x:auto; gap:10px; padding: 6px 2px 10px; margin: 0 0 6px; background: transparent; border: 0; box-shadow:none;}
-    .trip-sheet .fav-popup.show{display:flex;}
-    .trip-sheet .fav-item{border:1px solid var(--border); border-radius:999px; padding: 8px 12px; background: var(--bg-surface); white-space: nowrap; }
-    .trip-sheet .fav-empty{padding: 8px 12px; color: var(--text-muted);}
-  }
-
 </style>
 </head>
 <body class="light-mode">
@@ -625,12 +417,12 @@
     <div class="logo">THSR <span>Real-time</span></div>
 
     <div class="date-picker">
-      <button class="btn-ghost home-btn" onclick="window.location.href='../home/index.html'" style="margin-right:8px;" title="回首頁"><span class="ico">🏠</span><span class="txt">首頁</span></button>
+      <button class="btn-ghost" onclick="window.location.href='../home/index.html'" style="margin-right:8px;">← 首頁</button>
       
-      <span class="hide-mobile" style="font-size: 0.8em; color: var(--text-muted);">選擇查詢日期：</span>
+      <label style="font-size: 0.8em; color: var(--text-muted);">選擇查詢日期：</label>
       <input type="date" id="mainQueryDate" class="input-field" style="width: auto; display: inline-block;">
-      <button class="btn-primary icon-btn" id="refreshBtn" style="padding: 6px 12px;" title="更新資料"><span class="ico">⟳</span><span class="txt">更新</span></button>
-      <button class="btn-ghost icon-btn" id="themeToggle" type="button" title="切換深夜模式"><span class="ico">🌙</span><span class="txt">深夜模式</span></button>
+      <button class="btn-primary" id="refreshBtn" style="padding: 6px 12px;">更新資料</button>
+      <button class="btn-ghost" id="themeToggle" type="button" title="切換深夜模式">🌙 深夜模式</button>
     </div>
   </div>
 </header>
@@ -651,28 +443,7 @@
 
       <div id="searchHistory" class="history-chips"></div>
 
-      
-      <div class="trip-compact-bar" id="tripCompactBar" aria-label="行動版查詢列">
-        <div class="trip-pill" id="tripPill" role="button" tabindex="0" aria-label="開啟行程設定">
-          <div class="trip-pill-left">
-            <button class="btn-ghost trip-open-btn" id="tripOpenBtn" type="button" title="設定查詢">⚙️</button>
-            <span class="trip-pill-label">行程</span>
-          </div>
-          <div class="trip-summary" id="tripSummaryText">出發 → 到達・直達</div>
-        </div>
-        <button class="btn-primary trip-search-btn" id="tripCompactSearchBtn" type="button" title="查詢">🔍</button>
-      </div>
-      <div class="trip-sheet-backdrop" id="tripSheetBackdrop"></div>
-      <div class="trip-sheet" id="tripSheet" role="dialog" aria-modal="true" aria-label="查詢設定">
-        <div class="trip-sheet-hd">
-          <div class="trip-sheet-title">查詢設定</div>
-          <button class="btn-ghost" id="tripSheetClose" type="button" title="關閉">✕</button>
-        </div>
-        <div class="trip-sheet-body" id="tripSheetBody">
-          <div id="searchHistoryMobile" class="history-chips" aria-label="歷史行程"></div>
-        </div>
-      </div>
-<div class="form-row" style="position:relative;">
+      <div class="form-row" style="position:relative;">
         <button class="btn-fav" id="favBtn" type="button">
            <span class="fav-star">★</span> 常用行程
         </button>
@@ -908,8 +679,6 @@
     const h = loadHistory().filter(x => !(x.s === st && x.e === ed));
     h.unshift({ s: st, e: ed });
     saveHistory(h); renderHistory();
-    // 行動版：查詢後自動收合查詢設定
-    if (window.innerWidth <= 720) { try{ closeTripSheet(); }catch(e){} }
   }
 
   function buildDirectList(st, ed) {
@@ -964,60 +733,6 @@
     const key = `${String(trainNo)}|${originDateStr}`; const info = currentSeatMap?.[key]; const status = info ? info[type] : '--';
     if(status==='O') return '<span class="seat-icon seat-o">○</span>'; if(status==='L') return '<span class="seat-icon seat-l">△</span>'; if(status==='X') return '<span class="seat-icon seat-x">✕</span>'; return '<span class="seat-icon seat-none">--</span>';
   }
-    // ===== 耗時條：極端值處理（P95 cap）+ 漸層色（同色系，不彩虹）=====
-    function percentile(sortedArr, p){
-      if(!sortedArr || !sortedArr.length) return 1;
-      const idx = (sortedArr.length - 1) * p;
-      const lo = Math.floor(idx), hi = Math.ceil(idx);
-      if(lo === hi) return sortedArr[lo];
-      const w = idx - lo;
-      return sortedArr[lo] * (1 - w) + sortedArr[hi] * w;
-    }
-    
-    function lerp(a,b,t){ return a + (b-a)*t; }
-    function lerpColor(c1,c2,t){
-      return {
-        r: Math.round(lerp(c1.r,c2.r,t)),
-        g: Math.round(lerp(c1.g,c2.g,t)),
-        b: Math.round(lerp(c1.b,c2.b,t))
-      };
-    }
-    // 連續色階：綠 -> 黃 -> 橘 -> 紅 -> 紫（取某個比例點的顏色，整條單色）
-    function travelColor(norm01){
-      const t = Math.max(0, Math.min(1, norm01));
-      const stops = [
-        {t:0.00, c:{r:34,  g:197, b:94 }},  // green
-        {t:0.25, c:{r:234, g:179, b:8  }},  // yellow
-        {t:0.50, c:{r:249, g:115, b:22 }},  // orange
-        {t:0.75, c:{r:239, g:68,  b:68 }},  // red
-        {t:1.00, c:{r:168, g:85,  b:247}}   // purple
-      ];
-      for(let i=0;i<stops.length-1;i++){
-        const a = stops[i], b = stops[i+1];
-        if(t >= a.t && t <= b.t){
-          const tt = (t - a.t) / (b.t - a.t || 1);
-          const c = lerpColor(a.c, b.c, tt);
-          return `rgb(${c.r},${c.g},${c.b})`;
-        }
-      }
-      const last = stops[stops.length-1].c;
-      return `rgb(${last.r},${last.g},${last.b})`;
-    }
-    // 耗時長條：最短約 5%，極端值 100%，其餘依 (min..cap) 線性比例
-    function getTravelBarStyle(travelMin, minMin, capMin){
-      const t = Math.max(0, travelMin || 0);
-      const minV = Math.max(0, minMin || 0);
-      const capV = Math.max(minV + 1, capMin || (minV + 1));
-
-      const isExtreme = t >= capV;
-      const denom = Math.max(1, (capV - minV));
-      const norm = isExtreme ? 1 : Math.min(1, Math.max(0, (t - minV) / denom));
-      const widthPct = (t > 0) ? Math.max(5, Math.min(100, 5 + norm * 95)) : 0;
-      const fillBg = travelColor(norm);
-      return { widthPct, isExtreme, fillBg };
-    }
-
-
 
   function renderStartEndTable() {
     const tbody = document.querySelector('#scheduleTableByStation tbody'); if (!tbody) return;
@@ -1027,10 +742,9 @@
     if (!currentStartEndList.length) { tbody.innerHTML = `<tr><td colspan="10" style="text-align:center;">查無資料</td></tr>`; return; }
     
     const nowMin = new Date().getHours() * 60 + new Date().getMinutes(); 
-    const durSorted = currentStartEndList.map(x => x.durMin||0).filter(x=>x>0).sort((a,b)=>a-b);
-    const minDur = Math.max(1, (durSorted[0] || 1));
-    const capDur = Math.max(minDur + 1, percentile(durSorted, 0.95)); // P95 作為極端值上限
-// 事件代理 (手機版摺疊 + 訂票 + 停靠站展開)
+    const maxDur = Math.max(1, ...currentStartEndList.map(x => x.durMin || 0));
+
+    // 事件代理 (手機版摺疊 + 訂票 + 停靠站展開)
     tbody.onclick = async (e) => {
         // A. 手機版展開按鈕
         const expandBtn = e.target.closest('.mobile-expand-btn');
@@ -1061,7 +775,7 @@
                 const canBook = (r.originDate > todayStr) || (r.originDate === todayStr && depMin !== null && (depMin - nowMin) > 10);
                 let btnHTML = '';
                 if(canBook){
-                    btnHTML = `<button class="ticket-btn" onclick="event.stopPropagation();openTHSRBookingDeepLink('${r.trainNo}', '${r.originDate}', '${r.dep}')">🎫 立即訂票</button>`;
+                    btnHTML = `<button class="ticket-btn" onclick="openTHSRBookingDeepLink('${r.trainNo}', '${r.originDate}', '${r.dep}')">🎫 立即訂票</button>`;
                 } else {
                     btnHTML = `<button class="ticket-btn" disabled style="opacity:0.5;cursor:not-allowed">停止預訂</button>`;
                 }
@@ -1090,17 +804,11 @@
             return;
         }
 
-        // B. 訂票按鈕 (PC / 手機展開區共用)
+        // B. 訂票按鈕 (PC)
         const ticket = e.target.closest('.ticket-btn');
         if(ticket && !ticket.disabled){
-            e.stopPropagation();
-            // PC 列內的 🎫 按鈕沒有 inline onclick，因此在此統一處理
-            const tno = ticket.dataset.train;
-            const d   = ticket.dataset.date;
-            const tm  = ticket.dataset.time;
-            if(tno && d && tm){
-              openTHSRBookingDeepLink(tno, d, tm);
-            }
+            e.stopPropagation(); // 阻止冒泡避免觸發 row click
+            // 已經在 onclick 處理
             return;
         }
 
@@ -1112,20 +820,14 @@
             const idx = Number(tr.dataset.idx);
             const r = currentStartEndList[idx];
             
-            const cnt = toggle.dataset.count || '';
             const next = tr.nextElementSibling;
             if(next && next.classList.contains('stops-row')){
                 next.remove();
-                toggle.dataset.open = '0';
-                if(cnt) toggle.textContent = `${cnt}站 ▼`;
             } else {
                 const tr2 = document.createElement('tr');
-                tr2.className = 'stops-row';
                 const stopsStr = r.midStops.map(s => `${s.name}(${s.arr || s.time})`).join('、');
-                tr2.innerHTML = `<td colspan="10">沿途停靠：${stopsStr}</td>`;
+                tr2.innerHTML = `<td colspan="10" class="stops-row">沿途停靠：${stopsStr}</td>`;
                 tr.parentNode.insertBefore(tr2, tr.nextSibling);
-                toggle.dataset.open = '1';
-                if(cnt) toggle.textContent = `${cnt}站 ▲`;
             }
             return;
         }
@@ -1146,14 +848,12 @@
 
         const depMin = parseTime(row.dep);
         const canBook = (row.originDate > todayStr) || (row.originDate === todayStr && depMin !== null && (depMin - nowMin) > 10);
-        const ticketBtn = canBook ? `<button class="ticket-btn" data-train="${row.trainNo}" data-date="${row.originDate}" data-time="${row.dep}">🎫</button>` : `<span style="font-size:12px;color:var(--text-light);">停止</span>`;
+        const ticketBtn = canBook ? `<button class="ticket-btn">🎫</button>` : `<span style="font-size:12px;color:var(--text-light);">停止</span>`;
         
         let seatCells = `<td class="col-seat-std" style="text-align:center;">${getSeatIcon(row.trainNo, 'standard', row.originDate)}</td><td class="col-seat-biz" style="text-align:center;">${getSeatIcon(row.trainNo, 'business', row.originDate)}</td>`;
         if(isPastDate) seatCells = `<td class="col-seat-std" style="text-align:center;">--</td><td class="col-seat-biz" style="text-align:center;">--</td>`;
 
-        const stopText = row.stopBetween <= 0
-          ? '直達'
-          : `<span class="stop-toggle" data-open="0" data-count="${row.stopBetween}" style="cursor:pointer; color:var(--text-main); font-weight:600;">${row.stopBetween}站 ▼</span>`;
+        const stopText = row.stopBetween <= 0 ? '直達' : `<span class="stop-toggle" style="cursor:pointer; color:var(--text-main); font-weight:600;">${row.stopBetween}站 ▼</span>`;
 
         tr.innerHTML = `
             <td>
@@ -1167,7 +867,7 @@
                 <div style="display:flex;flex-direction:column;gap:4px;">
                     <div style="font-weight:800;font-size:0.85rem;">${durationText(0, row.durMin).replace('0h ','')}</div>
                     <div class="progress-bar" style="width:60px;">
-                        <div class="progress-fill" style="width:${(()=>{const s=getTravelBarStyle(row.durMin||0, minDur, capDur); return Math.round(s.widthPct);})()}%; background:${(()=>{const s=getTravelBarStyle(row.durMin||0, minDur, capDur); return s.fillBg;})()};"></div>
+                        <div class="progress-fill" style="width:${Math.round((row.durMin / maxDur) * 100)}%;"></div>
                     </div>
                 </div>
             </td>
@@ -1234,31 +934,7 @@
   }
 
   function loadHistory(){ try{ return JSON.parse(localStorage.getItem('thsr_search_history_v1')||'[]'); }catch{ return []; } }
-  function renderHistory(){
-    const list = loadHistory();
-    const desk = document.getElementById('searchHistory');
-    const mob = document.getElementById('searchHistoryMobile');
-    const make = (container, isMobile) => {
-      if(!container) return;
-      container.innerHTML = '';
-      list.forEach(item=>{
-        const chip = document.createElement('div');
-        chip.className = 'history-chip';
-        chip.textContent = `${item.s}→${item.e}`;
-        chip.addEventListener('click', ()=>{
-          document.getElementById('startStation').value = item.s;
-          document.getElementById('endStation').value = item.e;
-          updateTripSummary && updateTripSummary();
-          if(!isMobile){
-            runStartEndSearch();
-          }
-        });
-        container.appendChild(chip);
-      });
-    };
-    make(desk, false);
-    make(mob, true);
-  }
+  function renderHistory(){ const b=document.getElementById('searchHistory'); if(!b)return; b.innerHTML=loadHistory().map(i=>`<div class="history-chip" onclick="document.getElementById('startStation').value='${i.s}';document.getElementById('endStation').value='${i.e}';runStartEndSearch()">${i.s}→${i.e}</div>`).join(''); }
   function saveHistory(list){ localStorage.setItem('thsr_search_history_v1', JSON.stringify(list.slice(0,10))); }
   
   function initDatePickerWindow(){ const el=document.getElementById('mainQueryDate'); const t=new Date(); el.value=fmtDate(t); el.addEventListener('change',()=>refreshData(el.value)); }
@@ -1420,9 +1096,6 @@
     
     initFavButton();
     
-    // ★★★ 這行是關鍵修復：網頁一載入就初始化手機版介面 ★★★
-    setupMobileTripSheet();
-
     document.getElementById('startStation').addEventListener('focus',()=>fillStationDatalist(''));
     document.getElementById('endStation').addEventListener('focus',()=>fillStationDatalist(''));
 
@@ -1434,104 +1107,6 @@
   });
   
   window.fetchCollegeDiscount = async function(){ return {}; };
-
-  // ===== 行動版：查詢設定收合 =====
-  function isMobileUI(){ return window.matchMedia && window.matchMedia('(max-width: 720px)').matches; }
-
-  function updateTripSummary(){
-    const st = (document.getElementById('startStation')?.value||'').trim();
-    const ed = (document.getElementById('endStation')?.value||'').trim();
-    const onlyDirect = document.getElementById('onlyDirect')?.checked;
-    const t = document.getElementById('tripSummaryText');
-    if(!t) return;
-    if(!st && !ed){ t.textContent = '請設定出發與到達'; return; }
-    const seg = `${st||'—'} ➝ ${ed||'—'}`;
-    t.textContent = onlyDirect ? `${seg} ｜直達` : seg;
-  }
-
-  function openTripSheet(){
-    const b = document.getElementById('tripSheetBackdrop');
-    const s = document.getElementById('tripSheet');
-    if(!b || !s) return;
-    b.style.display='block';
-    s.style.display='block';
-    document.body.style.overflow='hidden';
-  }
-  function closeTripSheet(){
-    const b = document.getElementById('tripSheetBackdrop');
-    const s = document.getElementById('tripSheet');
-    if(!b || !s) return;
-    b.style.display='none';
-    s.style.display='none';
-    document.body.style.overflow='';
-  }
-
-  function setupMobileTripSheet(){
-    if(!isMobileUI()) return;
-    const panel = document.getElementById('panel-startend');
-    const formRow = panel?.querySelector('.form-row');
-    const body = document.getElementById('tripSheetBody');
-    
-    // 檢查並移動元素，並在此時綁定事件，避免重複綁定
-    if(formRow && body && !body.dataset.bound){
-      body.dataset.bound='1';
-      body.appendChild(formRow); // 移到 sheet 裡
-      formRow.classList.add('in-sheet');
-      formRow.style.position='relative';
-      
-      const swap = document.getElementById('swapBtn');
-      if(swap){
-        swap.style.width='';
-        swap.style.height='';
-        swap.style.justifySelf='center';
-        swap.style.alignSelf='center';
-      }
-      const searchBtn = document.getElementById('searchBtn');
-      if(searchBtn){
-        searchBtn.style.width='100%';
-        searchBtn.style.height='44px';
-      }
-
-      // ★★★ 事件綁定移動到這裡，確保只綁定一次 ★★★
-      document.getElementById('tripOpenBtn')?.addEventListener('click', (e)=>{
-          e.stopPropagation(); 
-          openTripSheet();
-      });
-      document.getElementById('tripSheetClose')?.addEventListener('click', closeTripSheet);
-      document.getElementById('tripSheetBackdrop')?.addEventListener('click', closeTripSheet);
-
-      document.getElementById('tripCompactSearchBtn')?.addEventListener('click', (e)=>{
-        e.stopPropagation();
-        closeTripSheet();
-        document.getElementById('searchBtn')?.click();
-      });
-
-      // 點擊整個條開啟設定，但排除搜尋按鈕
-      document.getElementById('tripCompactBar')?.addEventListener('click', (ev)=>{
-        if(ev.target && ev.target.closest && ev.target.closest('#tripCompactSearchBtn')) return;
-        openTripSheet();
-      });
-
-      // 按下搜尋按鈕後收合
-      document.getElementById('searchBtn')?.addEventListener('click', ()=>{ closeTripSheet(); });
-    }
-
-    // 內容更新
-    ['startStation','endStation'].forEach(id=>{
-      const el=document.getElementById(id);
-      if(el){ el.addEventListener('input', updateTripSummary); el.addEventListener('change', updateTripSummary); }
-    });
-    document.getElementById('onlyDirect')?.addEventListener('change', updateTripSummary);
-
-    updateTripSummary();
-  }
-
-  window.addEventListener('resize', ()=>{
-    // 縮放到手機寬度時再初始化
-    setupMobileTripSheet();
-    updateTripSummary();
-  });
-
 </script>
 </body>
 </html>
