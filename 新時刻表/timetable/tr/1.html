@@ -274,124 +274,208 @@
   .timeline-item.next .tl-dot { background: var(--primary); box-shadow: 0 0 0 4px var(--primary-bg); }
   .tl-content { padding-left: 15px; padding-bottom: 24px; flex: 1; }
   </style>
+
 </head>
+
 <body class="light-mode">
 
-<div id="loading-overlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:3000; color:#fff; align-items:center; justify-content:center; flex-direction:column;">
-  <div style="font-size:1.2rem; font-weight:700;">載入中...</div>
+<div class="bg-blobs" aria-hidden="true">
+  <div class="blob blob-1"></div>
+  <div class="blob blob-2"></div>
+</div>
+
+<div id="loading-overlay">
+  <div class="spinner"></div>
+  <div id="loading-text">正在初始化台鐵真實數據...</div>
 </div>
 
 <header class="header">
   <div class="header-content">
-    <div class="logo">TRA <span>Real-time</span></div>
+    <div class="logo">TR <span>Real-time</span></div>
+
     <div class="date-picker">
-      <button class="btn-ghost" onclick="location.href='../home/index.html'"><span>🏠</span><span class="txt">首頁</span></button>
-      <input type="date" id="mainQueryDate" class="input-field" style="width: auto;">
-      <button class="btn-primary" id="refreshBtn"><span>⟳</span><span class="txt">更新</span></button>
-      <button class="btn-ghost" id="themeToggle"><span>🌙</span><span class="txt">模式</span></button>
+      <button class="btn-ghost" id="homeBtn" type="button" title="回到首頁"><span class="ico">🏠</span><span class="btn-text">首頁</span></button>
+      <label style="font-size: 0.8em; color: var(--text-muted);">選擇查詢日期：</label>
+      <input type="date" id="mainQueryDate" class="input-field" style="width: auto; display: inline-block;">
+      <button class="btn-primary" id="refreshBtn" style="padding: 6px 12px;"><span class="ico">⟳</span><span class="btn-text">更新資料</span></button>
+      <button class="btn-ghost" id="themeToggle" type="button" title="切換深夜模式"><span class="ico">🌙</span><span class="btn-text">深夜模式</span></button>
     </div>
   </div>
 </header>
 
 <main class="container">
-  <div class="query-tabs">
-    <button class="query-tab active" data-target="panel-startend">起訖 / 轉乘</button>
-    <button class="query-tab" data-target="panel-station">車站時刻</button>
-    <button class="query-tab" data-target="panel-trainno">車次查詢</button>
-  </div>
+  <div class="grid">
 
-  <section id="panel-startend" class="card query-panel">
-    <div class="section-title">起訖站 / 轉乘查詢</div>
-    <datalist id="stationList"></datalist>
-
-    <div class="trip-compact-bar" id="tripCompactBar">
-      <div class="trip-pill" id="tripPill">
-        <div class="trip-pill-left">
-          <button id="tripOpenBtn">⚙️</button>
-          <span>行程</span>
-        </div>
-        <div class="trip-summary" id="tripSummaryText">出發 → 到達</div>
-      </div>
-      <button class="trip-search-btn" id="tripCompactSearchBtn">🔍</button>
+    <div class="query-tabs" role="tablist" aria-label="查詢模式">
+      <button class="query-tab active" id="tab-startend" type="button" data-target="panel-startend">起訖站 / 轉乘</button>
+      <button class="query-tab" id="tab-station" type="button" data-target="panel-station">車站時刻表</button>
+      <button class="query-tab" id="tab-trainno" type="button" data-target="panel-trainno">車次查詢</button>
     </div>
 
-    <div class="trip-sheet-backdrop" id="tripSheetBackdrop"></div>
-    <div class="trip-sheet" id="tripSheet">
-      <div class="trip-sheet-hd mobile-only">
-        <span class="trip-sheet-title">行程設定</span>
-        <button class="btn-ghost" id="tripSheetClose" style="padding:4px 10px;">✕</button>
-      </div>
+
+    <section id="panel-startend" class="card query-panel">
+      <div class="section-title">起訖站 / 轉乘查詢</div>
+      <datalist id="stationList"></datalist>
       
-      <div class="form-row" id="mainFormRow">
-        <div class="fav-wrap">
-           <button class="btn-primary" id="favBtn" style="background:#0ea5e9;">⭐ 常用</button>
-           <div id="favPopup" style="display:none;position:absolute;background:var(--bg-surface);border:1px solid var(--border);padding:10px;border-radius:12px;z-index:100;min-width:200px;top:100%;"></div>
+      <!-- Mobile compact trip bar (fixed sheet + summary + search) -->
+      <div class="trip-compact-bar mobile-only" id="tripCompactBar">
+        <button class="trip-open-btn" id="tripOpenBtn" type="button" title="行程設定">
+          <span class="ico">⚙️</span>
+          <span class="label">行程</span>
+          <span class="summary" id="tripSummaryText">出發 → 到達</span>
+        </button>
+        <button class="trip-icon-btn" id="tripCompactSearch" type="button" title="查詢">🔍</button>
+      </div>
+      <div class="trip-sheet-backdrop mobile-only" id="tripSheetBackdrop" aria-hidden="true"></div>
+<div id="tripControlsWrap" class="trip-controls-wrap trip-sheet is-collapsed">
+  <div class="trip-sheet-body">
+      <div class="trip-sheet-header mobile-only">
+        <div class="trip-sheet-title">行程設定</div>
+        <button type="button" class="trip-sheet-close" id="tripSheetClose" title="關閉">✕</button>
+      </div>
+      <div class="trip-sheet-body">
+
+      <div id="searchHistory" class="history-chips"></div>
+      <div class="form-row">
+        
+        <div class="fav-wrap" style="position: relative; display: inline-block;">
+            <button type="button" class="btn-primary" id="favMenuBtn" 
+                    style="background: #2563eb; border: none; display: flex; align-items: center; gap: 6px;">
+                <span style="font-size: 1.1rem;">⭐</span> 常用行程
+            </button>
+            <div id="favDropdown" style="display: none; position: absolute; top: 100%; left: 0; background: var(--bg-surface); border: 1px solid var(--border); border-radius: 12px; z-index: 105; min-width: 200px; padding: 8px;">
+                </div>
         </div>
         <div class="input-group">
           <label>出發</label>
-          <input list="stationList" id="startStation" placeholder="站名">
+          <input list="stationList" id="startStation" placeholder="請輸入站名或站碼">
         </div>
-        <button class="swap-btn" id="swapBtn">⇄</button>
+
+        <button class="swap-btn" id="swapBtn" title="互換">⇄</button>
+
         <div class="input-group">
           <label>到達</label>
-          <input list="stationList" id="endStation" placeholder="站名">
+          <input list="stationList" id="endStation" placeholder="請輸入站名或站碼">
         </div>
-        <label class="chip-label">
-          <input type="checkbox" id="acceptTransfers"> <span>接受轉乘</span>
+
+        <label class="chip-label" style="flex:0 0 auto;">
+          <input type="checkbox" id="acceptTransfers">
+          <span>接受轉乘</span>
         </label>
+
         <button class="btn-primary" id="searchBtn">查詢</button>
       </div>
-      
-      <div id="searchHistory" class="history-chips"></div>
-    </div>
 
-    <div class="table-wrapper">
-      <table id="scheduleTableByStation">
-        <thead>
-          <tr>
-            <th>車次</th>
-            <th class="col-type">車種</th>
-            <th>出發</th>
-            <th>抵達</th>
-            <th class="col-duration">耗時</th>
-            <th class="col-stops">狀態</th> <th>狀態</th>
-            <th class="col-ticket">訂票</th>
-          </tr>
-        </thead>
-        <tbody></tbody>
-      </table>
-    </div>
-  </section>
 
-  <section id="panel-station" class="card query-panel hidden">
-    <div class="section-title">車站時刻表</div>
-    <div class="form-row">
-      <div class="input-group"><label>車站</label><input list="stationList" id="stationNameInput" placeholder="站名"></div>
-      <div class="input-group" style="max-width:160px"><label>方向</label><select id="directionSelect"><option value="even">順行(偶)</option><option value="odd">逆行(奇)</option></select></div>
-      <button class="btn-primary" id="stationSearchBtn">查詢</button>
-    </div>
-    <div class="table-wrapper">
-      <table id="scheduleTableByStationName"><thead><tr><th>車次</th><th>車種</th><th>時間</th><th>狀態</th></tr></thead><tbody></tbody></table>
-    </div>
-  </section>
+      </div>
+      </div>
+      </div>
 
-  <section id="panel-trainno" class="card query-panel hidden">
-    <div class="section-title">車次查詢</div>
-    <div class="form-row">
+      <div class="mobile-filter-container">
+        <button class="filter-btn" id="mobileFilterBtn">
+          <span style="display:flex;align-items:center;gap:6px;">🚂 篩選車種</span>
+          <span style="font-size:0.8rem">▼</span>
+        </button>
+        <div class="filter-dropdown" id="mobileFilterDropdown">
+             <div id="trainTypeChipsMobile"></div>
+        </div>
+      </div>
+
+      <div class="chip-group desktop-filters" id="trainTypeChipsStartEnd"></div>
+
+      <div class="table-wrapper">
+        <table id="scheduleTableByStation">
+          <thead>
+            <tr>
+              <th>車次</th>
+              <th class="col-type">車種 (區間)</th>
+              <th>出發 <span id="sortDepIcon">↕</span></th>
+              <th>抵達 <span id="sortArrIcon">↕</span></th>
+              <th class="col-duration">耗時 <span id="sortDurIcon">↕</span></th>
+              <th class="col-stops">停靠</th>
+              <th>狀態</th>
+              <th class="col-ticket" style="text-align:center">訂票</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="panel-station" class="card query-panel hidden">
+      <div class="section-title">車站時刻表</div>
+      <div class="form-row">
+        <div class="input-group">
+          <label>車站</label>
+          <input list="stationList" id="stationNameInput" placeholder="請輸入站名或站碼">
+        </div>
+
+        <div class="input-group" style="max-width: 220px;">
+          <label>方向</label>
+          <select id="directionSelect">
+            <option value="even">順行（偶數車次）</option>
+            <option value="odd">逆行（奇數車次）</option>
+          </select>
+        </div>
+
+        <button class="btn-primary" id="stationSearchBtn">查詢</button>
+      </div>
+
+      <div class="mobile-filter-container">
+        <button class="filter-btn" id="mobileStationFilterBtn">
+          <span style="display:flex;align-items:center;gap:6px;">🚂 篩選車種</span>
+          <span style="font-size:0.8rem">▼</span>
+        </button>
+        <div class="filter-dropdown" id="mobileStationFilterDropdown">
+             <div id="trainTypeChipsStationMobile"></div>
+        </div>
+      </div>
+
+      <div class="chip-group desktop-filters" id="trainTypeChipsStation"></div>
+
+      <div class="table-wrapper">
+        <table id="scheduleTableByStationName">
+          <thead>
+            <tr><th>車次</th><th>車種 (區間)</th><th>時間</th><th>狀態</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="panel-trainno" class="card query-panel hidden">
+      <div class="section-title">車次查詢</div>
+
       <datalist id="trainNumberList"></datalist>
-      <div class="input-group"><label>車次</label><input list="trainNumberList" id="trainNumberInput" placeholder="車次號"></div>
-      <button class="btn-primary" id="trainNumberBtn">查詢</button>
-    </div>
-    <div class="table-wrapper">
-      <table id="scheduleTableByNumber"><thead><tr><th>車次</th><th>區間</th><th>狀態</th></tr></thead><tbody></tbody></table>
-    </div>
-  </section>
+
+      <div class="form-row">
+        <div class="input-group">
+          <label>車次</label>
+          <input id="trainNumberInput" list="trainNumberList" placeholder="請輸入車次">
+        </div>
+        <button class="btn-primary" id="trainNumberBtn">查詢</button>
+      </div>
+
+      <div class="table-wrapper">
+        <table id="scheduleTableByNumber">
+          <thead>
+            <tr><th>車次</th><th>車種 (區間)</th><th>狀態</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+  </div>
 </main>
 
 <div id="trainModal" class="modal">
   <div class="modal-content">
     <div class="modal-header">
-      <div id="modalTitle">列車資訊</div>
+      <div>
+        <div class="modal-title-main" id="modalTitleMain">列車資訊</div>
+        <div class="modal-title-sub" id="modalTitleSub">—</div>
+      </div>
       <div class="close" id="modalClose">✕</div>
     </div>
     <div class="modal-body" id="modalBody"></div>
@@ -485,8 +569,8 @@ let modalCtx = null;            // {trainNo, originDate}
     if(!dl) return;
 
     const k = String(keyword||'').trim();
-    // ★ 手機效能：最多只顯示前 50 筆，且一次 innerHTML 寫入
-    const limit = 50;
+    // ★ 手機效能：最多只顯示前 100 筆，且一次 innerHTML 寫入
+    const limit = 100;
     let out = '';
     let count = 0;
 
