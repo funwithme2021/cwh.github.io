@@ -85,6 +85,31 @@
         box-shadow: inset 0 2px 6px rgba(0,0,0,0.02);
     }
 
+    /* 轉乘查詢手機展開：細部樣式（僅補齊，不影響其它） */
+    .mobile-detail-wrap{ display:flex; flex-direction:column; gap:10px; }
+    .mblk{ display:flex; flex-direction:column; gap:4px; }
+    .mt{ font-size:12px; font-weight:800; color:var(--text-muted); letter-spacing:.02em; }
+    .mv{ font-size:14px; font-weight:700; color:var(--text); line-height:1.35; }
+    .mact{ margin-top:4px; display:flex; gap:10px; flex-wrap:wrap; }
+    .muted{ color:var(--text-muted); font-weight:700; }
+
+    .stop-pill{
+      display:inline;
+      padding:0;
+      border:none;
+      border-radius:0;
+      background:transparent;
+      font-weight:600;
+      color:var(--text);
+      white-space:nowrap;
+    }
+    .stop-time{
+      font-size:12px; font-weight:800; color:var(--text-muted);
+      padding:2px 8px; border-radius:999px;
+      background: rgba(0,0,0,0.04);
+    }
+
+
     /* 詳情頁面佈局：第一行 (區間 + 訂票) */
     .detail-header-row {
         display: flex;
@@ -871,6 +896,25 @@ td{ border-bottom: 1px solid rgba(255,255,255,0.06); }
   .tripbar, .trip-sheet-backdrop, .trip-sheet{ display:none !important; }
 }
 
+
+@media (max-width: 720px){
+  .result-table .transfer-detail{ display:none !important; }
+}
+
+
+/* ===== Mobile/PC visibility helpers ===== */
+.pc-only{display:inline;}
+@media (max-width: 720px){
+  .pc-only{display:none !important;}
+  .transfer-detail{display:none !important;}
+}
+/* 沿途停靠（行動版）：不要底色 */
+.mobile-detail-wrap .stop-item{
+  background: transparent !important;
+  padding: 0 !important;
+  border-radius: 0 !important;
+  margin: 0 10px 0 0 !important;
+}
 </style>
 
   <style>
@@ -1217,6 +1261,57 @@ let lastStartEndQuery = null;   // {st, ed, accept}
 let lastStationQuery  = null;   // {station, dir}
 let lastTrainQuery    = null;   // {trainNo}
 let modalCtx = null;            // {trainNo, originDate}
+
+// ===== Loading Overlay (避免看起來像當機) =====
+let __loadingCount = 0;
+let __loadingShownAt = 0;
+const __loadingMinMs = 240; // 最少顯示時間，避免「一閃就沒」像沒出現
+
+function __setLoadingVisible(on, msg){
+  const ov = document.getElementById('loading-overlay');
+  const tx = document.getElementById('loading-text');
+  if(!ov) return;
+  if(typeof msg === 'string' && tx) tx.textContent = msg;
+
+  if(on){
+    ov.style.display = 'flex';
+    // 強制 reflow，確保顯示狀態真的被套用（避免看起來像沒出現）
+    void ov.offsetHeight;
+    __loadingShownAt = Date.now();
+  }else{
+    ov.style.display = 'none';
+  }
+}
+
+function showLoading(msg='載入中...'){
+  __loadingCount++;
+  __setLoadingVisible(true, msg);
+}
+
+function hideLoading(){
+  __loadingCount = Math.max(0, __loadingCount-1);
+  if(__loadingCount!==0) return;
+
+  const elapsed = Date.now() - (__loadingShownAt||0);
+  const remain = __loadingMinMs - elapsed;
+  if(remain > 0){
+    setTimeout(()=>{
+      if(__loadingCount===0) __setLoadingVisible(false);
+    }, remain);
+  }else{
+    __setLoadingVisible(false);
+  }
+}
+
+function nextFrame(){ return new Promise(r=>requestAnimationFrame(()=>r())); }
+// 依「trainNo + originDate」取得正確時刻資料（跨日/前一天補齊也能用）
+function getScheduleByOrigin(trainNo, originDate){
+  const inst = (scheduleKeyList||[]).find(x=>String(x.trainNo)===String(trainNo) && String(x.originDate)===String(originDate));
+  return inst?.data || baseSchedule?.[trainNo] || prevSchedule?.[trainNo] || null;
+}
+
+let __startEndDelegated = false;
+
 
 
   // ===== 日期工具 =====
@@ -1605,19 +1700,10 @@ function splitArrDep(stopRow){
   }
 
   function statusBadge(label){
-    const s = String(label||'');
-    // 背景色塊（比單純字色更好讀）
-    let bg = 'rgba(15,23,42,.08)';
-    let fg = 'var(--text-main)';
-    if(s === '準點'){ bg = 'rgba(22,163,74,.12)'; fg = '#166534'; }
-    else if(s === '未發車'){ bg = 'rgba(100,116,139,.10)'; fg = '#334155'; }
-    else if(s === '已到終點' || s === '已到終點站'){ bg = 'rgba(37,99,235,.12)'; fg = '#1d4ed8'; }
-    else if(s === '停駛'){ bg = 'rgba(15,23,42,.85)'; fg = '#fff'; }
-    else if(/誤點/.test(s)){ bg = 'rgba(220,38,38,.12)'; fg = '#b91c1c'; }
-    else if(/提早/.test(s)){ bg = 'rgba(14,165,233,.14)'; fg = '#0369a1'; }
-
-    return `<span style="display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;background:${bg};color:${fg};font-weight:900;font-size:.85rem;white-space:nowrap;">${s}</span>`;
+    // 改為「文字 + 顏色」呈現（不使用底框/底色）
+    return colorStatus(label);
   }
+
 
   // ===== 起訖站直達：台鐵e訂通 深度連結（TDX）=====
   
@@ -1771,23 +1857,61 @@ if (jumpUrl) {
   }
 
   // minMin：列表最短耗時；capMin：P95 上限（極端值填滿）
-  function getTravelBarStyle(travelMin, minMin, capMin){
-    const cap = Math.max(1, capMin || 1);
-    const minv = Math.max(0, minMin || 0);
-
-    const t = Math.max(0, Math.min(travelMin, cap));
-    const denom = Math.max(1, cap - minv);
-
-    // 最短只塗一點
-    const minWidthPct = 10; // 10% 作為視覺起點
-    const norm = Math.max(0, Math.min(1, (t - minv) / denom));
-    const widthPct = minWidthPct + norm * (100 - minWidthPct);
-
-    const fillColor = travelColorSolid(norm);
-    const isExtreme = travelMin >= cap;
-
-    return { widthPct, isExtreme, fillColor };
+  function getTravelBarStyle(travelMin, minv, cap){
+  // 規則：
+  // - 最短耗時：5%
+  // - 極端值(>=cap)：100%
+  // - 其餘在 5%~100% 之間按比例分配
+  const minFill = 5; // %
+  if(!Number.isFinite(travelMin) || travelMin<=0){
+    return { widthPct: 0, fillColor: 'var(--tr-color)', isExtreme:false };
   }
+  const span = Math.max(1, (cap - minv));
+  let widthPct;
+  let isExtreme = false;
+
+  if(travelMin >= cap){
+    widthPct = 100;
+    isExtreme = true;
+  }else{
+    const t = Math.max(0, Math.min(1, (travelMin - minv) / span));
+    widthPct = minFill + t * (100 - minFill);
+  }
+
+  // 色階：綠 → 黃 → 橘 → 紅 → 紫（連續漸層），整條使用同一色
+  // 以「條長比例」判定色階（最短 5% 視為 0）
+  const colorT = Math.max(0, Math.min(1, (widthPct - minFill) / (100 - minFill)));
+  const fillColor = gradientGYORP(colorT);
+
+  return { widthPct, fillColor, isExtreme };
+}
+
+function gradientGYORP(t){
+  const stops = [
+    {p:0.00, c:'#22c55e'}, // green
+    {p:0.25, c:'#eab308'}, // yellow
+    {p:0.50, c:'#f97316'}, // orange
+    {p:0.75, c:'#ef4444'}, // red
+    {p:1.00, c:'#a855f7'}  // purple
+  ];
+  t = Math.max(0, Math.min(1, t));
+  let a = stops[0], b = stops[stops.length-1];
+  for(let i=0;i<stops.length-1;i++){
+    if(t>=stops[i].p && t<=stops[i+1].p){ a=stops[i]; b=stops[i+1]; break; }
+  }
+  const u = (t - a.p) / Math.max(1e-9, (b.p - a.p));
+  const ca = hexToRgb(a.c), cb = hexToRgb(b.c);
+  const r = Math.round(ca.r + (cb.r - ca.r)*u);
+  const g = Math.round(ca.g + (cb.g - ca.g)*u);
+  const bl = Math.round(ca.b + (cb.b - ca.b)*u);
+  return `rgb(${r},${g},${bl})`;
+}
+function hexToRgb(hex){
+  const h = hex.replace('#','').trim();
+  const n = parseInt(h.length===3 ? h.split('').map(ch=>ch+ch).join('') : h, 16);
+  return { r:(n>>16)&255, g:(n>>8)&255, b:n&255 };
+}
+
 
 
   // ===== 車種顏色：太魯閣藍、莒光橘 =====
@@ -1936,7 +2060,8 @@ function renderHistory(){
   async function refreshData(dateStr){
     currentQueryDateStr = dateStr || '';
 
-    document.getElementById('loading-overlay').style.display = 'flex';
+    showLoading(`正在獲取「${dateStr||currentQueryDateStr||''}」的資料...`);
+    try{
     document.getElementById('loading-text').textContent = `正在獲取 ${dateStr} 真實時刻表...`;
 
     // 先抓當天（發車日 = dateStr）
@@ -1985,7 +2110,9 @@ function renderHistory(){
     
     renderHistory();
 
-    document.getElementById('loading-overlay').style.display = 'none';
+    }finally{
+      hideLoading();
+    }
   }
 
   // ===== 初始化 =====
@@ -2163,33 +2290,40 @@ setInterval(async ()=>{
   let currentTransferList=[];
 
   function runStartEndSearch(){
-    const st = extractStationNameFromInput(document.getElementById('startStation').value);
-    const ed = extractStationNameFromInput(document.getElementById('endStation').value);
-    document.getElementById('startStation').value=st;
-    document.getElementById('endStation').value=ed;
-    if(!st || !ed) return;
-
-    const accept=document.getElementById('acceptTransfers').checked;
-    lastStartEndQuery = { st, ed, accept };
-    const h=loadHistory().filter(x=>!(x.s===st && x.e===ed && x.t===accept));
-    h.unshift({s:st,e:ed,t:accept});
-    saveHistory(h);
-    renderHistory();
-
-    // 根據目前裝置選擇讀取哪一組 Checkbox
-    selectedTrainTypesStartEnd = getSelectedTypesSafe('startend');
-
-    if(accept){
-      buildTransferList(st, ed);
-      renderTransferTable();
-    }else{
-      buildDirectList(st, ed);
-      renderStartEndTable();
+  showLoading('查詢中...');
+  requestAnimationFrame(()=>{
+    setTimeout(()=>{ try{
+          const st = extractStationNameFromInput(document.getElementById('startStation').value);
+          const ed = extractStationNameFromInput(document.getElementById('endStation').value);
+          document.getElementById('startStation').value=st;
+          document.getElementById('endStation').value=ed;
+          if(!st || !ed) return;
+      
+          const accept=document.getElementById('acceptTransfers').checked;
+          lastStartEndQuery = { st, ed, accept };
+          const h=loadHistory().filter(x=>!(x.s===st && x.e===ed && x.t===accept));
+          h.unshift({s:st,e:ed,t:accept});
+          saveHistory(h);
+          renderHistory();
+      
+          // 根據目前裝置選擇讀取哪一組 Checkbox
+          selectedTrainTypesStartEnd = getSelectedTypesSafe('startend');
+      
+          if(accept){
+            buildTransferList(st, ed);
+            renderTransferTable();
+          }else{
+            buildDirectList(st, ed);
+            renderStartEndTable();
+          }
+    }finally{
+      hideLoading();
     }
-  }
+  },0);
+  });
+}
 
-  
-  function buildDirectList(st, ed){
+function buildDirectList(st, ed){
     const list = [];
 
     (scheduleKeyList||[]).forEach(inst=>{
@@ -2246,8 +2380,8 @@ setInterval(async ()=>{
         range: `${arr[0][0]}➝${arr[arr.length-1][0]}`,
         depSched,
         arrSched,
-        depHTML: renderTimeWithDelay(num, depSched, currentQueryDateStr, { suppressStrike: status==='已過站' }),
-        arrHTML: renderTimeWithDelay(num, arrSched, currentQueryDateStr, { suppressStrike: (status==='已到終點' || status==='已過站') }),
+        depHTML: renderTimeWithDelay(num, depSched, currentQueryDateStr, { suppressStrike: status==='已過站' }, stAbs, originDate),
+        arrHTML: renderTimeWithDelay(num, arrSched, currentQueryDateStr, { suppressStrike: (status==='已到終點' || status==='已過站') }, edAbs, originDate),
         depSortMin: (status==='已過站' ? (parseTime(depSched) ?? 9999) : (depAdj.adjMin ?? 9999)),
         arrSortMin: ((status==='已到終點' || status==='已過站') ? (parseTime(arrSched) ?? 9999) : (arrAdj.adjMin ?? 9999)),
         travel,
@@ -2305,16 +2439,48 @@ function isQueryToday(dateStr){
 }
 
 // 回傳：{sched, adj, adjMin, hasDelay}
-function getAdjustedTime(trainNo, schedHHMM, queryDateStr){
+function getAdjustedTime(trainNo, schedHHMM, queryDateStr, baseAbsMin=null, originDateStr=null){
   const sched = schedHHMM || '--';
+
+  // 非「今天」：不套用誤點（維持原行為）
   if(!isQueryToday(queryDateStr)) {
-    return { sched, adj: sched, adjMin: parseTime(sched), hasDelay: false };
+    return {
+      sched, adj: sched,
+      adjMin: parseTime(sched),
+      hasDelay: false,
+      schedAbsMin: (baseAbsMin!=null ? baseAbsMin : parseTime(sched)),
+      adjAbsMin: (baseAbsMin!=null ? baseAbsMin : parseTime(sched)),
+      schedDateStr: (originDateStr && baseAbsMin!=null ? getStopDateStr(originDateStr, baseAbsMin) : null),
+      adjDateStr: (originDateStr && baseAbsMin!=null ? getStopDateStr(originDateStr, baseAbsMin) : null)
+    };
   }
+
   const dmin = getDelayMinutes(trainNo);
+
   // 只有「真的有誤點/提早」才顯示雙時間；0 就保持單時間
-  if(!dmin) return { sched, adj: sched, adjMin: parseTime(sched), hasDelay: false };
+  if(!dmin) {
+    return {
+      sched, adj: sched,
+      adjMin: parseTime(sched),
+      hasDelay: false,
+      schedAbsMin: (baseAbsMin!=null ? baseAbsMin : parseTime(sched)),
+      adjAbsMin: (baseAbsMin!=null ? baseAbsMin : parseTime(sched)),
+      schedDateStr: (originDateStr && baseAbsMin!=null ? getStopDateStr(originDateStr, baseAbsMin) : null),
+      adjDateStr: (originDateStr && baseAbsMin!=null ? getStopDateStr(originDateStr, baseAbsMin) : null)
+    };
+  }
+
   const adj = addMinutesToHHMM(sched, dmin);
-  return { sched, adj, adjMin: parseTime(adj), hasDelay: true };
+
+  // 重要：跨日車 + 誤點/提早 可能把時刻推過 00:00（或拉回前一天）
+  // 如果提供 baseAbsMin（用於跨日判定），就用它 + dmin 算真正落在哪一天。
+  const schedAbs = (baseAbsMin!=null ? baseAbsMin : parseTime(sched));
+  const adjAbs = (baseAbsMin!=null ? (baseAbsMin + dmin) : parseTime(adj));
+
+  const schedDateStr = (originDateStr && baseAbsMin!=null ? getStopDateStr(originDateStr, baseAbsMin) : null);
+  const adjDateStr   = (originDateStr && baseAbsMin!=null ? getStopDateStr(originDateStr, adjAbs) : null);
+
+  return { sched, adj, adjMin: parseTime(adj), hasDelay: true, schedAbsMin: schedAbs, adjAbsMin: adjAbs, schedDateStr, adjDateStr };
 }
 
 // ===== 訂票可用性判斷（對號車 + 開車>=現在+10分鐘） =====
@@ -2375,14 +2541,21 @@ function getBookingEligibilityByRow(r){
 
 // UI：把時間顯示成「原時間刪線 + 新時間」
 // opts: { suppressStrike?: boolean }  // 已過站時可關閉刪線，只顯示更新後時間
-function renderTimeWithDelay(trainNo, schedHHMM, queryDateStr, opts){
-  const t = getAdjustedTime(trainNo, schedHHMM, queryDateStr);
+function renderTimeWithDelay(trainNo, schedHHMM, queryDateStr, opts, baseAbsMin=null, originDateStr=null){
+  const t = getAdjustedTime(trainNo, schedHHMM, queryDateStr, baseAbsMin, originDateStr);
   if(!t.hasDelay) return (schedHHMM || '--');
 
   const suppress = !!(opts && opts.suppressStrike);
   if(suppress){
     // 已過站/已到終點：顯示原始時刻，不套用誤點
     return (t.sched || schedHHMM || '--');
+  }
+
+  // 若誤點/提早導致「跨日」變動，補一個小日期提示（只在真的變動時顯示）
+  let dayHint = '';
+  if(t.adjDateStr && t.schedDateStr && t.adjDateStr !== t.schedDateStr){
+    const md = t.adjDateStr.slice(5).replace('-', '/'); // MM/DD
+    dayHint = `<span style="margin-left:6px;color:var(--text-muted);font-weight:700;font-size:.78em;">${md}</span>`;
   }
 
   // 不動你原本 CSS：用 inline style
@@ -2393,6 +2566,7 @@ function renderTimeWithDelay(trainNo, schedHHMM, queryDateStr, opts){
     <span style="font-weight:800;color:var(--text-main);">
       ${t.adj}
     </span>
+    ${dayHint}
   `;
 }
 
@@ -2425,8 +2599,8 @@ function renderTimeWithDelay(trainNo, schedHHMM, queryDateStr, opts){
       return;
     }
 
-
     // 單一事件代理：列點擊開詳情；票券按鈕點擊跳 APP；停靠展開
+    if(!__startEndDelegated){
     tbody.onclick = async (e)=>{
       
       // A. 手機版展開按鈕 (+/-)
@@ -2446,7 +2620,7 @@ function renderTimeWithDelay(trainNo, schedHHMM, queryDateStr, opts){
            detailRow.className = 'mobile-detail-row';
            
            // 1. 抓取停靠站與時間
-           const t = baseSchedule[r.num];
+           const t = getScheduleByOrigin(r.num, r.originDate || currentQueryDateStr);
            let stopsHTML = '';
            
            if(t && t['車站時間']){
@@ -2560,7 +2734,7 @@ function renderTimeWithDelay(trainNo, schedHHMM, queryDateStr, opts){
         const idx = Number(tr?.dataset?.idx);
         const r = currentStartEndList[idx];
         if(!r) return;
-        toggleStopsRow(tr, r.startStation, r.endStation, r.num);
+        toggleStopsRow(tr, r.num, r.startStation, r.endStation);
         return;
       }
 
@@ -2573,103 +2747,100 @@ function renderTimeWithDelay(trainNo, schedHHMM, queryDateStr, opts){
       if(!r) return;
       showTrainDetails(r.num, r.originDate||currentQueryDateStr);
     };
+    __startEndDelegated = true;
+    }
+
 
     const mins = currentStartEndList.map(r=>r.travelMin).filter(x=>Number.isFinite(x)).sort((a,b)=>a-b);
     const minv = mins.length ? mins[0] : 0;
     const cap = percentile(mins, 0.95); // P95 當上限（極端值塗滿）
 
-    // 渲染資料列
-    currentStartEndList.forEach((r, idx) => {
-        let tr = tbody.insertRow();
-        tr.dataset.idx = idx;
-        tr.className = "main-row";
-
-        // 1. 車次 (加入展開按鈕)
-        const trainCell = tr.insertCell();
+    // 渲染資料列（效能：使用 DocumentFragment，避免大量 insertRow 造成卡頓）
+    const frag = document.createDocumentFragment();
+    for(let idx=0; idx<currentStartEndList.length; idx++){
+        const r = currentStartEndList[idx];
         const isSea = String(r.num).includes('A');
-        trainCell.innerHTML = `
+        const bar = getTravelBarStyle(r.travelMin, minv, cap);
+        const elig = getBookingEligibilityByRow(r);
+
+        const tr = document.createElement('tr');
+        tr.className = 'main-row';
+        tr.dataset.idx = idx;
+        tr.dataset.originDate = (r.originDate||currentQueryDateStr);
+
+        // 票券欄位（保持原本行為：只有符合才顯示可點按鈕）
+        const ticketHTML = elig.ok
+          ? `<button class="ticket-btn" data-idx="${idx}">🎫</button>`
+          : `<button class="ticket-btn" disabled title="${elig.reason||''}">不可訂票</button>`;
+
+        tr.innerHTML = `
+          <td>
             <span class="mobile-expand-btn" data-idx="${idx}">+</span>
             <b>${r.num}</b>${isSea ? '<span class="badge-sea">海</span>' : ''}
-        `;
-
-        // 2. 車種 (PC顯示，手機隱藏)
-        const typeCell = tr.insertCell();
-        typeCell.className = "col-type"; // 改用 class 控制
-        typeCell.innerHTML = `${colorType(r.type)} <span class="train-route col-range">(${r.range})</span>`;
-        
-        // 3. 出發
-        tr.insertCell().innerHTML = r.depHTML;
-        
-        // 4. 抵達
-        tr.insertCell().innerHTML = r.arrHTML;
-
-        // 5. 耗時 (PC顯示，手機隱藏)
-        const bar = getTravelBarStyle(r.travelMin, minv, cap);
-        let durCell = tr.insertCell();
-        durCell.className = "col-duration"; // 改用 class 控制
-        durCell.innerHTML = `
+          </td>
+          <td class="col-type">
+            ${colorType(r.type)} <span class="pc-only train-route col-range">(${r.range})</span>
+          </td>
+          <td>${r.depHTML}</td>
+          <td>${r.arrHTML}</td>
+          <td class="col-duration">
             <div style="font-size:.85rem;font-weight:600">${r.travel}</div>
             <div class="progress-bar">
-                <div class="progress-fill" style="width:${bar.widthPct.toFixed(1)}%;background:${bar.fillColor};"></div>
-            </div>`;
+              <div class="progress-fill" style="width:${bar.widthPct.toFixed(1)}%;background:${bar.fillColor}"></div>
+            </div>
+          </td>
+          <td class="col-stops">
+            ${r.stopsCount>0 ? `${r.stopsCount}站 <span class="toggle-arrow">▼</span>` : '<span style="color:#16a34a;font-weight:600">直達</span>'}
+          </td>
+          <td>${r.statusHTML||colorStatus(r.status)||''}</td>
+          <td class="col-ticket" style="text-align:center">${ticketHTML}</td>
+        `;
+        frag.appendChild(tr);
+    }
+    tbody.appendChild(frag);
 
-        // 6. 停靠站 (手機隱藏)
-        let stopsCell = tr.insertCell();
-        stopsCell.className = "col-stops";
-        if(r.stopsCount > 0) {
-            stopsCell.innerHTML = `${r.stopsCount}站 <span class="toggle-arrow">▼</span>`;
-        } else {
-            stopsCell.innerHTML = '<span style="color:#16a34a;font-weight:600">直達</span>';
-        }
-
-        // 7. 狀態
-        tr.insertCell().innerHTML = colorStatus(r.status);
-
-        // 8. 訂票 (手機隱藏)
-        const ticketCell = tr.insertCell();
-        ticketCell.className = "col-ticket";
-        ticketCell.style.textAlign = 'center';
-        
-        // 即使不能訂票也要顯示按鈕(disabled)
-        const elig = getBookingEligibilityByRow(r);
-        if (elig.ok) {
-            ticketCell.innerHTML = `<button class="ticket-btn" data-idx="${idx}">🎫</button>`;
-        } else {
-            ticketCell.innerHTML = `<button class="ticket-btn" disabled title="${elig.reason}">不可訂票</button>`;
-        }
-    });
   }
 
-  function toggleStopsRow(tr, st, ed, num){
-    const next=tr.nextElementSibling;
-    if(next && next.classList.contains('stops-row')){
-      next.remove();
-      return;
-    }
-    const t=baseSchedule[num]; if(!t) return;
-    const arr=t['車站時間']||[];
-    const si=arr.findIndex(x=>x[0]===st);
-    const ei=arr.findIndex(x=>x[0]===ed);
-    if(si<0 || ei<0 || ei<=si) return;
+  function toggleStopsRow(tr, num, st, ed){
+  // 只對「同一列」做展開收合；跨日車需依 originDate 找正確時刻資料
+  const next = tr.nextSibling;
+  const icon = tr.querySelector('.toggle-arrow');
 
-    // 停靠站格式化：(時間)
-    const stopsSpans=arr.slice(si+1, ei).map(x=> `<span class="stop-item">${x[0]}(${splitArrDep(x).dep || '--'})</span>`).join('');
-    
-    const row=document.createElement('tr');
-    row.className='stops-row';
-    const td=document.createElement('td');
-    td.colSpan=8;
-    
-    if(stopsSpans){
-        td.innerHTML = `<div style="display:flex; gap:6px; margin-bottom:4px; font-weight:700;">沿途停靠：</div>
-                        <div class="stops-grid">${stopsSpans}</div>`;
-    } else {
-        td.innerHTML = '（無中途停靠）';
-    }
-    
-    row.appendChild(td);
-    tr.parentNode.insertBefore(row, tr.nextSibling);
+  if(next && next.classList && next.classList.contains('stops-row')){
+    next.remove();
+    if(icon) icon.textContent = '▼';
+    return;
   }
+
+  const originDate = tr.dataset.originDate || currentQueryDateStr;
+  const inst = scheduleKeyList.find(x=>String(x.trainNo)===String(num) && String(x.originDate)===String(originDate));
+  const t = inst?.data || baseSchedule[num] || prevSchedule[num];
+  if(!t) return;
+
+  const arr=t['車站時間']||[];
+  const si=arr.findIndex(x=>x[0]===st);
+  const ei=arr.findIndex(x=>x[0]===ed);
+  if(si<0 || ei<0 || ei<=si) return;
+
+  const stopsList = arr.slice(si+1, ei).map(x=>{
+    const dep = splitArrDep(x).dep || '--';
+    return { name:x[0], time: dep };
+  });
+
+  const stopText = stopsList.length
+    ? stopsList.map(s=>`${s.name}(${s.time})`).join('、')
+    : '（無中途停靠）';
+
+  const row=document.createElement('tr');
+  row.className='stops-row';
+  const td=document.createElement('td');
+  td.colSpan=(tr.children.length||8);
+  td.textContent = stopsList.length ? `沿途停靠：${stopText}` : stopText;
+  row.appendChild(td);
+  tr.parentNode.insertBefore(row, tr.nextSibling);
+
+  if(icon) icon.textContent = '▲';
+}
 
   // ===== 轉乘（中途站：到達/開車分開） =====
   
@@ -2970,8 +3141,107 @@ function renderTransferTable(){
 
   // 單一事件代理（避免每列綁 click，手機效能更好）
   tbody.onclick = (e)=>{
+    // 手機版：+/- 展開收合（不開啟 modal）
+    const expandBtn = e.target.closest('.mobile-expand-btn');
+    if(expandBtn){
+      e.stopPropagation();
+      const trMain = expandBtn.closest('tr');
+      if(!trMain || trMain.parentElement !== tbody) return;
+      const idx = Number(expandBtn.dataset.idx);
+      if(!Number.isFinite(idx)) return;
+      const r = currentTransferList[idx];
+      if(!r) return;
+
+      // 如果已展開就收合
+      const next = trMain.nextElementSibling;
+      if(next && next.classList && next.classList.contains('mobile-detail-row')){
+        next.remove();
+        expandBtn.textContent = '+';
+        return;
+      }
+
+      // 先關掉其它展開
+      tbody.querySelectorAll('tr.mobile-detail-row').forEach(x=>x.remove());
+      tbody.querySelectorAll('.mobile-expand-btn').forEach(btn=>btn.textContent = '+');
+
+      // 建立 detail row
+      const detailRow = document.createElement('tr');
+      detailRow.className = 'mobile-detail-row';
+
+      let html = '';
+      if(r.isDirect){
+        // 直達：顯示行駛區間 + 沿途停靠 + 訂票（若有）
+        let stopsHTML = '';
+        const t = getScheduleByOrigin(r.n1, r.originDate1 || currentQueryDateStr);
+        if(t && t['車站時間']){
+          const arr = t['車站時間'];
+          const sIdx = arr.findIndex(x=>x[0]===r.startStation);
+          const eIdx = arr.findIndex(x=>x[0]===r.endStation);
+          if(sIdx > -1 && eIdx > -1 && eIdx > sIdx+1){
+            const stopsArr = arr.slice(sIdx+1, eIdx);
+            const stopSpans = stopsArr.map(x=>{
+              const dep = splitArrDep(x).dep || '--';
+              return `<span class="stop-item">${x[0]}(${dep})</span>`;
+            }).join('');
+            stopsHTML = `<div class="stops-grid">${stopSpans}</div>`;
+          }else{
+            stopsHTML = `<div class="muted">（無中途停靠）</div>`;
+          }
+        }else{
+          stopsHTML = `<div class="muted">（無法取得停靠資訊）</div>`;
+        }
+
+        html = `
+          <div class="mblk">
+            <div class="mt">行駛區間</div>
+            <div class="mv">${r.startStation} → ${r.endStation}</div>
+          </div>
+          <div class="mblk">
+            <div class="mt">沿途停靠</div>
+            <div class="mv">${stopsHTML}</div>
+          </div>
+          ${r.ticketHTML ? `<div class="mact">${r.ticketHTML}</div>` : ``}
+        `;
+      }else{
+        // 轉乘：顯示兩段與等候，並提供「查看轉乘詳細」按鈕（維持既有 modal）
+        html = `
+          <div class="mblk">
+            <div class="mt">第 1 段</div>
+            <div class="mv"><b>${r.n1}</b>　${colorType(r.type1)}　${r.startStation} ${r.depHTML||highlightPeak(r.depSched||r.dep||'--')} → ${r.transferStation} ${r.midArrHTML||highlightPeak(r.midArr||'--')}</div>
+          </div>
+          <div class="mblk">
+            <div class="mt">等候</div>
+            <div class="mv">${r.waitMin} 分（${r.transferStation}）</div>
+          </div>
+          <div class="mblk">
+            <div class="mt">第 2 段</div>
+            <div class="mv"><b>${r.n2}</b>　${colorType(r.type2)}　${r.transferStation} ${r.midDepHTML||highlightPeak(r.midDep||'--')} → ${r.endStation} ${r.arrHTML||highlightPeak(r.arrSched||r.arr||'--')}</div>
+          </div>
+          <div class="mact">
+            <button class="btn btn-primary btn-transfer-details" data-idx="${idx}">查看轉乘詳細</button>
+          </div>
+        `;
+      }
+
+      detailRow.innerHTML = `<td colspan="7"><div class="mobile-detail-wrap">${html}</div></td>`;
+      trMain.parentNode.insertBefore(detailRow, trMain.nextSibling);
+      expandBtn.textContent = '−';
+      return;
+    }
+
+    // 轉乘詳細按鈕
+    const detailBtn = e.target.closest('.btn-transfer-details');
+    if(detailBtn){
+      const idx = Number(detailBtn.dataset.idx);
+      const r = currentTransferList?.[idx];
+      if(r) showTransferDetails(r);
+      return;
+    }
+
+    // 一般點擊列：維持既有 modal 行為
     const tr = e.target.closest('tr');
     if(!tr || tr.parentElement !== tbody) return;
+    if(tr.classList.contains('mobile-detail-row')) return;
     const idx = Number(tr.dataset.idx);
     if(!Number.isFinite(idx)) return;
     const r = currentTransferList[idx];
@@ -2989,17 +3259,18 @@ function renderTransferTable(){
     tr.dataset.idx = idx;
 
     tr.insertCell().innerHTML = String(r.trainNumber).includes('A')
-      ? `<b>${r.trainNumber}</b><span class="badge-sea">海</span>` : `<b>${r.trainNumber}</b>`;
+      ? `<span class="mobile-expand-btn" data-idx="${idx}">+</span><b>${r.trainNumber}</b><span class="badge-sea">海</span>`
+      : `<span class="mobile-expand-btn" data-idx="${idx}">+</span><b>${r.trainNumber}</b>`;
 
     // 轉乘表格的車種(區間)欄位也加上 desktop-only
     let typeCell = tr.insertCell();
     typeCell.className = "col-type";
     if(r.isDirect){
-      typeCell.innerHTML = `${colorType(r.type1)} <span class="train-route col-range">(${r.startStation}➝${r.endStation})</span>`;
+      typeCell.innerHTML = `${colorType(r.type1)} <span class="pc-only train-route col-range">(${r.startStation}➝${r.endStation})</span>`;
     }else{
       typeCell.innerHTML =
-        `${colorType(r.type1)}<span class="train-route">(${r.startStation}➝${r.transferStation})</span><br>`+
-        `${colorType(r.type2)}<span class="train-route">(${r.transferStation}➝${r.endStation})</span>`;
+        `${colorType(r.type1)}<span class="pc-only train-route">(${r.startStation}➝${r.transferStation})</span><br>`+
+        `${colorType(r.type2)}<span class="pc-only train-route">(${r.transferStation}➝${r.endStation})</span>`;
     }
 
     tr.insertCell().innerHTML = r.depHTML;
@@ -3010,7 +3281,7 @@ function renderTransferTable(){
     }else{
       tr.insertCell().innerHTML =
         `<div style="font-weight:700">${r.transferStation}</div>`+
-        `<div class="train-route">抵達 ${r.midArrHTML||highlightPeak(r.midArr)} / 發車 ${r.midDepHTML||highlightPeak(r.midDep)}（等 ${r.waitMin} 分）</div>`;
+        `<div class="train-route transfer-detail">抵達 ${r.midArrHTML||highlightPeak(r.midArr)} / 發車 ${r.midDepHTML||highlightPeak(r.midDep)}（等 ${r.waitMin} 分）</div>`;
 }
 
     tr.insertCell().innerHTML = r.arrHTML;
@@ -3042,126 +3313,239 @@ function renderTransferTable(){
   // 車站時刻表：顯示日 = currentQueryDateStr
   // 但列車來源可能是：發車日 = currentQueryDateStr 或 currentQueryDateStr-1
   function filterTrainScheduleByStationName(){
-    const station = extractStationNameFromInput(document.getElementById('stationNameInput').value);
-    document.getElementById('stationNameInput').value = station;
-    if(!station) return;
-
-    const dir=document.getElementById('directionSelect').value; // even / odd
-    lastStationQuery = { station, dir };
-
-    const tbody=document.querySelector('#scheduleTableByStationName tbody');
-    tbody.innerHTML='';
-  // 單一事件代理（避免每列綁 click，手機效能更好）
-  tbody.onclick = (e)=>{
-    const tr = e.target.closest('tr');
-    if(!tr || tr.parentElement !== tbody) return;
-    const idx = Number(tr.dataset.idx);
-    if(!Number.isFinite(idx)) return;
-    const r = currentTransferList[idx];
-    if(!r) return;
-    if(r.isDirect) showTrainDetails(r.n1, r.originDate1||currentQueryDateStr);
-    else showTransferDetails(r);
-  };
-
-    selectedTrainTypesStation=getSelectedTypesSafe('station');
-
-    const rows = [];
-    scheduleKeyList.forEach(item=>{
-      const {key, trainNo, originDate, data} = item;
-      if(!data) return;
-      if(selectedTrainTypesStation.length && !selectedTrainTypesStation.includes(data['車種'])) return;
-
-      const arr = data['車站時間']||[];
-      const idx = arr.findIndex(s=>s[0]===station);
-      if(idx<0) return;
-
-      const ev = isEvenTrainNo(trainNo);
-      if(dir === 'even' && ev !== true) return;
-      if(dir === 'odd'  && ev !== false) return;
-
-      // 本站一律用「開車時間」
-      const dep = splitArrDep(arr[idx]).dep || '--';
-
-      // 判斷這站實際是哪一天（跨日要落到隔天）
-      const abs = buildAbsMinutes(arr);
-      const absMin = abs[idx]?.abs;
-      if(absMin === null) return;
-
-      const stopDate = getStopDateStr(originDate, absMin);
-      if(stopDate !== currentQueryDateStr) return; // 只顯示「選的那天」
-
-      const status = getTrainStatusLabel(
-        trainNo,
-        originDate, // 狀態永遠用發車日
-        (arr[0]?.[2]||arr[0]?.[1]||''),
-        (arr.slice(-1)[0]?.[1]||arr.slice(-1)[0]?.[2]||''),
-        absMin // 用本站 absMin 判斷已過站
-      );
-
-      const depAdj = getAdjustedTime(trainNo, dep, currentQueryDateStr);
-      rows.push({
-        trainNo, originDate,
-        type: data['車種'],
-        range: `${arr[0][0]}➝${arr.slice(-1)[0][0]}`,
-        depHTML: renderTimeWithDelay(trainNo, dep, currentQueryDateStr, { suppressStrike: status==='已過站' }),
-        depMin: (status==='已過站' ? (parseTime(dep) ?? 9999) : (depAdj.adjMin ?? 9999)),
-        status
-      });
-    });
-
-    rows.sort((a,b)=>a.depMin-b.depMin);
-
-    rows.forEach(r=>{
-      let tr=tbody.insertRow();
-      tr.insertCell().innerHTML=String(r.trainNo).includes('A')?`<b>${r.trainNo}</b><span class="badge-sea">海</span>`:`<b>${r.trainNo}</b>`;
-      tr.insertCell().innerHTML=`${colorType(r.type)} <span class="train-route">(${r.range})</span>`;
-      tr.insertCell().innerHTML=highlightPeak(r.depHTML);
-      tr.insertCell().innerHTML=colorStatus(r.status);
-      tr.addEventListener('click',()=>showTrainDetails(r.trainNo, r.originDate));
-    });
-  }
+  showLoading('查詢中...');
+  requestAnimationFrame(()=>{ setTimeout(()=>{ try{
+          const station = extractStationNameFromInput(document.getElementById('stationNameInput').value);
+          document.getElementById('stationNameInput').value = station;
+          if(!station) return;
+      
+          const dir=document.getElementById('directionSelect').value; // even / odd
+          lastStationQuery = { station, dir };
+      
+          const tbody=document.querySelector('#scheduleTableByStationName tbody');
+          tbody.innerHTML='';
+        // 單一事件代理（避免每列綁 click，手機效能更好）
+        tbody.onclick = (e)=>{
+          // 手機版：+/- 展開收合（不開啟 modal）
+          const expandBtn = e.target.closest('.mobile-expand-btn');
+          if(expandBtn){
+            e.stopPropagation();
+            const trMain = expandBtn.closest('tr');
+            if(!trMain || trMain.parentElement !== tbody) return;
+            const idx = Number(expandBtn.dataset.idx);
+            if(!Number.isFinite(idx)) return;
+            const r = currentTransferList[idx];
+            if(!r) return;
+      
+            // 如果已展開就收合
+            const next = trMain.nextElementSibling;
+            if(next && next.classList && next.classList.contains('mobile-detail-row')){
+              next.remove();
+              expandBtn.textContent = '+';
+              return;
+            }
+      
+            // 先關掉其它展開
+            tbody.querySelectorAll('tr.mobile-detail-row').forEach(x=>x.remove());
+            tbody.querySelectorAll('.mobile-expand-btn').forEach(btn=>btn.textContent = '+');
+      
+            // 建立 detail row
+            const detailRow = document.createElement('tr');
+            detailRow.className = 'mobile-detail-row';
+      
+            let html = '';
+            if(r.isDirect){
+              // 直達：顯示行駛區間 + 沿途停靠 + 訂票（若有）
+              let stopsHTML = '';
+              const t = getScheduleByOrigin(r.n1, r.originDate1 || currentQueryDateStr);
+              if(t && t['車站時間']){
+                const arr = t['車站時間'];
+                const sIdx = arr.findIndex(x=>x[0]===r.startStation);
+                const eIdx = arr.findIndex(x=>x[0]===r.endStation);
+                if(sIdx > -1 && eIdx > -1 && eIdx > sIdx+1){
+                  const stopsArr = arr.slice(sIdx+1, eIdx);
+                  const stopSpans = stopsArr.map(x=>{
+                    const dep = splitArrDep(x).dep || '--';
+                    return `<span class="stop-item">${x[0]}(${dep})</span>`;
+                  }).join('');
+                  stopsHTML = `<div class="stops-grid">${stopSpans}</div>`;
+                }else{
+                  stopsHTML = `<div class="muted">（無中途停靠）</div>`;
+                }
+              }else{
+                stopsHTML = `<div class="muted">（無法取得停靠資訊）</div>`;
+              }
+      
+              html = `
+                <div class="mblk">
+                  <div class="mt">行駛區間</div>
+                  <div class="mv">${r.startStation} → ${r.endStation}</div>
+                </div>
+                <div class="mblk">
+                  <div class="mt">沿途停靠</div>
+                  <div class="mv">${stopsHTML}</div>
+                </div>
+                ${r.ticketHTML ? `<div class="mact">${r.ticketHTML}</div>` : ``}
+              `;
+            }else{
+              // 轉乘：顯示兩段與等候，並提供「查看轉乘詳細」按鈕（維持既有 modal）
+              html = `
+                <div class="mblk">
+                  <div class="mt">第 1 段</div>
+                  <div class="mv"><b>${r.n1}</b>　${colorType(r.type1)}　${r.startStation} ${r.depHTML||highlightPeak(r.depSched||r.dep||'--')} → ${r.transferStation} ${r.midArrHTML||highlightPeak(r.midArr||'--')}</div>
+                </div>
+                <div class="mblk">
+                  <div class="mt">等候</div>
+                  <div class="mv">${r.waitMin} 分（${r.transferStation}）</div>
+                </div>
+                <div class="mblk">
+                  <div class="mt">第 2 段</div>
+                  <div class="mv"><b>${r.n2}</b>　${colorType(r.type2)}　${r.transferStation} ${r.midDepHTML||highlightPeak(r.midDep||'--')} → ${r.endStation} ${r.arrHTML||highlightPeak(r.arrSched||r.arr||'--')}</div>
+                </div>
+                <div class="mact">
+                  <button class="btn btn-primary btn-transfer-details" data-idx="${idx}">查看轉乘詳細</button>
+                </div>
+              `;
+            }
+      
+            detailRow.innerHTML = `<td colspan="7"><div class="mobile-detail-wrap">${html}</div></td>`;
+            trMain.parentNode.insertBefore(detailRow, trMain.nextSibling);
+            expandBtn.textContent = '−';
+            return;
+          }
+      
+          // 轉乘詳細按鈕
+          const detailBtn = e.target.closest('.btn-transfer-details');
+          if(detailBtn){
+            const idx = Number(detailBtn.dataset.idx);
+            const r = currentTransferList?.[idx];
+            if(r) showTransferDetails(r);
+            return;
+          }
+      
+          // 一般點擊列：維持既有 modal 行為
+          const tr = e.target.closest('tr');
+          if(!tr || tr.parentElement !== tbody) return;
+          if(tr.classList.contains('mobile-detail-row')) return;
+          const idx = Number(tr.dataset.idx);
+          if(!Number.isFinite(idx)) return;
+          const r = currentTransferList[idx];
+          if(!r) return;
+          if(r.isDirect) showTrainDetails(r.n1, r.originDate1||currentQueryDateStr);
+          else showTransferDetails(r);
+        };
+      
+          selectedTrainTypesStation=getSelectedTypesSafe('station');
+      
+          const rows = [];
+          scheduleKeyList.forEach(item=>{
+            const {key, trainNo, originDate, data} = item;
+            if(!data) return;
+            if(selectedTrainTypesStation.length && !selectedTrainTypesStation.includes(data['車種'])) return;
+      
+            const arr = data['車站時間']||[];
+            const idx = arr.findIndex(s=>s[0]===station);
+            if(idx<0) return;
+      
+            const ev = isEvenTrainNo(trainNo);
+            if(dir === 'even' && ev !== true) return;
+            if(dir === 'odd'  && ev !== false) return;
+      
+            // 本站一律用「開車時間」
+            const dep = splitArrDep(arr[idx]).dep || '--';
+      
+            // 判斷這站實際是哪一天（跨日要落到隔天）
+            const abs = buildAbsMinutes(arr);
+            const absMin = abs[idx]?.abs;
+            if(absMin === null) return;
+      
+            const stopDate = getStopDateStr(originDate, absMin);
+            if(stopDate !== currentQueryDateStr) return; // 只顯示「選的那天」
+      
+            const status = getTrainStatusLabel(
+              trainNo,
+              originDate, // 狀態永遠用發車日
+              (arr[0]?.[2]||arr[0]?.[1]||''),
+              (arr.slice(-1)[0]?.[1]||arr.slice(-1)[0]?.[2]||''),
+              absMin // 用本站 absMin 判斷已過站
+            );
+      
+            const depAdj = getAdjustedTime(trainNo, dep, currentQueryDateStr);
+            rows.push({
+              trainNo, originDate,
+              type: data['車種'],
+              range: `${arr[0][0]}➝${arr.slice(-1)[0][0]}`,
+              depHTML: renderTimeWithDelay(trainNo, dep, currentQueryDateStr, { suppressStrike: status==='已過站' }),
+              depMin: (status==='已過站' ? (parseTime(dep) ?? 9999) : (depAdj.adjMin ?? 9999)),
+              status
+            });
+          });
+      
+          rows.sort((a,b)=>a.depMin-b.depMin);
+      
+          rows.forEach(r=>{
+            let tr=tbody.insertRow();
+            tr.insertCell().innerHTML=String(r.trainNo).includes('A')?`<b>${r.trainNo}</b><span class="badge-sea">海</span>`:`<b>${r.trainNo}</b>`;
+            tr.insertCell().innerHTML=`${colorType(r.type)} <span class="train-route">(${r.range})</span>`;
+            tr.insertCell().innerHTML=highlightPeak(r.depHTML);
+            tr.insertCell().innerHTML=colorStatus(r.status);
+            tr.addEventListener('click',()=>showTrainDetails(r.trainNo, r.originDate));
+          });
+        
+    }finally{
+      hideLoading();
+    }
+  },0);
+  });}
 
   // ===== 車次查詢（以查詢日 currentQueryDateStr 的發車資料為主） =====
   
 function filterTrainScheduleByNumber(){
-  const num = extractTrainNoFromInput(document.getElementById('trainNumberInput').value);
-  lastTrainQuery = { trainNo: num };
-
-  document.getElementById('trainNumberInput').value = num;
-
-  const tbody=document.querySelector('#scheduleTableByNumber tbody');
-  tbody.innerHTML='';
-
-  // ✅ 車次查詢：完全以「使用者選的顯示日期 currentQueryDateStr」作為發車日
-  // 也就是：你選 2/3 就查 2/3 發車的 181；不自動切到前一日跨日車 instance
-  //（起迄站/車站查詢那邊的跨日呈現保持原樣，不在這裡動）
-  const originDateStr = currentQueryDateStr;
-  const t = baseSchedule[num] || null;
-
-  if (!t) {
-    let tr = tbody.insertRow();
-    let td = tr.insertCell();
-    td.colSpan = 3;
-    td.style.textAlign = 'center';
-    td.style.padding = '20px';
-    td.innerHTML = `<span style="color:#ef4444; font-weight:700;">❌ 查無${num}車次，請確認輸入車次或發車日期是否正確。</span>`;
-    return;
-  }
-
-  const arr=t['車站時間']||[];
-  const status = getTrainStatusLabel(
-    num,
-    originDateStr,
-    (arr[0]?.[2]||arr[0]?.[1]||''),
-    (arr.slice(-1)[0]?.[1]||arr.slice(-1)[0]?.[2]||'')
-  );
-
-  let tr=tbody.insertRow();
-  tr.insertCell().innerHTML=String(num).includes('A')?`<b>${num}</b><span class="badge-sea">海</span>`:`<b>${num}</b>`;
-  tr.insertCell().innerHTML=`${colorType(t['車種'])} <span class="train-route">(${arr[0][0]}➝${arr.slice(-1)[0][0]})</span>`;
-  tr.insertCell().innerHTML=colorStatus(status);
-  tr.addEventListener('click',()=>showTrainDetails(num, originDateStr));
-}
+  showLoading('查詢中...');
+  requestAnimationFrame(()=>{ setTimeout(()=>{ try{
+        const num = extractTrainNoFromInput(document.getElementById('trainNumberInput').value);
+        lastTrainQuery = { trainNo: num };
+      
+        document.getElementById('trainNumberInput').value = num;
+      
+        const tbody=document.querySelector('#scheduleTableByNumber tbody');
+        tbody.innerHTML='';
+      
+        // ✅ 車次查詢：完全以「使用者選的顯示日期 currentQueryDateStr」作為發車日
+        // 也就是：你選 2/3 就查 2/3 發車的 181；不自動切到前一日跨日車 instance
+        //（起迄站/車站查詢那邊的跨日呈現保持原樣，不在這裡動）
+        const originDateStr = currentQueryDateStr;
+        const t = baseSchedule[num] || null;
+      
+        if (!t) {
+          let tr = tbody.insertRow();
+          let td = tr.insertCell();
+          td.colSpan = 3;
+          td.style.textAlign = 'center';
+          td.style.padding = '20px';
+          td.innerHTML = `<span style="color:#ef4444; font-weight:700;">❌ 查無${num}車次，請確認輸入車次或發車日期是否正確。</span>`;
+          return;
+        }
+      
+        const arr=t['車站時間']||[];
+        const status = getTrainStatusLabel(
+          num,
+          originDateStr,
+          (arr[0]?.[2]||arr[0]?.[1]||''),
+          (arr.slice(-1)[0]?.[1]||arr.slice(-1)[0]?.[2]||'')
+        );
+      
+        let tr=tbody.insertRow();
+        tr.insertCell().innerHTML=String(num).includes('A')?`<b>${num}</b><span class="badge-sea">海</span>`:`<b>${num}</b>`;
+        tr.insertCell().innerHTML=`${colorType(t['車種'])} <span class="train-route">(${arr[0][0]}➝${arr.slice(-1)[0][0]})</span>`;
+        tr.insertCell().innerHTML=colorStatus(status);
+        tr.addEventListener('click',()=>showTrainDetails(num, originDateStr));
+      
+    }finally{
+      hideLoading();
+    }
+  },0);
+  });}
 
 // ===== Modal: 列車詳情（顯示站別用開車優先，並且跨日顯示正確日期）（顯示站別用開車優先，並且跨日顯示正確日期） =====
   const modal=document.getElementById('trainModal');
@@ -3252,8 +3636,8 @@ arr.forEach((s, i)=>{
         arrHTML = arrTime ? `<span class="st-arr" style="color:var(--text-muted);">${arrTime}</span>` : '';
     } else {
         // 未到的站：保持原本動態誤點顯示
-        depHTML = renderTimeWithDelay(trainNo, depTime, currentQueryDateStr);
-        arrHTML = arrTime ? `<span class="st-arr">${renderTimeWithDelay(trainNo, arrTime, currentQueryDateStr)}</span>` : '';
+        depHTML = renderTimeWithDelay(trainNo, depTime, currentQueryDateStr, null, abs?.[i]?.abs, originDateStr);
+        arrHTML = arrTime ? `<span class="st-arr">${renderTimeWithDelay(trainNo, arrTime, currentQueryDateStr, null, abs?.[i]?.abs, originDateStr)}</span>` : '';
     }
     // -------------------------
 
@@ -3471,7 +3855,7 @@ arr.forEach((s, i)=>{
         depHTML = `<span style="color:var(--text-muted);">${depTime}</span>`;
         arrHTML = arrTime ? `<span class="st-arr" style="color:var(--text-muted);">${arrTime}</span>` : '';
       }else{
-        depHTML = renderTimeWithDelay(trainNo, depTime, currentQueryDateStr);
+        depHTML = renderTimeWithDelay(trainNo, depTime, currentQueryDateStr, null, abs?.[i]?.abs, originDateStr);
         arrHTML = arrTime ? renderTimeWithDelay(trainNo, arrTime, currentQueryDateStr) : '';
       }
 

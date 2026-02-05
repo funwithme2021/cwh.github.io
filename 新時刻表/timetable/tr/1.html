@@ -2,42 +2,291 @@
 <html lang="zh-Hant">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <title>台鐵即時時刻表 (TRA Real-time)</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>台鐵即時時刻表</title>
   
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
 
   <style>
-  /* ===== 全域效能優化 ===== */
+  /* ===== 全域效能優化 (Performance) ===== */
+  /* 針對所有裝置基礎設定 */
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  
+  /* ===== 行動裝置優化增強 (Mobile Overrides) ===== */
+  @media (max-width: 760px) {
+    /* 1. 隱藏背景特效以解決卡頓 */
+    .bg-blobs { display: none !important; }
 
-  /* ===== 核心變數 (台鐵藍色系) ===== */
-  :root {
-    --bg-card: #ffffff;
-    --font-main: 'Inter', 'Noto Sans TC', sans-serif;
-    --bg-body: #f8fafc;
-    --bg-surface: #ffffff;
-    --bg-header: rgba(255, 255, 255, 0.9);
-    --text-main: #0f172a;
-    --text-muted: #64748b;
-    --text-light: #94a3b8;
-    --border: #e2e8f0;
-    
-    /* 台鐵主色：藍色 */
-    --primary: #2563eb; 
-    --primary-bg: rgba(37, 99, 235, 0.1);
-    
-    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-    --radius: 12px;
+    /* 0. 手機版頂部固定區：更緊湊、避免太多字 */
+    .header{ padding: 10px 12px; }
+    .header-content{ width: 100%; gap: 8px; flex-wrap: nowrap; align-items: center; justify-content: space-between; }
+    .logo{ font-size: 14px; }
+    .logo span{ display:none; } /* 只留 TR */
+    .date-picker label{ display:none !important; }
+    .date-picker{ display:flex; flex-wrap: wrap; gap: 8px; align-items:center; justify-content:flex-end; }
+
+    .date-picker input[type="date"]{ min-width: 138px; }
+
   }
 
-  /* 深夜模式 */
+  /* 更小螢幕：表頭使用 2x2 grid 排列（不可巢狀 media） */
+  @media (max-width: 520px){
+    .header-content{ display: grid; grid-template-columns: 1fr auto; grid-template-rows: auto auto; row-gap: 8px; }
+    .logo{ grid-column: 1 / 2; grid-row: 1; }
+    #homeBtn{ grid-column: 2; grid-row: 1; justify-self: end; }
+    .date-picker{ grid-column: 1 / 2; grid-row: 2; justify-self: start; }
+    .header-actions{ grid-column: 2; grid-row: 2; justify-self: end; display:flex; gap:8px; }
+    .header-actions .btn-primary{ padding: 10px 12px; }
+    .header-actions .mode-toggle{ padding: 10px 12px; }
+  }
+
+  /* 回到手機樣式延伸 */
+  @media (max-width: 760px) {
+    .date-picker .btn-ghost, .date-picker button.btn-primary{ padding: 8px 12px; font-size: 12px; }
+    .toggle-theme{ padding: 8px 10px; font-size: 12px; }
+
+    /* 表頭：全部不可換行，行動版以圖示為主 */
+    .header, .header *{ white-space: nowrap; }
+    .header .btn-text{ display: none; }
+    .header .ico{ font-size: 16px; line-height: 1; }
+    #homeBtn, #refreshBtn, #themeToggle{ display:flex; align-items:center; justify-content:center; gap:6px; }
+
+    /* 2. 手機版欄位顯示控制 */
+    .col-range, .col-stops, .col-ticket { display: none !important; }
+    .col-type, .col-duration { display: table-cell !important; }
+
+    /* 3. 調整表格字體與內距 */
+    table { font-size: 0.85rem; }
+    th, td { padding: 12px 6px !important; }
+    
+    /* 4. 展開按鈕樣式 */
+    .mobile-expand-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 24px; height: 24px;
+        background: var(--primary-bg);
+        color: var(--primary);
+        border-radius: 50%;
+        margin-right: 6px;
+        font-weight: bold;
+        font-size: 16px;
+        cursor: pointer;
+        user-select: none;
+    }
+
+    /* 5. 手機版詳情行樣式 */
+    .mobile-detail-row td {
+        background: var(--bg-body) !important;
+        padding: 12px 16px !important;
+        border-left: 4px solid var(--primary);
+        box-shadow: inset 0 2px 6px rgba(0,0,0,0.02);
+    }
+
+    /* 轉乘查詢手機展開：細部樣式（僅補齊，不影響其它） */
+    .mobile-detail-wrap{ display:flex; flex-direction:column; gap:10px; }
+    .mblk{ display:flex; flex-direction:column; gap:4px; }
+    .mt{ font-size:12px; font-weight:800; color:var(--text-muted); letter-spacing:.02em; }
+    .mv{ font-size:14px; font-weight:700; color:var(--text); line-height:1.35; }
+    .mact{ margin-top:4px; display:flex; gap:10px; flex-wrap:wrap; }
+    .muted{ color:var(--text-muted); font-weight:700; }
+
+    .stop-pill{
+      display:inline;
+      padding:0;
+      border:none;
+      border-radius:0;
+      background:transparent;
+      font-weight:600;
+      color:var(--text);
+      white-space:nowrap;
+    }
+    .stop-time{
+      font-size:12px; font-weight:800; color:var(--text-muted);
+      padding:2px 8px; border-radius:999px;
+      background: rgba(0,0,0,0.04);
+    }
+
+
+    /* 詳情頁面佈局：第一行 (區間 + 訂票) */
+    .detail-header-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 12px;
+        padding-bottom: 8px;
+        border-bottom: 1px dashed var(--border);
+    }
+
+    .detail-range-info {
+        font-weight: 700;
+        font-size: 1.05rem;
+        color: var(--text-main);
+    }
+
+    /* 詳情頁面佈局：第二行 (停靠站) */
+    .detail-stops-container {
+        margin-top: 8px;
+    }
+    
+    .detail-label {
+        font-size: 0.8rem;
+        color: var(--text-muted);
+        font-weight: 700;
+        margin-bottom: 6px;
+        display: block;
+    }
+
+    /* 6. 手機版篩選器 (垂直清單模式) */
+    .desktop-filters { display: none !important; }
+    .mobile-filter-container { display: block !important; margin-bottom: 16px; position: relative; }
+    
+    .filter-btn {
+        background: var(--bg-surface);
+        border: 1px solid var(--border);
+        color: var(--text-main);
+        padding: 10px 16px;
+        border-radius: 12px;
+        font-size: 0.95rem;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        width: 100%;
+    }
+    
+    .filter-dropdown {
+        display: none;
+        position: absolute;
+        top: 100%; left: 0; right: 0;
+        background: var(--bg-surface); /* 純色背景避免卡頓 */
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 8px 0;
+        z-index: 100;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+        margin-top: 6px;
+        max-height: 300px;
+        overflow-y: auto;
+    }
+    
+    .filter-dropdown.show { display: block; }
+
+    /* 垂直選單項目樣式 */
+    .filter-list-item {
+        display: flex;
+        align-items: center;
+        padding: 10px 16px;
+        border-bottom: 1px solid var(--border);
+        cursor: pointer;
+    }
+    .filter-list-item:last-child { border-bottom: none; }
+    .filter-list-item input { width: auto; margin-right: 12px; transform: scale(1.3); }
+    .filter-list-item span { font-size: 0.95rem; font-weight: 500; }
+  }
+
+  /* 非手機端樣式 */
+  @media (min-width: 761px) {
+    .mobile-expand-btn { display: none; }
+    .mobile-filter-container { display: none !important; }
+    .desktop-filters { display: flex !important; }
+  }
+
+  /* 通用：停靠站 Grid 排版 (固定寬度換行) */
+  .stops-grid {
+      display: grid;
+      /* 自動填滿，每格至少 5.5em (約可放 '台北(12:00)')，再寬就平分 */
+      grid-template-columns: repeat(auto-fill, minmax(6.5em, 1fr));
+      gap: 6px 8px;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      line-height: 1.4;
+  }
+  .stop-item {
+      white-space: nowrap;
+      display: inline-block;
+  }
+
+  /* ===== 1. 核心變數與 Reset ===== */
+  :root {
+  --tr-color: #3b82f6;
+  --thsr-color: #fb923c;
+
+  --bg-dark: #020617;
+  --text-main: #f8fafc;
+  --text-muted: #94a3b8;
+  --text-light: #64748b;
+
+  --glass-bg: rgba(30, 41, 59, 0.45);
+  --glass-border: rgba(255, 255, 255, 0.10);
+  --dock-bg: rgba(15, 23, 42, 0.70);
+  --modal-bg: rgba(15, 23, 42, 0.98);
+
+  --font-main: 'Inter', 'Noto Sans TC', sans-serif;
+
+  /* keep old var names to avoid touching JS/HTML */
+  --bg-body: var(--bg-dark);
+  --bg-surface: var(--glass-bg);
+  --bg-header: rgba(15, 23, 42, 0.55);
+
+  --border: var(--glass-border);
+  --primary: var(--tr-color);
+  --primary-bg: rgba(59, 130, 246, 0.18);
+
+  --shadow-sm: 0 20px 50px rgba(0,0,0,0.35);
+  --radius: 28px;
+}
+
+body.light-mode {
+  --bg-dark: #f8fafc;
+  --text-main: #0f172a;
+  --text-muted: #475569;
+  --text-light: #64748b;
+
+  --glass-bg: #ffffff;
+  --glass-border: rgba(15, 23, 42, 0.08);
+  --dock-bg: rgba(255, 255, 255, 0.90);
+  --modal-bg: rgba(255, 255, 255, 1);
+
+  --bg-body: var(--bg-dark);
+  --bg-surface: var(--glass-bg);
+  --bg-header: #ffffff;
+
+  --border: var(--glass-border);
+  --primary: var(--tr-color);
+  --primary-bg: rgba(59, 130, 246, 0.15);
+
+  --shadow-sm: 0 18px 45px rgba(2, 6, 23, 0.08);
+}
+
+.lang-switch {
+    background: var(--glass-bg);
+    color: #ffffff;
+    border: 1px solid var(--glass-border);
+    padding: 8px 16px;
+    border-radius: 12px;
+    cursor: pointer;
+    font-weight: 600;
+}
+
+  .booking-tip {
+    font-size: 12px;
+    color: #666;
+    display: flex;
+    align-items: center;
+    margin-top: 4px;
+}
+.booking-tip i {
+    margin-right: 4px;
+    color: #f39c12;
+}
+
   body.dark-mode {
     --bg-body: #0f172a;
-    --bg-card: #0b1220;
     --bg-surface: #1e293b;
+    --glass-bg: #1e293b;
     --bg-header: rgba(30, 41, 59, 0.9);
     --text-main: #f1f5f9;
     --text-muted: #94a3b8;
@@ -45,6 +294,7 @@
     --border: #334155;
     --primary: #60a5fa;
     --primary-bg: rgba(96, 165, 250, 0.15);
+    --glass-border: rgba(255, 255, 255, 0.12);
   }
 
   body {
@@ -52,228 +302,742 @@
     background: var(--bg-body);
     color: var(--text-main);
     line-height: 1.5;
-    margin: 0;
     padding-bottom: 40px;
   }
 
-  /* ===== 導航列 (Header) - 與高鐵版一致 ===== */
-  .header {
-    position: sticky; top: 0; z-index: 120;
+  /* ===== 2. 導航列 ===== */
+  .navbar {
+    position: sticky; top: 0; z-index: 100;
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 0.8rem 1.5rem;
     background: var(--bg-header);
     backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
     border-bottom: 1px solid var(--border);
-    padding: 12px 16px;
   }
-  .header-content {
-    max-width: 1200px; margin: 0 auto;
-    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  .navbar .brand { font-weight: 700; font-size: 1.1rem; color: var(--primary); display: flex; align-items: center; gap: 8px; }
+  .nav-links { display: flex; gap: 4px; align-items: center; }
+  .nav-links a {
+    color: var(--text-muted); text-decoration: none; font-size: 0.9rem; font-weight: 500;
+    padding: 6px 12px; border-radius: 6px; transition: 0.2s;
   }
-  .logo {
-    font-weight: 800; letter-spacing: .5px; color: var(--primary);
-    display: flex; align-items: baseline; gap: 6px; font-size: 1.2rem;
-  }
-  .logo span { font-weight: 600; color: var(--text-muted); font-size: .85rem; }
-  
-  .date-picker { display: flex; align-items: center; gap: 8px; }
-  
-  .btn-ghost {
-    border: 1px solid var(--border); background: transparent; color: var(--text-main);
-    padding: 6px 12px; border-radius: 999px; cursor: pointer; font-weight: 700;
-    display: inline-flex; align-items: center; gap: 4px;
-  }
-  .btn-ghost:hover { background: rgba(148,163,184,0.14); }
-  
-  .btn-primary {
-    background: var(--primary); color: #fff; border: none;
-    padding: 6px 12px; border-radius: 999px; font-weight: 600;
-    cursor: pointer; display: inline-flex; align-items: center; gap: 4px;
-  }
-  .input-field {
+  .nav-links a:hover { background: var(--bg-body); color: var(--primary); }
+  .theme-btn {
     border: 1px solid var(--border); background: var(--bg-surface); color: var(--text-main);
-    padding: 6px 10px; border-radius: 8px; outline: none; font-family: var(--font-main);
+    padding: 6px 12px; border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 6px;
+  }
+  .hamburger { display: none; flex-direction: column; gap: 5px; cursor: pointer; padding: 5px; }
+  .hamburger span { width: 24px; height: 2px; background: var(--text-main); }
+
+  @media(max-width: 900px) {
+    .nav-links {
+      position: absolute; top: 100%; left: 0; width: 100%;
+      background: var(--bg-surface); border-bottom: 1px solid var(--border);
+      flex-direction: column; align-items: flex-start; padding: 0;
+      max-height: 0; overflow: hidden; opacity: 0; transition: 0.3s;
+    }
+    .nav-links.open { max-height: 500px; opacity: 1; padding: 1rem; }
+    .nav-links a { width: 100%; padding: 10px; }
+    .hamburger { display: flex; }
   }
 
-  /* ===== 容器與卡片 ===== */
+  /* ===== 3. 主要容器 ===== */
   .container { max-width: 1200px; margin: 20px auto; padding: 0 16px; }
   .grid { display: grid; gap: 24px; }
+
   .card {
-    background: var(--bg-surface); border: 1px solid var(--border);
-    border-radius: var(--radius); padding: 24px; box-shadow: var(--shadow-sm);
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 24px;
+    box-shadow: var(--shadow-sm);
   }
+
   .section-title {
     font-size: 1.1rem; font-weight: 700; margin-bottom: 16px;
     display: flex; align-items: center; gap: 8px;
   }
   .section-title::before { content: ''; width: 4px; height: 18px; background: var(--primary); border-radius: 2px; }
 
-  /* ===== Tab 與 表單 ===== */
-  .query-tabs { display: flex; gap: 10px; margin-bottom: 14px; overflow-x: auto; }
-  .query-tab {
-    border: 1px solid var(--border); background: var(--bg-surface); color: var(--text-main);
-    padding: 8px 16px; border-radius: 12px; font-weight: 700; cursor: pointer; white-space: nowrap;
-  }
-  .query-tab.active { background: var(--primary); color: #fff; border-color: transparent; }
-  .query-panel.hidden { display: none; }
-
-  .form-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 16px; }
+  /* ===== 4. 表單與篩選 ===== */
+  .form-row { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-bottom: 16px; position: relative; }
+  
   .input-group { 
     display: flex; align-items: center; gap: 8px; 
-    background: var(--bg-body); padding: 4px 10px; 
-    border: 1px solid var(--border); border-radius: 10px; flex: 1; min-width: 120px;
+    background: var(--bg-body); padding: 4px 8px; 
+    border: 1px solid var(--border); border-radius: 8px; 
+    flex: 1; min-width: 120px;
   }
-  .input-group label { font-size: 0.8rem; color: var(--text-muted); font-weight: 600; white-space: nowrap; }
-  input, select { border: none; background: transparent; color: var(--text-main); font-size: 0.95rem; width: 100%; outline: none; padding: 6px 0; }
-  
-  .swap-btn {
-    width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--border);
-    background: var(--bg-surface); color: var(--primary);
-    display: flex; justify-content: center; align-items: center; cursor: pointer;
+  .input-group label { font-size: 0.85rem; color: var(--text-muted); font-weight: 600; white-space: nowrap; }
+  input, select {
+    border: none; background: transparent; color: var(--text-main); 
+    font-size: 0.95rem; padding: 6px; outline: none; width: 100%; 
   }
-  
-  .chip-label {
-    display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px;
-    border: 1px solid var(--border); border-radius: 20px; cursor: pointer; font-size: 0.9rem;
-  }
-  .chip-label:has(input:checked) { background: var(--primary-bg); border-color: var(--primary); color: var(--primary); font-weight: 700; }
-  .chip-label input { display: none; }
 
-  /* ===== 表格樣式 ===== */
-  .table-wrapper { overflow-x: auto; border: 1px solid var(--border); border-radius: 12px; }
-  table { width: 100%; border-collapse: collapse; font-size: 0.9rem; white-space: nowrap; }
-  th { background: var(--bg-body); color: var(--text-muted); padding: 12px 16px; text-align: left; font-weight: 600; border-bottom: 1px solid var(--border); }
-  td { padding: 12px 16px; border-bottom: 1px solid var(--border); color: var(--text-main); vertical-align: middle; }
-  tr:last-child td { border-bottom: none; }
+  /* 互換按鈕 */
+  .swap-btn {
+    width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--border);
+    background: var(--bg-surface); color: var(--primary);
+    display: flex; justify-content: center; align-items: center;
+    cursor: pointer; transition: 0.2s; font-size: 1.1rem;
+  }
+  .swap-btn:hover { background: var(--bg-body); transform: rotate(180deg); }
+
+  button.btn-primary {
+    background: var(--primary); color: #fff; border: none;
+    padding: 8px 16px; border-radius: 8px; font-weight: 600;
+    cursor: pointer; white-space: nowrap;
+  }
+
+  /* 歷史紀錄 Chips */
+  .history-chips { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+  .history-chip {
+    font-size: 0.8rem; padding: 4px 10px; border-radius: 12px;
+    background: var(--bg-body); color: var(--text-muted);
+    border: 1px solid var(--border); cursor: pointer; display: flex; align-items: center; gap: 4px;
+  }
+  .history-chips.history-collapsed{ max-height: 44px; overflow-x: auto; overflow-y: hidden; flex-wrap: nowrap; -webkit-overflow-scrolling: touch; }
+  .history-chips.history-collapsed .history-chip{ flex: 0 0 auto; }
+  .history-toggle{ margin: -8px 0 14px 0; padding: 6px 10px; font-size: 0.8rem; }
+
   
-  /* 進度條 */
+  /* 手機版：起訖站區塊更省空間（不改邏輯，只改排版） */
+  @media (max-width: 760px){
+    #panel-startend .form-row{ gap: 8px; }
+    #panel-startend .input-group label{ font-size: 0.78rem; }
+    #panel-startend #favMenuBtn{ padding: 10px 10px; border-radius: 14px; }
+    #panel-startend #favMenuBtn span{ margin-right: 0; }
+    #panel-startend .swap-btn{ width: 40px; height: 40px; border-radius: 14px; }
+    #panel-startend .chip-label{ padding: 10px 10px; border-radius: 14px; }
+    #panel-startend .btn-primary#runStartEndBtn{ padding: 10px 14px; border-radius: 14px; }
+  }
+
+.history-chip:hover { background: var(--primary-bg); color: var(--primary); border-color: var(--primary); }
+
+  /* 標籤式 Checkbox (Desktop) */
+  .chip-group { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+  .chip-label {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 5px 10px; border-radius: 20px;
+    border: 1px solid var(--border); background: var(--bg-surface);
+    color: var(--text-muted); font-size: 0.85rem; cursor: pointer;
+    user-select: none; transition: 0.2s;
+  }
+  .chip-label:hover { background: var(--bg-body); }
+  .chip-label input { display: none; }
+  .chip-label:has(input:checked) {
+    background: var(--primary-bg); color: var(--primary); border-color: var(--primary); font-weight: 500;
+  }
+  .chip-label input:checked + span { color: var(--primary); }
+
+  /* ===== 5. 表格樣式 ===== */
+  .table-wrapper { overflow-x: auto; border: 1px solid var(--border); border-radius: 8px; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.9rem; white-space: nowrap; }
+  
+  th {
+    background: var(--bg-body); color: var(--text-muted); font-weight: 600; text-align: left;
+    padding: 12px 16px; border-bottom: 1px solid var(--border);
+  }
+  th.sortable { cursor: pointer; }
+  td { padding: 12px 16px; border-bottom: 1px solid var(--border); color: var(--text-main); }
+  tr:last-child td { border-bottom: none; }
+  tr:hover { background: var(--bg-body); cursor: pointer; }
+
+  /* 數字對齊 */
+  td { font-feature-settings: "tnum"; font-variant-numeric: tabular-nums; }
+  
+  /* 標籤 Badge */
+  .badge-sea { font-size: 0.7rem; padding: 2px 6px; border-radius: 4px; background: #0ea5e9; color: #fff; margin-left: 4px; }
+  
+  .train-route { font-size: 0.85rem; color: var(--text-muted); margin-left: 6px; }
   .progress-bar { width: 60px; height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; margin-top: 4px; }
   .progress-fill { height: 100%; background: var(--primary); border-radius: 3px; }
 
-  /* ===== 行動裝置優化 (Mobile Styles) ===== */
-  
-  /* 1. Header RWD */
-  @media (max-width: 720px) {
-    .header { padding: 10px 14px; }
-    .header-content { gap: 8px; }
-    .logo span { display: none; } /* 隱藏全名 */
-    .btn-ghost .txt, .btn-primary .txt { display: none; } /* 按鈕只留 icon */
-    .date-picker label { display: none; }
-    .date-picker { gap: 6px; }
-    .container { width: 100%; margin: 10px 0; padding: 0 10px; }
-    .card { padding: 16px; border-radius: 16px; }
-    
-    /* 隱藏電腦版表單 */
-    #panel-startend .form-row, #searchHistory { display: none; }
+  /* ===== 6. Modal (彈窗) & 時間軸 ===== */
+  .modal {
+    display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0, 0, 0, 0.6); backdrop-filter: blur(2px);
+    z-index: 2000; justify-content: center; align-items: center;
+    opacity: 0; transition: opacity 0.3s;
   }
+  .modal[style*="display: flex"] { opacity: 1; }
 
-  /* 2. 表格 RWD - 隱藏次要欄位 */
-  @media (max-width: 720px) {
-    .col-range, .col-stops, .col-ticket, .col-duration, .col-type { display: none !important; }
-    th, td { padding: 12px 8px; font-size: 0.95rem; }
+  .modal-content {
+    background: var(--bg-surface); width: 95%; max-width: 500px; max-height: 85vh;
+    border-radius: 16px; box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+    overflow: hidden; display: flex; flex-direction: column;
+    transform: translateY(20px); transition: transform 0.3s;
   }
+  .modal[style*="display: flex"] .modal-content { transform: translateY(0); }
 
-  /* 3. 行動版搜尋列 (Integrated Search Pill) */
-  .trip-compact-bar {
-    display: none; /* 電腦版隱藏 */
-    align-items: center;
-    /* 大膠囊樣式 */
-    background: var(--bg-surface);
-    border: 1px solid var(--border);
-    border-radius: 99px;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.06);
-    margin: 0 0 20px 0;
-    padding: 4px;
-    position: relative;
+  .modal-header {
+    padding: 16px 20px; border-bottom: 1px solid var(--border);
+    display: flex; justify-content: space-between; align-items: center;
+    background: var(--bg-body);
   }
-  @media (max-width: 720px) { .trip-compact-bar { display: flex; } }
+  .modal-title-main { font-size: 1.1rem; font-weight: 700; color: var(--text-main); }
+  .modal-title-sub { font-size: 0.85rem; color: var(--text-muted); margin-top: 2px; }
+  .close{font-size:26px;color:var(--text-muted);background:transparent;width:auto;height:auto;display:flex;align-items:center;justify-content:center;border-radius:10px;cursor:pointer;user-select:none;flex:0 0 auto;padding:6px 10px;line-height:1;}
+.close:hover{background:rgba(148,163,184,0.18);color:var(--text-main);}
 
-  .trip-pill {
-    flex: 1; display: flex; align-items: center;
-    background: transparent; border: none; padding-left: 12px; height: 44px;
-  }
-  .trip-pill-left {
-    display: flex; align-items: center; gap: 6px;
-    padding-right: 12px; margin-right: 12px;
-    border-right: 1px solid var(--border); height: 20px;
-    color: var(--primary); font-weight: 900;
-  }
-  .trip-pill-left button { border: none; background: transparent; padding: 0; font-size: 1.2rem; }
-  .trip-summary { font-size: 0.95rem; font-weight: 700; color: var(--text-main); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .modal-body { padding: 0; overflow-y: auto; background: var(--bg-surface); }
 
-  /* 搜尋按鈕 (圓形) */
-  .trip-search-btn {
-    width: 44px; height: 44px; border-radius: 50%;
-    background: transparent; /* 透明背景 */
-    color: var(--primary);   /* 使用主色 */
-    border: none; font-size: 1.3rem;
-    display: flex; align-items: center; justify-content: center;
-    position: relative;
-  }
-  /* 分隔線 */
-  .trip-search-btn::before {
-    content: ''; position: absolute; left: 0; top: 10px; bottom: 10px; width: 1px; background: var(--border);
-  }
-
-  /* 4. 行動版 Bottom Sheet (與高鐵版一致) */
-  .trip-sheet-backdrop {
-    display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 90;
-  }
-  .trip-sheet {
-    display: none; position: fixed; left: 0; right: 0; bottom: 0; z-index: 91;
-    background: var(--bg-card);
-    border-top-left-radius: 20px; border-top-right-radius: 20px;
-    box-shadow: 0 -10px 40px rgba(0,0,0,0.2);
-    padding: 16px; padding-bottom: 30px;
-    max-height: 85vh; overflow-y: auto;
-  }
-  /* Sheet 內的排版 */
-  .trip-sheet .form-row { display: grid; grid-template-columns: 1fr 40px 1fr; gap: 10px; }
-  .trip-sheet .input-group { min-width: 0; }
-  .trip-sheet .fav-wrap { grid-column: 1 / -1; }
-  .trip-sheet .chip-label { grid-column: 1 / -1; }
-  .trip-sheet #searchBtn { grid-column: 1 / -1; width: 100%; padding: 12px; margin-top: 10px; }
-  
-  /* Sheet Header */
-  .trip-sheet-hd { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 1px solid var(--border); padding-bottom: 10px; }
-  .trip-sheet-title { font-weight: 700; font-size: 1.1rem; }
-
-  /* 5. 行動版展開詳情 (Direct & Transfer) */
-  .mobile-expand-btn {
-    display: none; /* Desktop hidden */
-    width: 24px; height: 24px; border-radius: 50%;
-    background: var(--primary-bg); color: var(--primary);
-    align-items: center; justify-content: center; font-weight: bold; margin-right: 8px; cursor: pointer;
-  }
-  @media (max-width: 720px) { .mobile-expand-btn { display: inline-flex; } }
-
-  .mobile-detail-row td {
-    background: var(--bg-body) !important; padding: 16px !important;
-    border-left: 4px solid var(--primary);
-  }
-  .detail-grid { display: flex; flex-direction: column; gap: 12px; }
-  .detail-row { display: flex; justify-content: space-between; font-size: 0.9rem; border-bottom: 1px dashed var(--border); padding-bottom: 8px; }
-  .detail-row:last-child { border: none; }
-  
-  /* 轉乘詳情卡片樣式 */
-  .transfer-leg { display: flex; flex-direction: column; gap: 4px; padding: 8px; background: rgba(0,0,0,0.02); border-radius: 8px; }
-  .transfer-wait { text-align: center; color: var(--text-muted); font-size: 0.85rem; font-weight: 700; margin: 4px 0; }
-  .leg-train { font-weight: 700; color: var(--primary); }
-  .leg-time { font-size: 0.9rem; }
-
-  /* ===== Modal & Timeline (保持不變) ===== */
-  .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 2000; align-items: center; justify-content: center; }
-  .modal-content { background: var(--bg-surface); width: 95%; max-width: 500px; max-height: 85vh; border-radius: 16px; display: flex; flex-direction: column; overflow: hidden; }
-  .modal-header { padding: 16px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; }
-  .modal-body { overflow-y: auto; padding: 0; }
-  
-  /* Timeline CSS 省略，保持原樣 */
-  .timeline { padding: 16px; }
+  /* 時間軸樣式 */
+  .timeline { padding: 10px 20px; }
   .timeline-item { display: flex; position: relative; padding-bottom: 0; }
-  .tl-time { width: 50px; text-align: right; font-weight: 600; padding-right: 15px; }
-  .tl-line { width: 2px; background: var(--border); flex-grow: 1; margin: 4px 0 -4px 0; }
-  .tl-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--border); z-index: 1; }
-  .timeline-item.next .tl-dot { background: var(--primary); box-shadow: 0 0 0 4px var(--primary-bg); }
-  .tl-content { padding-left: 15px; padding-bottom: 24px; flex: 1; }
-  </style>
+  
+  /* 左側時間 */
+  .tl-time {
+    width: 50px; text-align: right; font-size: 0.9rem; font-weight: 600; 
+    color: var(--text-main); padding-right: 15px; padding-top: 2px;
+    font-variant-numeric: tabular-nums;
+  }
+  
+  /* 中間線條與圓點 */
+  .tl-marker {
+    display: flex; flex-direction: column; align-items: center; width: 20px; position: relative;
+  }
+  .tl-line {
+    width: 2px; background: var(--border); flex-grow: 1; margin-top: 4px; margin-bottom: -4px;
+  }
+  .timeline-item:last-child .tl-line { display: none; }
+  .tl-dot {
+    width: 10px; height: 10px; border-radius: 50%; background: var(--border);
+    border: 2px solid var(--bg-surface); z-index: 1; flex-shrink: 0; transition: all 0.3s;
+  }
+  
+  /* 右側站名 */
+  .tl-content { padding-left: 15px; padding-bottom: 24px; flex-grow: 1; }
+  .timeline-item:last-child .tl-content { padding-bottom: 10px; }
+  
+  .tl-station { font-size: 1rem; font-weight: 600; color: var(--text-main); display: flex; align-items: center; }
+  .st-arr{ font-size:0.75em; font-weight:600; color:var(--text-muted); margin-left:8px; font-variant-numeric: tabular-nums; }
+  .tl-desc { font-size: 0.8rem; color: var(--text-muted); margin-top: 2px; }
+
+  /* --- 狀態樣式 --- */
+  .timeline-item.passed .tl-time, 
+  .timeline-item.passed .tl-station { opacity: 0.4; filter: grayscale(1); }
+  .timeline-item.passed .tl-dot { background: var(--border); }
+
+  .timeline-item.next .tl-dot { 
+    background: #22c55e; width: 14px; height: 14px; 
+    box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.2); 
+    border-color: #fff; 
+  }
+  .timeline-item.next .tl-station { color: #15803d; font-weight: 700; }
+  body.dark-mode .timeline-item.next .tl-station { color: #4ade80; }
+  
+  .timeline-item.transfer .tl-dot { background: #d97706; width: 12px; height: 12px; }
+  .timeline-item.transfer .tl-station { color: #b45309; }
+
+  .badge-next {
+    display: inline-flex; align-items: center; gap: 4px;
+    background: #22c55e; color: #fff; font-size: 0.7rem; 
+    padding: 2px 8px; border-radius: 10px; margin-left: 8px;
+    animation: pulse 2s infinite;
+  }
+  @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.7; } 100% { opacity: 1; } }
+
+  .transfer-banner {
+    background: var(--bg-body); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
+    padding: 10px 20px; display: flex; align-items: center; gap: 10px; margin: 10px -20px 20px -20px;
+  }
+
+  /* ===== 轉乘詳情：摘要卡片 ===== */
+  .transfer-summary{
+    padding: 14px 20px 6px 20px;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+  }
+  .transfer-card{
+    border: 1px solid var(--border);
+    background: var(--bg-body);
+    border-radius: 14px;
+    padding: 12px 12px;
+    box-shadow: var(--shadow-sm);
+  }
+  .transfer-card-title{
+    font-size: .78rem;
+    color: var(--text-muted);
+    font-weight: 800;
+    letter-spacing: .02em;
+    margin-bottom: 6px;
+  }
+  .transfer-card-main{
+    font-size: .95rem;
+    font-weight: 700;
+    margin-bottom: 8px;
+  }
+  .kv-grid{
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px 10px;
+  }
+  .kv{
+    display:flex; flex-direction:column; gap:2px;
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--bg-surface);
+  }
+  .kv span{ font-size:.75rem; color: var(--text-muted); font-weight:700; }
+  .kv b{ font-size:.92rem; font-variant-numeric: tabular-nums; }
+  .transfer-section{ padding: 0 0 6px 0; }
+  .transfer-sec-title{
+    padding: 10px 20px 0 20px;
+    font-weight: 900;
+    font-size: 1rem;
+  }
+
+  @media (max-width: 760px){
+    .transfer-summary{ grid-template-columns: 1fr; }
+    .kv-grid{ grid-template-columns: 1fr 1fr; }
+  }
+  
+  /* ===== Query Tabs ===== */
+  .query-tabs{display:flex;gap:10px;flex-wrap:wrap;margin:0 0 14px 0}
+  .query-tab{appearance:none;border:1px solid var(--border);background:var(--card-bg);color:var(--text-main);
+    padding:10px 12px;border-radius:12px;font-weight:700;cursor:pointer;transition:.15s}
+  .query-tab:hover{transform:translateY(-1px)}
+  .query-tab.active{background:linear-gradient(135deg,#3b82f6,#2563eb);color:#fff;border-color:transparent}
+  .query-panel.hidden{display:none}
+
+
+  .ticket-btn{
+    border:1px solid var(--border);
+    background:var(--bg-body);
+    color:var(--text-main);
+    border-radius:10px;
+    padding:6px 12px;
+    cursor:pointer;
+    font-size:14px;
+    line-height:1;
+    font-weight: 700;
+  }
+  .ticket-btn:active{ transform:scale(.98); }
+  .ticket-btn[disabled]{
+    opacity:.45;
+    cursor:not-allowed;
+    transform:none;
+  }
+  .ticket-btn[disabled]:active{ transform:none; }
+
+
+/* ===== Homepage-style background blobs ===== */
+.bg-blobs { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; filter: blur(120px); opacity: 0.42; pointer-events:none; }
+.blob { position: absolute; width: 60vw; height: 60vw; border-radius: 50%; animation: float 25s infinite alternate ease-in-out; }
+.blob-1 { background: var(--tr-color); top: -10%; left: -10%; }
+.blob-2 { background: var(--thsr-color); bottom: -10%; right: -10%; }
+@keyframes float { 0% { transform: translate(0, 0); } 100% { transform: translate(10%, 15%); } }
+
+/* ===== Performance: Disable glass effect on mobile to prevent lag ===== */
+@media (max-width: 760px) {
+    .header, .navbar, .card, .modal-content, .filter-dropdown {
+        backdrop-filter: none !important;
+        -webkit-backdrop-filter: none !important;
+        background: var(--bg-surface) !important;
+    }
+}
+
+/* container align with homepage */
+.container { max-width: 1200px; width: 90%; margin: 26px auto; padding: 0; }
+.grid { display: grid; gap: 18px; }
+
+/* glass cards like homepage */
+.card {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  backdrop-filter: blur(28px); -webkit-backdrop-filter: blur(28px);
+  border-radius: 32px;
+  padding: 22px 22px;
+  box-shadow: var(--shadow-sm);
+}
+
+/* sticky header look */
+.header{
+  background: var(--bg-header);
+  border-bottom: 1px solid var(--glass-border);
+  backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
+  padding: 18px 24px;
+}
+.header-content{ max-width: 1200px; width: 90%; margin: 0 auto; }
+
+.logo{ font-weight: 900; letter-spacing: 1px; color: var(--text-muted); }
+.logo span{ color: var(--text-muted); opacity: .9; }
+
+/* buttons */
+button.btn-primary{
+  background: linear-gradient(135deg, rgba(59,130,246,1), rgba(37,99,235,1));
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 999px;
+  padding: 10px 16px;
+  font-weight: 800;
+  box-shadow: 0 12px 30px rgba(59,130,246,0.22);
+}
+button.btn-primary:hover{ filter: brightness(1.05); transform: translateY(-1px); }
+
+.btn-ghost{ border: 1px solid var(--glass-border); background: rgba(255,255,255,0.04); border-radius: 999px; }
+
+/* chips & inputs a bit rounder */
+.input-group{ background: rgba(255,255,255,0.04); border: 1px solid var(--glass-border); border-radius: 18px; padding: 10px 12px; }
+.swap-btn{ border: 1px solid var(--glass-border); background: rgba(255,255,255,0.04); }
+.history-chip{ border: 1px solid var(--glass-border); background: rgba(255,255,255,0.04); border-radius: 999px; padding: 7px 12px; }
+.chip-label{ border: 1px solid var(--glass-border); background: rgba(255,255,255,0.04); border-radius: 999px; padding: 8px 12px; }
+
+/* table: keep single-line readability on mobile by allowing horizontal scroll */
+.table-wrapper{ overflow-x: auto; -webkit-overflow-scrolling: touch; border: 1px solid var(--glass-border); border-radius: 24px; }
+table{ white-space: nowrap; min-width: 980px; }
+th{ background: rgba(255,255,255,0.03); border-bottom: 1px solid var(--glass-border); }
+td{ border-bottom: 1px solid rgba(255,255,255,0.06); }
+
+@media (max-width: 760px){
+  .container{ width: 94%; margin: 18px auto; }
+  .header{ padding: 14px 14px; }
+  .header-content{ width: 94%; }
+  .card{ padding: 16px 14px; border-radius: 26px; }
+  th, td{ padding: 10px 8px; }
+  table{ font-size: 0.86rem; width:100%; min-width: 0; }
+  .form-row{ gap: 10px; }
+  .input-group{ padding: 10px 10px; min-width: 140px; }
+}
+
+/* ===== Mobile compact header + trip controls (v16) ===== */
+@media (max-width: 520px){
+  .header-content{flex-wrap:nowrap; gap:10px;}
+  .logo{white-space:nowrap;}
+  .logo span{display:none;}
+  .date-picker{flex-wrap:nowrap; gap:8px; white-space:nowrap;}
+  .date-picker label{display:none !important;}
+  #mainQueryDate{max-width: 140px; padding: 6px 10px;}
+  /* icon-only buttons on mobile (no wrapping) */
+  #homeBtn, #refreshBtn, #themeToggle{white-space:nowrap;}
+  #homeBtn{font-size:0; padding:6px 10px;}
+  #homeBtn::before{content:"←"; font-size:14px;}
+  #refreshBtn{font-size:0; padding:6px 10px; min-width:38px;}
+  #refreshBtn::before{content:""; font-size:14px;}
+  #themeToggle{font-size:0; padding:6px 10px; min-width:38px;}
+  #themeToggle::before{content:"🌙"; font-size:14px;}
+
+  /* history chips: single-row, compact */
+  .history-chips{
+    flex-wrap:nowrap !important;
+    overflow-x:auto !important;
+    -webkit-overflow-scrolling:touch;
+    padding-bottom:6px;
+    gap:8px;
+  }
+  .history-chips::-webkit-scrollbar{height:6px;}
+}
+
+/* Trip compact bar */
+.mobile-only{display:none;}
+@media (max-width: 520px){
+  .mobile-only{display:flex;}
+
+  /* compact bar */
+  .trip-compact-bar{
+    display:flex; align-items:center; gap:10px;
+    background: var(--bg-surface);
+    border:1px solid var(--border);
+    border-radius:16px;
+    padding:10px 12px;
+    margin: 10px 0 6px 0;
+    box-shadow: var(--shadow);
+  }
+  .trip-open-btn{
+    display:flex; align-items:center; gap:8px;
+    flex:1 1 auto;
+    min-width:0;
+    border:none;
+    background: rgba(37,99,235,0.10);
+    color: var(--text);
+    border-radius:14px;
+    padding:10px 12px;
+    white-space:nowrap;
+    overflow:hidden;
+  }
+  .trip-open-btn .ico{flex:0 0 auto;}
+  .trip-open-btn .label{flex:0 0 auto; font-weight:800;}
+  .trip-open-btn .summary{
+    flex:1 1 auto;
+    min-width:0;
+    font-size:13px;
+    color: var(--text-muted);
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+  }
+
+  .trip-icon-btn{
+    flex:0 0 auto;
+    border:none;
+    background: rgba(37,99,235,0.12);
+    color: #2563eb;
+    border-radius:999px;
+    padding:10px 12px;
+    font-weight:800;
+    white-space:nowrap;
+  }
+
+  /* fixed sheet */
+  .trip-sheet-backdrop{
+    display:none;
+    position:fixed;
+    inset:0;
+    background: rgba(0,0,0,0.35);
+    z-index:999;
+  }
+  .trip-sheet-backdrop.show{display:block;}
+
+  .trip-sheet{
+    position:fixed;
+    left:0; right:0; bottom:0;
+    z-index:1000;
+    background: var(--bg-surface);
+    border-top:1px solid var(--border);
+    border-radius:18px 18px 0 0;
+    box-shadow: var(--shadow);
+    max-height:72vh;
+    overflow:auto;
+    transform: translateY(105%);
+    transition: transform .22s ease;
+  }
+  .trip-sheet.is-open{ transform: translateY(0); }
+
+  .trip-sheet-header{
+    position:sticky;
+    top:0;
+    background: var(--bg-surface);
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:12px 14px;
+    border-bottom:1px solid var(--border);
+    white-space:nowrap;
+  }
+  .trip-sheet-title{ font-weight:900; }
+  .trip-sheet-close{
+    border:none;
+    background: transparent;
+    font-size:18px;
+    padding:6px 10px;
+    line-height:1;
+    white-space:nowrap;
+  }
+  .trip-sheet-body{ padding:12px 14px 16px; }
+
+  /* make the existing form-row stable + non-jumpy on mobile */
+  .trip-sheet .form-row{
+    display:grid;
+    grid-template-columns: 1fr 44px 1fr;
+    gap:10px;
+    align-items:end;
+  }
+  .trip-sheet .fav-wrap{ grid-column: 1 / -1; }
+  .trip-sheet #favMenuBtn{ width:100%; justify-content:center; }
+  .trip-sheet .chip-label{ grid-column: 1 / -1; }
+  .trip-sheet #searchBtn{ grid-column: 1 / -1; width:100%; }
+
+  /* history chips: single row scroll */
+  .history-chips{
+    overflow-x:auto;
+    white-space:nowrap;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 2px;
+  }
+
+  /* header: no wrapping */
+  header .right-actions, header .left-actions, header .header-inner{
+    white-space:nowrap;
+  }
+  header .btn-text{ display:none !important; } /* icon-only on mobile */
+}
+
+/* 強制在電腦版顯示查詢控制區塊 */
+@media (min-width: 521px) {
+  #tripControlsWrap.trip-sheet {
+    display: block !important;
+    position: relative !important;
+    transform: none !important;
+    max-height: none !important;
+    background: transparent !important;
+    border: none !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+  }
+  
+  .trip-sheet-header.mobile-only {
+    display: none !important;
+  }
+
+  .trip-sheet-body {
+    padding: 0 !important;
+  }
+}
+
+
+
+/* ===== FINAL layout overrides (prevent duplicated .container rules from fighting) ===== */
+.container{
+  max-width: 1200px !important;
+  width: 100% !important;
+  margin: 20px auto !important;
+  padding: 0 16px !important;
+  box-sizing: border-box;
+}
+@media (max-width: 520px){
+  .container{
+    margin: 12px auto !important;
+    padding: 0 12px !important;
+  }
+}
+/* Trip sheet / mobile tripbar should never affect desktop layout */
+@media (min-width: 521px){
+  .tripbar, .trip-sheet-backdrop, .trip-sheet{ display:none !important; }
+}
+
+
+@media (max-width: 720px){
+  .result-table .transfer-detail{ display:none !important; }
+}
+
+
+/* ===== Mobile/PC visibility helpers ===== */
+.pc-only{display:inline;}
+@media (max-width: 720px){
+  .pc-only{display:none !important;}
+  .transfer-detail{display:none !important;}
+}
+/* 沿途停靠（行動版）：不要底色 */
+.mobile-detail-wrap .stop-item{
+  background: transparent !important;
+  padding: 0 !important;
+  border-radius: 0 !important;
+  margin: 0 10px 0 0 !important;
+}
+</style>
+
+  <style>
+    /* loading overlay（原本就有） */
+    #loading-overlay{
+      position: fixed; inset: 0; background: rgba(15, 23, 42, 0.35);
+      display:none; align-items:center; justify-content:center; flex-direction:column;
+      z-index: 9999;
+      backdrop-filter: blur(6px);
+    }
+    .spinner{
+      width: 44px; height: 44px; border-radius: 50%;
+      border: 4px solid rgba(255,255,255,0.35);
+      border-top-color: rgba(255,255,255,0.95);
+      animation: spin 1s linear infinite;
+      margin-bottom: 12px;
+    }
+    @keyframes spin { to{ transform: rotate(360deg);} }
+
+    /* header（原本就有） */
+    .header{
+      position: sticky; top:0; z-index: 120;
+      background: var(--bg-header);
+      backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      padding: 12px 16px;
+    }
+    .header-content{
+      max-width: 1200px; margin: 0 auto;
+      display:flex; align-items:center; justify-content:space-between; gap: 12px;
+    }
+    .logo{
+      font-weight: 800; letter-spacing: .5px;
+      color: var(--primary);
+      display:flex; align-items: baseline; gap: 6px;
+    }
+    .logo span{ font-weight: 600; color: var(--text-muted); font-size: .85rem; }
+    .date-picker{ display:flex; align-items:center; gap: 8px; }
+    .btn-ghost{
+      border:1px solid var(--border);
+      background: transparent;
+      color: var(--text-main);
+      padding: 6px 12px;
+      border-radius: 999px;
+      cursor:pointer;
+      font-weight:700;
+    }
+    .btn-ghost:hover{ background: rgba(148,163,184,0.14); }
+
+    .input-field{
+      border:1px solid var(--border);
+      background: var(--bg-surface);
+      color: var(--text-main);
+      padding: 6px 10px;
+      border-radius: 8px;
+      outline: none;
+      font-family: var(--font-main);
+    }
+
+    /* stops 展開箭頭（原本就有） */
+    .toggle-arrow{ color: var(--text-muted); margin-left: 6px; font-size: .85rem; cursor:pointer; }
+    .stops-row td{ background: var(--bg-body); color: var(--text-muted); font-size: .85rem; }
+  
+/* ===== Mobile compact header + trip controls (v16) ===== */
+@media (max-width: 520px){
+  .header-content{flex-wrap:nowrap; gap:10px;}
+  .logo{white-space:nowrap;}
+  .logo span{display:none;}
+  .date-picker{flex-wrap:nowrap; gap:8px; white-space:nowrap;}
+  .date-picker label{display:none !important;}
+  #mainQueryDate{max-width: 140px; padding: 6px 10px;}
+  /* icon-only buttons on mobile (no wrapping) */
+  #homeBtn, #refreshBtn, #themeToggle{white-space:nowrap;}
+  #homeBtn{font-size:0; padding:6px 10px;}
+  #homeBtn::before{content:"←"; font-size:14px;}
+  #refreshBtn{font-size:0; padding:6px 10px; min-width:38px;}
+  #refreshBtn::before{content:""; font-size:14px;}
+  #themeToggle{font-size:0; padding:6px 10px; min-width:38px;}
+  #themeToggle::before{content:"🌙"; font-size:14px;}
+
+  /* history chips: single-row, compact */
+  .history-chips{
+    flex-wrap:nowrap !important;
+    overflow-x:auto !important;
+    -webkit-overflow-scrolling:touch;
+    padding-bottom:6px;
+    gap:8px;
+  }
+  .history-chips::-webkit-scrollbar{height:6px;}
+}
+
+
+
+
+  /* ===== Desktop overrides for trip sheet (ensure start/end controls are visible) ===== */
+  @media (min-width: 761px){
+    /* Hide mobile-only compact bar/backdrop on desktop */
+    .mobile-only{ display:none !important; }
+
+    /* Trip controls should behave like a normal in-flow block on desktop */
+    #tripControlsWrap{
+      position:static !important;
+      left:auto !important; right:auto !important; bottom:auto !important;
+      z-index:auto !important;
+      background: transparent !important;
+      border:none !important;
+      border-radius:0 !important;
+      box-shadow:none !important;
+      max-height:none !important;
+      overflow:visible !important;
+      transform:none !important;
+      transition:none !important;
+      padding:0 !important;
+      margin-top: 14px;
+    }
+
+    /* The sheet header is mobile-only UI; hide on desktop */
+    #tripControlsWrap .trip-sheet-header{ display:none !important; }
+
+    /* If the element still has trip-sheet hiding transform, force it visible */
+    .trip-sheet{ transform:none !important; }
+  }
+</style>
 
 </head>
 
@@ -497,6 +1261,57 @@ let lastStartEndQuery = null;   // {st, ed, accept}
 let lastStationQuery  = null;   // {station, dir}
 let lastTrainQuery    = null;   // {trainNo}
 let modalCtx = null;            // {trainNo, originDate}
+
+// ===== Loading Overlay (避免看起來像當機) =====
+let __loadingCount = 0;
+let __loadingShownAt = 0;
+const __loadingMinMs = 240; // 最少顯示時間，避免「一閃就沒」像沒出現
+
+function __setLoadingVisible(on, msg){
+  const ov = document.getElementById('loading-overlay');
+  const tx = document.getElementById('loading-text');
+  if(!ov) return;
+  if(typeof msg === 'string' && tx) tx.textContent = msg;
+
+  if(on){
+    ov.style.display = 'flex';
+    // 強制 reflow，確保顯示狀態真的被套用（避免看起來像沒出現）
+    void ov.offsetHeight;
+    __loadingShownAt = Date.now();
+  }else{
+    ov.style.display = 'none';
+  }
+}
+
+function showLoading(msg='載入中...'){
+  __loadingCount++;
+  __setLoadingVisible(true, msg);
+}
+
+function hideLoading(){
+  __loadingCount = Math.max(0, __loadingCount-1);
+  if(__loadingCount!==0) return;
+
+  const elapsed = Date.now() - (__loadingShownAt||0);
+  const remain = __loadingMinMs - elapsed;
+  if(remain > 0){
+    setTimeout(()=>{
+      if(__loadingCount===0) __setLoadingVisible(false);
+    }, remain);
+  }else{
+    __setLoadingVisible(false);
+  }
+}
+
+function nextFrame(){ return new Promise(r=>requestAnimationFrame(()=>r())); }
+// 依「trainNo + originDate」取得正確時刻資料（跨日/前一天補齊也能用）
+function getScheduleByOrigin(trainNo, originDate){
+  const inst = (scheduleKeyList||[]).find(x=>String(x.trainNo)===String(trainNo) && String(x.originDate)===String(originDate));
+  return inst?.data || baseSchedule?.[trainNo] || prevSchedule?.[trainNo] || null;
+}
+
+let __startEndDelegated = false;
+
 
 
   // ===== 日期工具 =====
@@ -885,19 +1700,10 @@ function splitArrDep(stopRow){
   }
 
   function statusBadge(label){
-    const s = String(label||'');
-    // 背景色塊（比單純字色更好讀）
-    let bg = 'rgba(15,23,42,.08)';
-    let fg = 'var(--text-main)';
-    if(s === '準點'){ bg = 'rgba(22,163,74,.12)'; fg = '#166534'; }
-    else if(s === '未發車'){ bg = 'rgba(100,116,139,.10)'; fg = '#334155'; }
-    else if(s === '已到終點' || s === '已到終點站'){ bg = 'rgba(37,99,235,.12)'; fg = '#1d4ed8'; }
-    else if(s === '停駛'){ bg = 'rgba(15,23,42,.85)'; fg = '#fff'; }
-    else if(/誤點/.test(s)){ bg = 'rgba(220,38,38,.12)'; fg = '#b91c1c'; }
-    else if(/提早/.test(s)){ bg = 'rgba(14,165,233,.14)'; fg = '#0369a1'; }
-
-    return `<span style="display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;background:${bg};color:${fg};font-weight:900;font-size:.85rem;white-space:nowrap;">${s}</span>`;
+    // 改為「文字 + 顏色」呈現（不使用底框/底色）
+    return colorStatus(label);
   }
+
 
   // ===== 起訖站直達：台鐵e訂通 深度連結（TDX）=====
   
@@ -1051,23 +1857,61 @@ if (jumpUrl) {
   }
 
   // minMin：列表最短耗時；capMin：P95 上限（極端值填滿）
-  function getTravelBarStyle(travelMin, minMin, capMin){
-    const cap = Math.max(1, capMin || 1);
-    const minv = Math.max(0, minMin || 0);
-
-    const t = Math.max(0, Math.min(travelMin, cap));
-    const denom = Math.max(1, cap - minv);
-
-    // 最短只塗一點
-    const minWidthPct = 10; // 10% 作為視覺起點
-    const norm = Math.max(0, Math.min(1, (t - minv) / denom));
-    const widthPct = minWidthPct + norm * (100 - minWidthPct);
-
-    const fillColor = travelColorSolid(norm);
-    const isExtreme = travelMin >= cap;
-
-    return { widthPct, isExtreme, fillColor };
+  function getTravelBarStyle(travelMin, minv, cap){
+  // 規則：
+  // - 最短耗時：5%
+  // - 極端值(>=cap)：100%
+  // - 其餘在 5%~100% 之間按比例分配
+  const minFill = 5; // %
+  if(!Number.isFinite(travelMin) || travelMin<=0){
+    return { widthPct: 0, fillColor: 'var(--tr-color)', isExtreme:false };
   }
+  const span = Math.max(1, (cap - minv));
+  let widthPct;
+  let isExtreme = false;
+
+  if(travelMin >= cap){
+    widthPct = 100;
+    isExtreme = true;
+  }else{
+    const t = Math.max(0, Math.min(1, (travelMin - minv) / span));
+    widthPct = minFill + t * (100 - minFill);
+  }
+
+  // 色階：綠 → 黃 → 橘 → 紅 → 紫（連續漸層），整條使用同一色
+  // 以「條長比例」判定色階（最短 5% 視為 0）
+  const colorT = Math.max(0, Math.min(1, (widthPct - minFill) / (100 - minFill)));
+  const fillColor = gradientGYORP(colorT);
+
+  return { widthPct, fillColor, isExtreme };
+}
+
+function gradientGYORP(t){
+  const stops = [
+    {p:0.00, c:'#22c55e'}, // green
+    {p:0.25, c:'#eab308'}, // yellow
+    {p:0.50, c:'#f97316'}, // orange
+    {p:0.75, c:'#ef4444'}, // red
+    {p:1.00, c:'#a855f7'}  // purple
+  ];
+  t = Math.max(0, Math.min(1, t));
+  let a = stops[0], b = stops[stops.length-1];
+  for(let i=0;i<stops.length-1;i++){
+    if(t>=stops[i].p && t<=stops[i+1].p){ a=stops[i]; b=stops[i+1]; break; }
+  }
+  const u = (t - a.p) / Math.max(1e-9, (b.p - a.p));
+  const ca = hexToRgb(a.c), cb = hexToRgb(b.c);
+  const r = Math.round(ca.r + (cb.r - ca.r)*u);
+  const g = Math.round(ca.g + (cb.g - ca.g)*u);
+  const bl = Math.round(ca.b + (cb.b - ca.b)*u);
+  return `rgb(${r},${g},${bl})`;
+}
+function hexToRgb(hex){
+  const h = hex.replace('#','').trim();
+  const n = parseInt(h.length===3 ? h.split('').map(ch=>ch+ch).join('') : h, 16);
+  return { r:(n>>16)&255, g:(n>>8)&255, b:n&255 };
+}
+
 
 
   // ===== 車種顏色：太魯閣藍、莒光橘 =====
@@ -1216,7 +2060,8 @@ function renderHistory(){
   async function refreshData(dateStr){
     currentQueryDateStr = dateStr || '';
 
-    document.getElementById('loading-overlay').style.display = 'flex';
+    showLoading(`正在獲取「${dateStr||currentQueryDateStr||''}」的資料...`);
+    try{
     document.getElementById('loading-text').textContent = `正在獲取 ${dateStr} 真實時刻表...`;
 
     // 先抓當天（發車日 = dateStr）
@@ -1265,7 +2110,9 @@ function renderHistory(){
     
     renderHistory();
 
-    document.getElementById('loading-overlay').style.display = 'none';
+    }finally{
+      hideLoading();
+    }
   }
 
   // ===== 初始化 =====
@@ -1443,33 +2290,40 @@ setInterval(async ()=>{
   let currentTransferList=[];
 
   function runStartEndSearch(){
-    const st = extractStationNameFromInput(document.getElementById('startStation').value);
-    const ed = extractStationNameFromInput(document.getElementById('endStation').value);
-    document.getElementById('startStation').value=st;
-    document.getElementById('endStation').value=ed;
-    if(!st || !ed) return;
-
-    const accept=document.getElementById('acceptTransfers').checked;
-    lastStartEndQuery = { st, ed, accept };
-    const h=loadHistory().filter(x=>!(x.s===st && x.e===ed && x.t===accept));
-    h.unshift({s:st,e:ed,t:accept});
-    saveHistory(h);
-    renderHistory();
-
-    // 根據目前裝置選擇讀取哪一組 Checkbox
-    selectedTrainTypesStartEnd = getSelectedTypesSafe('startend');
-
-    if(accept){
-      buildTransferList(st, ed);
-      renderTransferTable();
-    }else{
-      buildDirectList(st, ed);
-      renderStartEndTable();
+  showLoading('查詢中...');
+  requestAnimationFrame(()=>{
+    setTimeout(()=>{ try{
+          const st = extractStationNameFromInput(document.getElementById('startStation').value);
+          const ed = extractStationNameFromInput(document.getElementById('endStation').value);
+          document.getElementById('startStation').value=st;
+          document.getElementById('endStation').value=ed;
+          if(!st || !ed) return;
+      
+          const accept=document.getElementById('acceptTransfers').checked;
+          lastStartEndQuery = { st, ed, accept };
+          const h=loadHistory().filter(x=>!(x.s===st && x.e===ed && x.t===accept));
+          h.unshift({s:st,e:ed,t:accept});
+          saveHistory(h);
+          renderHistory();
+      
+          // 根據目前裝置選擇讀取哪一組 Checkbox
+          selectedTrainTypesStartEnd = getSelectedTypesSafe('startend');
+      
+          if(accept){
+            buildTransferList(st, ed);
+            renderTransferTable();
+          }else{
+            buildDirectList(st, ed);
+            renderStartEndTable();
+          }
+    }finally{
+      hideLoading();
     }
-  }
+  },0);
+  });
+}
 
-  
-  function buildDirectList(st, ed){
+function buildDirectList(st, ed){
     const list = [];
 
     (scheduleKeyList||[]).forEach(inst=>{
@@ -1526,8 +2380,8 @@ setInterval(async ()=>{
         range: `${arr[0][0]}➝${arr[arr.length-1][0]}`,
         depSched,
         arrSched,
-        depHTML: renderTimeWithDelay(num, depSched, currentQueryDateStr, { suppressStrike: status==='已過站' }),
-        arrHTML: renderTimeWithDelay(num, arrSched, currentQueryDateStr, { suppressStrike: (status==='已到終點' || status==='已過站') }),
+        depHTML: renderTimeWithDelay(num, depSched, currentQueryDateStr, { suppressStrike: status==='已過站' }, stAbs, originDate),
+        arrHTML: renderTimeWithDelay(num, arrSched, currentQueryDateStr, { suppressStrike: (status==='已到終點' || status==='已過站') }, edAbs, originDate),
         depSortMin: (status==='已過站' ? (parseTime(depSched) ?? 9999) : (depAdj.adjMin ?? 9999)),
         arrSortMin: ((status==='已到終點' || status==='已過站') ? (parseTime(arrSched) ?? 9999) : (arrAdj.adjMin ?? 9999)),
         travel,
@@ -1585,16 +2439,48 @@ function isQueryToday(dateStr){
 }
 
 // 回傳：{sched, adj, adjMin, hasDelay}
-function getAdjustedTime(trainNo, schedHHMM, queryDateStr){
+function getAdjustedTime(trainNo, schedHHMM, queryDateStr, baseAbsMin=null, originDateStr=null){
   const sched = schedHHMM || '--';
+
+  // 非「今天」：不套用誤點（維持原行為）
   if(!isQueryToday(queryDateStr)) {
-    return { sched, adj: sched, adjMin: parseTime(sched), hasDelay: false };
+    return {
+      sched, adj: sched,
+      adjMin: parseTime(sched),
+      hasDelay: false,
+      schedAbsMin: (baseAbsMin!=null ? baseAbsMin : parseTime(sched)),
+      adjAbsMin: (baseAbsMin!=null ? baseAbsMin : parseTime(sched)),
+      schedDateStr: (originDateStr && baseAbsMin!=null ? getStopDateStr(originDateStr, baseAbsMin) : null),
+      adjDateStr: (originDateStr && baseAbsMin!=null ? getStopDateStr(originDateStr, baseAbsMin) : null)
+    };
   }
+
   const dmin = getDelayMinutes(trainNo);
+
   // 只有「真的有誤點/提早」才顯示雙時間；0 就保持單時間
-  if(!dmin) return { sched, adj: sched, adjMin: parseTime(sched), hasDelay: false };
+  if(!dmin) {
+    return {
+      sched, adj: sched,
+      adjMin: parseTime(sched),
+      hasDelay: false,
+      schedAbsMin: (baseAbsMin!=null ? baseAbsMin : parseTime(sched)),
+      adjAbsMin: (baseAbsMin!=null ? baseAbsMin : parseTime(sched)),
+      schedDateStr: (originDateStr && baseAbsMin!=null ? getStopDateStr(originDateStr, baseAbsMin) : null),
+      adjDateStr: (originDateStr && baseAbsMin!=null ? getStopDateStr(originDateStr, baseAbsMin) : null)
+    };
+  }
+
   const adj = addMinutesToHHMM(sched, dmin);
-  return { sched, adj, adjMin: parseTime(adj), hasDelay: true };
+
+  // 重要：跨日車 + 誤點/提早 可能把時刻推過 00:00（或拉回前一天）
+  // 如果提供 baseAbsMin（用於跨日判定），就用它 + dmin 算真正落在哪一天。
+  const schedAbs = (baseAbsMin!=null ? baseAbsMin : parseTime(sched));
+  const adjAbs = (baseAbsMin!=null ? (baseAbsMin + dmin) : parseTime(adj));
+
+  const schedDateStr = (originDateStr && baseAbsMin!=null ? getStopDateStr(originDateStr, baseAbsMin) : null);
+  const adjDateStr   = (originDateStr && baseAbsMin!=null ? getStopDateStr(originDateStr, adjAbs) : null);
+
+  return { sched, adj, adjMin: parseTime(adj), hasDelay: true, schedAbsMin: schedAbs, adjAbsMin: adjAbs, schedDateStr, adjDateStr };
 }
 
 // ===== 訂票可用性判斷（對號車 + 開車>=現在+10分鐘） =====
@@ -1655,14 +2541,21 @@ function getBookingEligibilityByRow(r){
 
 // UI：把時間顯示成「原時間刪線 + 新時間」
 // opts: { suppressStrike?: boolean }  // 已過站時可關閉刪線，只顯示更新後時間
-function renderTimeWithDelay(trainNo, schedHHMM, queryDateStr, opts){
-  const t = getAdjustedTime(trainNo, schedHHMM, queryDateStr);
+function renderTimeWithDelay(trainNo, schedHHMM, queryDateStr, opts, baseAbsMin=null, originDateStr=null){
+  const t = getAdjustedTime(trainNo, schedHHMM, queryDateStr, baseAbsMin, originDateStr);
   if(!t.hasDelay) return (schedHHMM || '--');
 
   const suppress = !!(opts && opts.suppressStrike);
   if(suppress){
     // 已過站/已到終點：顯示原始時刻，不套用誤點
     return (t.sched || schedHHMM || '--');
+  }
+
+  // 若誤點/提早導致「跨日」變動，補一個小日期提示（只在真的變動時顯示）
+  let dayHint = '';
+  if(t.adjDateStr && t.schedDateStr && t.adjDateStr !== t.schedDateStr){
+    const md = t.adjDateStr.slice(5).replace('-', '/'); // MM/DD
+    dayHint = `<span style="margin-left:6px;color:var(--text-muted);font-weight:700;font-size:.78em;">${md}</span>`;
   }
 
   // 不動你原本 CSS：用 inline style
@@ -1673,6 +2566,7 @@ function renderTimeWithDelay(trainNo, schedHHMM, queryDateStr, opts){
     <span style="font-weight:800;color:var(--text-main);">
       ${t.adj}
     </span>
+    ${dayHint}
   `;
 }
 
@@ -1705,8 +2599,8 @@ function renderTimeWithDelay(trainNo, schedHHMM, queryDateStr, opts){
       return;
     }
 
-
     // 單一事件代理：列點擊開詳情；票券按鈕點擊跳 APP；停靠展開
+    if(!__startEndDelegated){
     tbody.onclick = async (e)=>{
       
       // A. 手機版展開按鈕 (+/-)
@@ -1726,7 +2620,7 @@ function renderTimeWithDelay(trainNo, schedHHMM, queryDateStr, opts){
            detailRow.className = 'mobile-detail-row';
            
            // 1. 抓取停靠站與時間
-           const t = baseSchedule[r.num];
+           const t = getScheduleByOrigin(r.num, r.originDate || currentQueryDateStr);
            let stopsHTML = '';
            
            if(t && t['車站時間']){
@@ -1840,7 +2734,7 @@ function renderTimeWithDelay(trainNo, schedHHMM, queryDateStr, opts){
         const idx = Number(tr?.dataset?.idx);
         const r = currentStartEndList[idx];
         if(!r) return;
-        toggleStopsRow(tr, r.startStation, r.endStation, r.num);
+        toggleStopsRow(tr, r.num, r.startStation, r.endStation);
         return;
       }
 
@@ -1853,103 +2747,100 @@ function renderTimeWithDelay(trainNo, schedHHMM, queryDateStr, opts){
       if(!r) return;
       showTrainDetails(r.num, r.originDate||currentQueryDateStr);
     };
+    __startEndDelegated = true;
+    }
+
 
     const mins = currentStartEndList.map(r=>r.travelMin).filter(x=>Number.isFinite(x)).sort((a,b)=>a-b);
     const minv = mins.length ? mins[0] : 0;
     const cap = percentile(mins, 0.95); // P95 當上限（極端值塗滿）
 
-    // 渲染資料列
-    currentStartEndList.forEach((r, idx) => {
-        let tr = tbody.insertRow();
-        tr.dataset.idx = idx;
-        tr.className = "main-row";
-
-        // 1. 車次 (加入展開按鈕)
-        const trainCell = tr.insertCell();
+    // 渲染資料列（效能：使用 DocumentFragment，避免大量 insertRow 造成卡頓）
+    const frag = document.createDocumentFragment();
+    for(let idx=0; idx<currentStartEndList.length; idx++){
+        const r = currentStartEndList[idx];
         const isSea = String(r.num).includes('A');
-        trainCell.innerHTML = `
+        const bar = getTravelBarStyle(r.travelMin, minv, cap);
+        const elig = getBookingEligibilityByRow(r);
+
+        const tr = document.createElement('tr');
+        tr.className = 'main-row';
+        tr.dataset.idx = idx;
+        tr.dataset.originDate = (r.originDate||currentQueryDateStr);
+
+        // 票券欄位（保持原本行為：只有符合才顯示可點按鈕）
+        const ticketHTML = elig.ok
+          ? `<button class="ticket-btn" data-idx="${idx}">🎫</button>`
+          : `<button class="ticket-btn" disabled title="${elig.reason||''}">不可訂票</button>`;
+
+        tr.innerHTML = `
+          <td>
             <span class="mobile-expand-btn" data-idx="${idx}">+</span>
             <b>${r.num}</b>${isSea ? '<span class="badge-sea">海</span>' : ''}
-        `;
-
-        // 2. 車種 (PC顯示，手機隱藏)
-        const typeCell = tr.insertCell();
-        typeCell.className = "col-type"; // 改用 class 控制
-        typeCell.innerHTML = `${colorType(r.type)} <span class="train-route col-range">(${r.range})</span>`;
-        
-        // 3. 出發
-        tr.insertCell().innerHTML = r.depHTML;
-        
-        // 4. 抵達
-        tr.insertCell().innerHTML = r.arrHTML;
-
-        // 5. 耗時 (PC顯示，手機隱藏)
-        const bar = getTravelBarStyle(r.travelMin, minv, cap);
-        let durCell = tr.insertCell();
-        durCell.className = "col-duration"; // 改用 class 控制
-        durCell.innerHTML = `
+          </td>
+          <td class="col-type">
+            ${colorType(r.type)} <span class="pc-only train-route col-range">(${r.range})</span>
+          </td>
+          <td>${r.depHTML}</td>
+          <td>${r.arrHTML}</td>
+          <td class="col-duration">
             <div style="font-size:.85rem;font-weight:600">${r.travel}</div>
             <div class="progress-bar">
-                <div class="progress-fill" style="width:${bar.widthPct.toFixed(1)}%;background:${bar.fillColor};"></div>
-            </div>`;
+              <div class="progress-fill" style="width:${bar.widthPct.toFixed(1)}%;background:${bar.fillColor}"></div>
+            </div>
+          </td>
+          <td class="col-stops">
+            ${r.stopsCount>0 ? `${r.stopsCount}站 <span class="toggle-arrow">▼</span>` : '<span style="color:#16a34a;font-weight:600">直達</span>'}
+          </td>
+          <td>${r.statusHTML||colorStatus(r.status)||''}</td>
+          <td class="col-ticket" style="text-align:center">${ticketHTML}</td>
+        `;
+        frag.appendChild(tr);
+    }
+    tbody.appendChild(frag);
 
-        // 6. 停靠站 (手機隱藏)
-        let stopsCell = tr.insertCell();
-        stopsCell.className = "col-stops";
-        if(r.stopsCount > 0) {
-            stopsCell.innerHTML = `${r.stopsCount}站 <span class="toggle-arrow">▼</span>`;
-        } else {
-            stopsCell.innerHTML = '<span style="color:#16a34a;font-weight:600">直達</span>';
-        }
-
-        // 7. 狀態
-        tr.insertCell().innerHTML = colorStatus(r.status);
-
-        // 8. 訂票 (手機隱藏)
-        const ticketCell = tr.insertCell();
-        ticketCell.className = "col-ticket";
-        ticketCell.style.textAlign = 'center';
-        
-        // 即使不能訂票也要顯示按鈕(disabled)
-        const elig = getBookingEligibilityByRow(r);
-        if (elig.ok) {
-            ticketCell.innerHTML = `<button class="ticket-btn" data-idx="${idx}">🎫</button>`;
-        } else {
-            ticketCell.innerHTML = `<button class="ticket-btn" disabled title="${elig.reason}">不可訂票</button>`;
-        }
-    });
   }
 
-  function toggleStopsRow(tr, st, ed, num){
-    const next=tr.nextElementSibling;
-    if(next && next.classList.contains('stops-row')){
-      next.remove();
-      return;
-    }
-    const t=baseSchedule[num]; if(!t) return;
-    const arr=t['車站時間']||[];
-    const si=arr.findIndex(x=>x[0]===st);
-    const ei=arr.findIndex(x=>x[0]===ed);
-    if(si<0 || ei<0 || ei<=si) return;
+  function toggleStopsRow(tr, num, st, ed){
+  // 只對「同一列」做展開收合；跨日車需依 originDate 找正確時刻資料
+  const next = tr.nextSibling;
+  const icon = tr.querySelector('.toggle-arrow');
 
-    // 停靠站格式化：(時間)
-    const stopsSpans=arr.slice(si+1, ei).map(x=> `<span class="stop-item">${x[0]}(${splitArrDep(x).dep || '--'})</span>`).join('');
-    
-    const row=document.createElement('tr');
-    row.className='stops-row';
-    const td=document.createElement('td');
-    td.colSpan=8;
-    
-    if(stopsSpans){
-        td.innerHTML = `<div style="display:flex; gap:6px; margin-bottom:4px; font-weight:700;">沿途停靠：</div>
-                        <div class="stops-grid">${stopsSpans}</div>`;
-    } else {
-        td.innerHTML = '（無中途停靠）';
-    }
-    
-    row.appendChild(td);
-    tr.parentNode.insertBefore(row, tr.nextSibling);
+  if(next && next.classList && next.classList.contains('stops-row')){
+    next.remove();
+    if(icon) icon.textContent = '▼';
+    return;
   }
+
+  const originDate = tr.dataset.originDate || currentQueryDateStr;
+  const inst = scheduleKeyList.find(x=>String(x.trainNo)===String(num) && String(x.originDate)===String(originDate));
+  const t = inst?.data || baseSchedule[num] || prevSchedule[num];
+  if(!t) return;
+
+  const arr=t['車站時間']||[];
+  const si=arr.findIndex(x=>x[0]===st);
+  const ei=arr.findIndex(x=>x[0]===ed);
+  if(si<0 || ei<0 || ei<=si) return;
+
+  const stopsList = arr.slice(si+1, ei).map(x=>{
+    const dep = splitArrDep(x).dep || '--';
+    return { name:x[0], time: dep };
+  });
+
+  const stopText = stopsList.length
+    ? stopsList.map(s=>`${s.name}(${s.time})`).join('、')
+    : '（無中途停靠）';
+
+  const row=document.createElement('tr');
+  row.className='stops-row';
+  const td=document.createElement('td');
+  td.colSpan=(tr.children.length||8);
+  td.textContent = stopsList.length ? `沿途停靠：${stopText}` : stopText;
+  row.appendChild(td);
+  tr.parentNode.insertBefore(row, tr.nextSibling);
+
+  if(icon) icon.textContent = '▲';
+}
 
   // ===== 轉乘（中途站：到達/開車分開） =====
   
@@ -2250,8 +3141,107 @@ function renderTransferTable(){
 
   // 單一事件代理（避免每列綁 click，手機效能更好）
   tbody.onclick = (e)=>{
+    // 手機版：+/- 展開收合（不開啟 modal）
+    const expandBtn = e.target.closest('.mobile-expand-btn');
+    if(expandBtn){
+      e.stopPropagation();
+      const trMain = expandBtn.closest('tr');
+      if(!trMain || trMain.parentElement !== tbody) return;
+      const idx = Number(expandBtn.dataset.idx);
+      if(!Number.isFinite(idx)) return;
+      const r = currentTransferList[idx];
+      if(!r) return;
+
+      // 如果已展開就收合
+      const next = trMain.nextElementSibling;
+      if(next && next.classList && next.classList.contains('mobile-detail-row')){
+        next.remove();
+        expandBtn.textContent = '+';
+        return;
+      }
+
+      // 先關掉其它展開
+      tbody.querySelectorAll('tr.mobile-detail-row').forEach(x=>x.remove());
+      tbody.querySelectorAll('.mobile-expand-btn').forEach(btn=>btn.textContent = '+');
+
+      // 建立 detail row
+      const detailRow = document.createElement('tr');
+      detailRow.className = 'mobile-detail-row';
+
+      let html = '';
+      if(r.isDirect){
+        // 直達：顯示行駛區間 + 沿途停靠 + 訂票（若有）
+        let stopsHTML = '';
+        const t = getScheduleByOrigin(r.n1, r.originDate1 || currentQueryDateStr);
+        if(t && t['車站時間']){
+          const arr = t['車站時間'];
+          const sIdx = arr.findIndex(x=>x[0]===r.startStation);
+          const eIdx = arr.findIndex(x=>x[0]===r.endStation);
+          if(sIdx > -1 && eIdx > -1 && eIdx > sIdx+1){
+            const stopsArr = arr.slice(sIdx+1, eIdx);
+            const stopSpans = stopsArr.map(x=>{
+              const dep = splitArrDep(x).dep || '--';
+              return `<span class="stop-item">${x[0]}(${dep})</span>`;
+            }).join('');
+            stopsHTML = `<div class="stops-grid">${stopSpans}</div>`;
+          }else{
+            stopsHTML = `<div class="muted">（無中途停靠）</div>`;
+          }
+        }else{
+          stopsHTML = `<div class="muted">（無法取得停靠資訊）</div>`;
+        }
+
+        html = `
+          <div class="mblk">
+            <div class="mt">行駛區間</div>
+            <div class="mv">${r.startStation} → ${r.endStation}</div>
+          </div>
+          <div class="mblk">
+            <div class="mt">沿途停靠</div>
+            <div class="mv">${stopsHTML}</div>
+          </div>
+          ${r.ticketHTML ? `<div class="mact">${r.ticketHTML}</div>` : ``}
+        `;
+      }else{
+        // 轉乘：顯示兩段與等候，並提供「查看轉乘詳細」按鈕（維持既有 modal）
+        html = `
+          <div class="mblk">
+            <div class="mt">第 1 段</div>
+            <div class="mv"><b>${r.n1}</b>　${colorType(r.type1)}　${r.startStation} ${r.depHTML||highlightPeak(r.depSched||r.dep||'--')} → ${r.transferStation} ${r.midArrHTML||highlightPeak(r.midArr||'--')}</div>
+          </div>
+          <div class="mblk">
+            <div class="mt">等候</div>
+            <div class="mv">${r.waitMin} 分（${r.transferStation}）</div>
+          </div>
+          <div class="mblk">
+            <div class="mt">第 2 段</div>
+            <div class="mv"><b>${r.n2}</b>　${colorType(r.type2)}　${r.transferStation} ${r.midDepHTML||highlightPeak(r.midDep||'--')} → ${r.endStation} ${r.arrHTML||highlightPeak(r.arrSched||r.arr||'--')}</div>
+          </div>
+          <div class="mact">
+            <button class="btn btn-primary btn-transfer-details" data-idx="${idx}">查看轉乘詳細</button>
+          </div>
+        `;
+      }
+
+      detailRow.innerHTML = `<td colspan="7"><div class="mobile-detail-wrap">${html}</div></td>`;
+      trMain.parentNode.insertBefore(detailRow, trMain.nextSibling);
+      expandBtn.textContent = '−';
+      return;
+    }
+
+    // 轉乘詳細按鈕
+    const detailBtn = e.target.closest('.btn-transfer-details');
+    if(detailBtn){
+      const idx = Number(detailBtn.dataset.idx);
+      const r = currentTransferList?.[idx];
+      if(r) showTransferDetails(r);
+      return;
+    }
+
+    // 一般點擊列：維持既有 modal 行為
     const tr = e.target.closest('tr');
     if(!tr || tr.parentElement !== tbody) return;
+    if(tr.classList.contains('mobile-detail-row')) return;
     const idx = Number(tr.dataset.idx);
     if(!Number.isFinite(idx)) return;
     const r = currentTransferList[idx];
@@ -2269,17 +3259,18 @@ function renderTransferTable(){
     tr.dataset.idx = idx;
 
     tr.insertCell().innerHTML = String(r.trainNumber).includes('A')
-      ? `<b>${r.trainNumber}</b><span class="badge-sea">海</span>` : `<b>${r.trainNumber}</b>`;
+      ? `<span class="mobile-expand-btn" data-idx="${idx}">+</span><b>${r.trainNumber}</b><span class="badge-sea">海</span>`
+      : `<span class="mobile-expand-btn" data-idx="${idx}">+</span><b>${r.trainNumber}</b>`;
 
     // 轉乘表格的車種(區間)欄位也加上 desktop-only
     let typeCell = tr.insertCell();
     typeCell.className = "col-type";
     if(r.isDirect){
-      typeCell.innerHTML = `${colorType(r.type1)} <span class="train-route col-range">(${r.startStation}➝${r.endStation})</span>`;
+      typeCell.innerHTML = `${colorType(r.type1)} <span class="pc-only train-route col-range">(${r.startStation}➝${r.endStation})</span>`;
     }else{
       typeCell.innerHTML =
-        `${colorType(r.type1)}<span class="train-route">(${r.startStation}➝${r.transferStation})</span><br>`+
-        `${colorType(r.type2)}<span class="train-route">(${r.transferStation}➝${r.endStation})</span>`;
+        `${colorType(r.type1)}<span class="pc-only train-route">(${r.startStation}➝${r.transferStation})</span><br>`+
+        `${colorType(r.type2)}<span class="pc-only train-route">(${r.transferStation}➝${r.endStation})</span>`;
     }
 
     tr.insertCell().innerHTML = r.depHTML;
@@ -2290,7 +3281,7 @@ function renderTransferTable(){
     }else{
       tr.insertCell().innerHTML =
         `<div style="font-weight:700">${r.transferStation}</div>`+
-        `<div class="train-route">抵達 ${r.midArrHTML||highlightPeak(r.midArr)} / 發車 ${r.midDepHTML||highlightPeak(r.midDep)}（等 ${r.waitMin} 分）</div>`;
+        `<div class="train-route transfer-detail">抵達 ${r.midArrHTML||highlightPeak(r.midArr)} / 發車 ${r.midDepHTML||highlightPeak(r.midDep)}（等 ${r.waitMin} 分）</div>`;
 }
 
     tr.insertCell().innerHTML = r.arrHTML;
@@ -2322,126 +3313,239 @@ function renderTransferTable(){
   // 車站時刻表：顯示日 = currentQueryDateStr
   // 但列車來源可能是：發車日 = currentQueryDateStr 或 currentQueryDateStr-1
   function filterTrainScheduleByStationName(){
-    const station = extractStationNameFromInput(document.getElementById('stationNameInput').value);
-    document.getElementById('stationNameInput').value = station;
-    if(!station) return;
-
-    const dir=document.getElementById('directionSelect').value; // even / odd
-    lastStationQuery = { station, dir };
-
-    const tbody=document.querySelector('#scheduleTableByStationName tbody');
-    tbody.innerHTML='';
-  // 單一事件代理（避免每列綁 click，手機效能更好）
-  tbody.onclick = (e)=>{
-    const tr = e.target.closest('tr');
-    if(!tr || tr.parentElement !== tbody) return;
-    const idx = Number(tr.dataset.idx);
-    if(!Number.isFinite(idx)) return;
-    const r = currentTransferList[idx];
-    if(!r) return;
-    if(r.isDirect) showTrainDetails(r.n1, r.originDate1||currentQueryDateStr);
-    else showTransferDetails(r);
-  };
-
-    selectedTrainTypesStation=getSelectedTypesSafe('station');
-
-    const rows = [];
-    scheduleKeyList.forEach(item=>{
-      const {key, trainNo, originDate, data} = item;
-      if(!data) return;
-      if(selectedTrainTypesStation.length && !selectedTrainTypesStation.includes(data['車種'])) return;
-
-      const arr = data['車站時間']||[];
-      const idx = arr.findIndex(s=>s[0]===station);
-      if(idx<0) return;
-
-      const ev = isEvenTrainNo(trainNo);
-      if(dir === 'even' && ev !== true) return;
-      if(dir === 'odd'  && ev !== false) return;
-
-      // 本站一律用「開車時間」
-      const dep = splitArrDep(arr[idx]).dep || '--';
-
-      // 判斷這站實際是哪一天（跨日要落到隔天）
-      const abs = buildAbsMinutes(arr);
-      const absMin = abs[idx]?.abs;
-      if(absMin === null) return;
-
-      const stopDate = getStopDateStr(originDate, absMin);
-      if(stopDate !== currentQueryDateStr) return; // 只顯示「選的那天」
-
-      const status = getTrainStatusLabel(
-        trainNo,
-        originDate, // 狀態永遠用發車日
-        (arr[0]?.[2]||arr[0]?.[1]||''),
-        (arr.slice(-1)[0]?.[1]||arr.slice(-1)[0]?.[2]||''),
-        absMin // 用本站 absMin 判斷已過站
-      );
-
-      const depAdj = getAdjustedTime(trainNo, dep, currentQueryDateStr);
-      rows.push({
-        trainNo, originDate,
-        type: data['車種'],
-        range: `${arr[0][0]}➝${arr.slice(-1)[0][0]}`,
-        depHTML: renderTimeWithDelay(trainNo, dep, currentQueryDateStr, { suppressStrike: status==='已過站' }),
-        depMin: (status==='已過站' ? (parseTime(dep) ?? 9999) : (depAdj.adjMin ?? 9999)),
-        status
-      });
-    });
-
-    rows.sort((a,b)=>a.depMin-b.depMin);
-
-    rows.forEach(r=>{
-      let tr=tbody.insertRow();
-      tr.insertCell().innerHTML=String(r.trainNo).includes('A')?`<b>${r.trainNo}</b><span class="badge-sea">海</span>`:`<b>${r.trainNo}</b>`;
-      tr.insertCell().innerHTML=`${colorType(r.type)} <span class="train-route">(${r.range})</span>`;
-      tr.insertCell().innerHTML=highlightPeak(r.depHTML);
-      tr.insertCell().innerHTML=colorStatus(r.status);
-      tr.addEventListener('click',()=>showTrainDetails(r.trainNo, r.originDate));
-    });
-  }
+  showLoading('查詢中...');
+  requestAnimationFrame(()=>{ setTimeout(()=>{ try{
+          const station = extractStationNameFromInput(document.getElementById('stationNameInput').value);
+          document.getElementById('stationNameInput').value = station;
+          if(!station) return;
+      
+          const dir=document.getElementById('directionSelect').value; // even / odd
+          lastStationQuery = { station, dir };
+      
+          const tbody=document.querySelector('#scheduleTableByStationName tbody');
+          tbody.innerHTML='';
+        // 單一事件代理（避免每列綁 click，手機效能更好）
+        tbody.onclick = (e)=>{
+          // 手機版：+/- 展開收合（不開啟 modal）
+          const expandBtn = e.target.closest('.mobile-expand-btn');
+          if(expandBtn){
+            e.stopPropagation();
+            const trMain = expandBtn.closest('tr');
+            if(!trMain || trMain.parentElement !== tbody) return;
+            const idx = Number(expandBtn.dataset.idx);
+            if(!Number.isFinite(idx)) return;
+            const r = currentTransferList[idx];
+            if(!r) return;
+      
+            // 如果已展開就收合
+            const next = trMain.nextElementSibling;
+            if(next && next.classList && next.classList.contains('mobile-detail-row')){
+              next.remove();
+              expandBtn.textContent = '+';
+              return;
+            }
+      
+            // 先關掉其它展開
+            tbody.querySelectorAll('tr.mobile-detail-row').forEach(x=>x.remove());
+            tbody.querySelectorAll('.mobile-expand-btn').forEach(btn=>btn.textContent = '+');
+      
+            // 建立 detail row
+            const detailRow = document.createElement('tr');
+            detailRow.className = 'mobile-detail-row';
+      
+            let html = '';
+            if(r.isDirect){
+              // 直達：顯示行駛區間 + 沿途停靠 + 訂票（若有）
+              let stopsHTML = '';
+              const t = getScheduleByOrigin(r.n1, r.originDate1 || currentQueryDateStr);
+              if(t && t['車站時間']){
+                const arr = t['車站時間'];
+                const sIdx = arr.findIndex(x=>x[0]===r.startStation);
+                const eIdx = arr.findIndex(x=>x[0]===r.endStation);
+                if(sIdx > -1 && eIdx > -1 && eIdx > sIdx+1){
+                  const stopsArr = arr.slice(sIdx+1, eIdx);
+                  const stopSpans = stopsArr.map(x=>{
+                    const dep = splitArrDep(x).dep || '--';
+                    return `<span class="stop-item">${x[0]}(${dep})</span>`;
+                  }).join('');
+                  stopsHTML = `<div class="stops-grid">${stopSpans}</div>`;
+                }else{
+                  stopsHTML = `<div class="muted">（無中途停靠）</div>`;
+                }
+              }else{
+                stopsHTML = `<div class="muted">（無法取得停靠資訊）</div>`;
+              }
+      
+              html = `
+                <div class="mblk">
+                  <div class="mt">行駛區間</div>
+                  <div class="mv">${r.startStation} → ${r.endStation}</div>
+                </div>
+                <div class="mblk">
+                  <div class="mt">沿途停靠</div>
+                  <div class="mv">${stopsHTML}</div>
+                </div>
+                ${r.ticketHTML ? `<div class="mact">${r.ticketHTML}</div>` : ``}
+              `;
+            }else{
+              // 轉乘：顯示兩段與等候，並提供「查看轉乘詳細」按鈕（維持既有 modal）
+              html = `
+                <div class="mblk">
+                  <div class="mt">第 1 段</div>
+                  <div class="mv"><b>${r.n1}</b>　${colorType(r.type1)}　${r.startStation} ${r.depHTML||highlightPeak(r.depSched||r.dep||'--')} → ${r.transferStation} ${r.midArrHTML||highlightPeak(r.midArr||'--')}</div>
+                </div>
+                <div class="mblk">
+                  <div class="mt">等候</div>
+                  <div class="mv">${r.waitMin} 分（${r.transferStation}）</div>
+                </div>
+                <div class="mblk">
+                  <div class="mt">第 2 段</div>
+                  <div class="mv"><b>${r.n2}</b>　${colorType(r.type2)}　${r.transferStation} ${r.midDepHTML||highlightPeak(r.midDep||'--')} → ${r.endStation} ${r.arrHTML||highlightPeak(r.arrSched||r.arr||'--')}</div>
+                </div>
+                <div class="mact">
+                  <button class="btn btn-primary btn-transfer-details" data-idx="${idx}">查看轉乘詳細</button>
+                </div>
+              `;
+            }
+      
+            detailRow.innerHTML = `<td colspan="7"><div class="mobile-detail-wrap">${html}</div></td>`;
+            trMain.parentNode.insertBefore(detailRow, trMain.nextSibling);
+            expandBtn.textContent = '−';
+            return;
+          }
+      
+          // 轉乘詳細按鈕
+          const detailBtn = e.target.closest('.btn-transfer-details');
+          if(detailBtn){
+            const idx = Number(detailBtn.dataset.idx);
+            const r = currentTransferList?.[idx];
+            if(r) showTransferDetails(r);
+            return;
+          }
+      
+          // 一般點擊列：維持既有 modal 行為
+          const tr = e.target.closest('tr');
+          if(!tr || tr.parentElement !== tbody) return;
+          if(tr.classList.contains('mobile-detail-row')) return;
+          const idx = Number(tr.dataset.idx);
+          if(!Number.isFinite(idx)) return;
+          const r = currentTransferList[idx];
+          if(!r) return;
+          if(r.isDirect) showTrainDetails(r.n1, r.originDate1||currentQueryDateStr);
+          else showTransferDetails(r);
+        };
+      
+          selectedTrainTypesStation=getSelectedTypesSafe('station');
+      
+          const rows = [];
+          scheduleKeyList.forEach(item=>{
+            const {key, trainNo, originDate, data} = item;
+            if(!data) return;
+            if(selectedTrainTypesStation.length && !selectedTrainTypesStation.includes(data['車種'])) return;
+      
+            const arr = data['車站時間']||[];
+            const idx = arr.findIndex(s=>s[0]===station);
+            if(idx<0) return;
+      
+            const ev = isEvenTrainNo(trainNo);
+            if(dir === 'even' && ev !== true) return;
+            if(dir === 'odd'  && ev !== false) return;
+      
+            // 本站一律用「開車時間」
+            const dep = splitArrDep(arr[idx]).dep || '--';
+      
+            // 判斷這站實際是哪一天（跨日要落到隔天）
+            const abs = buildAbsMinutes(arr);
+            const absMin = abs[idx]?.abs;
+            if(absMin === null) return;
+      
+            const stopDate = getStopDateStr(originDate, absMin);
+            if(stopDate !== currentQueryDateStr) return; // 只顯示「選的那天」
+      
+            const status = getTrainStatusLabel(
+              trainNo,
+              originDate, // 狀態永遠用發車日
+              (arr[0]?.[2]||arr[0]?.[1]||''),
+              (arr.slice(-1)[0]?.[1]||arr.slice(-1)[0]?.[2]||''),
+              absMin // 用本站 absMin 判斷已過站
+            );
+      
+            const depAdj = getAdjustedTime(trainNo, dep, currentQueryDateStr);
+            rows.push({
+              trainNo, originDate,
+              type: data['車種'],
+              range: `${arr[0][0]}➝${arr.slice(-1)[0][0]}`,
+              depHTML: renderTimeWithDelay(trainNo, dep, currentQueryDateStr, { suppressStrike: status==='已過站' }),
+              depMin: (status==='已過站' ? (parseTime(dep) ?? 9999) : (depAdj.adjMin ?? 9999)),
+              status
+            });
+          });
+      
+          rows.sort((a,b)=>a.depMin-b.depMin);
+      
+          rows.forEach(r=>{
+            let tr=tbody.insertRow();
+            tr.insertCell().innerHTML=String(r.trainNo).includes('A')?`<b>${r.trainNo}</b><span class="badge-sea">海</span>`:`<b>${r.trainNo}</b>`;
+            tr.insertCell().innerHTML=`${colorType(r.type)} <span class="train-route">(${r.range})</span>`;
+            tr.insertCell().innerHTML=highlightPeak(r.depHTML);
+            tr.insertCell().innerHTML=colorStatus(r.status);
+            tr.addEventListener('click',()=>showTrainDetails(r.trainNo, r.originDate));
+          });
+        
+    }finally{
+      hideLoading();
+    }
+  },0);
+  });}
 
   // ===== 車次查詢（以查詢日 currentQueryDateStr 的發車資料為主） =====
   
 function filterTrainScheduleByNumber(){
-  const num = extractTrainNoFromInput(document.getElementById('trainNumberInput').value);
-  lastTrainQuery = { trainNo: num };
-
-  document.getElementById('trainNumberInput').value = num;
-
-  const tbody=document.querySelector('#scheduleTableByNumber tbody');
-  tbody.innerHTML='';
-
-  // ✅ 車次查詢：完全以「使用者選的顯示日期 currentQueryDateStr」作為發車日
-  // 也就是：你選 2/3 就查 2/3 發車的 181；不自動切到前一日跨日車 instance
-  //（起迄站/車站查詢那邊的跨日呈現保持原樣，不在這裡動）
-  const originDateStr = currentQueryDateStr;
-  const t = baseSchedule[num] || null;
-
-  if (!t) {
-    let tr = tbody.insertRow();
-    let td = tr.insertCell();
-    td.colSpan = 3;
-    td.style.textAlign = 'center';
-    td.style.padding = '20px';
-    td.innerHTML = `<span style="color:#ef4444; font-weight:700;">❌ 查無${num}車次，請確認輸入車次或發車日期是否正確。</span>`;
-    return;
-  }
-
-  const arr=t['車站時間']||[];
-  const status = getTrainStatusLabel(
-    num,
-    originDateStr,
-    (arr[0]?.[2]||arr[0]?.[1]||''),
-    (arr.slice(-1)[0]?.[1]||arr.slice(-1)[0]?.[2]||'')
-  );
-
-  let tr=tbody.insertRow();
-  tr.insertCell().innerHTML=String(num).includes('A')?`<b>${num}</b><span class="badge-sea">海</span>`:`<b>${num}</b>`;
-  tr.insertCell().innerHTML=`${colorType(t['車種'])} <span class="train-route">(${arr[0][0]}➝${arr.slice(-1)[0][0]})</span>`;
-  tr.insertCell().innerHTML=colorStatus(status);
-  tr.addEventListener('click',()=>showTrainDetails(num, originDateStr));
-}
+  showLoading('查詢中...');
+  requestAnimationFrame(()=>{ setTimeout(()=>{ try{
+        const num = extractTrainNoFromInput(document.getElementById('trainNumberInput').value);
+        lastTrainQuery = { trainNo: num };
+      
+        document.getElementById('trainNumberInput').value = num;
+      
+        const tbody=document.querySelector('#scheduleTableByNumber tbody');
+        tbody.innerHTML='';
+      
+        // ✅ 車次查詢：完全以「使用者選的顯示日期 currentQueryDateStr」作為發車日
+        // 也就是：你選 2/3 就查 2/3 發車的 181；不自動切到前一日跨日車 instance
+        //（起迄站/車站查詢那邊的跨日呈現保持原樣，不在這裡動）
+        const originDateStr = currentQueryDateStr;
+        const t = baseSchedule[num] || null;
+      
+        if (!t) {
+          let tr = tbody.insertRow();
+          let td = tr.insertCell();
+          td.colSpan = 3;
+          td.style.textAlign = 'center';
+          td.style.padding = '20px';
+          td.innerHTML = `<span style="color:#ef4444; font-weight:700;">❌ 查無${num}車次，請確認輸入車次或發車日期是否正確。</span>`;
+          return;
+        }
+      
+        const arr=t['車站時間']||[];
+        const status = getTrainStatusLabel(
+          num,
+          originDateStr,
+          (arr[0]?.[2]||arr[0]?.[1]||''),
+          (arr.slice(-1)[0]?.[1]||arr.slice(-1)[0]?.[2]||'')
+        );
+      
+        let tr=tbody.insertRow();
+        tr.insertCell().innerHTML=String(num).includes('A')?`<b>${num}</b><span class="badge-sea">海</span>`:`<b>${num}</b>`;
+        tr.insertCell().innerHTML=`${colorType(t['車種'])} <span class="train-route">(${arr[0][0]}➝${arr.slice(-1)[0][0]})</span>`;
+        tr.insertCell().innerHTML=colorStatus(status);
+        tr.addEventListener('click',()=>showTrainDetails(num, originDateStr));
+      
+    }finally{
+      hideLoading();
+    }
+  },0);
+  });}
 
 // ===== Modal: 列車詳情（顯示站別用開車優先，並且跨日顯示正確日期）（顯示站別用開車優先，並且跨日顯示正確日期） =====
   const modal=document.getElementById('trainModal');
@@ -2532,8 +3636,8 @@ arr.forEach((s, i)=>{
         arrHTML = arrTime ? `<span class="st-arr" style="color:var(--text-muted);">${arrTime}</span>` : '';
     } else {
         // 未到的站：保持原本動態誤點顯示
-        depHTML = renderTimeWithDelay(trainNo, depTime, currentQueryDateStr);
-        arrHTML = arrTime ? `<span class="st-arr">${renderTimeWithDelay(trainNo, arrTime, currentQueryDateStr)}</span>` : '';
+        depHTML = renderTimeWithDelay(trainNo, depTime, currentQueryDateStr, null, abs?.[i]?.abs, originDateStr);
+        arrHTML = arrTime ? `<span class="st-arr">${renderTimeWithDelay(trainNo, arrTime, currentQueryDateStr, null, abs?.[i]?.abs, originDateStr)}</span>` : '';
     }
     // -------------------------
 
@@ -2751,7 +3855,7 @@ arr.forEach((s, i)=>{
         depHTML = `<span style="color:var(--text-muted);">${depTime}</span>`;
         arrHTML = arrTime ? `<span class="st-arr" style="color:var(--text-muted);">${arrTime}</span>` : '';
       }else{
-        depHTML = renderTimeWithDelay(trainNo, depTime, currentQueryDateStr);
+        depHTML = renderTimeWithDelay(trainNo, depTime, currentQueryDateStr, null, abs?.[i]?.abs, originDateStr);
         arrHTML = arrTime ? renderTimeWithDelay(trainNo, arrTime, currentQueryDateStr) : '';
       }
 
