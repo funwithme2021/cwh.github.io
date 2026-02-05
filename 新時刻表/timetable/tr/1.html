@@ -1649,7 +1649,7 @@ function splitArrDep(stopRow){
 
     let d = 0;
     try{ if(typeof getDelayMinutes==='function') d = Number(getDelayMinutes(String(trainNo)) || 0); }catch(e){ d = 0; }
-    if(Number.isFinite(d) && d > 0) return `誤點${d}分`;
+    if(Number.isFinite(d) && d > 0) return `晚${d}分`;
     return '準點';
   }
 
@@ -1695,7 +1695,7 @@ function splitArrDep(stopRow){
 
     let d = 0;
     try{ if(typeof getDelayMinutes==='function') d = Number(getDelayMinutes(String(trainNo)) || 0); }catch(e){ d = 0; }
-    if(Number.isFinite(d) && d > 0) return `誤點${d}分`;
+    if(Number.isFinite(d) && d > 0) return `晚${d}分`;
     return '準點';
   }
 
@@ -2358,9 +2358,33 @@ function buildDirectList(st, ed){
       const depAdj = getAdjustedTime(num, depSched, currentQueryDateStr);
       const arrAdj = getAdjustedTime(num, arrSched, currentQueryDateStr);
 
-      const travelMin = edAbs - stAbs;
-      const travel = `${Math.floor(travelMin/60)}h ${travelMin%60}m`;
-      const stopsCount = ei - si - 1;
+      // ✅ 耗時：以「迄站到達」-「起站開車」為準（跨日用日期時間計算，避免直達算錯）
+      const depTimeStr = (splitArrDep(arr[si]).dep || splitArrDep(arr[si]).arr || '--');
+      const arrTimeStr = (splitArrDep(arr[ei]).arr || splitArrDep(arr[ei]).dep || '--');
+      const depDT2 = buildDateTimeFromDateAndHHMM(getStopDateStr(originDate, stAbs), depTimeStr);
+      const arrDT2 = buildDateTimeFromDateAndHHMM(getStopDateStr(originDate, edAbs), arrTimeStr);
+
+      // 耗時 = 抵達(到達) - 出發(開車)
+      // 直達段落優先用「HH:MM 自身跨日」處理（避免 DateTime 因查詢日/發車日造成負值）
+      const depM = parseTime(depTimeStr);
+      const arrM = parseTime(arrTimeStr);
+      let travelMin = (depM!==null && arrM!==null) ? (arrM - depM) : null;
+      if(Number.isFinite(travelMin) && travelMin < 0) travelMin += 1440;
+
+      // 次選：用含跨日的 absMin；最後才用 DateTime（保留既有邏輯但避免負值）
+      if(!Number.isFinite(travelMin)){
+        travelMin = (Number.isFinite(edAbs) && Number.isFinite(stAbs)) ? (edAbs - stAbs) : null;
+      }
+      if(Number.isFinite(travelMin) && travelMin < 0) travelMin += 1440;
+
+      if(!Number.isFinite(travelMin) && depDT2 && arrDT2){
+        travelMin = Math.round((arrDT2 - depDT2)/60000);
+        if(Number.isFinite(travelMin) && travelMin < 0) travelMin += 1440;
+      }
+
+      if(!Number.isFinite(travelMin) || travelMin < 0) travelMin = (edAbs - stAbs);
+const travel = `${Math.floor(travelMin/60)}h ${travelMin%60}m`;
+const stopsCount = ei - si - 1;
 
       // 取得停靠站列表
       const stopsList = arr.slice(si+1, ei).map(x => x[0]);
