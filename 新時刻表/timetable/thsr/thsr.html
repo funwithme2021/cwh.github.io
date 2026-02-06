@@ -1325,7 +1325,7 @@
 
   async function openTHSRBookingDeepLink(trainNo, dateStr, timeStr){ 
     const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-    if (!isMobile) { alert("限使用行動裝置並以下載高鐵T Express行動購票App使用"); return; }
+    if (!isMobile) { alert("限使用行動裝置並已下載高鐵T Express行動購票App使用"); return; }
     try {
         let st = extractStationNameFromInput(document.getElementById('startStation').value);
         let ed = extractStationNameFromInput(document.getElementById('endStation').value);
@@ -1533,5 +1533,6 @@
   });
 
 </script>
+<script src="../monitor.js"></script>
 </body>
 </html>
