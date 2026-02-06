@@ -2,12 +2,10 @@
 <html lang="zh-Hant">
 <head>
     <meta charset="UTF-8">
+    <meta name="apple-mobile-web-app-title" content="Real-Time">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Real-Time</title>
     <link rel="manifest" href="./manifest.json">
-    <meta name="theme-color" content="#0f172a">
-    <meta name="apple-mobile-web-app-title" content="Real-Time">
-
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Noto+Sans+TC:wght@400;500;700;900&family=Roboto+Mono:wght@500&display=swap" rel="stylesheet">
@@ -263,7 +261,7 @@
     </div>
 
     <nav class="top-nav">
-        <div class="logo"><span>Real-Time</span></div>
+        <div class="logo"><span>時刻表 Pro</span></div>
         <select class="lang-switch" id="langSelect" onchange="changeLanguage(this.value)" style="background:var(--glass-bg); color:var(--text-main); border-radius:12px; padding:8px 16px; border:1px solid var(--glass-border); outline:none; cursor:pointer;">
             <option value="zh">繁體中文</option>
             <option value="en">English</option>
@@ -293,7 +291,6 @@
                     <button class="geo-btn loading" id="trGeoBtn" onclick="event.stopPropagation(); findNearest('tr')">
                         <span>⌛ 正在下載全台車站資料...</span>
                     </button>
-                    
 
                     <ul class="desc-list" id="trList"></ul>
                 </div>
@@ -345,23 +342,29 @@
                         </label>
                     </div>
 
-                    <p style="font-size:0.8rem; color:var(--text-muted); margin-bottom:10px;">系統將每分鐘檢查最新狀態：台鐵用即時資料，高鐵以表定時刻 + 現在時間推估，並依規則推播通知。</p>
-                    <div class="fav-row" style="margin-bottom:10px;">
-                        <input type="text" id="mon_tr_train1" class="setting-input" placeholder="台鐵車次1 (例: 452)">
-                        <input type="text" id="mon_tr_station1" class="setting-input" placeholder="目標站1 (例: 台東)">
-                    </div>
-                    <div class="fav-row" style="margin-bottom:12px;">
-                        <input type="text" id="mon_tr_train2" class="setting-input" placeholder="台鐵車次2 (選填，例: 402)">
-                        <input type="text" id="mon_tr_station2" class="setting-input" placeholder="目標站2 (選填，例: 台北)">
-                    </div>
+                    <p style="font-size:0.8rem; color:var(--text-muted); margin-bottom:10px;">系統將每分鐘檢查誤點狀況並計算目標站抵達時間。</p>
+                    
+                    <p style="font-size:0.8rem; color:var(--text-muted); margin-bottom:10px;">
+                      ※ iPhone：Safari → 分享 → <b>加入主畫面</b> 後，從主畫面圖示開啟，通知最穩定。
+                    </p>
 
-                    <div style="height:1px; background:var(--glass-border); margin:12px 0;"></div>
-
-                    <div class="fav-row">
-                        <input type="text" id="mon_thsr_train" class="setting-input" placeholder="高鐵車次 (例: 123)">
+                    <div style="display:flex; gap:10px; flex-direction:column;">
+                      <div class="fav-row">
+                        <input type="text" id="mon_tr1_train" class="setting-input" placeholder="台鐵車次① (例: 452)">
+                        <input type="text" id="mon_tr1_station" class="setting-input" placeholder="台鐵目標站① (例: 台東)">
+                      </div>
+                      <div class="fav-row">
+                        <input type="text" id="mon_tr2_train" class="setting-input" placeholder="台鐵車次② (轉乘用，可空白)">
+                        <input type="text" id="mon_tr2_station" class="setting-input" placeholder="台鐵目標站② (可空白)">
+                      </div>
+                      <div class="fav-row">
+                        <input type="text" id="mon_thsr_train" class="setting-input" placeholder="高鐵車次 (例: 123 或 0123)">
                         <input type="text" id="mon_thsr_station" class="setting-input" placeholder="高鐵目標站 (例: 左營)">
+                      </div>
                     </div>
+
                     <button onclick="testNotification()" style="width:100%; margin-top:10px; padding:8px; border-radius:10px; border:1px solid var(--glass-border); background:rgba(255,255,255,0.05); color:var(--text-main); cursor:pointer;">🔔 立即測試通知 (Test)</button>
+
                 </div>
             </div>
 
@@ -757,416 +760,468 @@
     </script>
 
 <script>
-/* ===== 通知 / PWA：覆蓋原本的 sendNotification / testNotification / togglePush（不改其他功能） ===== */
+/* ===== Real-Time 監控 v4：台鐵(最多2組) + 高鐵(1組)，跑馬燈輪播，通知依最新狀態 ===== */
 (() => {
-  let swReg = null;
-
-  const isSecureForNotify = () =>
-    (window.isSecureContext || location.hostname === 'localhost' || location.hostname === '127.0.0.1');
-
-  const canUseNotifications = () => ('Notification' in window) && isSecureForNotify();
-
-  async function registerSW() {
-    if (!('serviceWorker' in navigator)) return null;
-    if (!isSecureForNotify()) return null;
-    try {
-      swReg = await navigator.serviceWorker.register('./sw.js', { scope: './' });
-      return swReg;
-    } catch (e) {
-      console.warn('SW register failed:', e);
-      return null;
-    }
-  }
-
-  async function ensurePermissionFromGesture() {
-    if (!canUseNotifications()) return { ok:false, reason:'insecure' };
-    if (Notification.permission === 'granted') return { ok:true };
-    if (Notification.permission === 'denied') return { ok:false, reason:'denied' };
-    const res = await Notification.requestPermission();
-    return res === 'granted' ? { ok:true } : { ok:false, reason:res };
-  }
-
-  function buildIconData(bg, emoji, size) {
-    return "data:image/svg+xml;charset=utf-8," + encodeURIComponent(
-      `<svg xmlns='http://www.w3.org/2000/svg' width='${size}' height='${size}'>
-         <rect width='100%' height='100%' rx='${Math.round(size*0.22)}' fill='${bg}'/>
-         <text x='50%' y='56%' dominant-baseline='middle' text-anchor='middle' font-size='${Math.round(size*0.56)}'>${emoji}</text>
-       </svg>`
-    );
-  }
-
-  // 覆蓋：更像手機通知（SW showNotification），並避免狂洗（tag 更新）
-  window.sendNotification = function(title, body, dataUrl) {
-    if (!canUseNotifications()) return;
-    if (Notification.permission !== 'granted') return;
-
-    const options = {
-      body: body || '',
-      icon: buildIconData('#0f172a', '🚆', 192),
-      badge: buildIconData('#3b82f6', '🚆', 96),
-      tag: 'train-monitor',
-      renotify: true,
-      data: { url: dataUrl || location.href }
-    };
-
-    const fallback = () => { try { new Notification(title, { body }); } catch(e) {} };
-
-    if (swReg && swReg.showNotification) {
-      swReg.showNotification(title, options).catch(fallback);
-      return;
-    }
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.getRegistration().then(reg => {
-        if (reg && reg.showNotification) reg.showNotification(title, options);
-        else fallback();
-      });
-      return;
-    }
-    fallback();
-  };
-
-  window.testNotification = async function() {
-    if (!canUseNotifications()) {
-      alert('通知需要在 HTTPS 或 localhost 環境使用。\n（iPhone 需先「加入主畫面」後才可顯示通知）');
-      return;
-    }
-    const r = await ensurePermissionFromGesture();
-    if (!r.ok) {
-      alert('通知權限未開啟或被拒絕。請到瀏覽器網站設定允許通知後再試。');
-      return;
-    }
-    window.sendNotification('🔔 測試成功', '這是一則測試通知（頁面開著時會跳出）。');
-  };
-
-  window.togglePush = async function(el) {
-    // 你的 UI 可能是 onchange="togglePush(this)"
-    if (!canUseNotifications()) {
-      if (el) el.checked = false;
-      localStorage.setItem('push_enabled', 'false');
-      alert('通知需要在 HTTPS 或 localhost。\n（iPhone 需先「加入主畫面」）');
-      return;
-    }
-    if (!el) return;
-
-    if (el.checked) {
-      const r = await ensurePermissionFromGesture();
-      if (r.ok) {
-        localStorage.setItem('push_enabled', 'true');
-        window.sendNotification('🔔 通知已啟用', '監控列車狀態/位置/預估到站更新時會推播提醒。');
-      } else {
-        el.checked = false;
-        localStorage.setItem('push_enabled', 'false');
-        alert('通知權限未開啟或被拒絕。');
-      }
-    } else {
-      localStorage.setItem('push_enabled', 'false');
-    }
-  };
-
-  // 初始化：註冊 SW + 更新提示
-  window.addEventListener('load', async () => {
-    await registerSW();
-    const hint = document.getElementById('pushHint');
-    if (hint && !isSecureForNotify()) {
-      hint.innerHTML = "※ 你目前不是安全環境。";
-    }
-  });
-})();
-</script>
-
-
-<script>
-/* ===== Monitor v3：台鐵最多2組 + 高鐵1組（頁面開著就通知） ===== */
-(() => {
-  // 依你現有覆蓋版：sendNotification(title, body) 已存在
+  // ---------- helpers ----------
   const pad2 = (n)=>String(n).padStart(2,'0');
-  const hhmmToMin = (s)=>{ if(!s||!/^\d{2}:\d{2}$/.test(s)) return null; const [h,m]=s.split(':').map(Number); return h*60+m; };
-  const minToHHMM = (m)=>{ m=((m%1440)+1440)%1440; return pad2(Math.floor(m/60))+':'+pad2(m%60); };
+  const norm = (s)=> (typeof normalizeName === 'function' ? normalizeName(s||'') : (s||'').trim());
 
-  // --- 取得設定 ---
-  function getCfg() {
-    const pushOn = (localStorage.getItem('push_enabled')==='true');
-    const enabled = document.getElementById('monitorSwitch')?.checked || (localStorage.getItem('monitor_enabled')==='true');
-    const tr1 = (document.getElementById('mon_tr_train1')?.value||'').trim();
-    const ts1 = (document.getElementById('mon_tr_station1')?.value||'').trim();
-    const tr2 = (document.getElementById('mon_tr_train2')?.value||'').trim();
-    const ts2 = (document.getElementById('mon_tr_station2')?.value||'').trim();
-    const ht  = (document.getElementById('mon_thsr_train')?.value||'').trim();
-    const hs  = (document.getElementById('mon_thsr_station')?.value||'').trim();
-    return {enabled, pushOn,
-      tra: [
-        (tr1 && ts1) ? {trainNo: tr1, target: ts1} : null,
-        (tr2 && ts2) ? {trainNo: tr2, target: ts2} : null
-      ].filter(Boolean),
-      thsr: (ht && hs) ? {trainNo: ht, target: hs} : null
-    };
+  function fmtTitle(trainNo, trainType) {
+    const t = (trainType||'').replace(/[()]/g,'').trim();
+    return t ? `🚆 ${trainNo}車次 ${t}` : `🚆 ${trainNo}車次`;
+  }
+  function fmtBodyLines({trainNo, trainType, statusText, whereText, etaHHMM, targetStation, kind}) {
+    const t = (trainType||'').replace(/[()]/g,'').trim();
+    const head = t ? `${trainNo}車次 ${t}｜${statusText}` : `${trainNo}車次｜${statusText}`;
+
+    if (kind === 'alight') {
+      return [
+        `{下車通知} ${whereText}`,
+        head,
+        `目前在：${whereText2 || whereText}` // placeholder, will be overwritten by caller
+      ].join('\n');
+    }
+
+    const lines = [
+      head,
+      whereText,
+    ];
+    if (targetStation && etaHHMM) lines.push(`預計：${etaHHMM} 抵達 ${targetStation}`);
+    return lines.join('\n');
   }
 
-  // --- 通知排版（好看）---
-  function notify(title, lines, tag) {
-    const body = lines.filter(Boolean).join('\n');
-    if (typeof window.sendNotification === 'function') {
-      // 若你的 sendNotification 支援 tag/data，就用第三參數傳 tag（不支援也沒關係）
-      try { window.sendNotification(title, body); } catch(e) {}
+  function canNotify() {
+    return (localStorage.getItem('push_enabled') === 'true') && (typeof window.sendNotification === 'function');
+  }
+
+  function sendNow(title, body) {
+    if (!canNotify()) return;
+    window.sendNotification(title, body);
+  }
+
+  function padThsrNo(no) {
+    const s = String(no||'').trim();
+    if (/^\d{3}$/.test(s)) return '0' + s;
+    return s;
+  }
+
+  // ---------- config ----------
+  function getMonitorsFromUI() {
+    const tr1 = { mode:'TRA', train: norm(document.getElementById('mon_tr1_train')?.value), target: norm(document.getElementById('mon_tr1_station')?.value) };
+    const tr2 = { mode:'TRA', train: norm(document.getElementById('mon_tr2_train')?.value), target: norm(document.getElementById('mon_tr2_station')?.value) };
+    const th  = { mode:'THSR', train: padThsrNo(norm(document.getElementById('mon_thsr_train')?.value)), target: norm(document.getElementById('mon_thsr_station')?.value) };
+
+    const list = [];
+    if (tr1.train) list.push({ id:'TRA1', ...tr1 });
+    if (tr2.train) list.push({ id:'TRA2', ...tr2 });
+    if (th.train)  list.push({ id:'THSR', ...th });
+    return list;
+  }
+
+  function getMonitorsFromStorage() {
+    const tr1t = norm(localStorage.getItem('mon_tr1_train'));
+    const tr1s = norm(localStorage.getItem('mon_tr1_station'));
+    const tr2t = norm(localStorage.getItem('mon_tr2_train'));
+    const tr2s = norm(localStorage.getItem('mon_tr2_station'));
+    const tht  = padThsrNo(norm(localStorage.getItem('mon_thsr_train')));
+    const ths  = norm(localStorage.getItem('mon_thsr_station'));
+
+    const list = [];
+    if (tr1t) list.push({ id:'TRA1', mode:'TRA', train: tr1t, target: tr1s });
+    if (tr2t) list.push({ id:'TRA2', mode:'TRA', train: tr2t, target: tr2s });
+    if (tht)  list.push({ id:'THSR', mode:'THSR', train: tht, target: ths });
+    return list;
+  }
+
+  // ---------- marquee rotation ----------
+  let marqueeTimer = null;
+  let pollTimer = null;
+  let lastMarqueeMsgs = []; // [{id,msg,color}]
+  let marqIdx = 0;
+
+  function setMarquee(msgObj) {
+    const el = document.getElementById('monitorStatusText');
+    if (!el) return;
+    if (!msgObj) {
+      el.innerText = "監控未啟用";
+      el.className = "monitor-text static";
+      return;
+    }
+    el.className = "monitor-text";
+    el.innerText = msgObj.msg;
+    el.style.color = msgObj.color || '';
+  }
+
+  function startMarqueeRotation() {
+    if (marqueeTimer) clearInterval(marqueeTimer);
+    marqIdx = 0;
+    marqueeTimer = setInterval(() => {
+      if (!lastMarqueeMsgs.length) { setMarquee(null); return; }
+      marqIdx = (marqIdx + 1) % lastMarqueeMsgs.length;
+      setMarquee(lastMarqueeMsgs[marqIdx]);
+    }, 6000);
+  }
+
+  // ---------- notification state ----------
+  const notifyState = {
+    // per monitor id: { sig, lastStation, sent10, sent5, lastStopArrivalSig }
+    map: {}
+  };
+
+  function getState(id) {
+    if (!notifyState.map[id]) notifyState.map[id] = { sig:null, lastStation:null, sent10:false, sent5:false };
+    return notifyState.map[id];
+  }
+  function resetCountdownFlags(id) {
+    const st = getState(id);
+    st.sent10 = false; st.sent5 = false;
+  }
+
+  function minutesUntil(dateObj) {
+    return Math.floor((dateObj.getTime() - Date.now())/60000);
+  }
+
+  function computeEtaDateFromHHMM(hhmm) {
+    const [h,m]=hhmm.split(':').map(Number);
+    const d = new Date();
+    d.setSeconds(0,0);
+    d.setHours(h,m,0,0);
+    // if eta already passed today, assume next day
+    if (d.getTime() < Date.now() - 60000) d.setDate(d.getDate()+1);
+    return d;
+  }
+
+  function maybeNotify(id, data, opts) {
+    const st = getState(id);
+    const sig = JSON.stringify({
+      train:data.trainNo, type:data.trainType, status:data.statusText, where:data.whereKey, eta:data.etaHHMM, target:data.targetStation
+    });
+
+    // (A) first after save/start
+    if (opts?.forceFirst || st.sig === null) {
+      st.sig = sig;
+      st.lastStation = data.whereKey;
+      resetCountdownFlags(id);
+      sendNow(fmtTitle(data.trainNo, data.trainType), data.body);
+      return;
+    }
+
+    // (B) status / ETA change
+    if (sig !== st.sig) {
+      st.sig = sig;
+      sendNow(fmtTitle(data.trainNo, data.trainType), data.body);
+    }
+
+    // (C) arrived at a stop station (only when explicitly flagged)
+    if (opts?.arrivedStop && opts.stopName) {
+      sendNow(`🚉 ${data.trainNo}車次 抵達 ${opts.stopName}`, data.body);
+    }
+
+    // (D) 10/5 min reminders
+    if (data.targetStation && data.etaHHMM) {
+      const etaDate = computeEtaDateFromHHMM(data.etaHHMM);
+      const m = minutesUntil(etaDate);
+      if (!st.sent10 && m <= 10 && m >= 9) {
+        st.sent10 = true;
+        sendNow(`{下車通知} 10分鐘後抵達${data.targetStation}`, [
+          `{下車通知} 10分鐘後抵達${data.targetStation}`,
+          `${data.trainNo}車次 ${data.trainType||''}`.trim() + `｜${data.statusText}`,
+          `目前在：${data.whereText.replace('目前在：','')}`,
+          `預計：${data.etaHHMM} 抵達 ${data.targetStation}`
+        ].join('\n'));
+      }
+      if (!st.sent5 && m <= 5 && m >= 4) {
+        st.sent5 = true;
+        sendNow(`{下車通知} 5分鐘後抵達${data.targetStation}`, [
+          `{下車通知} 5分鐘後抵達${data.targetStation}`,
+          `${data.trainNo}車次 ${data.trainType||''}`.trim() + `｜${data.statusText}`,
+          `目前在：${data.whereText.replace('目前在：','')}`,
+          `預計：${data.etaHHMM} 抵達 ${data.targetStation}`
+        ].join('\n'));
+      }
     }
   }
 
-  // --- 節流/狀態記憶：每個監控目標各自一份 ---
-  const state = new Map(); // key -> { lastSig, lastStation, lastDelay, sent10, sent5, lastStopArrivedMin }
-  function getState(key) {
-    if (!state.has(key)) state.set(key, { lastSig:null, lastStation:null, lastDelay:null, sent10:false, sent5:false });
-    return state.get(key);
-  }
-  function resetTimers(s) { s.sent10=false; s.sent5=false; }
-
-  // --- 共用：根據 ETA (Date) 觸發 10/5 分鐘 ---
-  function handleCountdown(key, etaDate, targetName, headerLines) {
-    const s = getState(key);
-    if (!(etaDate instanceof Date) || isNaN(etaDate)) return;
-    const diffMin = Math.floor((etaDate.getTime() - Date.now()) / 60000);
-    if (!s.sent10 && diffMin <= 10 && diffMin >= 9) {
-      s.sent10 = true;
-      notify(`{下車通知} 10分鐘後抵達${targetName}`, headerLines, key+'|eta10');
-    }
-    if (!s.sent5 && diffMin <= 5 && diffMin >= 4) {
-      s.sent5 = true;
-      notify(`{下車通知} 5分鐘後抵達${targetName}`, headerLines, key+'|eta5');
-    }
+  // ---------- TRA (台鐵) ----------
+  // cache timetable per train+date to reduce API calls
+  const traTTCache = new Map(); // key => {ts, stops, trainType}
+  function cacheKeyTRA(trainNo) {
+    const d = new Date();
+    const y = d.getFullYear(); const m = pad2(d.getMonth()+1); const dd = pad2(d.getDate());
+    return `${trainNo}|${y}-${m}-${dd}`;
   }
 
-  // ===== 台鐵：用 LiveBoard（通過站也可顯示）+ Timetable 算 ETA =====
-  async function traFetchJSON(url) {
-    // 用你原本的 apiFetch/getAccessToken
-    if (typeof window.apiFetch === 'function') return await window.apiFetch(url);
-    const r = await fetch(url);
-    return await r.json();
+  async function getTraTimetable(trainNo) {
+    const key = cacheKeyTRA(trainNo);
+    const hit = traTTCache.get(key);
+    if (hit && (Date.now()-hit.ts) < 10*60*1000) return hit; // 10min cache
+
+    if (!window.tdxToken) await window.getTdxToken?.();
+    if (!window.tdxToken) return null;
+
+    const ymd = key.split('|')[1];
+    const url = `https://tdx.transportdata.tw/api/basic/v3/Rail/TRA/DailyTrainTimetable/TrainNo/${trainNo}/TrainDate/${ymd}?$format=JSON`;
+    const res = await fetch(url, { headers: { Authorization: `Bearer ${window.tdxToken}` }});
+    if (!res.ok) return null;
+    const data = await res.json();
+    const tt = data?.TrainTimetables?.[0];
+    if (!tt) return null;
+
+    const stops = tt.StopTimes || [];
+    const trainType = tt.TrainInfo?.TrainTypeName?.Zh_tw || tt.TrainInfo?.TrainTypeName?.En || '';
+    const obj = { ts: Date.now(), stops, trainType };
+    traTTCache.set(key, obj);
+    return obj;
   }
 
-  async function checkTRA(trainNo, targetStation) {
-    const key = `TRA|${trainNo}|${targetStation}`;
-    const s = getState(key);
+  async function checkTRA(mon, forceFirst=false) {
+    const trainNo = mon.train;
+    const targetStation = mon.target;
+    if (!trainNo) return null;
 
-    // LiveBoard：取得目前所在站（可能為通過站）+ delay
-    const liveUrl = `https://tdx.transportdata.tw/api/basic/v3/Rail/TRA/TrainLiveBoard/TrainNo/${trainNo}?%24format=JSON`;
-    const live = await traFetchJSON(liveUrl);
+    if (!window.tdxToken) await window.getTdxToken?.();
+    if (!window.tdxToken) return null;
 
-    const lb = live && live.TrainLiveBoards && live.TrainLiveBoards[0];
-    if (!lb) return;
+    // LiveBoard: includes passed stations (not only stops)
+    const url = `https://tdx.transportdata.tw/api/basic/v3/Rail/TRA/TrainLiveBoard/TrainNo/${trainNo}?$format=JSON`;
+    const res = await fetch(url, { headers: { Authorization: `Bearer ${window.tdxToken}` }});
+    if (!res.ok) return null;
+    const live = await res.json();
+    const item = live?.TrainLiveBoards?.[0];
+    if (!item) return null;
 
-    const cur = (lb.StationName && (lb.StationName.Zh_tw||lb.StationName.En)) || (lb.StationID||'--');
-    const delay = (typeof lb.DelayTime === 'number') ? lb.DelayTime : 0;
+    const currentStation = item.StationName?.Zh_tw || '';
+    const delay = Number(item.DelayTime) || 0;
+    const statusText = delay > 0 ? `晚${delay}分` : (delay < 0 ? `早${Math.abs(delay)}分` : '準點');
 
-    // 狀態文字
-    const statusText = delay>0 ? `晚${delay}分` : (delay<0 ? `早${Math.abs(delay)}分` : '準點');
-
-    // Timetable：抓今天該車次時刻，計算目標站表定到達，並加上 delay
-    const ttUrl = `https://tdx.transportdata.tw/api/basic/v3/Rail/TRA/DailyTrainTimetable/Today/TrainNo/${trainNo}?%24format=JSON`;
-    const tt = await traFetchJSON(ttUrl);
-    const t0 = tt && tt.TrainTimetables && tt.TrainTimetables[0];
-    let trainType = '';
-    try {
-      const ti = t0.TrainInfo;
-      trainType = (ti.TrainTypeName && (ti.TrainTypeName.Zh_tw||ti.TrainTypeName.En)) || '';
-    } catch(e){}
-
+    // timetable for target ETA + stop detection
     let etaHHMM = '';
-    let etaDate = null;
-    let stopArrivedNow = null;
-
-    if (t0 && t0.StopTimes && t0.StopTimes.length) {
-      // 找目標站表定到達
-      const tgt = t0.StopTimes.find(x => (x.StationName && (x.StationName.Zh_tw||x.StationName.En)) === targetStation);
-      if (tgt && tgt.ArrivalTime) {
-        const base = hhmmToMin(tgt.ArrivalTime);
-        if (base !== null) {
-          const pred = base + delay;
-          etaHHMM = minToHHMM(pred);
-          const now = new Date();
-          // 以今天日期組 Date（跨日加 1 日）
-          const nowMin = now.getHours()*60 + now.getMinutes();
-          let dayOffset = 0;
-          if (pred < nowMin - 720) dayOffset = 1; // 例如現在很晚、預計到達在凌晨
-          etaDate = new Date(now.getFullYear(), now.getMonth(), now.getDate()+dayOffset, Math.floor(((pred%1440)+1440)%1440/60), ((pred%1440)+1440)%1440%60, 0, 0);
+    let trainType = '';
+    let arrivedStopName = '';
+    const tt = await getTraTimetable(trainNo);
+    if (tt) {
+      trainType = tt.trainType || '';
+      // normalize station match
+      const tgt = norm(targetStation);
+      if (tgt) {
+        const stop = tt.stops.find(s => norm(s.StationName?.Zh_tw) === tgt);
+        if (stop && stop.ArrivalTime) {
+          // ETA = scheduled Arrival + delay (minute)
+          const [h,m] = stop.ArrivalTime.split(':').map(Number);
+          const d = new Date();
+          d.setSeconds(0,0);
+          d.setHours(h, m + delay);
+          etaHHMM = `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
         }
       }
-
-      // 抵達停靠站通知：以「目前站 cur」如果剛好是 StopTimes 裡的站，就視為抵達停靠站（用 API 判斷）
-      const stop = t0.StopTimes.find(x => (x.StationName && (x.StationName.Zh_tw||x.StationName.En)) === cur);
-      if (stop) stopArrivedNow = cur;
+      // arrived stop station detection: if currentStation equals a stop station
+      const stopHere = tt.stops.find(s => norm(s.StationName?.Zh_tw) === norm(currentStation));
+      if (stopHere) arrivedStopName = stopHere.StationName?.Zh_tw || currentStation;
     }
 
-    // --- 組通知內容行 ---
-    const headerTitle = `🚆 ${trainNo}車次${trainType ? ' '+trainType : ''}`;
-    const line1 = `${trainNo}車次 ${trainType || ''}｜${statusText}`.trim();
-    const line2 = `目前在：${cur}（通過/即時）`;
-    const line3 = etaHHMM ? `預計：${etaHHMM} 抵達 ${targetStation}` : `目標站：${targetStation}`;
+    // body formatting
+    const whereText = `目前在：${currentStation}${arrivedStopName ? '（抵達）' : '（通過）'}`;
+    const body = [
+      `${trainNo}車次 ${trainType}`.trim() + `｜${statusText}`,
+      whereText,
+      (targetStation && etaHHMM) ? `預計：${etaHHMM} 抵達 ${targetStation}` : ''
+    ].filter(Boolean).join('\n');
 
-    const sig = JSON.stringify({cur, delay, etaHHMM, targetStation});
+    // marquee msg
+    const msg = `台鐵 ${trainNo}｜${statusText}｜${currentStation}${etaHHMM && targetStation ? `｜ETA ${etaHHMM}→${targetStation}` : ''}     `;
+    const color = delay > 0 ? "#f87171" : "";
+    // notify
+    maybeNotify(mon.id, {
+      trainNo, trainType, statusText,
+      whereKey: currentStation,
+      whereText,
+      etaHHMM,
+      targetStation,
+      body
+    }, { forceFirst, arrivedStop: !!arrivedStopName, stopName: arrivedStopName });
 
-    // 第一則 / 狀態變動
-    if (s.lastSig === null) {
-      resetTimers(s);
-      notify(headerTitle, [line1, line2, line3], key+'|first');
-      s.lastSig = sig;
-      s.lastDelay = delay;
-      s.lastStation = cur;
-    } else {
-      const delayChanged = (s.lastDelay !== delay);
-      const sigChanged = (s.lastSig !== sig);
-      if (delayChanged || sigChanged) {
-        notify(headerTitle, [line1, line2, line3], key+'|update');
-        s.lastSig = sig;
-        s.lastDelay = delay;
-      }
-      // 抵達停靠站（以 API 判斷）
-      if (stopArrivedNow && stopArrivedNow !== s.lastArrStop) {
-        s.lastArrStop = stopArrivedNow;
-        notify(`🚉 ${trainNo}車次 抵達 ${stopArrivedNow}`, [line1, `目前抵達：${stopArrivedNow}`, line3], key+'|arrive');
-      }
-      // 目前位置站名變動（通過站也通知可選：你要的是到站通知以停靠站為主，所以不另外通知）
-      s.lastStation = cur;
-    }
-
-    // 10/5 分鐘提醒
-    handleCountdown(key, etaDate, targetStation, [
-      `${trainNo}車次 ${trainType || ''}｜${statusText}`.trim(),
-      `目前在：${cur}（通過/即時）`,
-      line3
-    ]);
+    return { id: mon.id, msg, color };
   }
 
-  // ===== 高鐵：用表定時刻 + 現在時間推估（無 LiveBoard）=====
-  async function checkTHSR(trainNo, targetStation) {
-    const key = `THSR|${trainNo}|${targetStation}`;
-    const s = getState(key);
+  // ---------- THSR (高鐵) - schedule-based ETA ----------
+  const thsrTTCache = new Map();
+  function cacheKeyTHSR(trainNo) {
+    const d = new Date();
+    const y = d.getFullYear(); const m = pad2(d.getMonth()+1); const dd = pad2(d.getDate());
+    return `${trainNo}|${y}-${m}-${dd}`;
+  }
 
-    // 取今日時刻表（TDX v2，若失敗就略過）
-    const url = `https://tdx.transportdata.tw/api/basic/v2/Rail/THSR/DailyTrainTimetable/Today/TrainNo/${trainNo}?%24format=JSON`;
-    let data = null;
-    try { data = await traFetchJSON(url); } catch(e) { return; }
-    const t0 = Array.isArray(data) ? data[0] : (data && data.TrainTimetables && data.TrainTimetables[0]);
-    // v2 THSR 通常直接 array；保守處理
-    const stopTimes = (t0 && (t0.StopTimes || t0.StopTime)) || (Array.isArray(data) && data[0] && data[0].StopTimes);
-    if (!stopTimes || !stopTimes.length) return;
+  async function getTHSRTimetable(trainNo) {
+    const key = cacheKeyTHSR(trainNo);
+    const hit = thsrTTCache.get(key);
+    if (hit && (Date.now()-hit.ts) < 60*60*1000) return hit; // 1hr cache
 
-    let trainType = '';
-    try {
-      const ti = t0.TrainInfo || t0.TrainTimetable?.TrainInfo;
-      trainType = (ti && ti.TrainTypeName && (ti.TrainTypeName.Zh_tw||ti.TrainTypeName.En)) || '';
-    } catch(e){}
+    if (!window.tdxToken) await window.getTdxToken?.();
+    if (!window.tdxToken) return null;
 
-    // 找目標站
-    const tgt = stopTimes.find(x => (x.StationName && (x.StationName.Zh_tw||x.StationName.En)) === targetStation);
-    if (!tgt || !tgt.ArrivalTime) return;
+    const ymd = key.split('|')[1];
+    const url = `https://tdx.transportdata.tw/api/basic/v2/Rail/THSR/DailyTimetable/TrainNo/${trainNo}/TrainDate/${ymd}?$format=JSON`;
+    const res = await fetch(url, { headers: { Authorization: `Bearer ${window.tdxToken}` }});
+    if (!res.ok) return null;
+    const data = await res.json();
+    const tt = data?.[0];
+    if (!tt) return null;
 
-    const tgtMin = hhmmToMin(tgt.ArrivalTime);
-    if (tgtMin === null) return;
+    const stops = tt.StopTimes || [];
+    const trainType = tt.TrainInfo?.TrainTypeName?.Zh_tw || tt.TrainInfo?.TrainTypeName?.En || '';
+    const obj = { ts: Date.now(), stops, trainType };
+    thsrTTCache.set(key, obj);
+    return obj;
+  }
 
-    // 估算目前在哪一站：找「最後一個 DepartureTime/ArrivalTime <= now」的站
+  function hhmmToMin(hhmm) {
+    const [h,m]=hhmm.split(':').map(Number);
+    return h*60+m;
+  }
+
+  async function checkTHSR(mon, forceFirst=false) {
+    const trainNo = mon.train;
+    const targetStation = mon.target;
+    if (!trainNo) return null;
+
+    const tt = await getTHSRTimetable(trainNo);
+    if (!tt || !tt.stops?.length) return null;
+
     const now = new Date();
     const nowMin = now.getHours()*60 + now.getMinutes();
-    let curStop = stopTimes[0];
-    for (const st of stopTimes) {
-      const t = hhmmToMin(st.DepartureTime || st.ArrivalTime);
-      if (t !== null && t <= nowMin) curStop = st;
+
+    // determine current station (last stop with DepartureTime <= now)
+    let current = tt.stops[0]?.StationName?.Zh_tw || '';
+    let arrivedStopName = '';
+    for (const s of tt.stops) {
+      const dep = s.DepartureTime || s.ArrivalTime;
+      if (!dep) continue;
+      if (hhmmToMin(dep) <= nowMin) {
+        current = s.StationName?.Zh_tw || current;
+        arrivedStopName = s.StationName?.Zh_tw || '';
+      }
     }
-    const curName = (curStop.StationName && (curStop.StationName.Zh_tw||curStop.StationName.En)) || '--';
 
-    // 高鐵狀態：以表定推估（先顯示「表定推估」）
-    const statusText = '表定推估';
+    // ETA to target (schedule-only)
+    let etaHHMM = '';
+    const tgt = norm(targetStation);
+    if (tgt) {
+      const stop = tt.stops.find(s => norm(s.StationName?.Zh_tw) === tgt);
+      if (stop && stop.ArrivalTime) etaHHMM = stop.ArrivalTime;
+    }
 
-    const etaHHMM = minToHHMM(tgtMin);
-    const etaDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), Math.floor(tgtMin/60), tgtMin%60, 0, 0);
+    const statusText = '表定推估'; // per your requirement
+    const trainType = tt.trainType || '高鐵';
 
-    const headerTitle = `🚄 ${trainNo}車次${trainType ? ' '+trainType : ''}`;
-    const line1 = `${trainNo}車次 ${trainType || ''}｜${statusText}`.trim();
-    const line2 = `目前在：${curName}（表定推估）`;
-    const line3 = `預計：${etaHHMM} 抵達 ${targetStation}`;
+    const whereText = `目前在：${current}${arrivedStopName ? '（已到站）' : ''}`;
+    const body = [
+      `${trainNo}車次 ${trainType}`.trim() + `｜${statusText}`,
+      whereText,
+      (targetStation && etaHHMM) ? `預計：${etaHHMM} 抵達 ${targetStation}` : ''
+    ].filter(Boolean).join('\n');
 
-    const sig = JSON.stringify({curName, etaHHMM, targetStation});
+    const msg = `高鐵 ${trainNo}｜${statusText}｜${current}${etaHHMM && targetStation ? `｜ETA ${etaHHMM}→${targetStation}` : ''}     `;
+    const color = "#fb923c";
 
-    if (s.lastSig === null) {
-      resetTimers(s);
-      notify(headerTitle, [line1, line2, line3], key+'|first');
-      s.lastSig = sig;
-      s.lastStation = curName;
+    maybeNotify(mon.id, {
+      trainNo, trainType, statusText,
+      whereKey: current,
+      whereText,
+      etaHHMM,
+      targetStation,
+      body
+    }, { forceFirst, arrivedStop: !!arrivedStopName, stopName: arrivedStopName });
+
+    return { id: mon.id, msg, color };
+  }
+
+  // ---------- scheduler ----------
+  async function pollAll(forceFirst=false) {
+    const isOn = localStorage.getItem('mon_enabled') === 'true';
+    const monitors = getMonitorsFromStorage();
+    if (!isOn || !monitors.length) {
+      lastMarqueeMsgs = [];
+      setMarquee(null);
+      return;
+    }
+
+    const results = [];
+    for (const mon of monitors) {
+      try {
+        if (mon.mode === 'TRA') {
+          const r = await checkTRA(mon, forceFirst);
+          if (r) results.push(r);
+        } else if (mon.mode === 'THSR') {
+          const r = await checkTHSR(mon, forceFirst);
+          if (r) results.push(r);
+        }
+      } catch(e) { console.warn(e); }
+    }
+    lastMarqueeMsgs = results;
+    if (results.length) {
+      setMarquee(results[0]);
+      startMarqueeRotation();
     } else {
-      if (s.lastSig !== sig) {
-        notify(headerTitle, [line1, line2, line3], key+'|update');
-        s.lastSig = sig;
-      }
-      // 抵達停靠站：當「推估目前站」變動時視為抵達該站
-      if (curName && curName !== s.lastStation) {
-        s.lastStation = curName;
-        notify(`🚉 ${trainNo}車次 抵達 ${curName}`, [line1, `目前抵達：${curName}`, line3], key+'|arrive');
-      }
-    }
-
-    handleCountdown(key, etaDate, targetStation, [line1, line2, line3]);
-  }
-
-  // ===== 啟用/停用監控 =====
-  let timer = null;
-
-  function saveCfgToLS() {
-    const ids = ['mon_tr_train1','mon_tr_station1','mon_tr_train2','mon_tr_station2','mon_thsr_train','mon_thsr_station'];
-    ids.forEach(id=>{
-      const el=document.getElementById(id);
-      if (el) localStorage.setItem(id, (el.value||'').trim());
-    });
-  }
-  function loadCfgFromLS() {
-    const ids = ['mon_tr_train1','mon_tr_station1','mon_tr_train2','mon_tr_station2','mon_thsr_train','mon_thsr_station'];
-    ids.forEach(id=>{
-      const el=document.getElementById(id);
-      if (el && localStorage.getItem(id)!==null) el.value = localStorage.getItem(id);
-    });
-  }
-
-  async function tick() {
-    const cfg = getCfg();
-    if (!cfg.enabled || !cfg.pushOn) return;
-    saveCfgToLS();
-
-    // 台鐵最多2組
-    for (const item of cfg.tra) {
-      try { await checkTRA(item.trainNo, item.target); } catch(e){ console.warn(e); }
-    }
-    // 高鐵1組
-    if (cfg.thsr) {
-      try { await checkTHSR(cfg.thsr.trainNo, cfg.thsr.target); } catch(e){ console.warn(e); }
+      setMarquee({msg:"找不到列車資料（請確認車次/日期）", color:"#f87171"});
     }
   }
 
-  function start() {
-    if (timer) clearInterval(timer);
-    tick(); // 啟用後立刻出第一則（你要的）
-    timer = setInterval(tick, 60*1000);
-  }
-  function stop() {
-    if (timer) clearInterval(timer);
-    timer = null;
-  }
+  // Override startRealMonitor to support multi monitors
+  window.startRealMonitor = async function(forceFirst=false) {
+    const isOn = localStorage.getItem('mon_enabled') === 'true';
+    if (!isOn) {
+      lastMarqueeMsgs = [];
+      setMarquee(null);
+      return;
+    }
 
-  // 覆蓋原本 toggleMonitor：同一個開關控制（台鐵+高鐵）
-  window.toggleMonitor = function(el) {
-    const on = !!(el && el.checked);
-    localStorage.setItem('monitor_enabled', on ? 'true':'false');
-    const box = document.getElementById('monitorConfig');
-    if (box) box.style.display = on ? 'block':'none';
-    if (on) start(); else stop();
+    if (pollTimer) clearInterval(pollTimer);
+    await pollAll(forceFirst);
+    // poll every 45s (more responsive) – browsers may throttle in background
+    pollTimer = setInterval(() => pollAll(false), 45000);
   };
 
-  // 畫面載入：帶回上次輸入
+  // Override saveSettings to store new fields + trigger first notifications immediately
+  window.saveSettings = function() {
+    const keys = [
+      'tr_home','thsr_home','tr_s1','tr_e1','tr_s2','tr_e2','tr_s3','tr_e3',
+      'thsr_s1','thsr_e1','thsr_s2','thsr_e2','thsr_s3','thsr_e3',
+      'mon_tr1_train','mon_tr1_station','mon_tr2_train','mon_tr2_station','mon_thsr_train','mon_thsr_station'
+    ];
+    keys.forEach(k => {
+      const el = document.getElementById(k);
+      if (!el) return;
+      let v = el.value || '';
+      if (k === 'mon_thsr_train') v = padThsrNo(v);
+      localStorage.setItem(k, norm(v));
+      el.value = v; // reflect padding in UI immediately
+    });
+
+    // keep old keys cleared (avoid old single-monitor behavior)
+    localStorage.removeItem('mon_train');
+    localStorage.removeItem('mon_station');
+
+    try { window.renderFavs?.(); } catch(e) {}
+    try { window.toggleSettings?.(false); } catch(e) {}
+
+    // ✅ Save then first notification right away
+    window.startRealMonitor(true);
+  };
+
+  // When tab becomes visible again, do an immediate refresh (helps after background throttling)
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      window.startRealMonitor(false);
+    }
+  });
+
+  // Make sure UI loads stored values
   window.addEventListener('load', () => {
-    loadCfgFromLS();
-    // 還原開關狀態
-    const ms = document.getElementById('monitorSwitch');
-    const on = (localStorage.getItem('monitor_enabled')==='true');
-    if (ms) ms.checked = on;
-    const box = document.getElementById('monitorConfig');
-    if (box) box.style.display = on ? 'block':'none';
-    if (on) start();
+    const ids = ['mon_tr1_train','mon_tr1_station','mon_tr2_train','mon_tr2_station','mon_thsr_train','mon_thsr_station'];
+    ids.forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.value = localStorage.getItem(id) || '';
+    });
   });
 
 })();
