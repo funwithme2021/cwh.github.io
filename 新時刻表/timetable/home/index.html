@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>時刻表 Pro (Live)</title>
+    <title>Real-Time</title>
     <link rel="manifest" href="./manifest.json">
     <meta name="theme-color" content="#0f172a">
 
@@ -479,6 +479,116 @@
             document.getElementById('thsrStatusDot').className = 'status-dot ok';
         }
 
+        
+        // ===== 通知引擎（頁面開著即可，iPhone 建議「加入主畫面」後使用）=====
+        const MonitorNotify = (() => {
+            let lastSig = null;        // 上次通知的狀態簽名（狀態/位置/ETA）
+            let lastStation = null;    // 上次列車所在站
+            let lastDelay = null;      // 上次誤點分鐘
+            let lastTargetKey = null;  // trainNo|targetStation
+            let sent10 = false;
+            let sent5  = false;
+
+            function nowHHMM() {
+                const d = new Date();
+                return d.getHours().toString().padStart(2,'0') + ':' + d.getMinutes().toString().padStart(2,'0');
+            }
+
+            function minDiff(targetDate) {
+                const ms = targetDate.getTime() - Date.now();
+                return Math.floor(ms / 60000);
+            }
+
+            function resetIfTargetChanged(trainNo, targetStation) {
+                const key = `${trainNo}|${targetStation||''}`;
+                if (key !== lastTargetKey) {
+                    lastTargetKey = key;
+                    sent10 = false;
+                    sent5 = false;
+                    lastSig = null;
+                    lastStation = null;
+                    lastDelay = null;
+                }
+            }
+
+            function shouldNotifyFirst(pushOn) {
+                return pushOn && lastSig === null; // 啟用後第一筆立刻通知
+            }
+
+            function buildBody({trainNo, trainType, currentStation, statusText, etaHHMM, targetStation}) {
+                const tt = trainType ? `${trainNo}${trainType}` : `${trainNo}`;
+                if (targetStation && etaHHMM) {
+                    return `${tt}，目前在${currentStation}，${statusText}，預計${etaHHMM}抵達${targetStation}。`;
+                }
+                return `${tt}，目前在${currentStation}，${statusText}。`;
+            }
+
+            function notifyTrainUpdate(data, reason) {
+                // reason: first|status|station|eta10|eta5|arrive
+                const title = '🚆 列車即時通知';
+                const body = buildBody(data);
+                // 走你已經覆蓋過的 sendNotification（SW showNotification）
+                if (typeof window.sendNotification === 'function') {
+                    window.sendNotification(title, body);
+                }
+            }
+
+            function update({trainNo, trainType, currentStation, delayMin, statusText, etaDate, etaHHMM, targetStation, atStopArrived}) {
+                const pushOn = localStorage.getItem('push_enabled') === 'true';
+                if (!pushOn) return;
+
+                resetIfTargetChanged(trainNo, targetStation);
+
+                const sig = JSON.stringify({
+                    trainNo, trainType, currentStation,
+                    delayMin, etaHHMM, targetStation
+                });
+
+                // 1) 啟用後第一則立刻跳出
+                if (shouldNotifyFirst(pushOn)) {
+                    lastSig = sig;
+                    lastStation = currentStation;
+                    lastDelay = delayMin;
+                    notifyTrainUpdate({trainNo, trainType, currentStation, statusText, etaHHMM, targetStation}, 'first');
+                }
+
+                // 2) 狀態變動（誤點分鐘變動、或 ETA 變動）
+                if (lastDelay !== null && delayMin !== null && delayMin !== lastDelay) {
+                    lastSig = sig;
+                    lastDelay = delayMin;
+                    notifyTrainUpdate({trainNo, trainType, currentStation, statusText, etaHHMM, targetStation}, 'status');
+                } else if (lastSig !== null && sig !== lastSig) {
+                    // 其他資訊變動（站名/ETA）
+                    lastSig = sig;
+                    notifyTrainUpdate({trainNo, trainType, currentStation, statusText, etaHHMM, targetStation}, 'status');
+                }
+
+                // 3) 抵達停靠站（偵測目前站變動）
+                if (lastStation !== null && currentStation && currentStation !== lastStation) {
+                    lastStation = currentStation;
+                    notifyTrainUpdate({trainNo, trainType, currentStation, statusText, etaHHMM, targetStation}, 'arrive');
+                } else if (lastStation === null) {
+                    lastStation = currentStation;
+                }
+
+                // 4) 距離目標站 10 / 5 分鐘提醒
+                if (targetStation && etaDate instanceof Date && !isNaN(etaDate)) {
+                    const m = minDiff(etaDate);
+                    if (!sent10 && m <= 10 && m >= 9) { // 10 分鐘窗口
+                        sent10 = true;
+                        notifyTrainUpdate({trainNo, trainType, currentStation, statusText: `即將抵達（約${m}分鐘）`, etaHHMM, targetStation}, 'eta10');
+                    }
+                    if (!sent5 && m <= 5 && m >= 4) { // 5 分鐘窗口
+                        sent5 = true;
+                        notifyTrainUpdate({trainNo, trainType, currentStation, statusText: `快到了（約${m}分鐘）`, etaHHMM, targetStation}, 'eta5');
+                    }
+                }
+            }
+
+            return { update };
+        })();
+
+
         // ===== 監控核心邏輯 =====
         async function startRealMonitor() {
             if(monitorInterval) clearInterval(monitorInterval);
@@ -547,13 +657,26 @@
                 const marquee = document.getElementById('monitorStatusText');
                 marquee.innerText = displayMsg;
                 marquee.style.color = delay > 0 ? "#f87171" : ""; 
-
-                // 通知邏輯：只有在「副開關 (push_enabled)」開啟時才發送
-                const isPushOn = localStorage.getItem('push_enabled') === 'true';
-                if (isPushOn && delay > 0) {
-                    sendNotification(`🚆 ${trainNo}次 誤點通報`, `${statusStr}於 ${currentStn}${arrivalStr}`);
-                }
-
+                // ===== 通知邏輯（依最新狀態）=====
+                // 1) 啟用推播後第一筆立刻通知
+                // 2) 狀態變動（誤點/ETA）通知
+                // 3) 抵達停靠站通知（目前站變動）
+                // 4) 距離目標站 10 / 5 分鐘提醒
+                try {
+                    if (typeof MonitorNotify !== 'undefined') {
+                        MonitorNotify.update({
+                            trainNo,
+                            trainType: window.__mon_trainType || '',
+                            currentStation: currentStn,
+                            delayMin: delay,
+                            statusText: statusStr,
+                            etaDate: window.__mon_etaDate || null,
+                            etaHHMM: window.__mon_etaHHMM || '',
+                            targetStation,
+                            atStopArrived: true
+                        });
+                    }
+                } catch(e) { console.warn(e); }
             } catch (e) { console.error(e); }
         }
 

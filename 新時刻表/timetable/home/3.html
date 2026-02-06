@@ -292,7 +292,7 @@
                     <button class="geo-btn loading" id="trGeoBtn" onclick="event.stopPropagation(); findNearest('tr')">
                         <span>⌛ 正在下載全台車站資料...</span>
                     </button>
-                    <p id="pushHint" style="margin-top:10px; font-size:0.78rem; color:var(--text-muted); line-height:1.4;">※ 通知需要在 <b>HTTPS</b> 或 <b>localhost</b>；iPhone 需「加入主畫面」後才可顯示通知。</p>
+                    
 
                     <ul class="desc-list" id="trList"></ul>
                 </div>
@@ -856,7 +856,7 @@
     await registerSW();
     const hint = document.getElementById('pushHint');
     if (hint && !isSecureForNotify()) {
-      hint.innerHTML = "※ 你目前不是安全環境（非 HTTPS/localhost），通知會失效。<br>iPhone 需「加入主畫面」後才可顯示通知。";
+      hint.innerHTML = "※ 你目前不是安全環境。";
     }
   });
 })();
