@@ -1286,6 +1286,8 @@ function __setLoadingVisible(on, msg){
 function showLoading(msg='載入中...'){
   __loadingCount++;
   __setLoadingVisible(true, msg);
+  // 強制一次 reflow，避免手機上大量同步運算導致遮罩不出現、看起來像當機
+  try{ document.getElementById('loading-overlay')?.offsetHeight; }catch(e){}
 }
 
 function hideLoading(){
@@ -1604,7 +1606,7 @@ function splitArrDep(stopRow){
     // 判斷「此班次是否仍可能在運行窗口內」
     const isActiveWindow =
       (originDateStr === todayStr) ||
-      (originDateStr === yestStr && crosses && Number.isFinite(lastAbs) && nowAbs <= (lastAbs + 10));
+      (originDateStr === yestStr && crosses && Number.isFinite(lastAbs) && nowAbs <= (lastAbs + 360));
 
     // 過去發車日：通常已到終點；但「昨天發車 + 跨日 + 仍在窗口」要保留即時狀態
     if(originDateStr && originDateStr < todayStr && !isActiveWindow) return '已到終點';
@@ -1618,6 +1620,15 @@ function splitArrDep(stopRow){
     // 停駛/截短等優先顯示（比已過站更重要）
     if(raw && /停駛|取消|暫停|終止|運轉整理|截短|折返|部分停駛/i.test(raw)) return raw;
 
+    // 以「整體誤點分鐘」修正時間判斷（避免誤點時過早顯示已過站/下一站）
+    let delayMin = 0;
+    if(isActiveWindow){
+      try{ if(typeof getDelayMinutes==='function') delayMin = Number(getDelayMinutes(String(trainNo)) || 0); }catch(e){ delayMin = 0; }
+    }
+    if(!Number.isFinite(delayMin)) delayMin = 0;
+    const firstAbsEff = (firstAbs!==null && Number.isFinite(firstAbs)) ? (firstAbs + Math.max(0,delayMin)) : firstAbs;
+    const lastAbsEff  = (lastAbs !==null && Number.isFinite(lastAbs )) ? (lastAbs  + Math.max(0,delayMin)) : lastAbs;
+
     // 已過站：以「查詢站」的 absMin 判斷（支援跨日）
     if(passedStationAbsOrTime !== null && passedStationAbsOrTime !== undefined){
       let passAbs = null;
@@ -1629,18 +1640,19 @@ function splitArrDep(stopRow){
         passAbs = getAbsFromHHMMMaybeCross(passedStationAbsOrTime, firstAbs);
       }
 
+      if(Number.isFinite(delayMin) && delayMin>0 && passAbs!==null && Number.isFinite(passAbs)) passAbs = passAbs + Math.max(0,delayMin);
       if(passAbs !== null && Number.isFinite(passAbs) && Number.isFinite(nowAbs) && nowAbs > passAbs){
         return '已過站';
       }
     }
 
     // 還沒到起站時間 → 未發車
-    if(firstAbs !== null && Number.isFinite(firstAbs) && Number.isFinite(nowAbs) && nowAbs < firstAbs){
+    if(firstAbs !== null && Number.isFinite(firstAbs) && Number.isFinite(nowAbs) && nowAbs < firstAbsEff){
       return '未發車';
     }
 
     // 已過終點（保留 10 分鐘緩衝）
-    if(lastAbs !== null && Number.isFinite(lastAbs) && Number.isFinite(nowAbs) && nowAbs > (lastAbs + 10)){
+    if(lastAbs !== null && Number.isFinite(lastAbs) && Number.isFinite(nowAbs) && nowAbs > (lastAbsEff + 10)){
       return '已到終點';
     }
 
@@ -1675,7 +1687,7 @@ function splitArrDep(stopRow){
     const nowAbs = getNowAbsFromOrigin(originDateStr || todayStr);
     const isActiveWindow =
       (originDateStr === todayStr) ||
-      (originDateStr === yestStr && crosses && Number.isFinite(lastAbs) && nowAbs <= (lastAbs + 10));
+      (originDateStr === yestStr && crosses && Number.isFinite(lastAbs) && nowAbs <= (lastAbs + 360));
 
     if(originDateStr && originDateStr > todayStr) return '未發車';
     if(originDateStr && originDateStr < todayStr && !isActiveWindow) return '已到終點';
@@ -3622,16 +3634,23 @@ function filterTrainScheduleByNumber(){
     const nowAbs = getNowAbsFromOrigin(originDateStr || todayStr);
     const isActiveWindow =
       (originDateStr === todayStr) ||
-      (originDateStr === yestStr && crosses && Number.isFinite(lastAbs) && nowAbs <= (lastAbs + 10));
+      (originDateStr === yestStr && crosses && Number.isFinite(lastAbs) && nowAbs <= (lastAbs + 360));
 
     // 下一站：只在「仍在運行窗口」才標；允許跨日車在「查詢隔天」仍顯示（避免 23:xx 查 00:xx 看不到）
     const canNext = isActiveWindow;
+
+    // 取得即時誤點（分鐘）。只在仍可能運行的窗口抓取，避免過度請求與誤判。
+    let delayMin = 0;
+    if(isActiveWindow){
+      try{ if(typeof getDelayMinutes==='function') delayMin = Number(getDelayMinutes(String(trainNo)) || 0); }catch(e){ delayMin = 0; }
+    }
+    if(!Number.isFinite(delayMin)) delayMin = 0;
 
     let nextIndex=-1;
     if(canNext){
       for(let i=0;i<arr.length;i++){
         const a = abs?.[i]?.abs;
-        if(a!==null && a!==undefined && Number.isFinite(a) && Number.isFinite(nowAbs) && a >= nowAbs){
+        if(a!==null && a!==undefined && Number.isFinite(a) && Number.isFinite(nowAbs) && (a + Math.max(0,delayMin)) >= nowAbs){
           nextIndex=i; break;
         }
       }
@@ -3844,7 +3863,7 @@ arr.forEach((s, i)=>{
     const nowAbs = getNowAbsFromOrigin(originDateStr || todayStr);
     const isActiveWindow =
       (originDateStr === todayStr) ||
-      (originDateStr === yestStr && crosses && Number.isFinite(lastAbs) && nowAbs <= (lastAbs + 10));
+      (originDateStr === yestStr && crosses && Number.isFinite(lastAbs) && nowAbs <= (lastAbs + 360));
 
     const canNext =
       isActiveWindow &&
@@ -3852,6 +3871,13 @@ arr.forEach((s, i)=>{
         (currentQueryDateStr === todayStr) ||
         (originDateStr === todayStr && crosses && currentQueryDateStr === tomoStr)
       );
+
+    // 用誤點分鐘修正「下一站/已過站」判斷（避免誤點時提前跳站）
+    let delayMin = 0;
+    if(isActiveWindow){
+      try{ if(typeof getDelayMinutes==='function') delayMin = Number(getDelayMinutes(String(trainNo)) || 0); }catch(e){ delayMin = 0; }
+    }
+    if(!Number.isFinite(delayMin)) delayMin = 0;
 
     let nextIndex = -1;
     if(canNext){
