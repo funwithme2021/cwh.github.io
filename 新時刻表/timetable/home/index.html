@@ -422,7 +422,9 @@
             <div class="dock-item" onclick="toggleSettings(true)">⚙️</div>
         </nav>
     </div>
-<script src="../monitor.js"></script>
+
+    <script src="../monitor.js"></script>
+
     <script>
         const TDX_CONFIG = {
             clientId: 'r36144112-d7b2ebdd-ce4c-40c3',
@@ -721,7 +723,8 @@
             localStorage.setItem('monitor_enabled', el.checked ? 'true' : 'false');
             config.style.display = el.checked ? 'block' : 'none';
             // 立即生效，不需重整
-            startRealMonitor();
+            if (typeof startMonitorSystem === 'function') startMonitorSystem(true);
+            else startRealMonitor();
         }
 
         // 副開關：控制推播權限
@@ -793,7 +796,8 @@
             
             // 執行監控啟動函數
             if (typeof startRealMonitor === 'function') {
-                startRealMonitor();
+                if (typeof startMonitorSystem === 'function') startMonitorSystem(true);
+            else startRealMonitor();
             }
         }
 
@@ -903,7 +907,8 @@
             renderFavs();
             if(localStorage.getItem('theme') === 'light') document.body.classList.add('light-mode');
             const success = await getTdxToken();
-            if(success) startRealMonitor();
+            if(success) if (typeof startMonitorSystem === 'function') startMonitorSystem(true);
+            else startRealMonitor();
         };
     </script>
 </body>
