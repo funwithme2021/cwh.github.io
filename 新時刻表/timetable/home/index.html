@@ -3,7 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>時刻表 Pro (Live)</title>
+    <title>Real-Time</title>
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" sizes="192x192" href="icon-192.png">
+    <link rel="apple-touch-icon" sizes="512x512" href="icon-512.png">
+    <meta name="apple-mobile-web-app-title" content="Real-Time">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Noto+Sans+TC:wght@400;500;700;900&family=Roboto+Mono:wght@500&display=swap" rel="stylesheet">
@@ -424,6 +431,9 @@
 
         let tdxToken = null;
         let stationDB = { tr: [], thsr: [] };
+        
+        // 用來記錄上一次通知的狀態文字，格式: { 'tra_408': '...', 'thsr_0623': '...' }
+        let lastNotificationStates = {};
 
         function normalizeTRA(str) {
             return str ? str.replace(/台/g, '臺') : '';
@@ -566,7 +576,7 @@
             marquee.style.color = hasDelay ? "#f87171" : ""; 
         }
 
-        // 臺鐵監控函式 (格式調整)
+        // 臺鐵監控函式 (通知邏輯：第一次強制發送，之後僅變動發送)
         async function checkTraLive(target) {
             try {
                 const liveUrl = `https://tdx.transportdata.tw/api/basic/v3/Rail/TRA/TrainLiveBoard/TrainNo/${target.no}?%24format=JSON`;
@@ -599,20 +609,28 @@
                     }
                 }
 
-                // 推播邏輯
+                // 先產生完整文字 (這就是通知要顯示的內容)
+                const finalText = `臺鐵 ${target.no}次:目前在 ${currentStn} | ${statusStr}${arrivalStr}`;
+                const stateKey = `tra_${target.no}`;
+
+                // 智慧通知邏輯
                 const isPushOn = localStorage.getItem('push_enabled') === 'true';
-                if (isPushOn && delay > 0) {
-                    sendNotification(`🚆 ${target.no}次 誤點通報`, `${statusStr}於 ${currentStn}${arrivalStr}`);
+                if (isPushOn) {
+                    // 如果是第一次監控 (undefined) 或者 狀態文字有改變，才發送通知
+                    if (lastNotificationStates[stateKey] !== finalText) {
+                        sendNotification(`🚆 ${target.no}次 狀態更新`, finalText);
+                        // 更新記憶
+                        lastNotificationStates[stateKey] = finalText;
+                    }
                 }
 
-                // 格式: 臺鐵 653次:目前在 板橋 | 晚 5 分 | 預計 19:26 抵達 萬華
-                return { text: `臺鐵 ${target.no}次:目前在 ${currentStn} | ${statusStr}${arrivalStr}`, delay: delay > 0 };
+                return { text: finalText, delay: delay > 0 };
             } catch (e) {
                 return { text: `臺鐵 ${target.no}次: 資料讀取錯誤`, delay: false };
             }
         }
 
-        // 高鐵監控函式 (格式調整)
+        // 高鐵監控函式 (通知邏輯：第一次強制發送，之後僅變動發送)
         async function checkThsrSchedule(target) {
             try {
                 const url = `https://tdx.transportdata.tw/api/basic/v2/Rail/THSR/DailyTimetable/Today/TrainNo/${target.no}?%24format=JSON`;
@@ -633,26 +651,33 @@
                 else if (nowStr > endTime) status = "已到終點";
 
                 let arrivalStr = "";
-                // 如果有設定目標站，且尚未到達終點，則計算預計時間
                 if (status !== "已到終點") {
-                     // 優先使用使用者設定的目標站
                     if (target.stn) {
                         const targetStop = stops.find(s => s.StationName.Zh_tw === target.stn);
                         if (targetStop) {
-                            // 格式: | 預計 10:05 抵達 臺中
                             arrivalStr = ` | 預計 ${targetStop.ArrivalTime} 抵達 ${target.stn}`;
                         } else {
                             arrivalStr = ` | (該車次不停靠 ${target.stn})`;
                         }
                     } else {
-                         // 沒設定目標站就顯示終點站
                         const endStn = stops[stops.length - 1].StationName.Zh_tw;
                         arrivalStr = ` | 往 ${endStn}`;
                     }
                 }
 
-                // 格式: 高鐵 0673次: 行駛中 | 預計 10:05 抵達 臺中
-                return `高鐵 ${target.no}次: ${status}${arrivalStr}`;
+                const finalText = `高鐵 ${target.no}次: ${status}${arrivalStr}`;
+                const stateKey = `thsr_${target.no}`;
+
+                // 智慧通知邏輯 (高鐵也套用，確保第一次會通知)
+                const isPushOn = localStorage.getItem('push_enabled') === 'true';
+                if (isPushOn) {
+                    if (lastNotificationStates[stateKey] !== finalText) {
+                        sendNotification(`🚅 ${target.no}次 狀態更新`, finalText);
+                        lastNotificationStates[stateKey] = finalText;
+                    }
+                }
+
+                return finalText;
             } catch(e) {
                 return `高鐵 ${target.no}次: 資料錯誤`;
             }
