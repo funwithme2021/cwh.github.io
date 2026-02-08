@@ -1338,7 +1338,13 @@
         if(!res.ok) { if(res.status === 401) alert("API 存取被拒 (401): Access key not found"); else alert(`訂票連結取得失敗: HTTP ${res.status}`); return; }
         const result = await res.json();
         const jumpUrl = result.url || (result.data && result.data.deeplink) || result.DeepLinkUrl;
-        if (jumpUrl) { window.location.href = jumpUrl; } else { console.error("API 回傳結構異常:", result); alert("無法取得 App 喚醒連結"); }
+        if (jumpUrl) {
+        if (window !== window.top) {
+            window.parent.postMessage({ type: 'APP_OPEN_URL', url: jumpUrl }, '*');
+        } else {
+            window.location.href = jumpUrl;
+        }
+    } else { console.error("API 回傳結構異常:", result); alert("無法取得 App 喚醒連結"); }
     } catch (e) { console.error("Deep Link Error:", e); alert("系統發生錯誤，請稍後再試"); }
   }
 

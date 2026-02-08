@@ -1808,7 +1808,11 @@ const jumpUrl = (result.data && result.data.deeplink) || result.DeepLinkUrl || r
 
 if (jumpUrl) {
     console.log("正在跳轉至：", jumpUrl);
-    window.location.href = jumpUrl; // 執行跳轉
+    if (window !== window.top) {
+        window.parent.postMessage({ type: 'APP_OPEN_URL', url: jumpUrl }, '*');
+      } else {
+        window.location.href = jumpUrl;
+      } // 執行跳轉
 } else {
     console.error("API 結構不符，請檢查：", result);
     alert("取得連結失敗，格式不正確");

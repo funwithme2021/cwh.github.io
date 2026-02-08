@@ -933,10 +933,15 @@
 <div class="app-overlay" id="appOverlay" aria-hidden="true">
   <iframe id="appOverlayFrame" title="App View" loading="lazy"></iframe>
 </div>
+
 <script>
   (function(){
     const overlay = document.getElementById('appOverlay');
     const frame = document.getElementById('appOverlayFrame');
+
+    function isFileScheme(){
+      try{ return location.protocol === 'file:'; }catch(_){ return false; }
+    }
 
     function buildUrl(sys, params){
       const baseUrl = sys === 'tr' ? '../tr/tr.html' : '../thsr/thsr.html';
@@ -950,20 +955,35 @@
       return baseUrl + '?' + q.toString();
     }
 
+    function setHash(sys, stateObj){
+      // file:// 在部分瀏覽器上 pushState 可能會丟 SecurityError，保底用 location.hash
+      try{
+        history.pushState(stateObj || {}, '', '#' + sys);
+      }catch(_){
+        try{ location.hash = sys; }catch(__){}
+      }
+    }
+
+    function clearHash(){
+      try{
+        history.pushState({}, '', location.pathname + location.search);
+      }catch(_){
+        try{ location.hash = ''; }catch(__){}
+      }
+    }
+
     window.openAppOverlay = function(sys, params){
-      // lazy load / update src each time (so query params update)
       frame.src = buildUrl(sys, params);
       overlay.classList.add('show');
       overlay.setAttribute('aria-hidden','false');
-      history.pushState({app: sys, params: params||null}, '', '#' + sys);
+      setHash(sys, {app: sys, params: params||null});
     };
 
     window.closeAppOverlay = function(){
       overlay.classList.remove('show');
       overlay.setAttribute('aria-hidden','true');
-      // stop audio/network in iframe
       frame.src = 'about:blank';
-      if(location.hash) history.pushState({}, '', location.pathname + location.search);
+      if(location.hash) clearHash();
     };
 
     // Allow iframe to ask parent to close
@@ -978,7 +998,6 @@
     window.addEventListener('popstate', (e) => {
       const h = (location.hash || '').replace('#','');
       if(h === 'tr' || h === 'thsr'){
-        // if navigating back into app, reopen without params
         window.openAppOverlay(h, (e.state && e.state.params) ? e.state.params : null);
       }else{
         window.closeAppOverlay();
@@ -994,6 +1013,7 @@
     });
   })();
 </script>
+
 
 </body>
 </html>
