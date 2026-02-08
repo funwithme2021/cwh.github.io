@@ -4256,5 +4256,27 @@ renderQuickFavs();
 })();
 </script>
 <script src="../monitor.js"></script>
+
+<script>
+  // Embed mode: make '首頁' button close parent overlay instead of navigating.
+  (function(){
+    try{
+      const qs = new URLSearchParams(location.search);
+      const isEmbed = qs.get('embed') === '1';
+      if (!isEmbed) return;
+      if (window.parent && window.parent !== window){
+        const btn = document.getElementById('homeBtn');
+        if (btn){
+          btn.addEventListener('click', function(e){
+            e.preventDefault();
+            e.stopPropagation();
+            window.parent.postMessage({type:'APP_CLOSE'}, '*');
+          }, true);
+        }
+      }
+    }catch(e){}
+  })();
+</script>
+
 </body>
 </html>
