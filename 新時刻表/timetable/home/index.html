@@ -336,11 +336,10 @@
         <ul style="padding-left: 18px; margin-bottom: 8px;">
             <li><strong>iOS 使用者：</strong> 必須點擊 Safari「分享」並選擇<strong>「加入主畫面」</strong>，從桌面開啟方可支援推播。</li>
             <li><strong>Android 使用者：</strong> 建議點擊「加到主畫面」並選擇<strong>「安裝應用程式」</strong>，從桌面開啟方可支援推播。</li>
-            <li><strong>權限：</strong> 務必確認於設定通知管理中將「Real-Time」開啟「允許通知」。</li>
-            <li><strong>權限：</strong> 必須在 HTTPS 環境下並「允許通知」。</li>
+            <li><strong>權限：</strong> 必須在 HTTPS 環境下並確認於設定通知管理中將「Real-Time」<strong>開啟「允許通知」</strong>。</li>
         </ul>
         <div style="border-top: 1px solid rgba(255,255,255,0.1); padding-top: 8px; margin-top: 8px; font-size: 0.75rem;">
-            <strong>步驟：</strong> 1. 填寫車次資訊 → 2. 勾選下方的「啟用」與「推播」 → 3. 儲存並離開。
+            <strong>步驟：</strong> 1. 填寫車次資訊 → 2. 勾選下方的「啟用」與「接收誤點與下車推播」 → 3. 儲存並離開。
         </div>
     </div>
 
@@ -354,7 +353,7 @@
 
     <div id="monitorConfig" style="display:none; margin-top:15px; border-top:1px solid var(--glass-border); padding-top:15px;">
         <div class="setting-row" style="margin-bottom:15px; border-bottom:1px solid var(--glass-border); padding-bottom:15px;">
-            <span style="font-size:0.9rem;">接收誤點與下車推播 (僅臺鐵)</span>
+            <span style="font-size:0.9rem;">接收誤點與下車推播</span>
             <label class="switch">
                 <input type="checkbox" id="pushSwitch" onchange="togglePush(this)">
                 <span class="slider"></span>
@@ -371,7 +370,7 @@
             <input type="text" id="mon_tr2_station" class="setting-input" placeholder="目標站 2">
         </div>
 
-        <div style="margin: 12px 0 8px; font-size: 0.8rem; color: var(--thsr-color);">● 高鐵監控 (THSR - 表定)</div>
+        <div style="margin: 12px 0 8px; font-size: 0.8rem; color: var(--thsr-color);">● 高鐵監控 (THSR)</div>
         <div class="fav-row">
             <input type="text" id="mon_thsr_train" class="setting-input" placeholder="車次 (如: 0623)">
             <input type="text" id="mon_thsr_station" class="setting-input" placeholder="目標站">
