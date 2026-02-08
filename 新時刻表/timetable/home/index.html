@@ -239,6 +239,79 @@
             .entry-card { transform: none !important; }
             .status-bar { font-size: 0.75rem; }
         }
+    
+        /* 首次進入首頁注意事項（只顯示一次） */
+        #homeNoticeModal {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.72);
+            z-index: 2600;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            opacity: 0;
+            transition: opacity 0.25s ease;
+        }
+        #homeNoticeModal.show { opacity: 1; }
+        #homeNoticeModal .notice-content {
+            background: var(--modal-bg);
+            width: min(560px, calc(100% - 28px));
+            border-radius: 30px;
+            padding: 22px 22px 18px;
+            border: 1px solid var(--glass-border);
+            box-shadow: 0 30px 80px rgba(0,0,0,0.6);
+            color: var(--text-main);
+            position: relative;
+        }
+        #homeNoticeModal .notice-title {
+            font-weight: 900;
+            font-size: 1.25rem;
+            margin-bottom: 10px;
+            letter-spacing: -0.5px;
+            display:flex; align-items:center; gap:10px;
+        }
+        #homeNoticeModal .notice-sub {
+            color: var(--text-muted);
+            font-size: 0.92rem;
+            line-height: 1.6;
+            margin-bottom: 12px;
+        }
+        #homeNoticeModal .notice-box {
+            background: rgba(255,255,255,0.03);
+            border: 1px solid var(--glass-border);
+            border-radius: 18px;
+            padding: 14px 14px;
+            line-height: 1.65;
+            font-size: 0.92rem;
+        }
+        .light-mode #homeNoticeModal .notice-box {
+            background: rgba(0,0,0,0.03);
+        }
+        #homeNoticeModal .notice-box ul { padding-left: 18px; margin: 8px 0 0; }
+        #homeNoticeModal .notice-box li { margin: 6px 0; }
+        #homeNoticeModal .notice-actions {
+            display:flex; gap: 10px; margin-top: 14px;
+        }
+        #homeNoticeModal .notice-actions button{
+            flex:1;
+            padding: 12px 14px;
+            border-radius: 16px;
+            border: 1px solid var(--glass-border);
+            background: rgba(255,255,255,0.05);
+            color: var(--text-main);
+            font-weight: 800;
+            cursor: pointer;
+            transition: 0.15s;
+        }
+        #homeNoticeModal .notice-actions button.primary{
+            background: var(--success);
+            border-color: transparent;
+            color: #06281e;
+        }
+        #homeNoticeModal .notice-actions button:hover{ transform: translateY(-1px); }
+
     </style>
 </head>
 <body class="dark-mode">
@@ -406,6 +479,27 @@
             </div>
         </div>
     </div>
+
+
+    <!-- 首次進入首頁注意事項（只顯示一次） -->
+    <div id="homeNoticeModal" onclick="closeHomeNotice()">
+        <div class="notice-content" onclick="event.stopPropagation()">
+            <div class="notice-title">📌 注意事項</div>
+            <div class="notice-sub">為了讓「推播通知」正常運作，請先確認以下條件：</div>
+            <div class="notice-box">
+                <ul>
+                    <li><strong>iOS 使用者：</strong> 必須點擊 Safari「分享」並選擇<strong>「加入主畫面」</strong>，從桌面開啟方可支援推播。</li>
+                    <li><strong>Android 使用者：</strong> 建議點擊「加到主畫面」並選擇<strong>「安裝應用程式」</strong>，從桌面開啟方可支援推播。</li>
+                    <li><strong>權限：</strong> 必須在 <strong>HTTPS</strong> 環境下，並確認在系統/瀏覽器通知管理中將「Real-Time」設為<strong>允許通知</strong>。</li>
+                </ul>
+            </div>
+            <div class="notice-actions">
+                <button onclick="closeHomeNotice()">我知道了</button>
+                <button class="primary" onclick="closeHomeNotice(); toggleSettings(true);">前往設定</button>
+            </div>
+        </div>
+    </div>
+
 
     <div class="dock-container">
         <div class="tools-popup" id="toolsPopup">
@@ -904,7 +998,33 @@
             if(!e.target.closest('.tools-popup') && !e.target.closest('.dock-item')) document.getElementById('toolsPopup').classList.remove('active');
         }
 
+
+        // ===== 首次進入首頁注意事項（只顯示一次） =====
+        function showHomeNoticeOnce() {
+            try {
+                // 只在「真正首次開啟首頁」顯示一次；之後返回首頁（不重整）不再顯示
+                if (sessionStorage.getItem('home_notice_shown') === '1') return;
+                sessionStorage.setItem('home_notice_shown', '1');
+
+                const modal = document.getElementById('homeNoticeModal');
+                if (!modal) return;
+                modal.style.display = 'flex';
+                // 小延遲讓 transition 生效
+                setTimeout(() => modal.classList.add('show'), 10);
+            } catch (e) {
+                // ignore
+            }
+        }
+
+        function closeHomeNotice() {
+            const modal = document.getElementById('homeNoticeModal');
+            if (!modal) return;
+            modal.classList.remove('show');
+            setTimeout(() => { modal.style.display = 'none'; }, 220);
+        }
+
         window.onload = async () => {
+            showHomeNoticeOnce();
             initTilt();
             renderFavs();
             if(localStorage.getItem('theme') === 'light') document.body.classList.add('light-mode');
@@ -933,15 +1053,10 @@
 <div class="app-overlay" id="appOverlay" aria-hidden="true">
   <iframe id="appOverlayFrame" title="App View" loading="lazy"></iframe>
 </div>
-
 <script>
   (function(){
     const overlay = document.getElementById('appOverlay');
     const frame = document.getElementById('appOverlayFrame');
-
-    function isFileScheme(){
-      try{ return location.protocol === 'file:'; }catch(_){ return false; }
-    }
 
     function buildUrl(sys, params){
       const baseUrl = sys === 'tr' ? '../tr/tr.html' : '../thsr/thsr.html';
@@ -955,35 +1070,20 @@
       return baseUrl + '?' + q.toString();
     }
 
-    function setHash(sys, stateObj){
-      // file:// 在部分瀏覽器上 pushState 可能會丟 SecurityError，保底用 location.hash
-      try{
-        history.pushState(stateObj || {}, '', '#' + sys);
-      }catch(_){
-        try{ location.hash = sys; }catch(__){}
-      }
-    }
-
-    function clearHash(){
-      try{
-        history.pushState({}, '', location.pathname + location.search);
-      }catch(_){
-        try{ location.hash = ''; }catch(__){}
-      }
-    }
-
     window.openAppOverlay = function(sys, params){
+      // lazy load / update src each time (so query params update)
       frame.src = buildUrl(sys, params);
       overlay.classList.add('show');
       overlay.setAttribute('aria-hidden','false');
-      setHash(sys, {app: sys, params: params||null});
+      history.pushState({app: sys, params: params||null}, '', '#' + sys);
     };
 
     window.closeAppOverlay = function(){
       overlay.classList.remove('show');
       overlay.setAttribute('aria-hidden','true');
+      // stop audio/network in iframe
       frame.src = 'about:blank';
-      if(location.hash) clearHash();
+      if(location.hash) history.pushState({}, '', location.pathname + location.search);
     };
 
     // Allow iframe to ask parent to close
@@ -998,6 +1098,7 @@
     window.addEventListener('popstate', (e) => {
       const h = (location.hash || '').replace('#','');
       if(h === 'tr' || h === 'thsr'){
+        // if navigating back into app, reopen without params
         window.openAppOverlay(h, (e.state && e.state.params) ? e.state.params : null);
       }else{
         window.closeAppOverlay();
@@ -1013,7 +1114,6 @@
     });
   })();
 </script>
-
 
 </body>
 </html>
