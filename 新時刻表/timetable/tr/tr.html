@@ -1773,7 +1773,7 @@ async function getTDXAccessToken(force = false) {
 // 修改跳轉函式：直接導向 API URL 觸發瀏覽器跳轉
 async function openTraBookingDeepLink(trainNo, startStationName, endStationName, dateStr) {
   try {
-    // 1. 確保拿到最新的 Token (直接調用 train.real-schedule.js 裡的變數或函式)
+    // 1. 確保拿到最新的 Token
     const token = await getAccessToken(); 
     if (!token) {
       alert("認證授權失敗，請檢查 Key 設定");
@@ -1783,7 +1783,7 @@ async function openTraBookingDeepLink(trainNo, startStationName, endStationName,
     // 2. 格式化參數：站名必須轉為「臺」而非「台」
     const sName = startStationName.replace(/台/g, '臺');
     const eName = endStationName.replace(/台/g, '臺');
-    
+
     const apiUrl = `https://tdx.transportdata.tw/api/maas-tra/booking/deeplink/direct/tra?start_station=${encodeURIComponent(sName)}&end_station=${encodeURIComponent(eName)}&train_date=${encodeURIComponent(dateStr)}&train_number=${encodeURIComponent(String(trainNo))}`;
 
     // 3. 使用 Header 帶入 Token 進行請求
@@ -1800,29 +1800,36 @@ async function openTraBookingDeepLink(trainNo, startStationName, endStationName,
       return;
     }
 
-    // 在 test.html 約 1030 行附近的邏輯修改
-const result = await response.json();
+    const result = await response.json();
 
-// 修正：根據你的 Console 截圖，連結是在 result.data.deeplink
-const jumpUrl = (result.data && result.data.deeplink) || result.DeepLinkUrl || result.url;
+    // 連結通常在 result.data.deeplink
+    const jumpUrl = (result.data && result.data.deeplink) || result.DeepLinkUrl || result.url;
 
-if (jumpUrl) {
-    console.log("正在跳轉至：", jumpUrl);
-    if (window !== window.top) {
-        window.parent.postMessage({ type: 'APP_OPEN_URL', url: jumpUrl }, '*');
-      } else {
+    if (jumpUrl) {
+      console.log("正在跳轉至：", jumpUrl);
+
+      // ✅ A：訂票一定跳到最外層（避免 iframe 內被擋/卡住）
+      try {
+        if (window.top && window.top !== window) {
+          window.top.location.href = jumpUrl;
+        } else {
+          window.location.href = jumpUrl;
+        }
+      } catch (e) {
         window.location.href = jumpUrl;
-      } // 執行跳轉
-} else {
-    console.error("API 結構不符，請檢查：", result);
-    alert("取得連結失敗，格式不正確");
-}
+      }
+
+    } else {
+      console.error("API 結構不符，請檢查：", result);
+      alert("取得連結失敗，格式不正確");
+    }
 
   } catch (err) {
     console.error("訂票流程出錯:", err);
     alert("系統錯誤，請查看主控台");
   }
 }
+
 
   // ===== 取消尖峰時間特別顏色 =====
   function highlightPeak(t){ return t || '--'; }

@@ -1323,30 +1323,78 @@
     renderStartEndTable();
   }
 
-  async function openTHSRBookingDeepLink(trainNo, dateStr, timeStr){ 
-    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-    if (!isMobile) { alert("限使用行動裝置並已下載高鐵T Express行動購票App使用"); return; }
-    try {
-        let st = extractStationNameFromInput(document.getElementById('startStation').value);
-        let ed = extractStationNameFromInput(document.getElementById('endStation').value);
-        if(!st || !ed){ alert("請先選擇起訖站"); return; }
-        st = st.replace(/臺/g, '台'); ed = ed.replace(/臺/g, '台');
-        if (typeof getAccessToken !== 'function') { alert("系統錯誤：無法取得授權函式"); return; }
-        const token = await getAccessToken(); if(!token) { alert("授權失敗，無法連接 TDX"); return; }
-        const apiUrl = `https://tdx.transportdata.tw/api/maas-thsr/booking/deeplink/direct/hsr?start_station=${encodeURIComponent(st)}&end_station=${encodeURIComponent(ed)}&train_date=${dateStr}&train_time=${encodeURIComponent(timeStr)}&train_number=${trainNo}`;
-        const res = await fetch(apiUrl, { method: 'GET', headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' } });
-        if(!res.ok) { if(res.status === 401) alert("API 存取被拒 (401): Access key not found"); else alert(`訂票連結取得失敗: HTTP ${res.status}`); return; }
-        const result = await res.json();
-        const jumpUrl = result.url || (result.data && result.data.deeplink) || result.DeepLinkUrl;
-        if (jumpUrl) {
-        if (window !== window.top) {
-            window.parent.postMessage({ type: 'APP_OPEN_URL', url: jumpUrl }, '*');
-        } else {
-            window.location.href = jumpUrl;
-        }
-    } else { console.error("API 回傳結構異常:", result); alert("無法取得 App 喚醒連結"); }
-    } catch (e) { console.error("Deep Link Error:", e); alert("系統發生錯誤，請稍後再試"); }
+ async function openTHSRBookingDeepLink(trainNo, dateStr, timeStr){ 
+  const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+  if (!isMobile) { 
+    alert("限使用行動裝置並已下載高鐵T Express行動購票App使用"); 
+    return; 
   }
+
+  try {
+    let st = extractStationNameFromInput(document.getElementById('startStation').value);
+    let ed = extractStationNameFromInput(document.getElementById('endStation').value);
+    if(!st || !ed){ 
+      alert("請先選擇起訖站"); 
+      return; 
+    }
+
+    st = st.replace(/臺/g, '台'); 
+    ed = ed.replace(/臺/g, '台');
+
+    if (typeof getAccessToken !== 'function') { 
+      alert("系統錯誤：無法取得授權函式"); 
+      return; 
+    }
+
+    const token = await getAccessToken(); 
+    if(!token) { 
+      alert("授權失敗，無法連接 TDX"); 
+      return; 
+    }
+
+    const apiUrl = `https://tdx.transportdata.tw/api/maas-thsr/booking/deeplink/direct/hsr?start_station=${encodeURIComponent(st)}&end_station=${encodeURIComponent(ed)}&train_date=${dateStr}&train_time=${encodeURIComponent(timeStr)}&train_number=${trainNo}`;
+    const res = await fetch(apiUrl, { 
+      method: 'GET', 
+      headers: { 
+        'Authorization': `Bearer ${token}`, 
+        'Accept': 'application/json' 
+      } 
+    });
+
+    if(!res.ok) { 
+      if(res.status === 401) alert("API 存取被拒 (401): Access key not found"); 
+      else alert(`訂票連結取得失敗: HTTP ${res.status}`); 
+      return; 
+    }
+
+    const result = await res.json();
+    const jumpUrl = result.url || (result.data && result.data.deeplink) || result.DeepLinkUrl;
+
+    if (jumpUrl) {
+      // ✅ A：訂票一定跳到最外層（避免 iframe 內被擋/卡住）
+      try {
+        if (window.top && window.top !== window) {
+          window.top.location.href = jumpUrl;
+        } else {
+          window.location.href = jumpUrl;
+        }
+      } catch (err) {
+        // 保底：如果 top 被限制存取，退回當前視窗跳
+        window.location.href = jumpUrl;
+      }
+    } else {
+      console.error("API 回傳結構異常:", result);
+      alert("無法取得 App 喚醒連結");
+    }
+
+  } catch (e) {
+    console.error("Deep Link Error:", e);
+    alert("系統發生錯誤，請稍後再試");
+  }
+}
+
+
+  
 
   function handleUrlParams() {
     const p = new URLSearchParams(window.location.search);
