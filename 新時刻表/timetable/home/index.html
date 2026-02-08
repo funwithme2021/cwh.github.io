@@ -423,6 +423,8 @@
         </nav>
     </div>
 
+    <script src="../monitor.js"></script>
+
     <script>
         const TDX_CONFIG = {
             clientId: 'r36144112-d7b2ebdd-ce4c-40c3',
@@ -721,7 +723,8 @@
             localStorage.setItem('monitor_enabled', el.checked ? 'true' : 'false');
             config.style.display = el.checked ? 'block' : 'none';
             // 立即生效，不需重整
-            startRealMonitor();
+            if (typeof startMonitorSystem === 'function') startMonitorSystem(true);
+            else startRealMonitor();
         }
 
         // 副開關：控制推播權限
@@ -793,7 +796,8 @@
             
             // 執行監控啟動函數
             if (typeof startRealMonitor === 'function') {
-                startRealMonitor();
+                if (typeof startMonitorSystem === 'function') startMonitorSystem(true);
+            else startRealMonitor();
             }
         }
 
@@ -819,8 +823,7 @@
                         li.innerHTML = `📍 ${s}→${e}`;
                         li.onclick = (ev) => { 
                             ev.stopPropagation(); 
-                            const baseUrl = sys === 'tr' ? '../tr/tr.html' : '../thsr/thsr.html';
-                            window.location.href = `${baseUrl}?start=${encodeURIComponent(s)}&end=${encodeURIComponent(e)}`; 
+                            openAppOverlay(sys, { start: s, end: e }); 
                         };
                         list.appendChild(li);
                     }
@@ -845,18 +848,11 @@
         function goToSystem(sys) {
             let home = localStorage.getItem(`${sys}_home`) || '';
             home = sys === 'thsr' ? normalizeTHSR(home) : normalizeTRA(home);
-
-            // Keep original pages unchanged; we open them FULLSCREEN inside index.html
-            // Pass embed=1 so child '首頁' button closes overlay (postMessage) instead of navigating.
-            const baseUrl = sys === 'tr' ? '../tr/tr.html' : '../thsr/thsr.html';
-            const url = home ? `${baseUrl}?embed=1&home=${encodeURIComponent(home)}` : `${baseUrl}?embed=1`;
-
-            // open overlay
-            if (window.__openAppOverlay) window.__openAppOverlay(url);
-
-            // keep hash for back/refresh
-            const hash = sys === 'tr' ? '#tr' : '#thsr';
-            if (location.hash !== hash) history.pushState({app: sys}, '', hash);
+            if (home) {
+                openAppOverlay(sys, { station: home });
+            } else {
+                openAppOverlay(sys, null);
+            }
         }
 
         function findNearest(sys) {
@@ -880,7 +876,7 @@
                     targetSpan.innerText = `📍 最近: ${nearest}`;
                     setTimeout(() => {
                         const baseUrl = sys === 'tr' ? '../tr/tr.html' : '../thsr/thsr.html';
-                        window.location.href = `${baseUrl}?station=${encodeURIComponent(nearest)}`;
+                        openAppOverlay(sys, { station: nearest });
                     }, 800);
                 }
             }, () => { targetSpan.innerText = originalText; alert("無法取得位置"); });
@@ -913,95 +909,87 @@
             renderFavs();
             if(localStorage.getItem('theme') === 'light') document.body.classList.add('light-mode');
             const success = await getTdxToken();
-            if(success) startRealMonitor();
+            if(success) if (typeof startMonitorSystem === 'function') startMonitorSystem(true);
+            else startRealMonitor();
         };
     </script>
 
-<!-- ===== App Fullscreen Overlay (TR/THSR stays inside index.html) ===== -->
+<!-- ===== Full-cover App Overlay (TR / THSR) ===== -->
 <style>
-  .app-fullscreen{
-    position: fixed;
-    inset: 0;
-    z-index: 9999;
-    background: var(--bg-dark, #020617);
-    display: none;
+  .app-overlay{
+    position:fixed; inset:0;
+    z-index:9999;
+    background: var(--bg-dark);
+    display:none;
   }
-  .app-fullscreen.show{ display:block; }
-  .app-fullscreen iframe{
-    width: 100%;
-    height: 100%;
-    border: 0;
+  .app-overlay.show{ display:block; }
+  .app-overlay iframe{
+    width:100%;
+    height:100%;
+    border:0;
     background: transparent;
   }
-  /* prevent underlying page scroll when open */
-  body.app-lock{ overflow: hidden !important; }
 </style>
-
-<div class="app-fullscreen" id="appFullscreen" aria-hidden="true">
-  <iframe id="appFullscreenFrame" title="AppView" loading="lazy"></iframe>
+<div class="app-overlay" id="appOverlay" aria-hidden="true">
+  <iframe id="appOverlayFrame" title="App View" loading="lazy"></iframe>
 </div>
-
 <script>
-  // Parent-side overlay controller. Child pages (tr/thsr) can postMessage({type:'APP_CLOSE'}) to close.
   (function(){
-    const overlay = document.getElementById('appFullscreen');
-    const frame   = document.getElementById('appFullscreenFrame');
+    const overlay = document.getElementById('appOverlay');
+    const frame = document.getElementById('appOverlayFrame');
 
-    function openOverlay(url){
-      frame.src = url;
+    function buildUrl(sys, params){
+      const baseUrl = sys === 'tr' ? '../tr/tr.html' : '../thsr/thsr.html';
+      const q = new URLSearchParams();
+      q.set('embed','1');
+      if(params){
+        for(const [k,v] of Object.entries(params)){
+          if(v!==undefined && v!==null && v!=='') q.set(k, v);
+        }
+      }
+      return baseUrl + '?' + q.toString();
+    }
+
+    window.openAppOverlay = function(sys, params){
+      // lazy load / update src each time (so query params update)
+      frame.src = buildUrl(sys, params);
       overlay.classList.add('show');
       overlay.setAttribute('aria-hidden','false');
-      document.body.classList.add('app-lock');
-    }
-    function closeOverlay(){
+      history.pushState({app: sys, params: params||null}, '', '#' + sys);
+    };
+
+    window.closeAppOverlay = function(){
       overlay.classList.remove('show');
       overlay.setAttribute('aria-hidden','true');
-      document.body.classList.remove('app-lock');
-      // keep src so returning is instant; if you want to release memory, uncomment:
-      // frame.src = 'about:blank';
-      if (location.hash === '#tr' || location.hash === '#thsr') history.replaceState({}, '', location.pathname);
-    }
+      // stop audio/network in iframe
+      frame.src = 'about:blank';
+      if(location.hash) history.pushState({}, '', location.pathname + location.search);
+    };
 
-    window.closeAppOverlay = closeOverlay;
-
+    // Allow iframe to ask parent to close
     window.addEventListener('message', (ev) => {
-      const data = ev.data || {};
-      if (data && data.type === 'APP_CLOSE') closeOverlay();
-    });
-
-    // Allow ESC to close on desktop
-    window.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && overlay.classList.contains('show')) closeOverlay();
-    });
-
-    // expose for goToSystem override
-    window.__openAppOverlay = openOverlay;
-  })();
-</script>
-
-<script>
-  // Back/forward: if hash indicates tr/thsr, open overlay; else close.
-  (function(){
-    function syncWithHash(){
-      const h = (location.hash || '').replace('#','');
-      if (h === 'tr' || h === 'thsr'){
-        // call goToSystem but without pushing history again
-        const sys = h;
-        let home = localStorage.getItem(`${sys}_home`) || '';
-        home = sys === 'thsr' ? normalizeTHSR(home) : normalizeTRA(home);
-        const baseUrl = sys === 'tr' ? '../tr/tr.html' : '../thsr/thsr.html';
-        const url = home ? `${baseUrl}?embed=1&home=${encodeURIComponent(home)}` : `${baseUrl}?embed=1`;
-        if (window.__openAppOverlay) window.__openAppOverlay(url);
-      } else {
-        if (window.closeAppOverlay) window.closeAppOverlay();
+      if(!ev || !ev.data) return;
+      if(ev.data === 'APP_CLOSE' || (ev.data && ev.data.type === 'APP_CLOSE')){
+        window.closeAppOverlay();
       }
-    }
-    window.addEventListener('popstate', syncWithHash);
+    });
+
+    // Back button
+    window.addEventListener('popstate', (e) => {
+      const h = (location.hash || '').replace('#','');
+      if(h === 'tr' || h === 'thsr'){
+        // if navigating back into app, reopen without params
+        window.openAppOverlay(h, (e.state && e.state.params) ? e.state.params : null);
+      }else{
+        window.closeAppOverlay();
+      }
+    });
+
+    // On reload with hash
     window.addEventListener('load', () => {
       const h = (location.hash || '').replace('#','');
-      if (h === 'tr' || h === 'thsr') {
-        // open on reload if hash present
-        setTimeout(syncWithHash, 0);
+      if(h === 'tr' || h === 'thsr'){
+        window.openAppOverlay(h, null);
       }
     });
   })();

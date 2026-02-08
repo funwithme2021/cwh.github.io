@@ -1533,28 +1533,20 @@
   });
 
 </script>
-<script src="../monitor.js"></script>
 
 <script>
-  // Embed mode: make '首頁' button close parent overlay instead of navigating.
   (function(){
-    try{
-      const qs = new URLSearchParams(location.search);
-      const isEmbed = qs.get('embed') === '1';
-      if (!isEmbed) return;
-      if (window.parent && window.parent !== window){
-        const btn = document.querySelector('.home-btn');
-        if (btn){
-          btn.onclick = null;
-          btn.removeAttribute('onclick');
-          btn.addEventListener('click', function(e){
-            e.preventDefault();
-            e.stopPropagation();
-            window.parent.postMessage({type:'APP_CLOSE'}, '*');
-          }, true);
-        }
+    const btn = document.getElementById('homeBtn') || document.querySelector('.home-btn');
+    if(!btn) return;
+    btn.addEventListener('click', (e)=>{
+      const isEmbed = new URLSearchParams(location.search).get('embed') === '1';
+      if(isEmbed){
+        e.preventDefault();
+        try{ parent.postMessage('APP_CLOSE','*'); }catch(_){}
+        return;
       }
-    }catch(e){}
+      location.href = '../home/index.html';
+    });
   })();
 </script>
 

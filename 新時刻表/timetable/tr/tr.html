@@ -1984,13 +1984,17 @@ function hexToRgb(hex){
   function setupHomeBtn(){
     const btn = document.getElementById('homeBtn');
     if(!btn) return;
-    btn.addEventListener('click', ()=>{
-      // tr.html 通常在 /tr/ 目錄下，回到上一層的 index.html
+    btn.addEventListener('click', (e)=>{
+      const isEmbed = new URLSearchParams(location.search).get('embed') === '1';
+      if(isEmbed){
+        e.preventDefault();
+        try{ parent.postMessage('APP_CLOSE','*'); }catch(_){}
+        return;
+      }
+      // tr.html 通常在 /tr/ 目錄下，回到上一層的 home/index.html
       location.href = '../home/index.html';
     });
   }
-
-
 function renderHistory(){
     const box=document.getElementById('searchHistory');
     if(!box) return;
@@ -4254,28 +4258,6 @@ renderQuickFavs();
     sum.textContent = `${st} → ${ed} · ${accTxt}`;
   }
 })();
-</script>
-<script src="../monitor.js"></script>
-
-<script>
-  // Embed mode: make '首頁' button close parent overlay instead of navigating.
-  (function(){
-    try{
-      const qs = new URLSearchParams(location.search);
-      const isEmbed = qs.get('embed') === '1';
-      if (!isEmbed) return;
-      if (window.parent && window.parent !== window){
-        const btn = document.getElementById('homeBtn');
-        if (btn){
-          btn.addEventListener('click', function(e){
-            e.preventDefault();
-            e.stopPropagation();
-            window.parent.postMessage({type:'APP_CLOSE'}, '*');
-          }, true);
-        }
-      }
-    }catch(e){}
-  })();
 </script>
 
 </body>
