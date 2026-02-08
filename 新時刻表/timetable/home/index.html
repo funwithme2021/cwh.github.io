@@ -240,79 +240,94 @@
             .status-bar { font-size: 0.75rem; }
         }
     
-        /* 首次進入首頁注意事項（只顯示一次） */
-        #homeNoticeModal {
-            display: none;
+        /* ===== Floating Status Island (Dynamic-Island-style) ===== */
+        .island{
             position: fixed;
-            inset: 0;
-            background: rgba(0,0,0,0.72);
-            z-index: 2600;
-            align-items: center;
-            justify-content: center;
-            backdrop-filter: blur(10px);
-            -webkit-backdrop-filter: blur(10px);
-            opacity: 0;
-            transition: opacity 0.25s ease;
+            left: 50%;
+            transform: translateX(-50%);
+            top: calc(env(safe-area-inset-top) + var(--status-bar-h) + 10px);
+            z-index: 1200;
+            width: min(520px, calc(100vw - 22px));
+            pointer-events: none; /* allow clicks only on inner pill */
         }
-        #homeNoticeModal.show { opacity: 1; }
-        #homeNoticeModal .notice-content {
-            background: var(--modal-bg);
-            width: min(560px, calc(100% - 28px));
-            border-radius: 30px;
-            padding: 22px 22px 18px;
-            border: 1px solid var(--glass-border);
-            box-shadow: 0 30px 80px rgba(0,0,0,0.6);
-            color: var(--text-main);
-            position: relative;
+        .island .island-compact,
+        .island .island-expanded{
+            pointer-events: auto;
         }
-        #homeNoticeModal .notice-title {
-            font-weight: 900;
-            font-size: 1.25rem;
-            margin-bottom: 10px;
-            letter-spacing: -0.5px;
-            display:flex; align-items:center; gap:10px;
+        .island-compact{
+            display:flex;
+            justify-content:center;
         }
-        #homeNoticeModal .notice-sub {
-            color: var(--text-muted);
-            font-size: 0.92rem;
-            line-height: 1.6;
-            margin-bottom: 12px;
-        }
-        #homeNoticeModal .notice-box {
-            background: rgba(255,255,255,0.03);
-            border: 1px solid var(--glass-border);
-            border-radius: 18px;
-            padding: 14px 14px;
-            line-height: 1.65;
-            font-size: 0.92rem;
-        }
-        .light-mode #homeNoticeModal .notice-box {
-            background: rgba(0,0,0,0.03);
-        }
-        #homeNoticeModal .notice-box ul { padding-left: 18px; margin: 8px 0 0; }
-        #homeNoticeModal .notice-box li { margin: 6px 0; }
-        #homeNoticeModal .notice-actions {
-            display:flex; gap: 10px; margin-top: 14px;
-        }
-        #homeNoticeModal .notice-actions button{
-            flex:1;
-            padding: 12px 14px;
-            border-radius: 16px;
-            border: 1px solid var(--glass-border);
-            background: rgba(255,255,255,0.05);
-            color: var(--text-main);
+        .island-pill{
+            display:inline-flex;
+            align-items:center;
+            gap:10px;
+            padding:10px 14px;
+            border-radius: 999px;
+            background: rgba(2,6,23,.78);
+            border: 1px solid rgba(255,255,255,.12);
+            box-shadow: 0 18px 60px rgba(0,0,0,.45);
+            color: #fff;
             font-weight: 800;
+            font-size: 0.95rem;
+            letter-spacing: .2px;
+            max-width: 100%;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            transition: transform .18s ease, box-shadow .18s ease, background .18s ease;
             cursor: pointer;
-            transition: 0.15s;
         }
-        #homeNoticeModal .notice-actions button.primary{
-            background: var(--success);
-            border-color: transparent;
-            color: #06281e;
+        body.light-mode .island-pill{
+            background: rgba(255,255,255,.86);
+            color: #0f172a;
+            border-color: rgba(15,23,42,.15);
         }
-        #homeNoticeModal .notice-actions button:hover{ transform: translateY(-1px); }
+        .island.open .island-pill{
+            transform: scale(1.02);
+            box-shadow: 0 22px 75px rgba(0,0,0,.55);
+        }
+        .island-expanded{
+            margin-top: 10px;
+            border-radius: 20px;
+            background: rgba(2,6,23,.80);
+            border: 1px solid rgba(255,255,255,.12);
+            box-shadow: 0 26px 90px rgba(0,0,0,.55);
+            padding: 12px 14px;
+            color: #fff;
+            backdrop-filter: blur(14px);
+            -webkit-backdrop-filter: blur(14px);
+        }
+        body.light-mode .island-expanded{
+            background: rgba(255,255,255,.90);
+            color: #0f172a;
+            border-color: rgba(15,23,42,.15);
+        }
+        .island-expanded-title{
+            font-weight: 900;
+            font-size: 0.95rem;
+            opacity: .92;
+            margin-bottom: 6px;
+        }
+        .island-expanded-body{
+            font-size: 0.92rem;
+            line-height: 1.35;
+            white-space: pre-wrap;
+            word-break: break-word;
+            opacity: .95;
+        }
+        .island.bounce .island-pill{
+            animation: islandBounce .34s ease;
+        }
+        @keyframes islandBounce{
+            0%{ transform: translateY(-2px) scale(1); }
+            55%{ transform: translateY(0) scale(1.04); }
+            100%{ transform: translateY(0) scale(1); }
+        }
 
-    </style>
+</style>
 </head>
 <body class="dark-mode">
 
@@ -337,6 +352,18 @@
             </div>
         </div>
     </div>
+
+    <!-- ===== Floating Status Island (Dynamic-Island-style) ===== -->
+    <div class="island" id="floatingIsland" aria-live="polite" aria-label="即時狀態">
+      <div class="island-compact" id="islandCompact">
+        <span class="island-pill" id="islandPillText">監控中</span>
+      </div>
+      <div class="island-expanded" id="islandExpanded" hidden>
+        <div class="island-expanded-title" id="islandExpandedTitle">即時狀態</div>
+        <div class="island-expanded-body" id="islandExpandedBody"></div>
+      </div>
+    </div>
+
 
     <nav class="top-nav">
         <div class="logo"><span>時刻表 Pro</span></div>
@@ -408,11 +435,11 @@
         <strong style="color: var(--warning); display: block; margin-bottom: 5px;">⚠️ 啟動前須知：</strong>
         <ul style="padding-left: 18px; margin-bottom: 8px;">
             <li><strong>iOS 使用者：</strong> 必須點擊 Safari「分享」並選擇<strong>「加入主畫面」</strong>，從桌面開啟方可支援推播。</li>
-            <li><strong>Android 使用者：</strong> 建議點擊「加到主畫面」並選擇<strong>「安裝應用程式」</strong>，從桌面開啟方可支援推播。</li>
-            <li><strong>權限：</strong> 必須在 HTTPS 環境下並確認於設定通知管理中將「Real-Time」<strong>開啟「允許通知」</strong>。</li>
+            <li><strong>Android/PC：</strong> 建議安裝為 PWA 以確保背景運作。</li>
+            <li><strong>權限：</strong> 必須在 HTTPS 環境下並「允許通知」。</li>
         </ul>
         <div style="border-top: 1px solid rgba(255,255,255,0.1); padding-top: 8px; margin-top: 8px; font-size: 0.75rem;">
-            <strong>步驟：</strong> 1. 填寫車次資訊 → 2. 勾選下方的「啟用」與「接收誤點與下車推播」 → 3. 儲存並離開。
+            <strong>步驟：</strong> 1. 填寫車次資訊 → 2. 勾選下方的「啟用」與「推播」 → 3. 儲存並離開。
         </div>
     </div>
 
@@ -426,7 +453,7 @@
 
     <div id="monitorConfig" style="display:none; margin-top:15px; border-top:1px solid var(--glass-border); padding-top:15px;">
         <div class="setting-row" style="margin-bottom:15px; border-bottom:1px solid var(--glass-border); padding-bottom:15px;">
-            <span style="font-size:0.9rem;">接收誤點與下車推播</span>
+            <span style="font-size:0.9rem;">接收誤點與下車推播 (僅臺鐵)</span>
             <label class="switch">
                 <input type="checkbox" id="pushSwitch" onchange="togglePush(this)">
                 <span class="slider"></span>
@@ -443,7 +470,7 @@
             <input type="text" id="mon_tr2_station" class="setting-input" placeholder="目標站 2">
         </div>
 
-        <div style="margin: 12px 0 8px; font-size: 0.8rem; color: var(--thsr-color);">● 高鐵監控 (THSR)</div>
+        <div style="margin: 12px 0 8px; font-size: 0.8rem; color: var(--thsr-color);">● 高鐵監控 (THSR - 表定)</div>
         <div class="fav-row">
             <input type="text" id="mon_thsr_train" class="setting-input" placeholder="車次 (如: 0623)">
             <input type="text" id="mon_thsr_station" class="setting-input" placeholder="目標站">
@@ -480,27 +507,6 @@
         </div>
     </div>
 
-
-    <!-- 首次進入首頁注意事項（只顯示一次） -->
-    <div id="homeNoticeModal" onclick="closeHomeNotice()">
-        <div class="notice-content" onclick="event.stopPropagation()">
-            <div class="notice-title">📌 注意事項</div>
-            <div class="notice-sub">為了讓「推播通知」正常運作，請先確認以下條件：</div>
-            <div class="notice-box">
-                <ul>
-                    <li><strong>iOS 使用者：</strong> 必須點擊 Safari「分享」並選擇<strong>「加入主畫面」</strong>，從桌面開啟方可支援推播。</li>
-                    <li><strong>Android 使用者：</strong> 建議點擊「加到主畫面」並選擇<strong>「安裝應用程式」</strong>，從桌面開啟方可支援推播。</li>
-                    <li><strong>權限：</strong> 必須在 <strong>HTTPS</strong> 環境下，並確認在系統/瀏覽器通知管理中將「Real-Time」設為<strong>允許通知</strong>。</li>
-                </ul>
-            </div>
-            <div class="notice-actions">
-                <button onclick="closeHomeNotice()">我知道了</button>
-                <button class="primary" onclick="closeHomeNotice(); toggleSettings(true);">前往設定</button>
-            </div>
-        </div>
-    </div>
-
-
     <div class="dock-container">
         <div class="tools-popup" id="toolsPopup">
             <a href="https://www.cwa.gov.tw/V8/C/" target="_blank" class="tool-btn"><div class="tool-icon">🌥️</div><span class="tool-name">氣象</span></a>
@@ -516,8 +522,6 @@
             <div class="dock-item" onclick="toggleSettings(true)">⚙️</div>
         </nav>
     </div>
-
-    <script src="../monitor.js"></script>
 
     <script>
         const TDX_CONFIG = {
@@ -670,7 +674,10 @@
             const marquee = document.getElementById('monitorStatusText');
             marquee.innerText = statusMessages.join("   ✦   ");
             marquee.style.color = hasDelay ? "#f87171" : ""; 
-        }
+        
+            // ✅ Floating Island：用跑馬燈資料更新（模仿動態島）
+            try{ updateIslandFromMonitor(statusMessages); }catch(e){}
+}
 
         // 臺鐵監控函式 (通知邏輯：第一次強制發送，之後僅變動發送)
         async function checkTraLive(target) {
@@ -817,8 +824,7 @@
             localStorage.setItem('monitor_enabled', el.checked ? 'true' : 'false');
             config.style.display = el.checked ? 'block' : 'none';
             // 立即生效，不需重整
-            if (typeof startMonitorSystem === 'function') startMonitorSystem(true);
-            else startRealMonitor();
+            startRealMonitor();
         }
 
         // 副開關：控制推播權限
@@ -890,8 +896,7 @@
             
             // 執行監控啟動函數
             if (typeof startRealMonitor === 'function') {
-                if (typeof startMonitorSystem === 'function') startMonitorSystem(true);
-            else startRealMonitor();
+                startRealMonitor();
             }
         }
 
@@ -917,7 +922,8 @@
                         li.innerHTML = `📍 ${s}→${e}`;
                         li.onclick = (ev) => { 
                             ev.stopPropagation(); 
-                            openAppOverlay(sys, { start: s, end: e }); 
+                            const baseUrl = sys === 'tr' ? '../tr/tr.html' : '../thsr/thsr.html';
+                            window.location.href = `${baseUrl}?start=${encodeURIComponent(s)}&end=${encodeURIComponent(e)}`; 
                         };
                         list.appendChild(li);
                     }
@@ -942,11 +948,8 @@
         function goToSystem(sys) {
             let home = localStorage.getItem(`${sys}_home`) || '';
             home = sys === 'thsr' ? normalizeTHSR(home) : normalizeTRA(home);
-            if (home) {
-                openAppOverlay(sys, { station: home });
-            } else {
-                openAppOverlay(sys, null);
-            }
+            const baseUrl = sys === 'tr' ? '../tr/tr.html' : '../thsr/thsr.html';
+            window.location.href = home ? `${baseUrl}?station=${encodeURIComponent(home)}` : baseUrl;
         }
 
         function findNearest(sys) {
@@ -970,7 +973,7 @@
                     targetSpan.innerText = `📍 最近: ${nearest}`;
                     setTimeout(() => {
                         const baseUrl = sys === 'tr' ? '../tr/tr.html' : '../thsr/thsr.html';
-                        openAppOverlay(sys, { station: nearest });
+                        window.location.href = `${baseUrl}?station=${encodeURIComponent(nearest)}`;
                     }, 800);
                 }
             }, () => { targetSpan.innerText = originalText; alert("無法取得位置"); });
@@ -998,122 +1001,226 @@
             if(!e.target.closest('.tools-popup') && !e.target.closest('.dock-item')) document.getElementById('toolsPopup').classList.remove('active');
         }
 
-
-        // ===== 首次進入首頁注意事項（只顯示一次） =====
-        function showHomeNoticeOnce() {
-            try {
-                // 只在「真正首次開啟首頁」顯示一次；之後返回首頁（不重整）不再顯示
-                if (sessionStorage.getItem('home_notice_shown') === '1') return;
-                sessionStorage.setItem('home_notice_shown', '1');
-
-                const modal = document.getElementById('homeNoticeModal');
-                if (!modal) return;
-                modal.style.display = 'flex';
-                // 小延遲讓 transition 生效
-                setTimeout(() => modal.classList.add('show'), 10);
-            } catch (e) {
-                // ignore
-            }
-        }
-
-        function closeHomeNotice() {
-            const modal = document.getElementById('homeNoticeModal');
-            if (!modal) return;
-            modal.classList.remove('show');
-            setTimeout(() => { modal.style.display = 'none'; }, 220);
-        }
-
         window.onload = async () => {
-            showHomeNoticeOnce();
             initTilt();
             renderFavs();
             if(localStorage.getItem('theme') === 'light') document.body.classList.add('light-mode');
             const success = await getTdxToken();
-            if(success) if (typeof startMonitorSystem === 'function') startMonitorSystem(true);
-            else startRealMonitor();
+            if(success) startRealMonitor();
         };
-    </script>
 
-<!-- ===== Full-cover App Overlay (TR / THSR) ===== -->
-<style>
-  .app-overlay{
-    position:fixed; inset:0;
-    z-index:9999;
-    background: var(--bg-dark);
-    display:none;
-  }
-  .app-overlay.show{ display:block; }
-  .app-overlay iframe{
-    width:100%;
-    height:100%;
-    border:0;
-    background: transparent;
-  }
-</style>
-<div class="app-overlay" id="appOverlay" aria-hidden="true">
-  <iframe id="appOverlayFrame" title="App View" loading="lazy"></iframe>
-</div>
-<script>
-  (function(){
-    const overlay = document.getElementById('appOverlay');
-    const frame = document.getElementById('appOverlayFrame');
+        // ===== Dynamic-Island-style state engine =====
+        // 從跑馬燈/通知文字解析 ETA（arrivalStr："預計 HH:mm 抵達 站名"）
+        // 並以「跨門檻只展開一次」的方式決定島的顯示與自動展開。
 
-    function buildUrl(sys, params){
-      const baseUrl = sys === 'tr' ? '../tr/tr.html' : '../thsr/thsr.html';
-      const q = new URLSearchParams();
-      q.set('embed','1');
-      if(params){
-        for(const [k,v] of Object.entries(params)){
-          if(v!==undefined && v!==null && v!=='') q.set(k, v);
+        function parseArrivalFromText(text){
+            if(!text) return null;
+            const m = text.match(/預計\s*(\d{2}:\d{2})\s*抵達\s*([^\s|，。！!\n\r]+)/);
+            if(!m) return null;
+
+            const etaHHMM = m[1];
+            const station = m[2];
+            const [hh, mm] = etaHHMM.split(':').map(Number);
+            const now = new Date();
+
+            // ✅ 先假設是「今天」
+            const eta = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hh, mm, 0, 0);
+            let diffMin = Math.round((eta.getTime() - now.getTime())/60000);
+
+            // ✅ 只有「明顯不合理」才跨日（例如現在 23:50，ETA 00:10）
+            // -180 = 3 小時：避免清晨時段誤判成隔天
+            if(diffMin < -180){
+                eta.setDate(eta.getDate() + 1);
+                diffMin = Math.round((eta.getTime() - now.getTime())/60000);
+            }
+            return { etaDate: eta, etaHHMM, station, remainMin: diffMin };
         }
-      }
-      return baseUrl + '?' + q.toString();
-    }
 
-    window.openAppOverlay = function(sys, params){
-      // lazy load / update src each time (so query params update)
-      frame.src = buildUrl(sys, params);
-      overlay.classList.add('show');
-      overlay.setAttribute('aria-hidden','false');
-      history.pushState({app: sys, params: params||null}, '', '#' + sys);
-    };
+        function extractTrainShort(text){
+            const tra = text.match(/臺鐵\s*(\d+)\s*次/);
+            if(tra) return `🚆 ${tra[1]}`;
+            const thsr = text.match(/高鐵\s*(\d+)\s*次/);
+            if(thsr) return `🚅 ${thsr[1]}`;
+            const n = text.match(/(\d{2,5})/);
+            return n ? `🚆 ${n[1]}` : '🚆';
+        }
 
-    window.closeAppOverlay = function(){
-      overlay.classList.remove('show');
-      overlay.setAttribute('aria-hidden','true');
-      // stop audio/network in iframe
-      frame.src = 'about:blank';
-      if(location.hash) history.pushState({}, '', location.pathname + location.search);
-    };
+        function simplifyBaseStatus(text){
+            if(!text) return '';
+            const tra = text.match(/臺鐵\s*(\d+)\s*次.*?(準點|晚\s*\d+\s*分)/);
+            if(tra) return `🚆 ${tra[1]} · ${tra[2].replace(/\s+/g,'')}`;
+            const thsr = text.match(/高鐵\s*(\d+)\s*次.*?(未發車|行駛中|已到終點)/);
+            if(thsr) return `🚅 ${thsr[1]} · ${thsr[2]}`;
+            return '';
+        }
 
-    // Allow iframe to ask parent to close
-    window.addEventListener('message', (ev) => {
-      if(!ev || !ev.data) return;
-      if(ev.data === 'APP_CLOSE' || (ev.data && ev.data.type === 'APP_CLOSE')){
-        window.closeAppOverlay();
-      }
-    });
+        function buildKeyBase(text, station, etaHHMM){
+            const trainShort = extractTrainShort(text).replace(/\s+/g,'');
+            return `${trainShort}|${station}|${etaHHMM}`;
+        }
 
-    // Back button
-    window.addEventListener('popstate', (e) => {
-      const h = (location.hash || '').replace('#','');
-      if(h === 'tr' || h === 'thsr'){
-        // if navigating back into app, reopen without params
-        window.openAppOverlay(h, (e.state && e.state.params) ? e.state.params : null);
-      }else{
-        window.closeAppOverlay();
-      }
-    });
+        function shouldExpandOnce(keyBase, phase){
+            if(!['soon15','soon5','arrived'].includes(phase)) return false;
+            const storeKey = `island_expand_${keyBase}_${phase}`;
+            if(sessionStorage.getItem(storeKey)==='1') return false;
+            sessionStorage.setItem(storeKey,'1');
+            return true;
+        }
 
-    // On reload with hash
-    window.addEventListener('load', () => {
-      const h = (location.hash || '').replace('#','');
-      if(h === 'tr' || h === 'thsr'){
-        window.openAppOverlay(h, null);
-      }
-    });
-  })();
+        function computeIslandState(finalText, now = new Date()){
+            const parsed = parseArrivalFromText(finalText);
+            if(!parsed){
+                const base = simplifyBaseStatus(finalText);
+                return {
+                    phase: 'none',
+                    hasETA: false,
+                    eta: null,
+                    station: null,
+                    remainMin: null,
+                    compactText: base ? base : '監控中',
+                    expandedText: base ? base : (finalText || ''),
+                    shouldAutoExpand: false,
+                    expandReason: null
+                };
+            }
+
+            const { etaDate, etaHHMM, station } = parsed;
+            const remainMin = Math.round((etaDate.getTime() - now.getTime())/60000);
+
+            let phase = 'far';
+            if(remainMin <= 0) phase = 'arrived';
+            else if(remainMin <= 5) phase = 'soon5';
+            else if(remainMin <= 15) phase = 'soon15';
+            else if(remainMin <= 30) phase = 'mid';
+            else phase = 'far';
+
+            const trainShort = extractTrainShort(finalText);
+            const compactText = (remainMin > 30)
+                ? `${trainShort} · ${etaHHMM} 抵達 ${station}`
+                : `${trainShort} · ${remainMin} 分到 ${station}`;
+
+            const expandedText = `${finalText}\n⏱️ 約 ${Math.max(remainMin,0)} 分鐘 (${etaHHMM}) 抵達 ${station}`;
+
+            const keyBase = buildKeyBase(finalText, station, etaHHMM);
+            const shouldAutoExpand = shouldExpandOnce(keyBase, phase);
+            let expandReason = null;
+            if(shouldAutoExpand){
+                if(phase === 'soon15') expandReason = '≤15min';
+                else if(phase === 'soon5') expandReason = '≤5min';
+                else if(phase === 'arrived') expandReason = 'arrived';
+            }
+
+            return {
+                phase,
+                hasETA: true,
+                eta: etaDate,
+                station,
+                remainMin,
+                compactText,
+                expandedText,
+                shouldAutoExpand,
+                expandReason
+            };
+        }
+    
+        // ===== Floating Island (Dynamic-Island-style) helpers =====
+        let __islandAutoCloseTimer = null;
+
+        function chooseBestIslandLine(lines){
+            if(!Array.isArray(lines) || lines.length===0) return '';
+
+            // 先排除公告/系統訊息，盡量只挑「列車監控訊息」
+            const trainLines = lines.filter(l => /(臺鐵\s*\d+\s*次|高鐵\s*\d+\s*次|\d+\s*次\s*:|目前在|預計\s*\d{2}:\d{2}\s*抵達)/.test(l));
+
+            const candidates = trainLines.length ? trainLines : lines;
+
+            // 優先挑「剩餘時間最短且尚未到站」的那一則；若都沒有 ETA，就用第一則候選
+            let best = null;
+            for(const line of candidates){
+                const p = (typeof parseArrivalFromText === 'function') ? parseArrivalFromText(line) : null;
+                if(!p) continue;
+                const now = new Date();
+                const remain = Math.round((p.etaDate.getTime() - now.getTime())/60000);
+                if(remain < 0) continue;
+                if(best === null || remain < best.remain){
+                    best = { line, remain };
+                }
+            }
+            return (best && best.line) ? best.line : candidates[0];
+        }
+
+        function islandOpen(){
+            const island = document.getElementById('floatingIsland');
+            const exp = document.getElementById('islandExpanded');
+            if(!island || !exp) return;
+            exp.hidden = false;
+            island.classList.add('open');
+            if(__islandAutoCloseTimer) clearTimeout(__islandAutoCloseTimer);
+            __islandAutoCloseTimer = setTimeout(()=>{ islandClose(); }, 3800);
+        }
+
+        function islandClose(){
+            const island = document.getElementById('floatingIsland');
+            const exp = document.getElementById('islandExpanded');
+            if(!island || !exp) return;
+            exp.hidden = true;
+            island.classList.remove('open');
+        }
+
+        function islandBounce(){
+            const island = document.getElementById('floatingIsland');
+            if(!island) return;
+            island.classList.remove('bounce');
+            // reflow
+            void island.offsetWidth;
+            island.classList.add('bounce');
+            setTimeout(()=>island.classList.remove('bounce'), 420);
+        }
+
+        function islandRender(state){
+            const pill = document.getElementById('islandPillText');
+            const title = document.getElementById('islandExpandedTitle');
+            const body  = document.getElementById('islandExpandedBody');
+            if(!pill || !title || !body || !state) return;
+
+            pill.textContent = state.compactText || '監控中';
+
+            // 展開內容：用 expandedText；標題可依 phase 調整
+            if(state.phase === 'arrived') title.textContent = '✅ 已到站';
+            else if(state.phase === 'soon5') title.textContent = '⏳ 即將到站';
+            else if(state.phase === 'soon15') title.textContent = '🟡 即將到站';
+            else title.textContent = '即時狀態';
+
+            body.textContent = state.expandedText || '';
+        }
+
+        function islandAutoExpand(state){
+            islandBounce();
+            islandOpen();
+        }
+
+        function updateIslandFromMonitor(statusMessages){
+            const line = chooseBestIslandLine(statusMessages);
+            if(!line || typeof computeIslandState !== 'function') return;
+            const st = computeIslandState(line);
+            islandRender(st);
+            if(st.shouldAutoExpand) islandAutoExpand(st);
+        }
+
+        // 點擊膠囊：手動展開/收合
+        (function(){
+            document.addEventListener('click', (e)=>{
+                const pill = document.getElementById('islandPillText');
+                if(!pill) return;
+                if(e.target === pill){
+                    const exp = document.getElementById('islandExpanded');
+                    if(!exp) return;
+                    if(exp.hidden) islandOpen();
+                    else islandClose();
+                }
+            });
+        })();
+
 </script>
-
 </body>
 </html>
