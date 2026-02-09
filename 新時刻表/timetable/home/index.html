@@ -1770,62 +1770,74 @@ select.setting-input[id*="pick"] {
         }
 
         async function checkThsrSchedule(target) {
-            try {
-                const url = `https://tdx.transportdata.tw/api/basic/v2/Rail/THSR/DailyTimetable/Today/TrainNo/${target.no}?%24format=JSON`;
-                const res = await fetch(url, { headers: { 'Authorization': `Bearer ${tdxToken}` } });
-                const data = await res.json();
-                
-                if (!Array.isArray(data) || data.length === 0) return { text: `高鐵 ${target.no}次: 今日無行駛`, delay: false };
+    try {
+        const url = `https://tdx.transportdata.tw/api/basic/v2/Rail/THSR/DailyTimetable/Today/TrainNo/${target.no}?%24format=JSON`;
+        const res = await fetch(url, { headers: { 'Authorization': `Bearer ${tdxToken}` } });
+        const data = await res.json();
+        
+        if (!Array.isArray(data) || data.length === 0) return { text: `高鐵 ${target.no}次: 今日無行駛`, delay: false };
 
-                const stops = data[0].StopTimes;
-                const startTime = stops[0].DepartureTime;
-                const endTime = stops[stops.length - 1].ArrivalTime;
-                const now = new Date();
-                const nowStr = now.toTimeString().slice(0, 5);
+        const stops = data[0].StopTimes;
+        const now = new Date();
+        const nowStr = now.toTimeString().slice(0, 5); // 取得 HH:mm
 
-                let status = "行駛中";
-                if (nowStr < startTime) status = "未發車";
-                else if (nowStr > endTime) status = "已到終點";
-
-                let arrivalStr = "";
-                let targetArrivalTime = null;
-
-                if (status !== "已到終點") {
-                    if (target.stn) {
-                        const targetStop = stops.find(s => s.StationName.Zh_tw === target.stn);
-                        if (targetStop) {
-                            targetArrivalTime = targetStop.ArrivalTime;
-                            arrivalStr = ` | 預計 ${targetStop.ArrivalTime} 抵達 ${target.stn}`;
-                        } else {
-                            arrivalStr = ` | (該車次不停靠 ${target.stn})`;
-                        }
-                    } else {
-                        const endStn = stops[stops.length - 1].StationName.Zh_tw;
-                        arrivalStr = ` | 往 ${endStn}`;
-                    }
-                }
-
-                if (target.stn && targetArrivalTime) {
-                    const cleared = checkAutoClear(target.id, target.no, targetArrivalTime, 0);
-                    if (cleared) return null;
-                }
-
-                const finalText = `高鐵 ${target.no}次: ${status}${arrivalStr}`;
-                const stateKey = `thsr_${target.no}`;
-
-                const isPushOn = localStorage.getItem('push_enabled') === 'true';
-                if (isPushOn) {
-                    if (lastNotificationStates[stateKey] !== finalText) {
-                        sendNotification(`🚅 ${target.no}次 狀態更新`, finalText);
-                        lastNotificationStates[stateKey] = finalText;
-                    }
-                }
-
-                return { text: finalText, delay: false };
-            } catch(e) {
-                return { text: `高鐵 ${target.no}次: 資料錯誤`, delay: false };
+        // --- 核心邏輯：計算目前位置 ---
+        let currentStatus = "行駛中";
+        let lastPassedStn = "";
+        
+        // 找出最後一個「出發時間 <= 現在」的車站
+        for (let i = 0; i < stops.length; i++) {
+            if (nowStr >= stops[i].DepartureTime) {
+                lastPassedStn = stops[i].StationName.Zh_tw;
             }
         }
+
+        const startTime = stops[0].DepartureTime;
+        const endTime = stops[stops.length - 1].ArrivalTime;
+
+        if (nowStr < startTime) {
+            currentStatus = "未發車";
+        } else if (nowStr > endTime) {
+            currentStatus = "已到終點";
+        } else {
+            // 在起訖時間內，組合「已通過 XX 站」
+            currentStatus = `通過 ${lastPassedStn} | | 行駛中`;
+        }
+
+        let arrivalStr = "";
+        let targetArrivalTime = null;
+
+        if (nowStr <= endTime) {
+            if (target.stn) {
+                const targetStop = stops.find(s => s.StationName.Zh_tw === target.stn);
+                if (targetStop) {
+                    targetArrivalTime = targetStop.ArrivalTime;
+                    arrivalStr = `  預計 ${targetStop.ArrivalTime} 抵達 ${target.stn}`;
+                }
+            }
+        }
+
+        // 自動清除邏輯
+        if (target.stn && targetArrivalTime) {
+            const cleared = checkAutoClear(target.id, target.no, targetArrivalTime, 0);
+            if (cleared) return null;
+        }
+
+        const finalText = `高鐵 ${target.no}次: ${currentStatus}${arrivalStr}`;
+        const stateKey = `thsr_${target.no}`;
+
+        // 推播邏輯
+        const isPushOn = localStorage.getItem('push_enabled') === 'true';
+        if (isPushOn && lastNotificationStates[stateKey] !== finalText) {
+            sendNotification(`🚅 ${target.no}次 狀態更新`, finalText);
+            lastNotificationStates[stateKey] = finalText;
+        }
+
+        return { text: finalText, delay: false };
+    } catch(e) {
+        return { text: `高鐵 ${target.no}次: 資料錯誤`, delay: false };
+    }
+}
 
         // ===== 設定與開關邏輯 =====
         // 修正後的載入邏輯：預防元件不存在報錯，並強化選單回顯
