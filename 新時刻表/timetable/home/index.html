@@ -216,6 +216,8 @@
 
         .setting-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
         .setting-input { background: rgba(0,0,0,0.3); border: 1px solid var(--glass-border); color: var(--text-main); padding: 10px 14px; border-radius: 12px; width: 100%; outline: none; font-size: 0.95rem; }
+        /* 下拉選單樣式 */
+        select.setting-input { appearance: none; cursor: pointer; background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%2394a3b8%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E"); background-repeat: no-repeat; background-position: right 12px top 50%; background-size: 10px auto; padding-right: 30px; }
         .light-mode .setting-input { background: #fff; color: #000; border-color: #ddd; }
         .fav-row { display: flex; gap: 10px; margin-bottom: 10px; }
 
@@ -240,94 +242,79 @@
             .status-bar { font-size: 0.75rem; }
         }
     
-        /* ===== Floating Status Island (Dynamic-Island-style) ===== */
-        .island{
+        /* 首次進入首頁注意事項（只顯示一次） */
+        #homeNoticeModal {
+            display: none;
             position: fixed;
-            left: 50%;
-            transform: translateX(-50%);
-            top: calc(env(safe-area-inset-top) + var(--status-bar-h) + 10px);
-            z-index: 1200;
-            width: min(520px, calc(100vw - 22px));
-            pointer-events: none; /* allow clicks only on inner pill */
+            inset: 0;
+            background: rgba(0,0,0,0.72);
+            z-index: 2600;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            opacity: 0;
+            transition: opacity 0.25s ease;
         }
-        .island .island-compact,
-        .island .island-expanded{
-            pointer-events: auto;
+        #homeNoticeModal.show { opacity: 1; }
+        #homeNoticeModal .notice-content {
+            background: var(--modal-bg);
+            width: min(560px, calc(100% - 28px));
+            border-radius: 30px;
+            padding: 22px 22px 18px;
+            border: 1px solid var(--glass-border);
+            box-shadow: 0 30px 80px rgba(0,0,0,0.6);
+            color: var(--text-main);
+            position: relative;
         }
-        .island-compact{
-            display:flex;
-            justify-content:center;
-        }
-        .island-pill{
-            display:inline-flex;
-            align-items:center;
-            gap:10px;
-            padding:10px 14px;
-            border-radius: 999px;
-            background: rgba(2,6,23,.78);
-            border: 1px solid rgba(255,255,255,.12);
-            box-shadow: 0 18px 60px rgba(0,0,0,.45);
-            color: #fff;
-            font-weight: 800;
-            font-size: 0.95rem;
-            letter-spacing: .2px;
-            max-width: 100%;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
-            transition: transform .18s ease, box-shadow .18s ease, background .18s ease;
-            cursor: pointer;
-        }
-        body.light-mode .island-pill{
-            background: rgba(255,255,255,.86);
-            color: #0f172a;
-            border-color: rgba(15,23,42,.15);
-        }
-        .island.open .island-pill{
-            transform: scale(1.02);
-            box-shadow: 0 22px 75px rgba(0,0,0,.55);
-        }
-        .island-expanded{
-            margin-top: 10px;
-            border-radius: 20px;
-            background: rgba(2,6,23,.80);
-            border: 1px solid rgba(255,255,255,.12);
-            box-shadow: 0 26px 90px rgba(0,0,0,.55);
-            padding: 12px 14px;
-            color: #fff;
-            backdrop-filter: blur(14px);
-            -webkit-backdrop-filter: blur(14px);
-        }
-        body.light-mode .island-expanded{
-            background: rgba(255,255,255,.90);
-            color: #0f172a;
-            border-color: rgba(15,23,42,.15);
-        }
-        .island-expanded-title{
+        #homeNoticeModal .notice-title {
             font-weight: 900;
-            font-size: 0.95rem;
-            opacity: .92;
-            margin-bottom: 6px;
+            font-size: 1.25rem;
+            margin-bottom: 10px;
+            letter-spacing: -0.5px;
+            display:flex; align-items:center; gap:10px;
         }
-        .island-expanded-body{
+        #homeNoticeModal .notice-sub {
+            color: var(--text-muted);
             font-size: 0.92rem;
-            line-height: 1.35;
-            white-space: pre-wrap;
-            word-break: break-word;
-            opacity: .95;
+            line-height: 1.6;
+            margin-bottom: 12px;
         }
-        .island.bounce .island-pill{
-            animation: islandBounce .34s ease;
+        #homeNoticeModal .notice-box {
+            background: rgba(255,255,255,0.03);
+            border: 1px solid var(--glass-border);
+            border-radius: 18px;
+            padding: 14px 14px;
+            line-height: 1.65;
+            font-size: 0.92rem;
         }
-        @keyframes islandBounce{
-            0%{ transform: translateY(-2px) scale(1); }
-            55%{ transform: translateY(0) scale(1.04); }
-            100%{ transform: translateY(0) scale(1); }
+        .light-mode #homeNoticeModal .notice-box {
+            background: rgba(0,0,0,0.03);
         }
+        #homeNoticeModal .notice-box ul { padding-left: 18px; margin: 8px 0 0; }
+        #homeNoticeModal .notice-box li { margin: 6px 0; }
+        #homeNoticeModal .notice-actions {
+            display:flex; gap: 10px; margin-top: 14px;
+        }
+        #homeNoticeModal .notice-actions button{
+            flex:1;
+            padding: 12px 14px;
+            border-radius: 16px;
+            border: 1px solid var(--glass-border);
+            background: rgba(255,255,255,0.05);
+            color: var(--text-main);
+            font-weight: 800;
+            cursor: pointer;
+            transition: 0.15s;
+        }
+        #homeNoticeModal .notice-actions button.primary{
+            background: var(--success);
+            border-color: transparent;
+            color: #06281e;
+        }
+        #homeNoticeModal .notice-actions button:hover{ transform: translateY(-1px); }
 
-</style>
+    </style>
 </head>
 <body class="dark-mode">
 
@@ -352,18 +339,6 @@
             </div>
         </div>
     </div>
-
-    <!-- ===== Floating Status Island (Dynamic-Island-style) ===== -->
-    <div class="island" id="floatingIsland" aria-live="polite" aria-label="即時狀態">
-      <div class="island-compact" id="islandCompact">
-        <span class="island-pill" id="islandPillText">監控中</span>
-      </div>
-      <div class="island-expanded" id="islandExpanded" hidden>
-        <div class="island-expanded-title" id="islandExpandedTitle">即時狀態</div>
-        <div class="island-expanded-body" id="islandExpandedBody"></div>
-      </div>
-    </div>
-
 
     <nav class="top-nav">
         <div class="logo"><span>時刻表 Pro</span></div>
@@ -435,11 +410,11 @@
         <strong style="color: var(--warning); display: block; margin-bottom: 5px;">⚠️ 啟動前須知：</strong>
         <ul style="padding-left: 18px; margin-bottom: 8px;">
             <li><strong>iOS 使用者：</strong> 必須點擊 Safari「分享」並選擇<strong>「加入主畫面」</strong>，從桌面開啟方可支援推播。</li>
-            <li><strong>Android/PC：</strong> 建議安裝為 PWA 以確保背景運作。</li>
-            <li><strong>權限：</strong> 必須在 HTTPS 環境下並「允許通知」。</li>
+            <li><strong>Android 使用者：</strong> 建議點擊「加到主畫面」並選擇<strong>「安裝應用程式」</strong>，從桌面開啟方可支援推播。</li>
+            <li><strong>權限：</strong> 必須在 HTTPS 環境下並確認於設定通知管理中將「Real-Time」<strong>開啟「允許通知」</strong>。</li>
         </ul>
         <div style="border-top: 1px solid rgba(255,255,255,0.1); padding-top: 8px; margin-top: 8px; font-size: 0.75rem;">
-            <strong>步驟：</strong> 1. 填寫車次資訊 → 2. 勾選下方的「啟用」與「推播」 → 3. 儲存並離開。
+            <strong>步驟：</strong> 1. 輸入車次(選單選擇) → 2. 選擇目標站 → 3. 儲存。
         </div>
     </div>
 
@@ -453,27 +428,36 @@
 
     <div id="monitorConfig" style="display:none; margin-top:15px; border-top:1px solid var(--glass-border); padding-top:15px;">
         <div class="setting-row" style="margin-bottom:15px; border-bottom:1px solid var(--glass-border); padding-bottom:15px;">
-            <span style="font-size:0.9rem;">接收誤點與下車推播 (僅臺鐵)</span>
+            <span style="font-size:0.9rem;">接收誤點與下車推播</span>
             <label class="switch">
                 <input type="checkbox" id="pushSwitch" onchange="togglePush(this)">
                 <span class="slider"></span>
             </label>
         </div>
 
+        <datalist id="traTrainList"></datalist>
+        <datalist id="thsrTrainList"></datalist>
+
         <div style="margin-bottom: 8px; font-size: 0.8rem; color: var(--tr-color);">● 臺鐵監控 (TRA)</div>
         <div class="fav-row">
-            <input type="text" id="mon_tr1_train" class="setting-input" placeholder="車次 1 (如: 408)">
-            <input type="text" id="mon_tr1_station" class="setting-input" placeholder="目標站 1">
+            <input type="text" id="mon_tr1_train" class="setting-input" list="traTrainList" placeholder="輸入車次 (如: 408)" onchange="updateStationOptions('tra', this.value, 'mon_tr1_station')">
+            <select id="mon_tr1_station" class="setting-input">
+                <option value="" disabled selected>請先輸入車次</option>
+            </select>
         </div>
         <div class="fav-row">
-            <input type="text" id="mon_tr2_train" class="setting-input" placeholder="車次 2 (如: 117)">
-            <input type="text" id="mon_tr2_station" class="setting-input" placeholder="目標站 2">
+            <input type="text" id="mon_tr2_train" class="setting-input" list="traTrainList" placeholder="輸入車次" onchange="updateStationOptions('tra', this.value, 'mon_tr2_station')">
+            <select id="mon_tr2_station" class="setting-input">
+                <option value="" disabled selected>請先輸入車次</option>
+            </select>
         </div>
 
-        <div style="margin: 12px 0 8px; font-size: 0.8rem; color: var(--thsr-color);">● 高鐵監控 (THSR - 表定)</div>
+        <div style="margin: 12px 0 8px; font-size: 0.8rem; color: var(--thsr-color);">● 高鐵監控 (THSR)</div>
         <div class="fav-row">
-            <input type="text" id="mon_thsr_train" class="setting-input" placeholder="車次 (如: 0623)">
-            <input type="text" id="mon_thsr_station" class="setting-input" placeholder="目標站">
+            <input type="text" id="mon_thsr_train" class="setting-input" list="thsrTrainList" placeholder="輸入車次 (如: 0623)" onchange="updateStationOptions('thsr', this.value, 'mon_thsr_station')">
+            <select id="mon_thsr_station" class="setting-input">
+                <option value="" disabled selected>請先輸入車次</option>
+            </select>
         </div>
         
         <button onclick="testNotification()" style="width:100%; margin-top:10px; padding:8px; border-radius:10px; border:1px solid var(--glass-border); background:rgba(255,255,255,0.05); color:var(--text-main); cursor:pointer;">🔔 測試通知權限</button>
@@ -507,6 +491,26 @@
         </div>
     </div>
 
+
+    <div id="homeNoticeModal" onclick="closeHomeNotice()">
+        <div class="notice-content" onclick="event.stopPropagation()">
+            <div class="notice-title">📌 注意事項</div>
+            <div class="notice-sub">為了讓「推播通知」正常運作，請先確認以下條件：</div>
+            <div class="notice-box">
+                <ul>
+                    <li><strong>iOS 使用者：</strong> 必須點擊 Safari「分享」並選擇<strong>「加入主畫面」</strong>，從桌面開啟方可支援推播。</li>
+                    <li><strong>Android 使用者：</strong> 建議點擊「加到主畫面」並選擇<strong>「安裝應用程式」</strong>，從桌面開啟方可支援推播。</li>
+                    <li><strong>權限：</strong> 必須在 <strong>HTTPS</strong> 環境下，並確認在系統/瀏覽器通知管理中將「Real-Time」設為<strong>允許通知</strong>。</li>
+                </ul>
+            </div>
+            <div class="notice-actions">
+                <button onclick="closeHomeNotice()">我知道了</button>
+                <button class="primary" onclick="closeHomeNotice(); toggleSettings(true);">前往設定</button>
+            </div>
+        </div>
+    </div>
+
+
     <div class="dock-container">
         <div class="tools-popup" id="toolsPopup">
             <a href="https://www.cwa.gov.tw/V8/C/" target="_blank" class="tool-btn"><div class="tool-icon">🌥️</div><span class="tool-name">氣象</span></a>
@@ -523,6 +527,8 @@
         </nav>
     </div>
 
+    <script src="../monitor.js"></script>
+
     <script>
         const TDX_CONFIG = {
             clientId: 'r36144112-d7b2ebdd-ce4c-40c3',
@@ -530,18 +536,13 @@
         };
 
         let tdxToken = null;
+        let monitorFetchInterval = null; 
         let stationDB = { tr: [], thsr: [] };
-        
-        // 用來記錄上一次通知的狀態文字，格式: { 'tra_408': '...', 'thsr_0623': '...' }
         let lastNotificationStates = {};
+        let cachedTrainList = { tra: null, thsr: null }; // 暫存車次列表
 
-        function normalizeTRA(str) {
-            return str ? str.replace(/台/g, '臺') : '';
-        }
-
-        function normalizeTHSR(str) {
-            return str ? str.replace(/臺/g, '台') : '';
-        }
+        function normalizeTRA(str) { return str ? str.replace(/台/g, '臺') : ''; }
+        function normalizeTHSR(str) { return str ? str.replace(/臺/g, '台') : ''; }
 
         async function getTdxToken() {
             try {
@@ -612,10 +613,110 @@
             document.getElementById('thsrStatusDot').className = 'status-dot ok';
         }
 
-        // ===== 監控核心邏輯 (臺鐵即時 + 高鐵表定) =====
-        let monitorFetchInterval = null; 
+        // ===== 智慧選單邏輯 (Autocomplete & Dropdown) =====
 
-        async function startRealMonitor() {
+        // 1. 初始化車次列表 (只抓一次)
+        async function initTrainLists() {
+            if(!tdxToken) await getTdxToken();
+            if(!tdxToken) return;
+            
+            const headers = { 'Authorization': `Bearer ${tdxToken}` };
+
+            // 抓高鐵車次 (資料量小，直接全抓)
+            if(!cachedTrainList.thsr) {
+                try {
+                    const res = await fetch('https://tdx.transportdata.tw/api/basic/v2/Rail/THSR/DailyTimetable/Today?%24format=JSON', { headers });
+                    const data = await res.json();
+                    cachedTrainList.thsr = data.map(d => d.TrainDate.TrainNo || d.DailyTrainInfo.TrainNo);
+                    populateDatalist('thsrTrainList', cachedTrainList.thsr);
+                } catch(e){}
+            }
+
+            // 抓臺鐵車次 (資料量大，只抓 TrainInfo 減少流量)
+            if(!cachedTrainList.tra) {
+                try {
+                    const res = await fetch('https://tdx.transportdata.tw/api/basic/v3/Rail/TRA/DailyTrainTimetable/Today?%24select=TrainInfo&%24format=JSON', { headers });
+                    const data = await res.json();
+                    // 去除重複車次
+                    const rawList = data.TrainTimetables.map(d => d.TrainInfo.TrainNo);
+                    cachedTrainList.tra = [...new Set(rawList)].sort();
+                    populateDatalist('traTrainList', cachedTrainList.tra);
+                } catch(e){}
+            }
+        }
+
+        function populateDatalist(id, list) {
+            const el = document.getElementById(id);
+            if(!el) return;
+            el.innerHTML = list.map(n => `<option value="${n}"></option>`).join('');
+        }
+
+        // 2. 當車次改變時，自動更新車站下拉選單
+        // savedStation: 如果有傳入，會在清單載入後自動選取該站 (用於還原設定)
+        async function updateStationOptions(type, trainNo, selectId, savedStation = null) {
+            const selectEl = document.getElementById(selectId);
+            if(!selectEl) return;
+            if(!trainNo) {
+                selectEl.innerHTML = '<option value="" disabled selected>請先輸入車次</option>';
+                return;
+            }
+
+            selectEl.innerHTML = '<option value="" disabled selected>載入中...</option>';
+            
+            if(!tdxToken) await getTdxToken();
+            const headers = { 'Authorization': `Bearer ${tdxToken}` };
+            
+            try {
+                let url = '';
+                if(type === 'tra') {
+                    url = `https://tdx.transportdata.tw/api/basic/v3/Rail/TRA/DailyTrainTimetable/Today/TrainNo/${trainNo}?%24format=JSON`;
+                } else {
+                    url = `https://tdx.transportdata.tw/api/basic/v2/Rail/THSR/DailyTimetable/Today/TrainNo/${trainNo}?%24format=JSON`;
+                }
+
+                const res = await fetch(url, { headers });
+                const data = await res.json();
+                
+                let stops = [];
+                if(type === 'tra' && data.TrainTimetables && data.TrainTimetables.length > 0) {
+                    stops = data.TrainTimetables[0].StopTimes;
+                } else if(type === 'thsr' && data.length > 0) {
+                    stops = data[0].StopTimes;
+                }
+
+                if(stops.length === 0) {
+                    selectEl.innerHTML = '<option value="" disabled selected>查無停靠站</option>';
+                    return;
+                }
+
+                // 產生選項
+                let html = '<option value="" disabled selected>請選擇目標站</option>';
+                stops.forEach(s => {
+                    const stName = s.StationName.Zh_tw;
+                    const time = s.ArrivalTime || s.DepartureTime;
+                    html += `<option value="${stName}">${stName} (${time})</option>`;
+                });
+                selectEl.innerHTML = html;
+
+                // 如果有預設值，嘗試選取
+                if(savedStation) {
+                    // 正規化比對
+                    const target = type === 'tra' ? normalizeTRA(savedStation) : normalizeTHSR(savedStation);
+                    selectEl.value = target;
+                    // 如果 value 沒變(不在清單內)，清空
+                    if(selectEl.value !== target) selectEl.value = "";
+                }
+
+            } catch(e) {
+                console.error(e);
+                selectEl.innerHTML = '<option value="" disabled selected>載入失敗</option>';
+            }
+        }
+
+
+        // ===== 監控核心邏輯 =====
+
+        async function startMonitorSystem(isForceRefresh = false) {
             if(monitorFetchInterval) clearInterval(monitorFetchInterval);
             
             const isMonitorOn = localStorage.getItem('monitor_enabled') === 'true';
@@ -627,10 +728,10 @@
                 return;
             }
 
-            // 讀取臺鐵與高鐵設定 (並再次確保字元正確)
-            const tr1 = { no: localStorage.getItem('mon_tr1_train'), stn: normalizeTRA(localStorage.getItem('mon_tr1_station')), type: 'tra' };
-            const tr2 = { no: localStorage.getItem('mon_tr2_train'), stn: normalizeTRA(localStorage.getItem('mon_tr2_station')), type: 'tra' };
-            const thsr = { no: localStorage.getItem('mon_thsr_train'), stn: normalizeTHSR(localStorage.getItem('mon_thsr_station')), type: 'thsr' };
+            // 讀取設定並標記 ID
+            const tr1 = { no: localStorage.getItem('mon_tr1_train'), stn: normalizeTRA(localStorage.getItem('mon_tr1_station')), type: 'tra', id: 'tr1' };
+            const tr2 = { no: localStorage.getItem('mon_tr2_train'), stn: normalizeTRA(localStorage.getItem('mon_tr2_station')), type: 'tra', id: 'tr2' };
+            const thsr = { no: localStorage.getItem('mon_thsr_train'), stn: normalizeTHSR(localStorage.getItem('mon_thsr_station')), type: 'thsr', id: 'thsr' };
             
             const targets = [];
             if(tr1.no && tr1.no.trim()) targets.push(tr1);
@@ -643,10 +744,11 @@
                 return;
             }
 
-            marquee.innerText = `🔍 監控啟動 (共 ${targets.length} 班車)...`;
-            marquee.className = "monitor-text"; 
+            if(isForceRefresh) {
+                marquee.innerText = `🔍 監控啟動 (共 ${targets.length} 班車)...`;
+                marquee.className = "monitor-text"; 
+            }
 
-            // 立即執行並設定排程
             await updateAllMonitor(targets);
             monitorFetchInterval = setInterval(() => updateAllMonitor(targets), 60000);
         }
@@ -657,29 +759,74 @@
 
             let statusMessages = [];
             let hasDelay = false;
+            let shouldRestart = false;
 
             for (let target of targets) {
+                let msgObj = null;
                 if (target.type === 'tra') {
-                    // 臺鐵：走即時 API
-                    const msg = await checkTraLive(target);
-                    statusMessages.push(msg.text);
-                    if(msg.delay) hasDelay = true;
+                    msgObj = await checkTraLive(target);
                 } else {
-                    // 高鐵：走表定時刻計算
-                    const msg = await checkThsrSchedule(target);
-                    statusMessages.push(msg);
+                    msgObj = await checkThsrSchedule(target);
                 }
+
+                if (msgObj === null) {
+                    shouldRestart = true;
+                    continue;
+                }
+
+                statusMessages.push(msgObj.text);
+                if(msgObj.delay) hasDelay = true;
+            }
+
+            if (shouldRestart) {
+                setTimeout(() => startMonitorSystem(false), 1000);
+                return;
             }
 
             const marquee = document.getElementById('monitorStatusText');
-            marquee.innerText = statusMessages.join("   ✦   ");
-            marquee.style.color = hasDelay ? "#f87171" : ""; 
-        
-            // ✅ Floating Island：用跑馬燈資料更新（模仿動態島）
-            try{ updateIslandFromMonitor(statusMessages); }catch(e){}
-}
+            if (statusMessages.length === 0) {
+                marquee.innerText = "監控已結束 (已抵達)";
+                marquee.style.color = "";
+            } else {
+                marquee.innerText = statusMessages.join("   ✦   ");
+                marquee.style.color = hasDelay ? "#f87171" : ""; 
+            }
+        }
 
-        // 臺鐵監控函式 (通知邏輯：第一次強制發送，之後僅變動發送)
+        function checkAutoClear(targetId, trainNo, arrivalTimeStr, delayMinutes = 0) {
+            if (!arrivalTimeStr) return false;
+
+            const [h, m] = arrivalTimeStr.split(':').map(Number);
+            const now = new Date();
+            const arrival = new Date();
+            arrival.setHours(h, m + delayMinutes, 0, 0);
+
+            const diffMs = arrival.getTime() - now.getTime();
+            const diffMin = diffMs / 60000;
+
+            if (diffMin <= -1) {
+                localStorage.setItem(`mon_${targetId}_train`, '');
+                localStorage.setItem(`mon_${targetId}_station`, '');
+                
+                const isPushOn = localStorage.getItem('push_enabled') === 'true';
+                if (isPushOn) {
+                    sendNotification(`🏁 監控結束`, `${trainNo}次 已抵達目標站，自動關閉監控。`);
+                }
+                
+                // Reset Inputs if modal is open
+                const elTrain = document.getElementById(`mon_${targetId}_train`);
+                const elStn = document.getElementById(`mon_${targetId}_station`);
+                if(elTrain) elTrain.value = '';
+                if(elStn) {
+                    elStn.innerHTML = '<option value="" disabled selected>請先輸入車次</option>';
+                    elStn.value = '';
+                }
+
+                return true; 
+            }
+            return false;
+        }
+
         async function checkTraLive(target) {
             try {
                 const liveUrl = `https://tdx.transportdata.tw/api/basic/v3/Rail/TRA/TrainLiveBoard/TrainNo/${target.no}?%24format=JSON`;
@@ -694,6 +841,8 @@
                 const statusStr = delay > 0 ? `晚 ${delay} 分` : `準點`;
                 
                 let arrivalStr = "";
+                let targetArrivalTime = null;
+
                 if (target.stn) {
                     const timeUrl = `https://tdx.transportdata.tw/api/basic/v3/Rail/TRA/DailyTrainTimetable/Today/TrainNo/${target.no}?%24format=JSON`;
                     const timeRes = await fetch(timeUrl, { headers: { 'Authorization': `Bearer ${tdxToken}` } });
@@ -702,7 +851,8 @@
                         const stops = timeData.TrainTimetables[0].StopTimes;
                         const targetStop = stops.find(s => s.StationName.Zh_tw === target.stn);
                         if (targetStop) {
-                            const [h, m] = targetStop.ArrivalTime.split(':').map(Number);
+                            targetArrivalTime = targetStop.ArrivalTime;
+                            const [h, m] = targetArrivalTime.split(':').map(Number);
                             const date = new Date();
                             date.setHours(h, m + delay);
                             const predH = date.getHours().toString().padStart(2, '0');
@@ -712,17 +862,18 @@
                     }
                 }
 
-                // 先產生完整文字 (這就是通知要顯示的內容)
+                if (target.stn && targetArrivalTime) {
+                    const cleared = checkAutoClear(target.id, target.no, targetArrivalTime, delay);
+                    if (cleared) return null;
+                }
+
                 const finalText = `臺鐵 ${target.no}次:目前在 ${currentStn} | ${statusStr}${arrivalStr}`;
                 const stateKey = `tra_${target.no}`;
 
-                // 智慧通知邏輯
                 const isPushOn = localStorage.getItem('push_enabled') === 'true';
-                if (isPushOn) {
-                    // 如果是第一次監控 (undefined) 或者 狀態文字有改變，才發送通知
+                if (isPushOn && delay > 0) {
                     if (lastNotificationStates[stateKey] !== finalText) {
                         sendNotification(`🚆 ${target.no}次 狀態更新`, finalText);
-                        // 更新記憶
                         lastNotificationStates[stateKey] = finalText;
                     }
                 }
@@ -733,31 +884,32 @@
             }
         }
 
-        // 高鐵監控函式 (通知邏輯：第一次強制發送，之後僅變動發送)
         async function checkThsrSchedule(target) {
             try {
                 const url = `https://tdx.transportdata.tw/api/basic/v2/Rail/THSR/DailyTimetable/Today/TrainNo/${target.no}?%24format=JSON`;
                 const res = await fetch(url, { headers: { 'Authorization': `Bearer ${tdxToken}` } });
                 const data = await res.json();
                 
-                if (data.length === 0) return `高鐵 ${target.no}次: 今日無行駛`;
+                if (data.length === 0) return { text: `高鐵 ${target.no}次: 今日無行駛`, delay: false };
 
                 const stops = data[0].StopTimes;
-                const startTime = stops[0].DepartureTime; // HH:mm
-                const endTime = stops[stops.length - 1].ArrivalTime; // HH:mm
-                
+                const startTime = stops[0].DepartureTime;
+                const endTime = stops[stops.length - 1].ArrivalTime;
                 const now = new Date();
-                const nowStr = now.toTimeString().slice(0, 5); // HH:mm
+                const nowStr = now.toTimeString().slice(0, 5);
 
                 let status = "行駛中";
                 if (nowStr < startTime) status = "未發車";
                 else if (nowStr > endTime) status = "已到終點";
 
                 let arrivalStr = "";
+                let targetArrivalTime = null;
+
                 if (status !== "已到終點") {
                     if (target.stn) {
                         const targetStop = stops.find(s => s.StationName.Zh_tw === target.stn);
                         if (targetStop) {
+                            targetArrivalTime = targetStop.ArrivalTime;
                             arrivalStr = ` | 預計 ${targetStop.ArrivalTime} 抵達 ${target.stn}`;
                         } else {
                             arrivalStr = ` | (該車次不停靠 ${target.stn})`;
@@ -768,10 +920,14 @@
                     }
                 }
 
+                if (target.stn && targetArrivalTime) {
+                    const cleared = checkAutoClear(target.id, target.no, targetArrivalTime, 0);
+                    if (cleared) return null;
+                }
+
                 const finalText = `高鐵 ${target.no}次: ${status}${arrivalStr}`;
                 const stateKey = `thsr_${target.no}`;
 
-                // 智慧通知邏輯 (高鐵也套用，確保第一次會通知)
                 const isPushOn = localStorage.getItem('push_enabled') === 'true';
                 if (isPushOn) {
                     if (lastNotificationStates[stateKey] !== finalText) {
@@ -780,9 +936,9 @@
                     }
                 }
 
-                return finalText;
+                return { text: finalText, delay: false };
             } catch(e) {
-                return `高鐵 ${target.no}次: 資料錯誤`;
+                return { text: `高鐵 ${target.no}次: 資料錯誤`, delay: false };
             }
         }
 
@@ -793,18 +949,37 @@
                 modal.style.display = 'flex';
                 setTimeout(() => modal.classList.add('show'), 10);
                 
-                // 載入資料
-                const keys = ['tr_home','thsr_home','tr_s1','tr_e1','tr_s2','tr_e2','tr_s3','tr_e3','thsr_s1','thsr_e1','thsr_s2','thsr_e2','thsr_s3','thsr_e3','mon_tr1_train','mon_tr1_station','mon_tr2_train','mon_tr2_station','mon_thsr_train','mon_thsr_station'];
-                keys.forEach(k => { const el = document.getElementById(k); if(el) el.value = localStorage.getItem(k) || ''; });
-            // 高鐵 3 碼自動補 0
-            let th = (localStorage.getItem('mon_thsr_train')||'').trim();
-            if (/^\d{3}$/.test(th)) { th = '0' + th; localStorage.setItem('mon_thsr_train', th); const el=document.getElementById('mon_thsr_train'); if(el) el.value = th; }
-            // backward compat
-            localStorage.setItem('mon_train', localStorage.getItem('mon_tr1_train')||'');
-            localStorage.setItem('mon_station', localStorage.getItem('mon_tr1_station')||'');
+                // 1. 初始化選單
+                initTrainLists();
 
+                // 2. 載入資料並還原狀態
+                const textKeys = ['tr_home','thsr_home','tr_s1','tr_e1','tr_s2','tr_e2','tr_s3','tr_e3','thsr_s1','thsr_e1','thsr_s2','thsr_e2','thsr_s3','thsr_e3'];
+                textKeys.forEach(k => { 
+                    const el = document.getElementById(k); 
+                    if(el) el.value = localStorage.getItem(k) || ''; 
+                });
 
-                // 載入開關狀態
+                // 還原車次與車站選單
+                const loadMonitorRow = (type, trainId, stnId) => {
+                    const trainNo = localStorage.getItem(trainId) || '';
+                    const savedStn = localStorage.getItem(stnId) || '';
+                    const elTrain = document.getElementById(trainId);
+                    
+                    if(elTrain) elTrain.value = trainNo;
+                    // 如果有車次，觸發更新車站選單並選取
+                    if(trainNo) {
+                        updateStationOptions(type, trainNo, stnId, savedStn);
+                    } else {
+                        // 重置選單
+                        const elSelect = document.getElementById(stnId);
+                        if(elSelect) elSelect.innerHTML = '<option value="" disabled selected>請先輸入車次</option>';
+                    }
+                };
+
+                loadMonitorRow('tra', 'mon_tr1_train', 'mon_tr1_station');
+                loadMonitorRow('tra', 'mon_tr2_train', 'mon_tr2_station');
+                loadMonitorRow('thsr', 'mon_thsr_train', 'mon_thsr_station');
+
                 const monitorOn = localStorage.getItem('monitor_enabled') === 'true';
                 document.getElementById('monitorSwitch').checked = monitorOn;
                 document.getElementById('monitorConfig').style.display = monitorOn ? 'block' : 'none';
@@ -818,16 +993,14 @@
             }
         }
 
-        // 主開關：只控制 UI 與跑馬燈
         function toggleMonitor(el) {
             const config = document.getElementById('monitorConfig');
             localStorage.setItem('monitor_enabled', el.checked ? 'true' : 'false');
             config.style.display = el.checked ? 'block' : 'none';
-            // 立即生效，不需重整
-            startRealMonitor();
+            if (typeof startMonitorSystem === 'function') startMonitorSystem(true);
+            else startRealMonitor();
         }
 
-        // 副開關：控制推播權限
         function togglePush(el) {
             if (el.checked) {
                 Notification.requestPermission().then(p => {
@@ -877,7 +1050,6 @@
                 const el = document.getElementById(k);
                 if(el) {
                     let val = el.value.trim();
-                    // 根據 ID 判斷是臺鐵還是高鐵，套用不同的字元標準
                     if (k.includes('thsr') || k.includes('THSR')) {
                         val = normalizeTHSR(val);
                     } else {
@@ -887,17 +1059,15 @@
                 }
             });
 
-            // 確保舊版 Key 相容性
+            // 相容性設定
             localStorage.setItem('mon_train', localStorage.getItem('mon_tr1_train') || '');
             localStorage.setItem('mon_station', localStorage.getItem('mon_tr1_station') || '');
 
             renderFavs();
             toggleSettings(false);
             
-            // 執行監控啟動函數
-            if (typeof startRealMonitor === 'function') {
-                startRealMonitor();
-            }
+            if (typeof startMonitorSystem === 'function') startMonitorSystem(true);
+            else startRealMonitor();
         }
 
         function clearData() {
@@ -905,7 +1075,6 @@
         }
 
         function renderFavs() {
-            // 渲染列表時也要套用正確的正規化
             ['tr', 'thsr'].forEach(sys => {
                 const list = document.getElementById(`${sys}List`);
                 list.innerHTML = ''; 
@@ -922,8 +1091,7 @@
                         li.innerHTML = `📍 ${s}→${e}`;
                         li.onclick = (ev) => { 
                             ev.stopPropagation(); 
-                            const baseUrl = sys === 'tr' ? '../tr/tr.html' : '../thsr/thsr.html';
-                            window.location.href = `${baseUrl}?start=${encodeURIComponent(s)}&end=${encodeURIComponent(e)}`; 
+                            openAppOverlay(sys, { start: s, end: e }); 
                         };
                         list.appendChild(li);
                     }
@@ -948,8 +1116,11 @@
         function goToSystem(sys) {
             let home = localStorage.getItem(`${sys}_home`) || '';
             home = sys === 'thsr' ? normalizeTHSR(home) : normalizeTRA(home);
-            const baseUrl = sys === 'tr' ? '../tr/tr.html' : '../thsr/thsr.html';
-            window.location.href = home ? `${baseUrl}?station=${encodeURIComponent(home)}` : baseUrl;
+            if (home) {
+                openAppOverlay(sys, { station: home });
+            } else {
+                openAppOverlay(sys, null);
+            }
         }
 
         function findNearest(sys) {
@@ -973,7 +1144,7 @@
                     targetSpan.innerText = `📍 最近: ${nearest}`;
                     setTimeout(() => {
                         const baseUrl = sys === 'tr' ? '../tr/tr.html' : '../thsr/thsr.html';
-                        window.location.href = `${baseUrl}?station=${encodeURIComponent(nearest)}`;
+                        openAppOverlay(sys, { station: nearest });
                     }, 800);
                 }
             }, () => { targetSpan.innerText = originalText; alert("無法取得位置"); });
@@ -1001,226 +1172,33 @@
             if(!e.target.closest('.tools-popup') && !e.target.closest('.dock-item')) document.getElementById('toolsPopup').classList.remove('active');
         }
 
+
+        // ===== 首次進入首頁注意事項（只顯示一次） =====
+        function showHomeNoticeOnce() {
+            try {
+                if (sessionStorage.getItem('home_notice_shown') === '1') return;
+                sessionStorage.setItem('home_notice_shown', '1');
+
+                const modal = document.getElementById('homeNoticeModal');
+                if (!modal) return;
+                modal.style.display = 'flex';
+                setTimeout(() => modal.classList.add('show'), 10);
+            } catch (e) { }
+        }
+
+        function closeHomeNotice() {
+            const modal = document.getElementById('homeNoticeModal');
+            if (!modal) return;
+            modal.classList.remove('show');
+            setTimeout(() => { modal.style.display = 'none'; }, 220);
+        }
+
         window.onload = async () => {
+            showHomeNoticeOnce();
             initTilt();
             renderFavs();
             if(localStorage.getItem('theme') === 'light') document.body.classList.add('light-mode');
             const success = await getTdxToken();
-            if(success) startRealMonitor();
+            if(success) startMonitorSystem(true);
         };
-
-        // ===== Dynamic-Island-style state engine =====
-        // 從跑馬燈/通知文字解析 ETA（arrivalStr："預計 HH:mm 抵達 站名"）
-        // 並以「跨門檻只展開一次」的方式決定島的顯示與自動展開。
-
-        function parseArrivalFromText(text){
-            if(!text) return null;
-            const m = text.match(/預計\s*(\d{2}:\d{2})\s*抵達\s*([^\s|，。！!\n\r]+)/);
-            if(!m) return null;
-
-            const etaHHMM = m[1];
-            const station = m[2];
-            const [hh, mm] = etaHHMM.split(':').map(Number);
-            const now = new Date();
-
-            // ✅ 先假設是「今天」
-            const eta = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hh, mm, 0, 0);
-            let diffMin = Math.round((eta.getTime() - now.getTime())/60000);
-
-            // ✅ 只有「明顯不合理」才跨日（例如現在 23:50，ETA 00:10）
-            // -180 = 3 小時：避免清晨時段誤判成隔天
-            if(diffMin < -180){
-                eta.setDate(eta.getDate() + 1);
-                diffMin = Math.round((eta.getTime() - now.getTime())/60000);
-            }
-            return { etaDate: eta, etaHHMM, station, remainMin: diffMin };
-        }
-
-        function extractTrainShort(text){
-            const tra = text.match(/臺鐵\s*(\d+)\s*次/);
-            if(tra) return `🚆 ${tra[1]}`;
-            const thsr = text.match(/高鐵\s*(\d+)\s*次/);
-            if(thsr) return `🚅 ${thsr[1]}`;
-            const n = text.match(/(\d{2,5})/);
-            return n ? `🚆 ${n[1]}` : '🚆';
-        }
-
-        function simplifyBaseStatus(text){
-            if(!text) return '';
-            const tra = text.match(/臺鐵\s*(\d+)\s*次.*?(準點|晚\s*\d+\s*分)/);
-            if(tra) return `🚆 ${tra[1]} · ${tra[2].replace(/\s+/g,'')}`;
-            const thsr = text.match(/高鐵\s*(\d+)\s*次.*?(未發車|行駛中|已到終點)/);
-            if(thsr) return `🚅 ${thsr[1]} · ${thsr[2]}`;
-            return '';
-        }
-
-        function buildKeyBase(text, station, etaHHMM){
-            const trainShort = extractTrainShort(text).replace(/\s+/g,'');
-            return `${trainShort}|${station}|${etaHHMM}`;
-        }
-
-        function shouldExpandOnce(keyBase, phase){
-            if(!['soon15','soon5','arrived'].includes(phase)) return false;
-            const storeKey = `island_expand_${keyBase}_${phase}`;
-            if(sessionStorage.getItem(storeKey)==='1') return false;
-            sessionStorage.setItem(storeKey,'1');
-            return true;
-        }
-
-        function computeIslandState(finalText, now = new Date()){
-            const parsed = parseArrivalFromText(finalText);
-            if(!parsed){
-                const base = simplifyBaseStatus(finalText);
-                return {
-                    phase: 'none',
-                    hasETA: false,
-                    eta: null,
-                    station: null,
-                    remainMin: null,
-                    compactText: base ? base : '監控中',
-                    expandedText: base ? base : (finalText || ''),
-                    shouldAutoExpand: false,
-                    expandReason: null
-                };
-            }
-
-            const { etaDate, etaHHMM, station } = parsed;
-            const remainMin = Math.round((etaDate.getTime() - now.getTime())/60000);
-
-            let phase = 'far';
-            if(remainMin <= 0) phase = 'arrived';
-            else if(remainMin <= 5) phase = 'soon5';
-            else if(remainMin <= 15) phase = 'soon15';
-            else if(remainMin <= 30) phase = 'mid';
-            else phase = 'far';
-
-            const trainShort = extractTrainShort(finalText);
-            const compactText = (remainMin > 30)
-                ? `${trainShort} · ${etaHHMM} 抵達 ${station}`
-                : `${trainShort} · ${remainMin} 分到 ${station}`;
-
-            const expandedText = `${finalText}\n⏱️ 約 ${Math.max(remainMin,0)} 分鐘 (${etaHHMM}) 抵達 ${station}`;
-
-            const keyBase = buildKeyBase(finalText, station, etaHHMM);
-            const shouldAutoExpand = shouldExpandOnce(keyBase, phase);
-            let expandReason = null;
-            if(shouldAutoExpand){
-                if(phase === 'soon15') expandReason = '≤15min';
-                else if(phase === 'soon5') expandReason = '≤5min';
-                else if(phase === 'arrived') expandReason = 'arrived';
-            }
-
-            return {
-                phase,
-                hasETA: true,
-                eta: etaDate,
-                station,
-                remainMin,
-                compactText,
-                expandedText,
-                shouldAutoExpand,
-                expandReason
-            };
-        }
-    
-        // ===== Floating Island (Dynamic-Island-style) helpers =====
-        let __islandAutoCloseTimer = null;
-
-        function chooseBestIslandLine(lines){
-            if(!Array.isArray(lines) || lines.length===0) return '';
-
-            // 先排除公告/系統訊息，盡量只挑「列車監控訊息」
-            const trainLines = lines.filter(l => /(臺鐵\s*\d+\s*次|高鐵\s*\d+\s*次|\d+\s*次\s*:|目前在|預計\s*\d{2}:\d{2}\s*抵達)/.test(l));
-
-            const candidates = trainLines.length ? trainLines : lines;
-
-            // 優先挑「剩餘時間最短且尚未到站」的那一則；若都沒有 ETA，就用第一則候選
-            let best = null;
-            for(const line of candidates){
-                const p = (typeof parseArrivalFromText === 'function') ? parseArrivalFromText(line) : null;
-                if(!p) continue;
-                const now = new Date();
-                const remain = Math.round((p.etaDate.getTime() - now.getTime())/60000);
-                if(remain < 0) continue;
-                if(best === null || remain < best.remain){
-                    best = { line, remain };
-                }
-            }
-            return (best && best.line) ? best.line : candidates[0];
-        }
-
-        function islandOpen(){
-            const island = document.getElementById('floatingIsland');
-            const exp = document.getElementById('islandExpanded');
-            if(!island || !exp) return;
-            exp.hidden = false;
-            island.classList.add('open');
-            if(__islandAutoCloseTimer) clearTimeout(__islandAutoCloseTimer);
-            __islandAutoCloseTimer = setTimeout(()=>{ islandClose(); }, 3800);
-        }
-
-        function islandClose(){
-            const island = document.getElementById('floatingIsland');
-            const exp = document.getElementById('islandExpanded');
-            if(!island || !exp) return;
-            exp.hidden = true;
-            island.classList.remove('open');
-        }
-
-        function islandBounce(){
-            const island = document.getElementById('floatingIsland');
-            if(!island) return;
-            island.classList.remove('bounce');
-            // reflow
-            void island.offsetWidth;
-            island.classList.add('bounce');
-            setTimeout(()=>island.classList.remove('bounce'), 420);
-        }
-
-        function islandRender(state){
-            const pill = document.getElementById('islandPillText');
-            const title = document.getElementById('islandExpandedTitle');
-            const body  = document.getElementById('islandExpandedBody');
-            if(!pill || !title || !body || !state) return;
-
-            pill.textContent = state.compactText || '監控中';
-
-            // 展開內容：用 expandedText；標題可依 phase 調整
-            if(state.phase === 'arrived') title.textContent = '✅ 已到站';
-            else if(state.phase === 'soon5') title.textContent = '⏳ 即將到站';
-            else if(state.phase === 'soon15') title.textContent = '🟡 即將到站';
-            else title.textContent = '即時狀態';
-
-            body.textContent = state.expandedText || '';
-        }
-
-        function islandAutoExpand(state){
-            islandBounce();
-            islandOpen();
-        }
-
-        function updateIslandFromMonitor(statusMessages){
-            const line = chooseBestIslandLine(statusMessages);
-            if(!line || typeof computeIslandState !== 'function') return;
-            const st = computeIslandState(line);
-            islandRender(st);
-            if(st.shouldAutoExpand) islandAutoExpand(st);
-        }
-
-        // 點擊膠囊：手動展開/收合
-        (function(){
-            document.addEventListener('click', (e)=>{
-                const pill = document.getElementById('islandPillText');
-                if(!pill) return;
-                if(e.target === pill){
-                    const exp = document.getElementById('islandExpanded');
-                    if(!exp) return;
-                    if(exp.hidden) islandOpen();
-                    else islandClose();
-                }
-            });
-        })();
-
-</script>
-</body>
-</html>
+    </script>
