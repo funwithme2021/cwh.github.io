@@ -187,7 +187,7 @@
         }
       }
 
-      const msg = `🚅${target.no}次：${status}${arrivalStr}`;
+      const msg = `高鐵${target.no}次：${status}${arrivalStr}`;
       const stateKey = `thsr_${target.no}`;
 
       // status-change notification (only when status changes)
