@@ -57,12 +57,10 @@ select.setting-input[id*="pick"] {
     background-color: rgba(0, 0, 0, 0.03);
 }
 
-
-
-/* 深色模式下的下拉選單清單優化 */
+/* 強制修正深色模式下 select option 的背景與文字 */
 .dark-mode select.setting-input option {
-    background-color: #1e293b; /* 強制選單清單背景為深藍灰色 */
-    color: #f1f5f9;            /* 強制選單文字為亮白色 */
+    background-color: #1e293b !important;
+    color: #f1f5f9 !important;
 }
 
 /* 針對輸入框與選單在深夜模式的視覺強化 */
@@ -433,8 +431,7 @@ select.setting-input[id*="pick"] {
 
 .splash-logo-wrap {
     width: 102px;  /* 從 120px 縮小至 85px，看起來會更精緻 */
-    height: 12
-    0px;
+    height: 120px;
     margin: 0 auto 25px; /* 稍微縮小與標題的距離 */
     mix-blend-mode: screen; 
     transform: scale(0.8); opacity: 0;
@@ -560,7 +557,7 @@ select.setting-input[id*="pick"] {
         </div>
         
         <div class="splash-footer-info">
-            <span class="v-num">Version 26.0210.74</span>
+            <span class="v-num">Version 26.0210.75</span>
             <p>© 2026 Real-Time</p>
         </div>
     </div>
@@ -1054,39 +1051,52 @@ select.setting-input[id*="pick"] {
         top: 0;
       }
 
-      #dynamicIsland .di-row{
-        display:flex; align-items:flex-start;
-        gap: 12px;
-        padding: 12px 14px;
-        border-radius: 18px;
-        border: 1px solid rgba(0,0,0,0.06);
-        background: rgba(241, 245, 249, 0.7);
-        margin-bottom: 8px;
-      }
-      .light-mode #dynamicIsland .di-row{
-        background: rgba(0,0,0,0.04);
-      }
-      #dynamicIsland .di-row:last-child{ margin-bottom:0; }
-      
-      #dynamicIsland .di-row .k{
-        font-family: 'Roboto Mono', monospace;
-        font-weight: 800;
-        font-size: 1.1rem;
-        flex: 0 0 auto;
-        white-space: nowrap;
-        color: #334155;
-        padding-top: 2px;
-      }
-      
-      #dynamicIsland .di-row .v{
-        flex: 1;
-        font-weight: 700;
-        font-size: 0.95rem;
-        line-height: 1.5;
-        text-align: left;
-        color: #0f172a;
-        word-break: break-word;
-      }
+     /* 動態島展開行 */
+#dynamicIsland .di-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 12px 14px;
+    border-radius: 18px;
+    border: 1px solid rgba(0,0,0,0.06);
+    background: rgba(241, 245, 249, 0.9); /* 提高不透明度 */
+    margin-bottom: 8px;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+/* 第一行文字：目前位置 */
+/* 確保動態島面板內的文字顏色穩定 */
+#dynamicIsland .v-main {
+    font-weight: 800;
+    font-size: 0.95rem;
+    color: #0f172a; /* 深色文字 */
+    line-height: 1.3;
+}
+
+#dynamicIsland .v-sub {
+    font-weight: 600;
+    font-size: 0.85rem;
+    color: #475569; /* 次要資訊深灰色 */
+    margin-top: 3px;
+    display: block;
+}
+
+/* 亮色模式微調 */
+.light-mode #dynamicIsland .v-main { color: #0f172a; }
+.light-mode #dynamicIsland .v-sub { color: #64748b; }
+
+/* 修正已到站標籤顏色，使其更易讀 */
+#dynamicIsland .badge.arrived {
+    background: #d1fae5 !important;
+    color: #065f46 !important;
+}
+
+/* 讓火車圖示與車次不要斷行 */
+#dynamicIsland .di-row .k {
+    white-space: nowrap;
+    color: #1e293b;
+}
       
       /* Badge inside panel */
       #dynamicIsland .badge{
@@ -1141,7 +1151,6 @@ select.setting-input[id*="pick"] {
       }
 
       function parseETA(line){
-        // 解析: "預計 06:34 抵達 花蓮"
         const m = String(line).match(/預計\s*(\d{1,2}):(\d{2})\s*抵達\s*([^|\s]+)/);
         if(!m) return null;
         const hh = parseInt(m[1],10);
@@ -1183,12 +1192,10 @@ select.setting-input[id*="pick"] {
           const mm = String(eta.mm).padStart(2,'0');
 
           if(eta.diffMin <= 0){
-            // === 已到站 ===
             text = `${trainNo||''} · 已到 ${eta.stn}`.trim();
             pillCls = 'arrived';
             badge = {text:'已到站', cls:'arrived'};
           } else if (eta.diffMin <= 60) {
-            // === 60 分鐘內 ===
             text = `${trainNo||''} · ${eta.diffMin}分 ${eta.stn}`.trim();
             if(eta.diffMin <= 15) {
                 badge = {text:`即將到站 · 剩 ${eta.diffMin}分`, cls:'soon'};
@@ -1197,22 +1204,17 @@ select.setting-input[id*="pick"] {
                 badge = {text:`剩 ${eta.diffMin}分`, cls:''};
             }
           } else {
-            // === 超過 60 分鐘 ===
             text = `${trainNo||''} · ${hh}:${mm} ${eta.stn}`.trim();
             const h = Math.floor(eta.diffMin/60);
             const m = eta.diffMin % 60;
             badge = {text:`剩 ${h}小時${m}分`, cls:''};
           }
-
-          // 如果有誤點，Pill 強制紅框 (優先權高於 warn/arrived)
           if(hasDelay && eta.diffMin > 0) pillCls = 'danger';
-
         } else {
           const short = String(line).split('|')[1] || '監控中';
           text = `${trainNo||''} · ${short.trim()}`;
           pillCls = hasDelay ? 'danger' : '';
         }
-        
         return {icon, text, badge, pillCls};
       }
 
@@ -1233,62 +1235,66 @@ select.setting-input[id*="pick"] {
         if(d.pillCls) pill.classList.add(d.pillCls);
       }
 
+      // 核心修正：移除重複定義並優化分行邏輯
       function renderExpanded(){
         panel.innerHTML = '';
         if(!lines || lines.length === 0) return;
 
-        // 排序: 時間短的在上面
         const items = lines.map((ln)=>{
-          const eta = parseETA(ln);
-          const diffMin = (eta && typeof eta.diffMin === 'number') ? eta.diffMin : Infinity;
-          return { ln, eta, diffMin };
+            const eta = parseETA(ln);
+            const diffMin = (eta && typeof eta.diffMin === 'number') ? eta.diffMin : Infinity;
+            return { ln, eta, diffMin };
         }).sort((a,b)=>a.diffMin - b.diffMin);
 
         items.forEach(({ln, eta, diffMin})=>{
-          const d = buildDisplay(ln);
-          const row = document.createElement('div');
-          row.className = 'di-row';
+            const d = buildDisplay(ln);
+            const row = document.createElement('div');
+            row.className = 'di-row';
 
-          const k = document.createElement('div');
-          k.className = 'k';
-          const trainNo = inferTrainNo(ln);
-          k.textContent = d.icon + ' ' + (trainNo || '--'); 
+            const k = document.createElement('div');
+            k.className = 'k';
+            const trainNo = inferTrainNo(ln);
+            k.textContent = d.icon + ' ' + (trainNo || '--'); 
 
-          const v = document.createElement('div');
-          v.className = 'v';
-          
-          // 字串換行處理
-          let content = ln.replace(/\s+/g, ' ').trim();
-          content = content.replace(/^監控:\s*\d+次\s*\|\s*/, '');
-          content = content.replace(/^臺鐵\s*\d+次:?/, '');
-          content = content.replace(/^高鐵\s*\d+次:?/, '');
+            const v = document.createElement('div');
+            v.className = 'v';
+            
+            let rawContent = ln.replace(/\s+/g, ' ').trim()
+                               .replace(/^監控:\s*\d+次\s*\|\s*/, '')
+                               .replace(/^(?:臺鐵|高鐵)\s*\d+次:?\s*/, '');
 
-          // 在 "| 預計" 或 "預計" 前換行
-          if(content.includes('| 預計')) {
-              content = content.replace(/\|\s*預計/g, '|<br>預計');
-          } else {
-              content = content.replace(/\s+預計/g, '<br>預計');
-          }
+            let mainPart = "";
+            let subPart = "";
 
-          v.innerHTML = content;
+            if (rawContent.includes('預計')) {
+                let parts = rawContent.split('預計');
+                mainPart = parts[0].replace('|', '').trim();
+                subPart = '預計 ' + parts[1].trim();
+            } else if (rawContent.includes('|')) {
+                let parts = rawContent.split('|');
+                mainPart = parts[0].trim();
+                subPart = parts[1].trim();
+            } else {
+                mainPart = rawContent;
+            }
 
-          row.appendChild(k);
-          row.appendChild(v);
+            v.innerHTML = `
+                <div class="v-main">${mainPart}</div>
+                ${subPart ? `<div class="v-sub">${subPart}</div>` : ''}
+            `;
 
-          if(d.badge){
-            const b = document.createElement('div');
-            b.className = 'badge ' + (d.badge.cls || '');
-            b.textContent = d.badge.text;
-            row.appendChild(b);
-          }
+            row.appendChild(k);
+            row.appendChild(v);
 
-          // Panel 內的高亮邏輯
-          if(eta && diffMin <= 15 && diffMin > 0){
-            row.style.border = '1px solid rgba(251,191,36,0.6)';
-            row.style.background = 'rgba(251,191,36,0.1)';
-          }
-          
-          panel.appendChild(row);
+            if(d.badge){
+                const b = document.createElement('div');
+                b.className = 'badge ' + (d.badge.cls || '');
+                b.textContent = d.badge.text;
+                row.appendChild(b);
+            }
+
+            if(eta && diffMin <= 15 && diffMin > 0) row.classList.add('highlight-row');
+            panel.appendChild(row);
         });
       }
 
@@ -1323,15 +1329,13 @@ select.setting-input[id*="pick"] {
             lines = newLines;
             if(rotIdx >= lines.length) rotIdx = 0;
             if(root.classList.contains('expanded')) renderExpanded();
-        } else {
-            lines = newLines;
-        }
+        } 
         
         if(!root.classList.contains('expanded')) renderCollapsed();
         if(!rotTimer && lines.length > 1) startRotate();
       }
 
-      // 5. 事件
+      // 5. 事件監聽
       pill.addEventListener('click', ()=>{
         const monitorOn = (localStorage.getItem('monitor_enabled') === 'true');
         if(!monitorOn){
@@ -1355,7 +1359,7 @@ select.setting-input[id*="pick"] {
       });
 
     })();
-    </script>
+</script>
 
     <script>
         const TDX_CONFIG = {
@@ -1506,26 +1510,24 @@ select.setting-input[id*="pick"] {
         }
 
         function onTrainInput(type, inputId, selectId) {
-  const query = document.getElementById(inputId).value.trim(); // 取得輸入的關鍵字
-  const sel = document.getElementById(selectId);
-  
-  // 1. 先清空目前的選中狀態與隱藏有效值
-  if (sel) sel.value = "";
-  const finalHidden = document.getElementById(inputId + "_final") || document.getElementById(inputId.replace("_train","_train_final"));
-  if (finalHidden) finalHidden.value = "";
+    const query = document.getElementById(inputId).value.trim();
+    const sel = document.getElementById(selectId);
+    
+    // 清空有效值
+    const finalHidden = document.getElementById(inputId + "_final");
+    if (finalHidden) finalHidden.value = "";
 
-  // 2. 從快取的完整清單中過濾符合關鍵字的車次
-  // type 為 'tra' 或 'thsr'
-  const fullList = (type === 'tra' ? cachedTrainList.tra : cachedTrainList.thsr) || [];
-  const filteredList = fullList.filter(no => no.toString().includes(query));
-  
-  // 3. 重新渲染下拉選單的選項（僅顯示過濾後的結果）
-  fillTrainPickOptions(type, selectId, filteredList);
+    const fullList = (type === 'tra' ? cachedTrainList.tra : cachedTrainList.thsr) || [];
+    const filteredList = fullList.filter(no => no.toString().includes(query));
+    
+    fillTrainPickOptions(type, selectId, filteredList);
 
-  // 4. 自動展開選單（選配：部分手機瀏覽器不支援自動展開，但這能幫助使用者知道過濾已完成）
-  if (query.length > 0 && filteredList.length > 0) {
-     // sel.focus(); // 若希望輸入完自動跳到選單，可啟用這行
-  }
+    // ★ 新增：若過濾後只剩下一個精確匹配的值，自動填充隱藏欄位
+    if (filteredList.length === 1 && filteredList[0].toString() === query) {
+        if (finalHidden) finalHidden.value = query;
+        // 觸發目標站點載入
+        updateStationOptions(type, query, inputId.replace('train', 'station'));
+    }
 }
 
         function onTrainPick(type, inputId, selectId, stationSelectId) {
@@ -1721,7 +1723,7 @@ select.setting-input[id*="pick"] {
 
                 const currentStn = trainLive.StationName.Zh_tw;
                 const delay = parseInt(trainLive.DelayTime);
-                const statusStr = delay > 0 ? `晚 ${delay} 分` : `準點`;
+                const statusStr = delay > 0 ? `| 晚 ${delay} 分` : `| 準點`;
                 
                 let arrivalStr = "";
                 let targetArrivalTime = null;
@@ -1740,7 +1742,7 @@ select.setting-input[id*="pick"] {
                             date.setHours(h, m + delay);
                             const predH = date.getHours().toString().padStart(2, '0');
                             const predM = date.getMinutes().toString().padStart(2, '0');
-                            arrivalStr = ` | 預計 ${predH}:${predM} 抵達 ${target.stn}`;
+                            arrivalStr = `  預計 ${predH}:${predM} 抵達 ${target.stn}`;
                         }
                     }
                 }
