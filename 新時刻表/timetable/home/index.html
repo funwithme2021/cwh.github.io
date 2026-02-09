@@ -415,9 +415,158 @@ select.setting-input[id*="pick"] {
         }
         #homeNoticeModal .notice-actions button:hover{ transform: translateY(-1px); }
 
+
+ #splash-screen {
+    position: fixed; inset: 0; z-index: 10000;
+    background: #0b1120; /* 更深邃的藍 */
+    display: flex; align-items: center; justify-content: center;
+    transition: opacity 1s cubic-bezier(0.4, 0, 0.2, 1), visibility 1s;
+    overflow: hidden;
+}
+
+/* 背景微光裝飾 */
+.splash-bg-decor {
+    position: absolute; width: 150%; height: 150%;
+    background: radial-gradient(circle at center, rgba(59, 130, 246, 0.05) 0%, transparent 70%);
+    animation: splashBgMove 20s infinite linear;
+}
+
+.splash-logo-wrap {
+    width: 102px;  /* 從 120px 縮小至 85px，看起來會更精緻 */
+    height: 12
+    0px;
+    margin: 0 auto 25px; /* 稍微縮小與標題的距離 */
+    mix-blend-mode: screen; 
+    transform: scale(0.8); opacity: 0;
+    animation: logoPopIn 1.2s cubic-bezier(0.34, 1.56, 0.64, 1) forwards,
+               logoBreathe 4s infinite ease-in-out 1.2s;
+}
+/* 確保所有內容物水平居中 */
+.splash-content {
+    text-align: center;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    z-index: 2;
+}
+.splash-icon-img {
+    width: 100%; height: 100%; object-fit: contain;
+}
+
+.splash-text-group {
+    opacity: 0; transform: translateY(10px);
+    animation: fadeUp 0.8s ease-out 0.5s forwards;
+}
+
+.splash-title {
+    font-size: 2.7rem; font-weight: 900; color: #fff;
+    letter-spacing: -1.5px; margin-bottom: 5px;
+    text-shadow: 0 10px 30px rgba(0,0,0,0.5);
+}
+
+.splash-tagline {
+    color: rgba(148, 163, 184, 0.8); font-size: 0.95rem;
+    letter-spacing: 3px; margin-bottom: 20px;
+}
+
+.splash-status-container {
+    margin-top: 20px;
+}
+
+.splash-loader-wrap {
+    width: 120px; height: 2px; background: rgba(255,255,255,0.08);
+    margin: 0 auto; position: relative; overflow: hidden; border-radius: 10px;
+}
+
+.splash-loader-bar {
+    position: absolute; left: -100%; width: 100%; height: 100%;
+    background: linear-gradient(90deg, transparent, #3b82f6, transparent);
+    animation: loadingSlide 2s infinite ease-in-out;
+}
+
+/* 狀態文字強制置中 */
+.splash-status {
+    margin-top: 15px;
+    font-size: 0.9rem;
+    color: #94a3b8;
+    letter-spacing: 1px;
+    text-align: center; /* 確保文字本身置中 */
+    width: 100%;
+}
+
+/* 置中底部資訊 */
+/* 底部資訊容器修正 */
+.splash-footer-info {
+    position: absolute;
+    bottom: 50px;
+    left: 0;
+    width: 100%;
+    text-align: center; /* 修正原本可能偏向一邊的問題 */
+    opacity: 0;
+    animation: fadeIn 1s ease-out 1s forwards;
+}
+
+.splash-footer-info .v-num {
+    display: block;
+    font-size: 0.75rem;
+    color: rgba(255, 255, 255, 0.2);
+    margin-bottom: 8px;
+    font-family: 'Roboto Mono', monospace;
+}
+
+.splash-footer-info p {
+    font-size: 0.8rem; color: rgba(255,255,255,0.4); font-weight: 500;
+}
+
+/* 動畫定義 */
+@keyframes logoPopIn {
+    to { transform: scale(1); opacity: 1; }
+}
+@keyframes logoBreathe {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.03); }
+}
+@keyframes fadeUp {
+    to { opacity: 1; transform: translateY(0); }
+}
+@keyframes fadeIn { to { opacity: 1; } }
+@keyframes loadingSlide { 0% { left: -100%; } 100% { left: 100%; } }
+@keyframes splashBgMove {
+    0% { transform: translate(-10%, -10%) rotate(0deg); }
+    50% { transform: translate(5%, 5%) rotate(180deg); }
+    100% { transform: translate(-10%, -10%) rotate(360deg); }
+}
+
     </style>
 </head>
-<body class="dark-mode">
+<div id="splash-screen">
+    <div class="splash-bg-decor"></div>
+    <div class="splash-content">
+        <div class="splash-logo-wrap">
+            <img src="icon-512.png" class="splash-icon-img" alt="Logo">
+        </div>
+        
+        <div class="splash-text-group">
+            <h1 class="splash-title">Real-Time</h1>
+            <p class="splash-tagline">連結每一段通勤時光</p>
+        </div>
+
+        <div class="splash-status-container">
+            <div class="splash-loader-wrap">
+                <div class="splash-loader-bar"></div>
+            </div>
+            <p id="splash-status-text" class="splash-status">系統啟動中...</p>
+        </div>
+        
+        <div class="splash-footer-info">
+            <span class="v-num">Version 26.0210.74</span>
+            <p>© 2026 Real-Time</p>
+        </div>
+    </div>
+</div>
+
+
 
     <div class="status-bar">
         <div class="status-content">
@@ -1942,14 +2091,57 @@ function toggleSettings(show) {
             setTimeout(() => { modal.style.display = 'none'; }, 220);
         }
 
-        window.onload = async () => {
-            showHomeNoticeOnce();
-            initTilt();
-            renderFavs();
-            if(localStorage.getItem('theme') === 'light') document.body.classList.add('light-mode');
-            const success = await getTdxToken();
-            if(success) startMonitorSystem(true);
-        };
+
+
+
+      window.onload = async () => {
+    const splash = document.getElementById('splash-screen');
+    const statusText = document.getElementById('splash-status-text');
+
+    const updateStatus = (text, delay) => {
+        return new Promise(resolve => {
+            setTimeout(() => {
+                if (statusText) {
+                    statusText.style.opacity = 0; 
+                    setTimeout(() => {
+                        statusText.innerText = text;
+                        statusText.style.opacity = 1;
+                        resolve();
+                    }, 300);
+                }
+            }, delay);
+        });
+    };
+
+    // 背景初始化 (不影響動畫流暢度)
+    showHomeNoticeOnce();
+    initTilt();
+    renderFavs();
+    if(localStorage.getItem('theme') === 'light') document.body.classList.add('light-mode');
+
+    // 1. 執行載入動畫流程
+    await updateStatus("正在連線 TDX 伺服器...", 800);
+    const success = await getTdxToken();
+    await updateStatus("正在更新全台車站資料...", 600);
+    await updateStatus("準備就緒", 800);
+    
+    // 2. 顯示最後的歡迎語
+    await updateStatus("✨ 歡迎使用 ✨", 1000);
+
+    // 3. 核心修正：確保隱藏 Splash Screen 並回到首頁畫面
+    setTimeout(() => {
+        if (splash) {
+            splash.style.opacity = '0';
+            splash.style.pointerEvents = 'none'; // 確保不會擋住底下的點擊
+            
+            // 等待過渡動畫完成後徹底從 DOM 或 視覺移除
+            setTimeout(() => {
+                splash.style.display = 'none';
+                if (success) startMonitorSystem(true);
+            }, 1000);
+        }
+    }, 1200);
+};
     </script>
      <script src="../monitor.js"></script>
 </body>
