@@ -32,6 +32,111 @@
             --status-bar-h: 48px;
         }
 
+        /* 垂直流程容器 */
+.monitor-flow-v {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+/* 流程導引箭頭 */
+.flow-arrow-down {
+    text-align: left;
+    padding-left: 20px;
+    font-size: 0.9rem;
+    color: var(--text-muted);
+    line-height: 1;
+    opacity: 0.5;
+}
+
+/* 強化必選下拉選單的視覺 */
+select.setting-input[id*="pick"] {
+    background-color: rgba(255, 255, 255, 0.08);
+}
+.light-mode select.setting-input[id*="pick"] {
+    background-color: rgba(0, 0, 0, 0.03);
+}
+
+
+
+/* 深色模式下的下拉選單清單優化 */
+.dark-mode select.setting-input option {
+    background-color: #1e293b; /* 強制選單清單背景為深藍灰色 */
+    color: #f1f5f9;            /* 強制選單文字為亮白色 */
+}
+
+/* 針對輸入框與選單在深夜模式的視覺強化 */
+.dark-mode .setting-input {
+    background: rgba(0, 0, 0, 0.4);
+    color: #ffffff;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* 特別針對點選車次選單的樣式統一 */
+.dark-mode select.setting-input[id*="pick"] {
+    background-color: rgba(59, 130, 246, 0.1); /* 臺鐵藍微光 */
+    color: #ffffff;
+}
+
+.dark-mode #mon_thsr_train_pick {
+    background-color: rgba(251, 146, 60, 0.1); /* 高鐵橘微光 */
+}
+
+
+
+
+
+        /* 常用行程容器 */
+.fav-section {
+    margin-top: 15px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+/* 單個行程的卡片式佈局 */
+.fav-item-card {
+    background: rgba(255, 255, 255, 0.03); /* 微亮背景區分 */
+    padding: 12px;
+    border-radius: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.light-mode .fav-item-card {
+    background: rgba(0, 0, 0, 0.02);
+}
+
+/* 行程標籤（如：行程一） */
+.card-mini-label {
+    display: block;
+    font-size: 0.7rem;
+    font-weight: 800;
+    color: var(--text-muted);
+    margin-bottom: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* 水平排列起訖站與箭頭 */
+.input-row-flex {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.input-row-flex .setting-input {
+    flex: 1; /* 讓輸入框平分寬度 */
+    text-align: center; /* 站名居中較美觀 */
+}
+
+/* 視覺導引箭頭 */
+.route-arrow {
+    color: var(--text-muted);
+    font-weight: 900;
+    font-size: 1.1rem;
+    opacity: 0.6;
+}
+
         body.light-mode {
             --bg-dark: #f0f4f8;
             --text-main: #0f172a;
@@ -56,41 +161,37 @@
         @keyframes float { 0% { transform: translate(0, 0); } 100% { transform: translate(10%, 15%); } }
         @keyframes floatReverse { 0% { transform: translate(0, 0); } 100% { transform: translate(-10%, -15%); } }
 
-        /* 頂部即時狀態欄 */
+        /* 頂部即時狀態欄 (修改版：各半、靠左) */
         .status-bar {
             position: fixed; top: 0; left: 0; width: 100%; height: var(--status-bar-h);
             background: var(--dock-bg); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
             border-bottom: 1px solid var(--glass-border); z-index: 500;
-            display: flex; align-items: center; padding: 0 15px; overflow: hidden;
+            display: flex; align-items: center; padding: 0; /* 移除 padding 讓分隔線滿版 */
+            overflow: hidden;
         }
-        .status-content { display: flex; align-items: center; width: 100%; height: 100%; gap: 10px; }
+        .status-content { display: flex; align-items: center; width: 100%; height: 100%; }
         
         .status-item { 
-            display: flex; align-items: center; gap: 6px; 
-            max-width: 32vw; 
+            flex: 1; /* 各佔一半 */
+            display: flex; align-items: center; gap: 8px; 
+            height: 100%;
+            padding: 0 16px; /* 內距 */
             white-space: nowrap; overflow: hidden; position: relative;
+            border-right: 1px solid var(--glass-border); /* 中間分隔線 */
         }
+        .status-item:last-child { border-right: none; }
         
         .status-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; background: var(--text-muted); }
         .status-dot.ok { background: var(--success); box-shadow: 0 0 8px var(--success); }
         .status-dot.warn { background: var(--warning); box-shadow: 0 0 8px var(--warning); }
         
-        .status-text-wrap { display: inline-block; white-space: nowrap; }
-        .status-text-wrap.alert-scroll { padding-left: 100%; animation: scroll-linear 30s linear infinite; }
-        @keyframes scroll-linear { 0% { transform: translateX(0); } 100% { transform: translateX(-150%); } }
-
-        .divider { width: 1px; height: 16px; background: var(--glass-border); flex-shrink: 0; opacity: 0.5; }
-        
-        /* 監控跑馬燈 */
-        .marquee-box { flex: 1; overflow: hidden; position: relative; height: 100%; display: flex; align-items: center; }
-        .monitor-text { 
-            font-family: 'Roboto Mono', monospace; font-size: 0.85rem; color: #cbd5e1; 
-            white-space: nowrap; padding-left: 100%; 
-            animation: marquee 30s linear infinite;
+        .status-text-wrap { 
+            display: inline-block; white-space: nowrap; 
+            font-size: 0.85rem; font-weight: 500; color: var(--text-main);
         }
-        .monitor-text.static { animation: none; padding-left: 0; color: var(--text-muted); }
-        .light-mode .monitor-text { color: #475569; }
-        @keyframes marquee { 0% { transform: translateX(0); } 100% { transform: translateX(-100%); } }
+        /* 若警示文字太長則跑馬燈 */
+        .status-text-wrap.alert-scroll { padding-left: 100%; animation: scroll-linear 20s linear infinite; }
+        @keyframes scroll-linear { 0% { transform: translateX(0); } 100% { transform: translateX(-150%); } }
 
         /* 主導航 */
         .top-nav { width: 100%; max-width: 1200px; padding: 25px 30px; display: flex; justify-content: space-between; align-items: center; z-index: 100; }
@@ -219,7 +320,7 @@
         /* 下拉選單樣式 */
         select.setting-input { appearance: none; cursor: pointer; background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%2394a3b8%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E"); background-repeat: no-repeat; background-position: right 12px top 50%; background-size: 10px auto; padding-right: 30px; }
         .light-mode .setting-input { background: #fff; color: #000; border-color: #ddd; }
-        .fav-row { display: flex; gap: 10px; margin-bottom: 10px; }
+        .fav-row { display: flex; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
 
         .btn-group { display: flex; gap: 12px; margin-top: 30px; }
         .danger-btn, .save-btn { padding: 14px; border-radius: 16px; border: none; font-weight: 700; font-size: 1rem; cursor: pointer; flex: 1; }
@@ -326,17 +427,13 @@
                     <span id="trStatusText">臺鐵: 載入中...</span>
                 </span>
             </div>
-            <div class="divider"></div>
             <div class="status-item">
                 <span class="status-dot ok" id="thsrStatusDot"></span>
                 <span id="thsrStatusTextWrap" class="status-text-wrap">
                     <span id="thsrStatusText">高鐵: 載入中...</span>
                 </span>
             </div>
-            <div class="divider"></div>
-            <div class="marquee-box">
-                <span id="monitorStatusText" class="monitor-text static">監控未啟用</span>
-            </div>
+            <span id="monitorStatusText" style="display:none;"></span>
         </div>
     </div>
 
@@ -414,7 +511,7 @@
             <li><strong>權限：</strong> 必須在 HTTPS 環境下並確認於設定通知管理中將「Real-Time」<strong>開啟「允許通知」</strong>。</li>
         </ul>
         <div style="border-top: 1px solid rgba(255,255,255,0.1); padding-top: 8px; margin-top: 8px; font-size: 0.75rem;">
-            <strong>步驟：</strong> 1. 輸入車次(選單選擇) → 2. 選擇目標站 → 3. 儲存。
+            <strong>步驟：</strong> 1. 輸入車次(查詢) → 2. <strong>請點選車次（必選）</strong> → 3. 選擇目標站 → 4. 儲存。
         </div>
     </div>
 
@@ -438,51 +535,155 @@
         <datalist id="traTrainList"></datalist>
         <datalist id="thsrTrainList"></datalist>
 
-        <div style="margin-bottom: 8px; font-size: 0.8rem; color: var(--tr-color);">● 臺鐵監控 (TRA)</div>
-        <div class="fav-row">
-            <input type="text" id="mon_tr1_train" class="setting-input" list="traTrainList" placeholder="輸入車次 (如: 408)" onchange="updateStationOptions('tra', this.value, 'mon_tr1_station')">
-            <select id="mon_tr1_station" class="setting-input">
-                <option value="" disabled selected>請先輸入車次</option>
-            </select>
-        </div>
-        <div class="fav-row">
-            <input type="text" id="mon_tr2_train" class="setting-input" list="traTrainList" placeholder="輸入車次" onchange="updateStationOptions('tra', this.value, 'mon_tr2_station')">
-            <select id="mon_tr2_station" class="setting-input">
-                <option value="" disabled selected>請先輸入車次</option>
-            </select>
-        </div>
+        <div style="margin-bottom: 8px; font-size: 0.8rem; color: var(--tr-color); font-weight: 800;">● 臺鐵監控 (TRA)</div>
 
-        <div style="margin: 12px 0 8px; font-size: 0.8rem; color: var(--thsr-color);">● 高鐵監控 (THSR)</div>
-        <div class="fav-row">
-            <input type="text" id="mon_thsr_train" class="setting-input" list="thsrTrainList" placeholder="輸入車次 (如: 0623)" onchange="updateStationOptions('thsr', this.value, 'mon_thsr_station')">
-            <select id="mon_thsr_station" class="setting-input">
-                <option value="" disabled selected>請先輸入車次</option>
+<div class="fav-item-card" style="border-left: 3px solid var(--tr-color); margin-bottom: 12px;">
+    <span class="card-mini-label">監控車次一</span>
+    <div class="monitor-flow-v">
+        <div class="input-row-flex">
+            <input type="text" id="mon_tr1_train" class="setting-input"  placeholder="🔍搜尋車次"
+                   oninput="onTrainInput('tra','mon_tr1_train','mon_tr1_train_pick')"
+                   style="flex: 1.2;">
+            <select id="mon_tr1_train_pick" class="setting-input"
+                    onchange="onTrainPick('tra','mon_tr1_train','mon_tr1_train_pick','mon_tr1_station')"
+                    style="flex: 2; font-weight: 800; border-color: var(--tr-color);">
+                <option value="" selected>請點選確認</option>
             </select>
         </div>
+        <input type="hidden" id="mon_tr1_train_final">
+        
+        <div class="flow-arrow-down">↓</div>
+
+        <select id="mon_tr1_station" class="setting-input">
+            <option value="" disabled selected>🚩選擇提醒目標站</option>
+        </select>
+    </div>
+</div>
+
+<div class="fav-item-card" style="border-left: 3px solid var(--tr-color); margin-bottom: 12px;">
+    <span class="card-mini-label">監控車次二</span>
+    <div class="monitor-flow-v">
+        <div class="input-row-flex">
+            <input type="text" id="mon_tr2_train" class="setting-input"  placeholder="🔍搜尋車次"
+                   oninput="onTrainInput('tra','mon_tr2_train','mon_tr2_train_pick')"
+                   style="flex: 1.2;">
+            <select id="mon_tr2_train_pick" class="setting-input"
+                    onchange="onTrainPick('tra','mon_tr2_train','mon_tr2_train_pick','mon_tr2_station')"
+                    style="flex: 2; font-weight: 800; border-color: var(--tr-color);">
+                <option value="" selected>請點選確認</option>
+            </select>
+        </div>
+        <input type="hidden" id="mon_tr2_train_final">
+        <div class="flow-arrow-down">↓</div>
+        <select id="mon_tr2_station" class="setting-input">
+            <option value="" disabled selected>🚩選擇提醒目標站</option>
+        </select>
+    </div>
+</div>
+
+<div style="margin: 16px 0 8px; font-size: 0.8rem; color: var(--thsr-color); font-weight: 800;">● 高鐵監控 (THSR)</div>
+
+<div class="fav-item-card" style="border-left: 3px solid var(--thsr-color);">
+    <span class="card-mini-label">高鐵監控車次</span>
+    <div class="monitor-flow-v">
+        <div class="input-row-flex">
+            <input type="text" id="mon_thsr_train" class="setting-input"  placeholder="🔍搜尋車次"
+                   oninput="onTrainInput('thsr','mon_thsr_train','mon_thsr_train_pick')"
+                   style="flex: 1.2;">
+            <select id="mon_thsr_train_pick" class="setting-input"
+                    onchange="onTrainPick('thsr','mon_thsr_train','mon_thsr_train_pick','mon_thsr_station')"
+                    style="flex: 2; font-weight: 800; border-color: var(--thsr-color);">
+                <option value="" selected>請點選確認</option>
+            </select>
+        </div>
+        <input type="hidden" id="mon_thsr_train_final">
+        <div class="flow-arrow-down">↓</div>
+        <select id="mon_thsr_station" class="setting-input">
+            <option value="" disabled selected>🚩選擇提醒目標站</option>
+        </select>
+    </div>
+</div>
         
         <button onclick="testNotification()" style="width:100%; margin-top:10px; padding:8px; border-radius:10px; border:1px solid var(--glass-border); background:rgba(255,255,255,0.05); color:var(--text-main); cursor:pointer;">🔔 測試通知權限</button>
     </div>
 </div>
 
-            <span class="section-title">臺鐵常用 (TR)</span>
-            <div class="setting-group">
-                <div class="setting-row"><span>常用車站</span><input type="text" id="tr_home" class="setting-input" placeholder="如: 萬華" style="width: 120px;"></div>
-                <div style="margin-top:10px;">
-                    <div class="fav-row"><input type="text" id="tr_s1" class="setting-input" placeholder="起1"><input type="text" id="tr_e1" class="setting-input" placeholder="迄1"></div>
-                    <div class="fav-row"><input type="text" id="tr_s2" class="setting-input" placeholder="起2"><input type="text" id="tr_e2" class="setting-input" placeholder="迄2"></div>
-                    <div class="fav-row"><input type="text" id="tr_s3" class="setting-input" placeholder="起3"><input type="text" id="tr_e3" class="setting-input" placeholder="迄3"></div>
-                </div>
-            </div>
 
-            <span class="section-title">高鐵常用 (THSR)</span>
-            <div class="setting-group">
-                <div class="setting-row"><span>常用車站</span><input type="text" id="thsr_home" class="setting-input" placeholder="如: 台北" style="width: 120px;"></div>
-                <div style="margin-top:10px;">
-                    <div class="fav-row"><input type="text" id="thsr_s1" class="setting-input" placeholder="起1"><input type="text" id="thsr_e1" class="setting-input" placeholder="迄1"></div>
-                    <div class="fav-row"><input type="text" id="thsr_s2" class="setting-input" placeholder="起2"><input type="text" id="thsr_e2" class="setting-input" placeholder="迄2"></div>
-                    <div class="fav-row"><input type="text" id="thsr_s3" class="setting-input" placeholder="起3"><input type="text" id="thsr_e3" class="setting-input" placeholder="迄3"></div>
-                </div>
+         <span class="section-title" style="color: var(--tr-color); border-left-color: var(--tr-color);">臺鐵常用 (TRA)</span>
+<div class="setting-group" style="border-top: 2px solid var(--tr-color);">
+    <datalist id="traStationList"></datalist>
+    
+    <div class="setting-row">
+        <span>常用車站</span>
+        <input type="text" id="tr_home" class="setting-input" list="traStationList" placeholder="如：臺北" style="width: 150px; border-color: rgba(59, 130, 246, 0.3);">
+    </div>
+    
+    <div class="fav-section">
+        <div class="fav-item-card" style="border-left: 3px solid var(--tr-color);">
+            <span class="card-mini-label">常用行程一</span>
+            <div class="input-row-flex">
+                <input type="text" id="tr_s1" class="setting-input" list="traStationList" placeholder="起點">
+                <span class="route-arrow">→</span>
+                <input type="text" id="tr_e1" class="setting-input" list="traStationList" placeholder="終點">
             </div>
+        </div>
+
+        <div class="fav-item-card" style="border-left: 3px solid var(--tr-color);">
+            <span class="card-mini-label">常用行程二</span>
+            <div class="input-row-flex">
+                <input type="text" id="tr_s2" class="setting-input" list="traStationList" placeholder="起點">
+                <span class="route-arrow">→</span>
+                <input type="text" id="tr_e2" class="setting-input" list="traStationList" placeholder="終點">
+            </div>
+        </div>
+
+        <div class="fav-item-card" style="border-left: 3px solid var(--tr-color);">
+            <span class="card-mini-label">常用行程三</span>
+            <div class="input-row-flex">
+                <input type="text" id="tr_s3" class="setting-input" list="traStationList" placeholder="起點">
+                <span class="route-arrow">→</span>
+                <input type="text" id="tr_e3" class="setting-input" list="traStationList" placeholder="終點">
+            </div>
+        </div>
+    </div>
+</div>
+<hr style="margin: 20px 0; border: none; border-bottom: 1px solid var(--glass-border); opacity: 0.5;">
+
+<span class="section-title" style="color: var(--thsr-color); border-left-color: var(--thsr-color);">高鐵常用 (THSR)</span>
+<div class="setting-group" style="border-top: 2px solid var(--thsr-color);">
+    <datalist id="thsrStationList"></datalist>
+    <div class="setting-row">
+        <span>常用車站</span>
+        <input type="text" id="thsr_home" class="setting-input" list="thsrStationList" placeholder="如：台北" style="width: 150px; border-color: rgba(251, 146, 60, 0.3);">
+    </div>
+
+    <div class="fav-section">
+        <div class="fav-item-card" style="border-left: 3px solid var(--thsr-color);">
+            <span class="card-mini-label">常用行程一</span>
+            <div class="input-row-flex">
+                <input type="text" id="thsr_s1" class="setting-input" list="thsrStationList" placeholder="起點">
+                <span class="route-arrow">→</span>
+                <input type="text" id="thsr_e1" class="setting-input" list="thsrStationList" placeholder="終點">
+            </div>
+        </div>
+        <div class="fav-item-card" style="border-left: 3px solid var(--thsr-color);">
+            <span class="card-mini-label">常用行程二</span>
+            <div class="input-row-flex">
+                <input type="text" id="thsr_s2" class="setting-input" list="thsrStationList" placeholder="起點">
+                <span class="route-arrow">→</span>
+                <input type="text" id="thsr_e2" class="setting-input" list="thsrStationList" placeholder="終點">
+            </div>
+        </div>
+        <div class="fav-item-card" style="border-left: 3px solid var(--thsr-color);">
+            <span class="card-mini-label">常用行程三</span>
+            <div class="input-row-flex">
+                <input type="text" id="thsr_s3" class="setting-input" list="thsrStationList" placeholder="起點">
+                <span class="route-arrow">→</span>
+                <input type="text" id="thsr_e3" class="setting-input" list="thsrStationList" placeholder="終點">
+            </div>
+        </div>
+    </div>
+</div>
 
             <div class="btn-group">
                 <button class="danger-btn" onclick="clearData()">清除設定</button>
@@ -834,33 +1035,21 @@
 
           if(eta.diffMin <= 0){
             // === 已到站 ===
-            // Pill: 🚆 554 · 已到 萬華
             text = `${trainNo||''} · 已到 ${eta.stn}`.trim();
-            // Highlight: Green
             pillCls = 'arrived';
-            // Badge: 已到站
             badge = {text:'已到站', cls:'arrived'};
-          
           } else if (eta.diffMin <= 60) {
             // === 60 分鐘內 ===
-            // Pill: 🚆 554 · 14分 萬華
             text = `${trainNo||''} · ${eta.diffMin}分 ${eta.stn}`.trim();
-            
-            // Badge (Panel)
             if(eta.diffMin <= 15) {
-                // ⚠️ 修改：顯示「即將到站」+「剩餘時間」
                 badge = {text:`即將到站 · 剩 ${eta.diffMin}分`, cls:'soon'};
                 pillCls = 'warn';
             } else {
                 badge = {text:`剩 ${eta.diffMin}分`, cls:''};
             }
-          
           } else {
             // === 超過 60 分鐘 ===
-            // Pill: 🚆 554 · 20:52 萬華
             text = `${trainNo||''} · ${hh}:${mm} ${eta.stn}`.trim();
-            
-            // Badge (Panel): 剩 X小時X分
             const h = Math.floor(eta.diffMin/60);
             const m = eta.diffMin % 60;
             badge = {text:`剩 ${h}小時${m}分`, cls:''};
@@ -870,7 +1059,6 @@
           if(hasDelay && eta.diffMin > 0) pillCls = 'danger';
 
         } else {
-          // 無 ETA 狀態 (未發車/查無資料)
           const short = String(line).split('|')[1] || '監控中';
           text = `${trainNo||''} · ${short.trim()}`;
           pillCls = hasDelay ? 'danger' : '';
@@ -1030,7 +1218,7 @@
         let monitorFetchInterval = null; 
         let stationDB = { tr: [], thsr: [] };
         let lastNotificationStates = {};
-        let cachedTrainList = { tra: null, thsr: null }; // 暫存車次列表
+        let cachedTrainList = { tra: null, thsr: null }; 
 
         function normalizeTRA(str) { return str ? str.replace(/台/g, '臺') : ''; }
         function normalizeTHSR(str) { return str ? str.replace(/臺/g, '台') : ''; }
@@ -1065,15 +1253,29 @@
                 const trRes = await fetch('https://tdx.transportdata.tw/api/basic/v3/Rail/TRA/Station?%24format=JSON', { headers });
                 const trData = await trRes.json();
                 stationDB.tr = trData.Stations.map(st => ({ name: st.StationName.Zh_tw, lat: st.StationPosition.PositionLat, lon: st.StationPosition.PositionLon }));
+                
+                // Populate TRA Station List
+                populateDatalist('traStationList', stationDB.tr.map(s => s.name));
+
                 document.getElementById('trGeoBtn').classList.remove('loading');
                 document.getElementById('trGeoBtn').querySelector('span').innerText = '📍 定位並查看最近車站';
 
                 const thsrRes = await fetch('https://tdx.transportdata.tw/api/basic/v2/Rail/THSR/Station?%24format=JSON', { headers });
                 const thsrData = await thsrRes.json();
                 stationDB.thsr = thsrData.map(st => ({ name: st.StationName.Zh_tw, lat: st.StationPosition.PositionLat, lon: st.StationPosition.PositionLon }));
+                
+                // Populate THSR Station List
+                populateDatalist('thsrStationList', stationDB.thsr.map(s => s.name));
+
                 document.getElementById('thsrGeoBtn').classList.remove('loading');
                 document.getElementById('thsrGeoBtn').querySelector('span').innerText = '📍 定位並查看最近車站';
             } catch(e) { console.error(e); }
+        }
+
+        function populateDatalist(id, list) {
+            const el = document.getElementById(id);
+            if(!el) return;
+            el.innerHTML = list.map(n => `<option value="${n}"></option>`).join('');
         }
 
         async function checkSystemAlerts() {
@@ -1106,44 +1308,97 @@
 
         // ===== 智慧選單邏輯 (Autocomplete & Dropdown) =====
 
-        // 1. 初始化車次列表 (只抓一次)
         async function initTrainLists() {
             if(!tdxToken) await getTdxToken();
             if(!tdxToken) return;
             
             const headers = { 'Authorization': `Bearer ${tdxToken}` };
 
-            // 抓高鐵車次 (資料量小，直接全抓)
             if(!cachedTrainList.thsr) {
                 try {
                     const res = await fetch('https://tdx.transportdata.tw/api/basic/v2/Rail/THSR/DailyTimetable/Today?%24format=JSON', { headers });
                     const data = await res.json();
-                    cachedTrainList.thsr = data.map(d => d.TrainDate.TrainNo || d.DailyTrainInfo.TrainNo);
+                    cachedTrainList.thsr = data.map(d => (d.TrainDate && d.TrainDate.TrainNo) || (d.DailyTrainInfo && d.DailyTrainInfo.TrainNo)).filter(Boolean);
                     populateDatalist('thsrTrainList', cachedTrainList.thsr);
+                    // ★ 同步到「必選」下拉
+                    fillTrainPickOptions('thsr', 'mon_thsr_train_pick', cachedTrainList.thsr);
                 } catch(e){}
+            } else {
+                fillTrainPickOptions('thsr', 'mon_thsr_train_pick', cachedTrainList.thsr);
             }
 
-            // 抓臺鐵車次 (資料量大，只抓 TrainInfo 減少流量)
             if(!cachedTrainList.tra) {
                 try {
                     const res = await fetch('https://tdx.transportdata.tw/api/basic/v3/Rail/TRA/DailyTrainTimetable/Today?%24select=TrainInfo&%24format=JSON', { headers });
                     const data = await res.json();
-                    // 去除重複車次
                     const rawList = data.TrainTimetables.map(d => d.TrainInfo.TrainNo);
                     cachedTrainList.tra = [...new Set(rawList)].sort();
                     populateDatalist('traTrainList', cachedTrainList.tra);
+                    // ★ 同步到「必選」下拉
+                    fillTrainPickOptions('tra', 'mon_tr1_train_pick', cachedTrainList.tra);
+                    fillTrainPickOptions('tra', 'mon_tr2_train_pick', cachedTrainList.tra);
                 } catch(e){}
+            } else {
+                fillTrainPickOptions('tra', 'mon_tr1_train_pick', cachedTrainList.tra);
+                fillTrainPickOptions('tra', 'mon_tr2_train_pick', cachedTrainList.tra);
             }
         }
 
-        function populateDatalist(id, list) {
-            const el = document.getElementById(id);
-            if(!el) return;
-            el.innerHTML = list.map(n => `<option value="${n}"></option>`).join('');
+        // ===== 車次「必須點選」的下拉同步工具 =====
+        function fillTrainPickOptions(type, selectId, list) {
+          const sel = document.getElementById(selectId);
+          if (!sel) return;
+          const current = sel.value || "";
+          const head = `<option value="" ${current===""?"selected":""}>請點選車次（必選）</option>`;
+          const opts = (list || []).map(no => `<option value="${no}">${no}</option>`).join('');
+          sel.innerHTML = head + opts;
+          // 保留已選值（若還存在）
+          if (current && sel.querySelector(`option[value="${CSS.escape(current)}"]`)) sel.value = current;
         }
 
-        // 2. 當車次改變時，自動更新車站下拉選單
-        // savedStation: 如果有傳入，會在清單載入後自動選取該站 (用於還原設定)
+        function onTrainInput(type, inputId, selectId) {
+  const query = document.getElementById(inputId).value.trim(); // 取得輸入的關鍵字
+  const sel = document.getElementById(selectId);
+  
+  // 1. 先清空目前的選中狀態與隱藏有效值
+  if (sel) sel.value = "";
+  const finalHidden = document.getElementById(inputId + "_final") || document.getElementById(inputId.replace("_train","_train_final"));
+  if (finalHidden) finalHidden.value = "";
+
+  // 2. 從快取的完整清單中過濾符合關鍵字的車次
+  // type 為 'tra' 或 'thsr'
+  const fullList = (type === 'tra' ? cachedTrainList.tra : cachedTrainList.thsr) || [];
+  const filteredList = fullList.filter(no => no.toString().includes(query));
+  
+  // 3. 重新渲染下拉選單的選項（僅顯示過濾後的結果）
+  fillTrainPickOptions(type, selectId, filteredList);
+
+  // 4. 自動展開選單（選配：部分手機瀏覽器不支援自動展開，但這能幫助使用者知道過濾已完成）
+  if (query.length > 0 && filteredList.length > 0) {
+     // sel.focus(); // 若希望輸入完自動跳到選單，可啟用這行
+  }
+}
+
+        function onTrainPick(type, inputId, selectId, stationSelectId) {
+          const sel = document.getElementById(selectId);
+          const inp = document.getElementById(inputId);
+          const picked = sel ? sel.value : "";
+
+          // 把點選結果同步回 input（視覺一致）
+          if (inp) inp.value = picked;
+
+          // 存到 hidden（真正有效值）
+          const finalHidden = document.getElementById(inputId + "_final") || document.getElementById(inputId.replace("_train","_train_final"));
+          if (finalHidden) finalHidden.value = picked || "";
+
+          // 點選後才更新目標站下拉
+          if (picked) updateStationOptions(type, picked, stationSelectId);
+          else {
+            const stSel = document.getElementById(stationSelectId);
+            if (stSel) stSel.innerHTML = '<option value="" disabled selected>請先輸入車次</option>';
+          }
+        }
+
         async function updateStationOptions(type, trainNo, selectId, savedStation = null) {
             const selectEl = document.getElementById(selectId);
             if(!selectEl) return;
@@ -1171,7 +1426,7 @@
                 let stops = [];
                 if(type === 'tra' && data.TrainTimetables && data.TrainTimetables.length > 0) {
                     stops = data.TrainTimetables[0].StopTimes;
-                } else if(type === 'thsr' && data.length > 0) {
+                } else if(type === 'thsr' && Array.isArray(data) && data.length > 0) {
                     stops = data[0].StopTimes;
                 }
 
@@ -1180,7 +1435,6 @@
                     return;
                 }
 
-                // 產生選項
                 let html = '<option value="" disabled selected>請選擇目標站</option>';
                 stops.forEach(s => {
                     const stName = s.StationName.Zh_tw;
@@ -1189,12 +1443,9 @@
                 });
                 selectEl.innerHTML = html;
 
-                // 如果有預設值，嘗試選取
                 if(savedStation) {
-                    // 正規化比對
                     const target = type === 'tra' ? normalizeTRA(savedStation) : normalizeTHSR(savedStation);
                     selectEl.value = target;
-                    // 如果 value 沒變(不在清單內)，清空
                     if(selectEl.value !== target) selectEl.value = "";
                 }
 
@@ -1215,11 +1466,9 @@
 
             if(!isMonitorOn) {
                 marquee.innerText = "監控未啟用";
-                marquee.className = "monitor-text static";
                 return;
             }
 
-            // 讀取設定並標記 ID
             const tr1 = { no: localStorage.getItem('mon_tr1_train'), stn: normalizeTRA(localStorage.getItem('mon_tr1_station')), type: 'tra', id: 'tr1' };
             const tr2 = { no: localStorage.getItem('mon_tr2_train'), stn: normalizeTRA(localStorage.getItem('mon_tr2_station')), type: 'tra', id: 'tr2' };
             const thsr = { no: localStorage.getItem('mon_thsr_train'), stn: normalizeTHSR(localStorage.getItem('mon_thsr_station')), type: 'thsr', id: 'thsr' };
@@ -1231,13 +1480,11 @@
 
             if(targets.length === 0) {
                 marquee.innerText = "尚未設定監控車次";
-                marquee.className = "monitor-text static";
                 return;
             }
 
             if(isForceRefresh) {
                 marquee.innerText = `🔍 監控啟動 (共 ${targets.length} 班車)...`;
-                marquee.className = "monitor-text"; 
             }
 
             await updateAllMonitor(targets);
@@ -1249,7 +1496,6 @@
             if(!tdxToken) return;
 
             let statusMessages = [];
-            let hasDelay = false;
             let shouldRestart = false;
 
             for (let target of targets) {
@@ -1266,7 +1512,6 @@
                 }
 
                 statusMessages.push(msgObj.text);
-                if(msgObj.delay) hasDelay = true;
             }
 
             if (shouldRestart) {
@@ -1275,12 +1520,11 @@
             }
 
             const marquee = document.getElementById('monitorStatusText');
+            // 只將資訊寫入 DOM 供動態島讀取，不顯示在頂部
             if (statusMessages.length === 0) {
                 marquee.innerText = "監控已結束 (已抵達)";
-                marquee.style.color = "";
             } else {
                 marquee.innerText = statusMessages.join("   ✦   ");
-                marquee.style.color = hasDelay ? "#f87171" : ""; 
             }
         }
 
@@ -1304,7 +1548,6 @@
                     sendNotification(`🏁 監控結束`, `${trainNo}次 已抵達目標站，自動關閉監控。`);
                 }
                 
-                // Reset Inputs if modal is open
                 const elTrain = document.getElementById(`mon_${targetId}_train`);
                 const elStn = document.getElementById(`mon_${targetId}_station`);
                 if(elTrain) elTrain.value = '';
@@ -1381,7 +1624,7 @@
                 const res = await fetch(url, { headers: { 'Authorization': `Bearer ${tdxToken}` } });
                 const data = await res.json();
                 
-                if (data.length === 0) return { text: `高鐵 ${target.no}次: 今日無行駛`, delay: false };
+                if (!Array.isArray(data) || data.length === 0) return { text: `高鐵 ${target.no}次: 今日無行駛`, delay: false };
 
                 const stops = data[0].StopTimes;
                 const startTime = stops[0].DepartureTime;
@@ -1434,55 +1677,59 @@
         }
 
         // ===== 設定與開關邏輯 =====
-        function toggleSettings(show) {
-            const modal = document.getElementById('settingsModal');
-            if(show) {
-                modal.style.display = 'flex';
-                setTimeout(() => modal.classList.add('show'), 10);
-                
-                // 1. 初始化選單
-                initTrainLists();
+        // 修正後的載入邏輯：預防元件不存在報錯，並強化選單回顯
+function toggleSettings(show) {
+    const modal = document.getElementById('settingsModal');
+    if(show) {
+        modal.style.display = 'flex';
+        setTimeout(() => modal.classList.add('show'), 10);
+        initTrainLists();
 
-                // 2. 載入資料並還原狀態
-                const textKeys = ['tr_home','thsr_home','tr_s1','tr_e1','tr_s2','tr_e2','tr_s3','tr_e3','thsr_s1','thsr_e1','thsr_s2','thsr_e2','thsr_s3','thsr_e3'];
-                textKeys.forEach(k => { 
-                    const el = document.getElementById(k); 
-                    if(el) el.value = localStorage.getItem(k) || ''; 
-                });
+        const textKeys = ['tr_home','thsr_home','tr_s1','tr_e1','tr_s2','tr_e2','tr_s3','tr_e3','thsr_s1','thsr_e1','thsr_s2','thsr_e2','thsr_s3','thsr_e3'];
+        textKeys.forEach(k => { 
+            const el = document.getElementById(k); 
+            if(el) el.value = localStorage.getItem(k) || ''; 
+        });
 
-                // 還原車次與車站選單
-                const loadMonitorRow = (type, trainId, stnId) => {
-                    const trainNo = localStorage.getItem(trainId) || '';
-                    const savedStn = localStorage.getItem(stnId) || '';
-                    const elTrain = document.getElementById(trainId);
-                    
-                    if(elTrain) elTrain.value = trainNo;
-                    // 如果有車次，觸發更新車站選單並選取
-                    if(trainNo) {
-                        updateStationOptions(type, trainNo, stnId, savedStn);
-                    } else {
-                        // 重置選單
-                        const elSelect = document.getElementById(stnId);
-                        if(elSelect) elSelect.innerHTML = '<option value="" disabled selected>請先輸入車次</option>';
-                    }
-                };
+        const loadMonitorRow = (type, trainId, stnId, pickId, finalId) => {
+            const trainNo = localStorage.getItem(trainId) || '';
+            const savedStn = localStorage.getItem(stnId) || '';
+            const elTrain = document.getElementById(trainId);
+            const elPick = document.getElementById(pickId);
+            const elFinal = document.getElementById(finalId);
 
-                loadMonitorRow('tra', 'mon_tr1_train', 'mon_tr1_station');
-                loadMonitorRow('tra', 'mon_tr2_train', 'mon_tr2_station');
-                loadMonitorRow('thsr', 'mon_thsr_train', 'mon_thsr_station');
-
-                const monitorOn = localStorage.getItem('monitor_enabled') === 'true';
-                document.getElementById('monitorSwitch').checked = monitorOn;
-                document.getElementById('monitorConfig').style.display = monitorOn ? 'block' : 'none';
-
-                const pushOn = localStorage.getItem('push_enabled') === 'true';
-                document.getElementById('pushSwitch').checked = pushOn;
-
-            } else {
-                modal.classList.remove('show');
-                setTimeout(() => modal.style.display = 'none', 300);
+            if(elTrain) elTrain.value = trainNo;
+            if(elPick && trainNo) {
+                // 強制在選單插入目前的車次，避免初始化時選單還沒從 API 下載完導致空白
+                elPick.innerHTML = `<option value="${trainNo}" selected>${trainNo}</option>`;
             }
-        }
+            if(elFinal) elFinal.value = trainNo;
+
+            if(trainNo) {
+                updateStationOptions(type, trainNo, stnId, savedStn);
+            } else {
+                const elSelect = document.getElementById(stnId);
+                if(elSelect) elSelect.innerHTML = '<option value="" disabled selected>請先輸入車次</option>';
+            }
+        };
+
+        // 確保 ID 匹配
+        loadMonitorRow('tra', 'mon_tr1_train', 'mon_tr1_station', 'mon_tr1_train_pick', 'mon_tr1_train_final');
+        loadMonitorRow('tra', 'mon_tr2_train', 'mon_tr2_station', 'mon_tr2_train_pick', 'mon_tr2_train_final');
+        loadMonitorRow('thsr', 'mon_thsr_train', 'mon_thsr_station', 'mon_thsr_train_pick', 'mon_thsr_train_final');
+
+        const monitorOn = localStorage.getItem('monitor_enabled') === 'true';
+        if(document.getElementById('monitorSwitch')) document.getElementById('monitorSwitch').checked = monitorOn;
+        if(document.getElementById('monitorConfig')) document.getElementById('monitorConfig').style.display = monitorOn ? 'block' : 'none';
+
+        const pushOn = localStorage.getItem('push_enabled') === 'true';
+        if(document.getElementById('pushSwitch')) document.getElementById('pushSwitch').checked = pushOn;
+
+    } else {
+        modal.classList.remove('show');
+        setTimeout(() => modal.style.display = 'none', 300);
+    }
+}
 
         function toggleMonitor(el) {
             const config = document.getElementById('monitorConfig');
@@ -1530,6 +1777,13 @@
         }
 
         function saveSettings() {
+            // ★ 強制：車次必須用「點選」才有效
+            const forcedTrainMap = {
+              mon_tr1_train: (document.getElementById('mon_tr1_train_final')?.value || '').trim(),
+              mon_tr2_train: (document.getElementById('mon_tr2_train_final')?.value || '').trim(),
+              mon_thsr_train: (document.getElementById('mon_thsr_train_final')?.value || '').trim()
+            };
+
             const keys = [
                 'tr_home','thsr_home','tr_s1','tr_e1','tr_s2','tr_e2','tr_s3','tr_e3',
                 'thsr_s1','thsr_e1','thsr_s2','thsr_e2','thsr_s3','thsr_e3',
@@ -1541,6 +1795,12 @@
                 const el = document.getElementById(k);
                 if(el) {
                     let val = el.value.trim();
+
+                    // ★ train 欄位改用「點選結果」
+                    if (Object.prototype.hasOwnProperty.call(forcedTrainMap, k)) {
+                      val = forcedTrainMap[k]; // 沒點選就是空字串
+                    }
+
                     if (k.includes('thsr') || k.includes('THSR')) {
                         val = normalizeTHSR(val);
                     } else {
@@ -1550,15 +1810,14 @@
                 }
             });
 
-            // 相容性設定
+            // 確保舊版 Key 相容性
             localStorage.setItem('mon_train', localStorage.getItem('mon_tr1_train') || '');
             localStorage.setItem('mon_station', localStorage.getItem('mon_tr1_station') || '');
 
             renderFavs();
             toggleSettings(false);
             
-            if (typeof startMonitorSystem === 'function') startMonitorSystem(true);
-            else startRealMonitor();
+            startMonitorSystem(true);
         }
 
         function clearData() {
@@ -1634,7 +1893,6 @@
                 if (nearest) {
                     targetSpan.innerText = `📍 最近: ${nearest}`;
                     setTimeout(() => {
-                        const baseUrl = sys === 'tr' ? '../tr/tr.html' : '../thsr/thsr.html';
                         openAppOverlay(sys, { station: nearest });
                     }, 800);
                 }
