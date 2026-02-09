@@ -527,7 +527,498 @@
         </nav>
     </div>
 
-    <script src="../monitor.js"></script>
+    <style>
+      .app-overlay{
+        position:fixed; inset:0;
+        z-index:9999;
+        background: var(--bg-dark);
+        display:none;
+      }
+      .app-overlay.show{ display:block; }
+      .app-overlay iframe{
+        width:100%;
+        height:100%;
+        border:0;
+        background: transparent;
+      }
+    </style>
+    <div class="app-overlay" id="appOverlay" aria-hidden="true">
+      <iframe id="appOverlayFrame" title="App View" loading="lazy"></iframe>
+    </div>
+    <script>
+      (function(){
+        const overlay = document.getElementById('appOverlay');
+        const frame = document.getElementById('appOverlayFrame');
+
+        function buildUrl(sys, params){
+          const baseUrl = sys === 'tr' ? '../tr/tr.html' : '../thsr/thsr.html';
+          const q = new URLSearchParams();
+          q.set('embed','1');
+          if(params){
+            for(const [k,v] of Object.entries(params)){
+              if(v!==undefined && v!==null && v!=='') q.set(k, v);
+            }
+          }
+          return baseUrl + '?' + q.toString();
+        }
+
+        window.openAppOverlay = function(sys, params){
+          // lazy load / update src each time (so query params update)
+          frame.src = buildUrl(sys, params);
+          overlay.classList.add('show');
+          overlay.setAttribute('aria-hidden','false');
+          history.pushState({app: sys, params: params||null}, '', '#' + sys);
+        };
+
+        window.closeAppOverlay = function(){
+          overlay.classList.remove('show');
+          overlay.setAttribute('aria-hidden','true');
+          // stop audio/network in iframe
+          frame.src = 'about:blank';
+          if(location.hash) history.pushState({}, '', location.pathname + location.search);
+        };
+
+        // Allow iframe to ask parent to close
+        window.addEventListener('message', (ev) => {
+          if(!ev || !ev.data) return;
+          if(ev.data === 'APP_CLOSE' || (ev.data && ev.data.type === 'APP_CLOSE')){
+            window.closeAppOverlay();
+          }
+        });
+
+        // Back button
+        window.addEventListener('popstate', (e) => {
+          const h = (location.hash || '').replace('#','');
+          if(h === 'tr' || h === 'thsr'){
+            // if navigating back into app, reopen without params
+            window.openAppOverlay(h, (e.state && e.state.params) ? e.state.params : null);
+          }else{
+            window.closeAppOverlay();
+          }
+        });
+
+        // On reload with hash
+        window.addEventListener('load', () => {
+          const h = (location.hash || '').replace('#','');
+          if(h === 'tr' || h === 'thsr'){
+            window.openAppOverlay(h, null);
+          }
+        });
+      })();
+    </script>
+
+    <style>
+      /* placed under top status bar */
+      #dynamicIsland{
+        position: fixed;
+        top: calc(var(--status-bar-h) + 10px);
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 900;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        width: auto;
+        max-width: 94vw; 
+        pointer-events: none;
+        transition: top 0.3s ease;
+      }
+      #dynamicIsland .di-pill{
+        pointer-events: auto;
+        width: auto;
+        min-width: 160px; 
+        border-radius: 999px;
+        padding: 10px 24px; 
+        background: rgba(15, 23, 42, 0.90);
+        border: 1px solid rgba(255,255,255,0.10);
+        box-shadow: 0 14px 40px rgba(0,0,0,0.35);
+        display:flex;
+        align-items:center;
+        justify-content:center;
+        gap: 12px;
+        cursor: pointer;
+        user-select: none;
+        -webkit-user-select: none;
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+      }
+      .light-mode #dynamicIsland .di-pill{
+        background: rgba(255,255,255,0.85);
+        border-color: rgba(0,0,0,0.08);
+        box-shadow: 0 10px 24px rgba(0,0,0,0.12);
+        color: #0f172a;
+      }
+      #dynamicIsland .di-icon{
+        font-size: 1.1rem;
+        display:flex;align-items:center;justify-content:center;
+        filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));
+      }
+      #dynamicIsland .di-text{
+        font-weight: 800;
+        letter-spacing: 0.5px;
+        white-space: nowrap;
+        font-size: 0.95rem;
+      }
+      
+      /* 狀態顏色 - Pill Highlight */
+      #dynamicIsland .di-pill.warn{ border-color: rgba(251,191,36,0.6); box-shadow: 0 0 15px rgba(251,191,36,0.2); }
+      #dynamicIsland .di-pill.danger{ border-color: rgba(248,113,113,0.7); box-shadow: 0 0 15px rgba(248,113,113,0.25); }
+      /* 已到站提亮 (綠色) */
+      #dynamicIsland .di-pill.arrived{ border-color: rgba(16, 185, 129, 0.6); box-shadow: 0 0 15px rgba(16, 185, 129, 0.25); }
+
+      /* Expanded Panel */
+      #dynamicIsland .di-panel{
+        pointer-events: auto;
+        position: absolute;
+        top: 0; 
+        left: 50%;
+        transform: translateX(-50%) scale(0.9);
+        width: max-content; 
+        max-width: 92vw;    
+        min-width: 300px;
+        border-radius: 26px;
+        padding: 16px;
+        background: rgba(255,255,255,0.98);
+        color: #0f172a;
+        border: 1px solid rgba(15,23,42,0.08);
+        box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        opacity: 0;
+        visibility: hidden;
+        transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+        transform-origin: top center;
+      }
+      .light-mode #dynamicIsland .di-panel{
+        background: rgba(255,255,255,0.92);
+      }
+      
+      #dynamicIsland.expanded .di-pill {
+        opacity: 0;
+        pointer-events: none;
+        transform: scale(0.8);
+      }
+      #dynamicIsland.expanded .di-panel{ 
+        opacity: 1; 
+        visibility: visible; 
+        transform: translateX(-50%) scale(1);
+        top: 0;
+      }
+
+      #dynamicIsland .di-row{
+        display:flex; align-items:flex-start;
+        gap: 12px;
+        padding: 12px 14px;
+        border-radius: 18px;
+        border: 1px solid rgba(0,0,0,0.06);
+        background: rgba(241, 245, 249, 0.7);
+        margin-bottom: 8px;
+      }
+      .light-mode #dynamicIsland .di-row{
+        background: rgba(0,0,0,0.04);
+      }
+      #dynamicIsland .di-row:last-child{ margin-bottom:0; }
+      
+      #dynamicIsland .di-row .k{
+        font-family: 'Roboto Mono', monospace;
+        font-weight: 800;
+        font-size: 1.1rem;
+        flex: 0 0 auto;
+        white-space: nowrap;
+        color: #334155;
+        padding-top: 2px;
+      }
+      
+      #dynamicIsland .di-row .v{
+        flex: 1;
+        font-weight: 700;
+        font-size: 0.95rem;
+        line-height: 1.5;
+        text-align: left;
+        color: #0f172a;
+        word-break: break-word;
+      }
+      
+      /* Badge inside panel */
+      #dynamicIsland .badge{
+        flex:0 0 auto;
+        font-size: 0.75rem;
+        font-weight: 800;
+        padding: 4px 10px;
+        border-radius: 8px;
+        background: #e2e8f0;
+        color: #475569;
+        white-space: nowrap;
+        align-self: flex-start;
+        margin-top: 2px;
+      }
+      #dynamicIsland .badge.soon{ background: #fef3c7; color: #b45309; }
+      #dynamicIsland .badge.arrived{ background: #d1fae5; color: #047857; }
+      #dynamicIsland .badge.delay{ background: #fee2e2; color: #b91c1c; }
+    </style>
+
+    <div id="dynamicIsland" aria-live="polite" aria-atomic="true">
+      <div class="di-pill" id="diPill">
+        <div class="di-icon" id="diIcon">🛰️</div>
+        <div class="di-text" id="diText">監控未啟用</div>
+      </div>
+      <div class="di-panel" id="diPanel"></div>
+    </div>
+
+    <script>
+    (function(){
+      // 1. 初始化
+      const root = document.getElementById('dynamicIsland');
+      const pill = document.getElementById('diPill');
+      const diIcon = document.getElementById('diIcon');
+      const diText = document.getElementById('diText');
+      const panel = document.getElementById('diPanel');
+
+      function $(id){ return document.getElementById(id); }
+      const marqueeEl = () => $('monitorStatusText');
+
+      let lines = [];
+      let rotTimer = null;
+      let rotIdx = 0;
+      let autoCollapseTimer = null;
+
+      // 2. 輔助函式
+      function safeSplitMessages(text){
+        if(!text) return [];
+        const t = String(text).trim();
+        if(!t || t.includes('監控未啟用') || t.includes('尚未設定') || t.includes('監控啟動')) return [];
+        if(t.includes('✦')) return t.split('✦').map(s=>s.trim()).filter(Boolean);
+        return t.split(/\s{2,}/).map(s=>s.trim()).filter(Boolean);
+      }
+
+      function parseETA(line){
+        // 解析: "預計 06:34 抵達 花蓮"
+        const m = String(line).match(/預計\s*(\d{1,2}):(\d{2})\s*抵達\s*([^|\s]+)/);
+        if(!m) return null;
+        const hh = parseInt(m[1],10);
+        const mm = parseInt(m[2],10);
+        const stn = m[3];
+        const now = new Date();
+        const eta = new Date(now);
+        eta.setHours(hh, mm, 0, 0);
+        if(eta.getTime() < now.getTime() - 6*3600*1000) eta.setDate(eta.getDate()+1);
+        const diffMin = Math.round((eta.getTime()-now.getTime())/60000);
+        return {eta, diffMin, hh, mm, stn};
+      }
+
+      function inferType(line){
+        const s = String(line);
+        if(s.includes('高鐵') || s.includes('THSR') || s.includes('🚅')) return 'thsr';
+        return 'tra'; 
+      }
+
+      function inferTrainNo(line){
+        const m = String(line).match(/(?:臺鐵|台鐵|高鐵)?\s*(\d{1,4})\s*次/);
+        return m ? m[1] : '';
+      }
+
+      function buildDisplay(line){
+        const type = inferType(line);
+        const trainNo = inferTrainNo(line);
+        const eta = parseETA(line);
+        let icon = (type==='thsr') ? '🚅' : '🚆';
+        let text = '';
+        let badge = null; 
+        let pillCls = '';
+
+        const delayM = String(line).match(/晚\s*(\d+)\s*分/);
+        const hasDelay = delayM && parseInt(delayM[1],10) > 0;
+
+        if(eta){
+          const hh = String(eta.hh).padStart(2,'0');
+          const mm = String(eta.mm).padStart(2,'0');
+
+          if(eta.diffMin <= 0){
+            // === 已到站 ===
+            // Pill: 🚆 554 · 已到 萬華
+            text = `${trainNo||''} · 已到 ${eta.stn}`.trim();
+            // Highlight: Green
+            pillCls = 'arrived';
+            // Badge: 已到站
+            badge = {text:'已到站', cls:'arrived'};
+          
+          } else if (eta.diffMin <= 60) {
+            // === 60 分鐘內 ===
+            // Pill: 🚆 554 · 14分 萬華
+            text = `${trainNo||''} · ${eta.diffMin}分 ${eta.stn}`.trim();
+            
+            // Badge (Panel)
+            if(eta.diffMin <= 15) {
+                // ⚠️ 修改：顯示「即將到站」+「剩餘時間」
+                badge = {text:`即將到站 · 剩 ${eta.diffMin}分`, cls:'soon'};
+                pillCls = 'warn';
+            } else {
+                badge = {text:`剩 ${eta.diffMin}分`, cls:''};
+            }
+          
+          } else {
+            // === 超過 60 分鐘 ===
+            // Pill: 🚆 554 · 20:52 萬華
+            text = `${trainNo||''} · ${hh}:${mm} ${eta.stn}`.trim();
+            
+            // Badge (Panel): 剩 X小時X分
+            const h = Math.floor(eta.diffMin/60);
+            const m = eta.diffMin % 60;
+            badge = {text:`剩 ${h}小時${m}分`, cls:''};
+          }
+
+          // 如果有誤點，Pill 強制紅框 (優先權高於 warn/arrived)
+          if(hasDelay && eta.diffMin > 0) pillCls = 'danger';
+
+        } else {
+          // 無 ETA 狀態 (未發車/查無資料)
+          const short = String(line).split('|')[1] || '監控中';
+          text = `${trainNo||''} · ${short.trim()}`;
+          pillCls = hasDelay ? 'danger' : '';
+        }
+        
+        return {icon, text, badge, pillCls};
+      }
+
+      // 3. 渲染邏輯
+      function renderCollapsed(){
+        const monitorOn = (localStorage.getItem('monitor_enabled') === 'true');
+        if(!monitorOn || !lines || lines.length===0){
+            diIcon.textContent = '🛰️';
+            diText.textContent = monitorOn ? '搜尋中...' : '監控未啟用';
+            pill.classList.remove('warn','danger','arrived');
+            return;
+        }
+        const d = buildDisplay(lines[rotIdx] || lines[0]);
+        diIcon.textContent = d.icon;
+        diText.textContent = d.text;
+        
+        pill.classList.remove('warn','danger','arrived');
+        if(d.pillCls) pill.classList.add(d.pillCls);
+      }
+
+      function renderExpanded(){
+        panel.innerHTML = '';
+        if(!lines || lines.length === 0) return;
+
+        // 排序: 時間短的在上面
+        const items = lines.map((ln)=>{
+          const eta = parseETA(ln);
+          const diffMin = (eta && typeof eta.diffMin === 'number') ? eta.diffMin : Infinity;
+          return { ln, eta, diffMin };
+        }).sort((a,b)=>a.diffMin - b.diffMin);
+
+        items.forEach(({ln, eta, diffMin})=>{
+          const d = buildDisplay(ln);
+          const row = document.createElement('div');
+          row.className = 'di-row';
+
+          const k = document.createElement('div');
+          k.className = 'k';
+          const trainNo = inferTrainNo(ln);
+          k.textContent = d.icon + ' ' + (trainNo || '--'); 
+
+          const v = document.createElement('div');
+          v.className = 'v';
+          
+          // 字串換行處理
+          let content = ln.replace(/\s+/g, ' ').trim();
+          content = content.replace(/^監控:\s*\d+次\s*\|\s*/, '');
+          content = content.replace(/^臺鐵\s*\d+次:?/, '');
+          content = content.replace(/^高鐵\s*\d+次:?/, '');
+
+          // 在 "| 預計" 或 "預計" 前換行
+          if(content.includes('| 預計')) {
+              content = content.replace(/\|\s*預計/g, '|<br>預計');
+          } else {
+              content = content.replace(/\s+預計/g, '<br>預計');
+          }
+
+          v.innerHTML = content;
+
+          row.appendChild(k);
+          row.appendChild(v);
+
+          if(d.badge){
+            const b = document.createElement('div');
+            b.className = 'badge ' + (d.badge.cls || '');
+            b.textContent = d.badge.text;
+            row.appendChild(b);
+          }
+
+          // Panel 內的高亮邏輯
+          if(eta && diffMin <= 15 && diffMin > 0){
+            row.style.border = '1px solid rgba(251,191,36,0.6)';
+            row.style.background = 'rgba(251,191,36,0.1)';
+          }
+          
+          panel.appendChild(row);
+        });
+      }
+
+      // 4. 控制邏輯
+      function startRotate(){
+        if(rotTimer) clearInterval(rotTimer);
+        if(!lines || lines.length<=1) return;
+        rotIdx = 0;
+        rotTimer = setInterval(()=>{
+          if(root.classList.contains('expanded')) return;
+          rotIdx = (rotIdx + 1) % lines.length;
+          renderCollapsed();
+        }, 4000);
+      }
+
+      function expandFor(ms){
+        root.classList.add('expanded');
+        renderExpanded();
+        if(autoCollapseTimer) clearTimeout(autoCollapseTimer);
+        autoCollapseTimer = setTimeout(()=>{ 
+            root.classList.remove('expanded'); 
+            renderCollapsed();
+        }, ms || 6000);
+      }
+
+      function refreshFromMarquee(){
+        const el = marqueeEl();
+        if(!el) return;
+        const newLines = safeSplitMessages(el.textContent);
+        
+        if(JSON.stringify(newLines) !== JSON.stringify(lines)){
+            lines = newLines;
+            if(rotIdx >= lines.length) rotIdx = 0;
+            if(root.classList.contains('expanded')) renderExpanded();
+        } else {
+            lines = newLines;
+        }
+        
+        if(!root.classList.contains('expanded')) renderCollapsed();
+        if(!rotTimer && lines.length > 1) startRotate();
+      }
+
+      // 5. 事件
+      pill.addEventListener('click', ()=>{
+        const monitorOn = (localStorage.getItem('monitor_enabled') === 'true');
+        if(!monitorOn){
+          try{ if(typeof toggleSettings === 'function') toggleSettings(true); }catch(e){}
+          return;
+        }
+        if(root.classList.contains('expanded')){
+            root.classList.remove('expanded');
+            renderCollapsed();
+        } else {
+            expandFor(6000);
+        }
+      });
+
+      const mo = new MutationObserver(()=>refreshFromMarquee());
+      window.addEventListener('load', ()=>{
+        const el = marqueeEl();
+        if(el) mo.observe(el, {childList:true, characterData:true, subtree:true});
+        refreshFromMarquee();
+        setInterval(()=>refreshFromMarquee(), 5000);
+      });
+
+    })();
+    </script>
 
     <script>
         const TDX_CONFIG = {
@@ -1202,3 +1693,5 @@
             if(success) startMonitorSystem(true);
         };
     </script>
+</body>
+</html>
