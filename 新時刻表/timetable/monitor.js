@@ -187,7 +187,7 @@
         }
       }
 
-      const msg = `${status}${arrivalStr}`;
+      const msg = `🚅${target.no}次：${status}${arrivalStr}`;
       const stateKey = `thsr_${target.no}`;
 
       // status-change notification (only when status changes)
@@ -266,7 +266,7 @@
         }
       }
 
-      const msg = `目前在 ${currentStn}｜${statusStr}${arrivalStr ? arrivalStr : ''}`;
+      const msg = `臺鐵${target.no}次：目前在 ${currentStn}｜${statusStr}${arrivalStr ? arrivalStr : ''}`;
       const stateKey = `tra_${target.no}`;
 
       // status-change notification (only when status changes)
