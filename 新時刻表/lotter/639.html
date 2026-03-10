@@ -391,15 +391,15 @@
         let prizePool = totalSales * GAME.payoutRate;
         
         let mockWinners = {
-            '頭獎': Math.floor(Math.random() * 2), // 0或1人中
+            '頭獎': Math.round(GAME.totalTickets / (19575738/9)),
             '二獎': Math.round(GAME.totalTickets / (19575738/10)),
-            '三獎': Math.round(GAME.totalTickets / (19575738/30)),
-            '四獎': Math.round(GAME.totalTickets / (19575738/153)),
-            '五獎': Math.round(GAME.totalTickets / (19575738/1124)),
-            '六獎': Math.round(GAME.totalTickets / (19575738/3302)),
-            '七獎': Math.round(GAME.totalTickets / (19575738/22442)),
-            '八獎': Math.round(GAME.totalTickets / (19575738/24754)),
-            '普獎': Math.round(GAME.totalTickets / (19575738/151470))
+            '三獎': Math.round(GAME.totalTickets / (19575738/50)),
+            '四獎': Math.round(GAME.totalTickets / (19575738/750)),
+            '五獎': Math.round(GAME.totalTickets / (19575738/1824)),
+            '六獎': Math.round(GAME.totalTickets / (19575738/11302)),
+            '七獎': Math.round(GAME.totalTickets / (19575738/15442)),
+            '八獎': Math.round(GAME.totalTickets / (19575738/100754)),
+            '普獎': Math.round(GAME.totalTickets / (19575738/151000))
         };
 
         let fixedPayout = 0;
@@ -421,9 +421,9 @@
 
         let variablePool = prizePool - fixedPayout;
         let currentAllocations = {
-            '頭獎': variablePool * 0.70,
-            '二獎': variablePool * 0.21,
-            '三獎': variablePool * 0.09
+            '頭獎': variablePool * 0.72,
+            '二獎': variablePool * 0.22,
+            '三獎': variablePool * 0.06
         };
 
         let finalPrizes = { ...actualFixedPrizes };
