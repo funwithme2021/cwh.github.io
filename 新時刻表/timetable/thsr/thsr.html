@@ -1666,6 +1666,48 @@
       width: 54px;
       font-size: .88rem;
     }
+    .container{
+      width: calc(100vw - 8px) !important;
+      max-width: none !important;
+      margin: 10px auto !important;
+      padding: 0 4px !important;
+    }
+    .header{
+      padding: 12px 8px !important;
+    }
+    .header-content{
+      width: 100% !important;
+      max-width: none !important;
+    }
+    .grid{
+      gap: 14px !important;
+    }
+    .card{
+      padding: 20px 16px !important;
+      border-radius: 24px !important;
+    }
+    .table-wrapper{
+      overflow-x:auto !important;
+      -webkit-overflow-scrolling: touch;
+      margin: 0 -4px;
+      border-radius: 22px !important;
+    }
+    #panel-startend table,
+    #panel-station table,
+    #panel-trainno table{
+      width: max-content !important;
+      min-width: 100% !important;
+      table-layout: auto !important;
+    }
+    #panel-startend table{
+      min-width: 860px !important;
+    }
+    #panel-station table{
+      min-width: 520px !important;
+    }
+    #panel-trainno table{
+      min-width: 420px !important;
+    }
   }
   @media (max-width: 520px){
     .modal-meta-line{
@@ -2717,6 +2759,13 @@
       location.href = '../home/index.html';
     });
   })();
+</script>
+
+<script src="../shared/rail-page-assistant.js"></script>
+<script>
+window.addEventListener('load', () => {
+  window.initRailPageAssistant?.('thsr');
+});
 </script>
 
 </body>

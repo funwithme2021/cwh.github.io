@@ -885,11 +885,18 @@ select.setting-input[id*="pick"] {
             background: rgba(251,146,60,0.14);
             color: #fdba74;
         }
+        .assistant-entry-badge{
+            background: rgba(14,165,233,0.14);
+            color: #7dd3fc;
+        }
         body.light-mode .tr-badge{
             color: #1d4ed8;
         }
         body.light-mode .thsr-badge{
             color: #c2410c;
+        }
+        body.light-mode .assistant-entry-badge{
+            color: #0369a1;
         }
         .system-headline{
             display:grid;
@@ -1217,6 +1224,124 @@ select.setting-input[id*="pick"] {
             background: rgba(255,255,255,0.9);
             border-color: rgba(15,23,42,0.06);
         }
+        .home-toolbar-shell{
+            margin-top: 8px;
+            margin-bottom: 20px;
+        }
+        .home-toolbar-grid{
+            display:grid;
+            grid-template-columns: minmax(0, 1fr);
+            gap: 14px;
+        }
+        .home-toolbar-card{
+            min-height: 100%;
+        }
+        .home-toolbar-card strong{
+            display:block;
+            font-size: 1.18rem;
+            line-height: 1.3;
+            letter-spacing: -.02em;
+        }
+        .home-toolbar-text{
+            margin-top: 10px;
+            color: var(--text-muted);
+            line-height: 1.7;
+            font-size: .92rem;
+        }
+        .home-toolbar-actions{
+            display:flex;
+            flex-wrap:wrap;
+            gap: 10px;
+            margin-top: 16px;
+        }
+        .home-tool-btn{
+            border: 1px solid rgba(255,255,255,0.08);
+            background: rgba(255,255,255,0.06);
+            color: var(--text-main);
+            padding: 11px 14px;
+            border-radius: 14px;
+            font-size: .88rem;
+            font-weight: 800;
+            cursor: pointer;
+        }
+        .home-tool-btn.primary{
+            background: linear-gradient(135deg, #2563eb, #0ea5e9);
+            border-color: transparent;
+            color: #fff;
+        }
+        body.light-mode .home-tool-btn{
+            background: rgba(255,255,255,0.88);
+            border-color: rgba(15,23,42,0.06);
+        }
+        body.light-mode .home-tool-btn.primary{
+            background: linear-gradient(135deg, #2563eb, #0ea5e9);
+            color: #fff;
+        }
+        .home-toolbar-meta{
+            display:flex;
+            flex-wrap:wrap;
+            gap: 10px;
+            margin-top: 14px;
+        }
+        .home-toolbar-pill{
+            display:inline-flex;
+            align-items:center;
+            padding: 8px 12px;
+            border-radius: 999px;
+            border: 1px solid rgba(255,255,255,0.08);
+            background: rgba(255,255,255,0.06);
+            color: var(--text-muted);
+            font-size: .82rem;
+            font-weight: 800;
+        }
+        body.light-mode .home-toolbar-pill{
+            border-color: rgba(15,23,42,0.06);
+            background: rgba(255,255,255,0.88);
+        }
+        .monitor-shell{
+            margin-top: 20px;
+        }
+        .monitor-shell-card{
+            padding-bottom: 20px;
+        }
+        .pinned-train-list{
+            display:grid;
+            gap: 12px;
+            margin-top: 16px;
+        }
+        .pinned-train-item{
+            padding: 14px 16px;
+            border-radius: 18px;
+            border: 1px solid rgba(255,255,255,0.08);
+            background: rgba(255,255,255,0.05);
+        }
+        body.light-mode .pinned-train-item{
+            background: rgba(255,255,255,0.86);
+            border-color: rgba(15,23,42,0.06);
+        }
+        .pinned-train-head{
+            display:flex;
+            align-items:center;
+            justify-content:space-between;
+            gap: 12px;
+        }
+        .pinned-train-head strong{
+            font-size: 1rem;
+        }
+        .pinned-train-note{
+            margin-top: 8px;
+            color: var(--text-muted);
+            line-height: 1.6;
+            font-size: .88rem;
+        }
+        .pinned-empty{
+            margin-top: 16px;
+            padding: 16px;
+            border-radius: 18px;
+            border: 1px dashed rgba(148,163,184,0.28);
+            color: var(--text-muted);
+            line-height: 1.7;
+        }
         .assistant-hub{
             margin-top: 20px;
         }
@@ -1247,6 +1372,27 @@ select.setting-input[id*="pick"] {
             grid-template-columns: minmax(280px, 0.9fr) minmax(0, 1.1fr);
             gap: 18px;
             align-items: start;
+        }
+        .assistant-card.compact-home .assistant-layout{
+            grid-template-columns: 1fr;
+            gap: 14px;
+        }
+        .assistant-card.compact-home .summary-card-head p{
+            max-width: 760px;
+        }
+        .assistant-card.compact-home .assistant-note{
+            color: var(--text-muted);
+            font-size: .84rem;
+            line-height: 1.65;
+        }
+        .assistant-card.compact-home .assistant-form{
+            gap: 12px;
+        }
+        .assistant-card.compact-home .assistant-chip-row .assistant-chip:nth-child(n+4){
+            display:none;
+        }
+        .assistant-card.compact-home .assistant-answer{
+            min-height: 200px;
         }
         .assistant-form{
             display:flex;
@@ -1869,6 +2015,9 @@ select.setting-input[id*="pick"] {
             .assistant-layout{
                 grid-template-columns: 1fr;
             }
+            .quick-mini-grid{
+                grid-template-columns: 1fr;
+            }
         }
         @media (max-width: 760px){
             :root{ --status-bar-h: 52px; }
@@ -1891,17 +2040,7 @@ select.setting-input[id*="pick"] {
             .content.home-shell{
                 padding: 14px 16px 138px;
             }
-            .hero-panel{
-                padding: 22px 18px;
-                border-radius: 26px;
-            }
-            .hero-actions{
-                flex-direction: column;
-            }
-            .hero-action{
-                width: 100%;
-            }
-            .hero-status-grid{
+            .home-toolbar-grid{
                 grid-template-columns: 1fr;
             }
             .entry-grid.system-grid{
@@ -2047,38 +2186,22 @@ select.setting-input[id*="pick"] {
     </div>
 
     <main class="content home-shell">
-        <section class="hero-shell" aria-label="首頁總覽">
-            <div class="hero-panel">
-                <div class="hero-copy">
-                    <span class="hero-kicker">Real-Time Mobility Hub</span>
-                    <header class="header">
-                        <h1 data-i18n="title">新時刻表</h1>
-                        <p data-i18n="subtitle">Real-time Railway Data</p>
-                    </header>
-                    <p class="hero-lead">整合臺鐵與高鐵查詢、常用路線、定位捷徑、監控入口與頁面內嵌切換，保留原本連動與設定邏輯，讓首頁更像日常通勤的操作中樞。</p>
-                    <div class="hero-actions">
-                        <button class="hero-action primary" type="button" onclick="goToSystem('tr')">開啟臺鐵</button>
-                        <button class="hero-action accent" type="button" onclick="goToSystem('thsr')">開啟高鐵</button>
-                        <button class="hero-action ghost" type="button" onclick="toggleSettings(true)">監控與收藏設定</button>
+        <section class="home-toolbar-shell" aria-label="首頁工具列">
+            <div class="home-toolbar-grid">
+                <article class="summary-card home-toolbar-card">
+                    <div class="summary-card-head">
+                        <span class="summary-eyebrow">Operations</span>
+                        <h3>營運異常</h3>
                     </div>
-                </div>
-                <div class="hero-status-grid">
-                    <article class="hero-stat-card wide ops-card">
-                        <span>營運狀態</span>
-                        <strong id="heroOpsSummary">讀取營運訊息中</strong>
-                        <p id="heroOpsDetail">首頁會整理臺鐵與高鐵的營運摘要，避免重複訊息並保留重要警示。</p>
-                    </article>
-                    <article class="hero-stat-card">
-                        <span>監控模式</span>
-                        <strong id="heroMonitorState">監控未啟用</strong>
-                        <p id="heroMonitorHint">可在設定中開啟多車次輪播與到站提醒。</p>
-                    </article>
-                    <article class="hero-stat-card">
-                        <span>最近開啟</span>
-                        <strong id="heroRecentSummary">尚無最近使用紀錄</strong>
-                        <p>首頁會記住最近直接打開的臺鐵 / 高鐵入口，方便快速回到常用功能。</p>
-                    </article>
-                </div>
+                    <strong id="heroOpsSummary">讀取營運訊息中</strong>
+                    <p id="heroOpsDetail" class="home-toolbar-text">正在同步臺鐵與高鐵的最新營運狀態。</p>
+                    <div class="home-toolbar-actions">
+                        <button class="home-tool-btn primary" type="button" onclick="location.href='./ai.html'">AI 專頁</button>
+                        <button class="home-tool-btn" type="button" onclick="openPreferredHome('tr')">臺鐵首頁站</button>
+                        <button class="home-tool-btn" type="button" onclick="openPreferredHome('thsr')">高鐵首頁站</button>
+                        <button class="home-tool-btn" type="button" onclick="toggleSettings(true)">設定 / 監控</button>
+                    </div>
+                </article>
             </div>
         </section>
 
@@ -2150,19 +2273,34 @@ select.setting-input[id*="pick"] {
                     <ul class="desc-list" id="thsrList"></ul>
                 </div>
             </div>
+
+            <div class="entry-card" onclick="location.href='./ai.html'">
+                <div class="card-sheen"></div>
+                <div class="card-content-layer">
+                    <span class="system-badge assistant-entry-badge">AI Hub</span>
+                    <div class="system-headline">
+                        <div class="icon-box">🤖</div>
+                        <div class="system-copy">
+                            <h2>AI 助手</h2>
+                            <p>集中查旅程、車次、車站、時間條件、票況與跨頁詳細查詢，保留最重要資訊。</p>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
         </div>
 
         <section class="assistant-hub" aria-label="AI 問答助手">
             <article class="assistant-card">
                 <div class="summary-card-head">
-                    <span class="summary-eyebrow">AI Route Helper</span>
+                    <span class="summary-eyebrow">AI Rail Console</span>
                     <h3>智慧旅程助手</h3>
-                    <p>同一個輸入框就能問旅程、車次或車站，支援日期、時間 / 時段、車種、直達 / 轉乘、高鐵票況、預估抵達與導訂按鈕。</p>
+                    <p>保留旅程、車次、車站三種核心問法，只顯示必要資訊與操作入口。</p>
                 </div>
                 <div class="assistant-layout">
                     <div class="assistant-form">
                         <div class="assistant-input-wrap">
-                            <input id="routeAssistantInput" class="assistant-input" type="text" placeholder="例如：今天 08:00 台北到台中、4/5 08:10-12:00 高鐵台北到左營、412次台中幾點到">
+                            <input id="routeAssistantInput" class="assistant-input" type="text" placeholder="例如：今天 08:00 台北到台中、412次台中幾點到、板橋站有什麼車">
                             <button id="routeAssistantBtn" class="assistant-submit" type="button">開始詢問</button>
                         </div>
                         <div class="assistant-chip-row">
@@ -2171,60 +2309,32 @@ select.setting-input[id*="pick"] {
                             <button class="assistant-chip" type="button" data-query="412次台中幾點到">車次 ETA</button>
                             <button class="assistant-chip" type="button" data-query="板橋站有什麼車">車站班次</button>
                         </div>
-                        <div class="assistant-note">可直接輸入自然語句，例如「4/5 08:00 台北到彰化 直達」「今天 08:10-12:00 台中站有什麼車」「126次現在到哪了」「2153 板橋預估幾點到」。</div>
+                        <div class="assistant-note">支援日期、時間、車種、車次狀態與高鐵票況，結果會附上查詢或訂票入口。</div>
                     </div>
                     <div class="assistant-answer" id="assistantAnswer">
                         <div class="assistant-placeholder">
-                            <strong>問我旅程、車次或車站</strong>
-                            <div>我會先解析日期、系統、車種與需求，再整理直達、轉乘、票況、列車狀態、目前位置或車站班次，並附上查詢與訂票入口。</div>
+                            <strong>輸入一句話就能開始查。</strong>
+                            <div>我會直接整理班次、目前狀態、預估抵達與票況，不再堆太多說明文字。</div>
                         </div>
                     </div>
                 </div>
             </article>
         </section>
 
-        <section class="summary-grid" aria-label="首頁摘要">
-            <article class="summary-card">
-                <div class="summary-card-head">
-                    <span class="summary-eyebrow">Quick Access</span>
-                    <h3>快速入口</h3>
-                    <p>直接用首頁站或設定入口打開最常用的操作。</p>
-                </div>
-                <div class="shortcut-grid">
-                    <button class="shortcut-link tr" id="trHomeShortcutBtn" type="button" onclick="openPreferredHome('tr')">
-                        <span>臺鐵首頁站</span>
-                        <strong id="trHomeDisplayMirror">未設定</strong>
-                    </button>
-                    <button class="shortcut-link thsr" id="thsrHomeShortcutBtn" type="button" onclick="openPreferredHome('thsr')">
-                        <span>高鐵首頁站</span>
-                        <strong id="thsrHomeDisplayMirror">未設定</strong>
-                    </button>
-                    <button class="shortcut-link wide" type="button" onclick="toggleSettings(true)">
-                        <span>收藏與監控</span>
-                        <strong id="quickConfigSummary">管理首頁站、常用路線與監控車次</strong>
-                    </button>
-                </div>
-            </article>
-
-            <article class="summary-card">
-                <div class="summary-card-head">
-                    <span class="summary-eyebrow">History</span>
-                    <h3>最近開啟入口</h3>
-                    <p>點一下就能回到剛剛使用過的頁面入口。</p>
-                </div>
-                <div class="recent-list" id="recentLaunchList"></div>
-            </article>
-
-            <article class="summary-card">
+        <section class="monitor-shell" aria-label="監控中心">
+            <article class="summary-card monitor-shell-card">
                 <div class="summary-card-head">
                     <span class="summary-eyebrow">Monitor</span>
                     <h3>監控中心</h3>
-                    <p>即時誤點輪播、到站提醒與推播狀態會在這裡集中顯示。</p>
+                    <p>集中顯示監控中的班次與釘選列車，不再拆成多個重複區塊。</p>
                 </div>
                 <div class="monitor-quick" id="homeMonitorBoard">
                     <div class="monitor-empty" id="homeMonitorSummary">尚未啟用監控。可在設定中開啟多車次輪播與通知提醒。</div>
                 </div>
-                <button class="summary-btn" type="button" onclick="toggleSettings(true)">管理監控與收藏</button>
+                <div class="home-toolbar-actions">
+                    <button class="home-tool-btn primary" type="button" onclick="location.href='./ai.html'">AI 追蹤</button>
+                    <button class="home-tool-btn" type="button" onclick="toggleSettings(true)">管理監控與收藏</button>
+                </div>
             </article>
         </section>
     </main>
@@ -2967,12 +3077,14 @@ select.setting-input[id*="pick"] {
         let tdxToken = null;
         let monitorFetchInterval = null; 
         let stationDB = { tr: [], thsr: [] };
+        let stationFetchPromise = null;
         let lastNotificationStates = {};
         let cachedTrainList = { tra: null, thsr: null }; 
         let systemAlertState = { tr: null, thsr: null };
         let assistantRouteCache = { date: '', tra: null, thsr: null };
         let assistantSeatCache = {};
         let assistantTrainLiveCache = {};
+        const STATION_CACHE_KEY = 'rail_station_cache_v2';
 
         function normalizeTRA(str) { return str ? str.replace(/台/g, '臺') : ''; }
         function normalizeTHSR(str) { return str ? str.replace(/臺/g, '台') : ''; }
@@ -3012,6 +3124,36 @@ select.setting-input[id*="pick"] {
                 dotEl.className = hasAlerts ? 'status-dot warn' : 'status-dot ok';
             }
             return unique;
+        }
+        function readStationCache() {
+            try {
+                const raw = JSON.parse(localStorage.getItem(STATION_CACHE_KEY) || 'null');
+                if (!raw || !raw.savedAt || !raw.data) return null;
+                if ((Date.now() - Number(raw.savedAt || 0)) > 7 * 24 * 60 * 60 * 1000) return null;
+                return raw.data;
+            } catch (e) {
+                return null;
+            }
+        }
+        function writeStationCache(data) {
+            try {
+                localStorage.setItem(STATION_CACHE_KEY, JSON.stringify({
+                    savedAt: Date.now(),
+                    data
+                }));
+            } catch (e) { }
+        }
+        function applyStationData(data) {
+            if (!data || !Array.isArray(data.tr) || !Array.isArray(data.thsr)) return;
+            stationDB = data;
+            if (document.getElementById('trGeoBtn')?.querySelector('span')) {
+                document.getElementById('trGeoBtn').classList.remove('loading');
+                document.getElementById('trGeoBtn').querySelector('span').innerText = '📍 定位並查看最近車站';
+            }
+            if (document.getElementById('thsrGeoBtn')?.querySelector('span')) {
+                document.getElementById('thsrGeoBtn').classList.remove('loading');
+                document.getElementById('thsrGeoBtn').querySelector('span').innerText = '📍 定位並查看最近車站';
+            }
         }
         function todayDateStr() {
             const d = new Date();
@@ -3355,30 +3497,41 @@ select.setting-input[id*="pick"] {
             return false;
         }
 
-        async function fetchAllStations() {
-            if(!tdxToken) return;
+        async function fetchAllStations(force = false) {
+            if (!force && stationDB.tr.length && stationDB.thsr.length) return stationDB;
+            if (!force && stationFetchPromise) return stationFetchPromise;
+            if (!force) {
+                const cached = readStationCache();
+                if (cached) {
+                    applyStationData(cached);
+                    populateDatalist('traStationList', stationDB.tr.map(s => s.name));
+                    populateDatalist('thsrStationList', stationDB.thsr.map(s => s.name));
+                    return stationDB;
+                }
+            }
+            if(!tdxToken) return stationDB;
             const headers = { 'Authorization': `Bearer ${tdxToken}` };
-            try {
-                const trRes = await fetch('https://tdx.transportdata.tw/api/basic/v3/Rail/TRA/Station?%24format=JSON', { headers });
-                const trData = await trRes.json();
-                stationDB.tr = trData.Stations.map(st => ({ id: st.StationID, name: st.StationName.Zh_tw, lat: st.StationPosition.PositionLat, lon: st.StationPosition.PositionLon }));
-                
-                // Populate TRA Station List
-                populateDatalist('traStationList', stationDB.tr.map(s => s.name));
-
-                document.getElementById('trGeoBtn').classList.remove('loading');
-                document.getElementById('trGeoBtn').querySelector('span').innerText = '📍 定位並查看最近車站';
-
-                const thsrRes = await fetch('https://tdx.transportdata.tw/api/basic/v2/Rail/THSR/Station?%24format=JSON', { headers });
-                const thsrData = await thsrRes.json();
-                stationDB.thsr = thsrData.map(st => ({ id: st.StationID, name: st.StationName.Zh_tw, lat: st.StationPosition.PositionLat, lon: st.StationPosition.PositionLon }));
-                
-                // Populate THSR Station List
-                populateDatalist('thsrStationList', stationDB.thsr.map(s => s.name));
-
-                document.getElementById('thsrGeoBtn').classList.remove('loading');
-                document.getElementById('thsrGeoBtn').querySelector('span').innerText = '📍 定位並查看最近車站';
-            } catch(e) { console.error(e); }
+            stationFetchPromise = (async () => {
+                try {
+                    const trRes = await fetch('https://tdx.transportdata.tw/api/basic/v3/Rail/TRA/Station?%24format=JSON', { headers });
+                    const trData = await trRes.json();
+                    const thsrRes = await fetch('https://tdx.transportdata.tw/api/basic/v2/Rail/THSR/Station?%24format=JSON', { headers });
+                    const thsrData = await thsrRes.json();
+                    applyStationData({
+                        tr: (trData.Stations || []).map(st => ({ id: st.StationID, name: st.StationName.Zh_tw, lat: st.StationPosition.PositionLat, lon: st.StationPosition.PositionLon })),
+                        thsr: (Array.isArray(thsrData) ? thsrData : []).map(st => ({ id: st.StationID, name: st.StationName.Zh_tw, lat: st.StationPosition.PositionLat, lon: st.StationPosition.PositionLon }))
+                    });
+                    writeStationCache(stationDB);
+                    populateDatalist('traStationList', stationDB.tr.map(s => s.name));
+                    populateDatalist('thsrStationList', stationDB.thsr.map(s => s.name));
+                } catch(e) {
+                    console.error(e);
+                } finally {
+                    stationFetchPromise = null;
+                }
+                return stationDB;
+            })();
+            return stationFetchPromise;
         }
 
         function populateDatalist(id, list) {
@@ -4009,6 +4162,43 @@ function toggleSettings(show) {
             });
         }
 
+        function buildPinnedTrainQuery(item) {
+            if (!item || !item.no) return '';
+            return item.station ? `${item.no}次 ${item.station} 預估幾點到` : `${item.no}次 現在到哪了`;
+        }
+
+        function renderPinnedTrainCards() {
+            const list = document.getElementById('pinnedTrainList');
+            if (!list) return;
+            const items = [
+                { sys: 'tr', label: '臺鐵', no: (localStorage.getItem('mon_tr1_train') || '').trim(), station: normalizeTRA(localStorage.getItem('mon_tr1_station') || '') },
+                { sys: 'tr', label: '臺鐵', no: (localStorage.getItem('mon_tr2_train') || '').trim(), station: normalizeTRA(localStorage.getItem('mon_tr2_station') || '') },
+                { sys: 'thsr', label: '高鐵', no: (localStorage.getItem('mon_thsr_train') || '').trim(), station: normalizeTHSR(localStorage.getItem('mon_thsr_station') || '') }
+            ].filter(item => item.no);
+
+            if (!items.length) {
+                list.innerHTML = `<div class="pinned-empty">尚未釘選列車。可在設定中先選擇監控車次與目標站。</div>`;
+                return;
+            }
+
+            list.innerHTML = items.map(item => {
+                const query = buildPinnedTrainQuery(item);
+                return `
+                    <div class="pinned-train-item">
+                        <div class="pinned-train-head">
+                            <span class="monitor-chip ${item.sys === 'thsr' ? 'push' : 'active'}">${item.label}</span>
+                            <strong>${escapeHtml(item.no)} 次</strong>
+                        </div>
+                        <div class="pinned-train-note">${escapeHtml(item.station ? `目標站 ${item.station} ｜ 直接查看預估到站與目前位置` : '查看目前狀態、目前位置與後續停靠站')}</div>
+                        <div class="home-toolbar-actions">
+                            <button class="home-tool-btn" type="button" onclick="location.href='./ai.html?q=${encodeURIComponent(query)}'">AI 追蹤</button>
+                            <button class="home-tool-btn" type="button" onclick="toggleSettings(true)">管理釘選</button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
         function openPreferredHome(sys) {
             let home = localStorage.getItem(`${sys}_home`) || '';
             home = sys === 'thsr' ? normalizeTHSR(home) : normalizeTRA(home);
@@ -4018,6 +4208,13 @@ function toggleSettings(show) {
             }
             openAppOverlay(sys, { station: home });
         }
+
+        window.focusHomeAssistant = function() {
+            const input = document.getElementById('routeAssistantInput');
+            if (!input) return;
+            input.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            input.focus();
+        };
 
         window.refreshHomePanels = function() {
             const trHome = normalizeTRA(localStorage.getItem('tr_home') || '') || '未設定';
@@ -4182,14 +4379,14 @@ function toggleSettings(show) {
             const submit = document.getElementById('routeAssistantBtn');
             if (submit && !submit.dataset.bound) {
                 submit.dataset.bound = '1';
-                submit.addEventListener('click', () => handleAssistantQuery(input?.value || ''));
+                submit.addEventListener('click', () => window.handleAssistantQuery?.(input?.value || ''));
             }
             if (input && !input.dataset.bound) {
                 input.dataset.bound = '1';
                 input.addEventListener('keydown', (e) => {
                     if (e.key === 'Enter') {
                         e.preventDefault();
-                        handleAssistantQuery(input.value || '');
+                        window.handleAssistantQuery?.(input.value || '');
                     }
                 });
             }
@@ -4199,7 +4396,7 @@ function toggleSettings(show) {
                 btn.addEventListener('click', () => {
                     const query = btn.dataset.query || '';
                     if (input) input.value = query;
-                    handleAssistantQuery(query);
+                    window.handleAssistantQuery?.(query);
                 });
             });
         }
@@ -4261,6 +4458,8 @@ function toggleSettings(show) {
     initTilt();
     initRouteAssistant();
     renderFavs();
+    const cachedStations = readStationCache();
+    if (cachedStations) applyStationData(cachedStations);
     if(localStorage.getItem('theme') === 'light') document.body.classList.add('light-mode');
     if(typeof window.refreshHomePanels === 'function') window.refreshHomePanels();
 

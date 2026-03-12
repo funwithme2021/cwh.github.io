@@ -1,10 +1,19 @@
 (function () {
-  function pad2(num) {
-    return String(num).padStart(2, "0");
+  if (typeof window.stationDB === "undefined") window.stationDB = { tr: [], thsr: [] };
+  if (typeof window.assistantRouteCache === "undefined") window.assistantRouteCache = { date: "", tra: null, thsr: null };
+  if (typeof window.assistantSeatCache === "undefined") window.assistantSeatCache = {};
+  if (typeof window.assistantTrainLiveCache === "undefined") window.assistantTrainLiveCache = {};
+
+  function pad2(value) {
+    return String(value).padStart(2, "0");
   }
 
   function dateToStr(date) {
     return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
+  }
+
+  function getTodayDateStr() {
+    return typeof todayDateStr === "function" ? todayDateStr() : dateToStr(new Date());
   }
 
   function addDays(dateStr, offset) {
@@ -13,9 +22,44 @@
     return dateToStr(date);
   }
 
+  function normalizeLoose(text) {
+    return String(text || "")
+      .trim()
+      .replace(/\s+/g, "")
+      .replace(/臺/g, "台")
+      .replace(/車站/g, "")
+      .replace(/站/g, "");
+  }
+
+  function resolveLocalStationName(raw, sys) {
+    const list = Array.isArray(stationDB[sys]) ? stationDB[sys] : [];
+    const normalized = normalizeLoose(raw);
+    if (!normalized) return "";
+    const exact = list.find((item) => normalizeLoose(item.name) === normalized);
+    if (exact) return exact.name;
+    const fuzzy = list.find((item) => {
+      const name = normalizeLoose(item.name);
+      return name.includes(normalized) || normalized.includes(name);
+    });
+    return fuzzy ? fuzzy.name : "";
+  }
+
+  function simplifyTypeName(typeName) {
+    const name = String(typeName || "").trim();
+    if (!name) return "台鐵";
+    if (name.includes("自強") && name.includes("3000")) return "自強號3000";
+    if (name.includes("自強")) return "自強號";
+    if (name.includes("普悠瑪")) return "普悠瑪";
+    if (name.includes("太魯閣")) return "太魯閣";
+    if (name.includes("區間快")) return "區間快";
+    if (name.includes("區間")) return "區間車";
+    if (name.includes("莒光")) return "莒光號";
+    return name;
+  }
+
   function formatDateLabel(dateStr) {
-    const today = todayDateStr();
-    if (dateStr === today) return `${dateStr} 今日`;
+    const today = getTodayDateStr();
+    if (dateStr === today) return `${dateStr} 今天`;
     if (dateStr === addDays(today, 1)) return `${dateStr} 明天`;
     if (dateStr === addDays(today, 2)) return `${dateStr} 後天`;
     return dateStr;
@@ -32,53 +76,67 @@
 
   function parseDate(rawText) {
     let cleaned = String(rawText || "").trim();
-    let dateStr = todayDateStr();
-    let dateLabel = "今天";
+    let dateStr = getTodayDateStr();
 
     if (/後天/.test(cleaned)) {
       cleaned = cleaned.replace(/後天/g, " ");
-      dateStr = addDays(todayDateStr(), 2);
-      dateLabel = "後天";
+      dateStr = addDays(getTodayDateStr(), 2);
     } else if (/明天/.test(cleaned)) {
       cleaned = cleaned.replace(/明天/g, " ");
-      dateStr = addDays(todayDateStr(), 1);
-      dateLabel = "明天";
+      dateStr = addDays(getTodayDateStr(), 1);
     } else if (/今天|今日/.test(cleaned)) {
       cleaned = cleaned.replace(/今天|今日/g, " ");
-      dateStr = todayDateStr();
-      dateLabel = "今天";
+      dateStr = getTodayDateStr();
     } else {
-      const ymd = cleaned.match(/(20\d{2})[\/\-年](\d{1,2})[\/\-月](\d{1,2})日?/);
+      const ymd = cleaned.match(/(20\d{2})[\/\-年](\d{1,2})[\/\-月](\d{1,2})(?:日)?/);
       const mdSlash = ymd ? null : cleaned.match(/(^|[^\d])(\d{1,2})\/(\d{1,2})(?!\d)/);
       const mdDash = ymd || mdSlash ? null : cleaned.match(/(^|[^\d])(\d{1,2})-(\d{1,2})(?!\d)/);
-      const mdZh = ymd || mdSlash || mdDash ? null : cleaned.match(/(\d{1,2})月(\d{1,2})日/);
-      if (ymd) {
-        const parsed = normalizeDate(ymd[1], ymd[2], ymd[3]);
+      const mdZh = ymd || mdSlash || mdDash ? null : cleaned.match(/(\d{1,2})月(\d{1,2})日?/);
+      const match = ymd || mdSlash || mdDash || mdZh;
+      if (match) {
+        const year = ymd ? match[1] : new Date().getFullYear();
+        const month = ymd ? match[2] : (mdZh ? match[1] : match[2]);
+        const day = ymd ? match[3] : (mdZh ? match[2] : match[3]);
+        const parsed = normalizeDate(year, month, day);
         if (parsed) {
-          cleaned = cleaned.replace(ymd[0], " ");
+          cleaned = cleaned.replace(match[0], " ");
           dateStr = parsed;
-          dateLabel = parsed;
-        }
-      } else {
-        const match = mdSlash || mdDash || mdZh;
-        if (match) {
-          const month = mdZh ? match[1] : match[2];
-          const day = mdZh ? match[2] : match[3];
-          const parsed = normalizeDate(new Date().getFullYear(), month, day);
-          if (parsed) {
-            cleaned = cleaned.replace(match[0], " ");
-            dateStr = parsed;
-            dateLabel = parsed;
-          }
         }
       }
     }
 
     return {
       dateStr,
-      dateLabel,
+      dateLabel: formatDateLabel(dateStr),
       cleanedText: cleaned.replace(/\s+/g, " ").trim(),
     };
+  }
+
+  function timeToMin(clock) {
+    if (typeof timeToMinutes === "function") return timeToMinutes(clock);
+    const match = String(clock || "").trim().match(/^(\d{1,2}):(\d{2})$/);
+    if (!match) return null;
+    const hour = Number(match[1]);
+    const minute = Number(match[2]);
+    if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return null;
+    return hour * 60 + minute;
+  }
+
+  function formatDurationMinutes(totalMinutes) {
+    if (!Number.isFinite(totalMinutes)) return "--";
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+    if (!hours) return `${minutes} 分`;
+    if (!minutes) return `${hours} 小時`;
+    return `${hours} 小時 ${minutes} 分`;
+  }
+
+  function durationTextByClock(dep, arr) {
+    const depMin = timeToMin(dep);
+    const arrMin = timeToMin(arr);
+    if (depMin === null || arrMin === null) return "--";
+    const diff = arrMin >= depMin ? arrMin - depMin : arrMin + 1440 - depMin;
+    return formatDurationMinutes(diff);
   }
 
   function parseTimeWindow(rawText) {
@@ -87,10 +145,10 @@
     let timeEndMin = null;
     let timeLabel = "";
 
-    const rangeMatch = cleaned.match(/(\d{1,2}:\d{2})\s*(?:-|~|～|到|至)\s*(\d{1,2}:\d{2})/);
+    const rangeMatch = cleaned.match(/(\d{1,2}:\d{2})\s*(?:-|~|到)\s*(\d{1,2}:\d{2})/);
     if (rangeMatch) {
-      const start = timeToMinutes(rangeMatch[1]);
-      const end = timeToMinutes(rangeMatch[2]);
+      const start = timeToMin(rangeMatch[1]);
+      const end = timeToMin(rangeMatch[2]);
       if (start !== null && end !== null) {
         timeStartMin = start;
         timeEndMin = end;
@@ -100,7 +158,7 @@
     } else {
       const singleMatch = cleaned.match(/(^|[^\d])(\d{1,2}:\d{2})(?!\d)/);
       if (singleMatch) {
-        const start = timeToMinutes(singleMatch[2]);
+        const start = timeToMin(singleMatch[2]);
         if (start !== null) {
           timeStartMin = start;
           timeLabel = `${singleMatch[2]} 之後`;
@@ -113,7 +171,7 @@
       timeStartMin,
       timeEndMin,
       timeLabel,
-      hasTimeFilter: timeStartMin !== null,
+      hasTimeFilter: Number.isFinite(timeStartMin),
       cleanedText: cleaned.replace(/\s+/g, " ").trim(),
     };
   }
@@ -124,82 +182,85 @@
   }
 
   function withDelayClock(clock, delayMin) {
-    const base = timeToMinutes(clock);
+    const base = timeToMin(clock);
     if (base === null) return clock || "--";
     let value = base + Math.max(0, Number(delayMin || 0));
     value = ((value % 1440) + 1440) % 1440;
     return `${pad2(Math.floor(value / 60))}:${pad2(value % 60)}`;
   }
 
-  function minutesUntil(clock, dateStr, delayMin) {
-    if (dateStr !== todayDateStr()) return null;
-    const base = timeToMinutes(clock);
-    if (base === null) return null;
-    let value = base + Math.max(0, Number(delayMin || 0));
-    const nowMin = currentMinutes();
-    if (value < nowMin - 720) value += 1440;
-    return value - nowMin;
-  }
-
   function countdownText(diff) {
-    if (!Number.isFinite(diff)) return "—";
-    if (diff <= 0) return "已到站或即將到站";
-    if (diff >= 60) return `${Math.floor(diff / 60)} 小時 ${diff % 60} 分`;
-    return `${diff} 分`;
+    if (!Number.isFinite(diff)) return "";
+    if (diff <= 0) return "已到站";
+    return formatDurationMinutes(diff);
   }
 
   function etaText(clock, remainText) {
     if (!clock) return "--";
     if (!remainText) return `${clock} 抵達`;
-    if (remainText === "已到站或即將到站") return `${clock} 抵達 ｜ ${remainText}`;
+    if (remainText === "已到站") return `${clock} 抵達 ｜ ${remainText}`;
     return `${clock} 抵達 ｜ 約還有 ${remainText}`;
   }
 
   function detectSystem(text) {
     if (/高鐵|thsr|hsr/i.test(text)) return "thsr";
-    if (/台鐵|臺鐵|tra|火車|自強|普悠瑪|太魯閣|區間|莒光/i.test(text)) return "tr";
+    if (/台鐵|臺鐵|tra/i.test(text)) return "tr";
     return "";
   }
 
   function detectTraType(text) {
-    if (/新自強|3000/i.test(text)) return "新自強";
-    if (/普悠瑪/i.test(text)) return "普悠瑪";
-    if (/太魯閣/i.test(text)) return "太魯閣";
-    if (/區間快/i.test(text)) return "區間快";
-    if (/區間/i.test(text)) return "區間車";
-    if (/莒光/i.test(text)) return "莒光";
-    if (/復興/i.test(text)) return "復興";
-    if (/自強/i.test(text)) return "自強號";
+    if (/自強.*3000|3000型自強/.test(text)) return "自強號3000";
+    if (/自強/.test(text)) return "自強號";
+    if (/普悠瑪/.test(text)) return "普悠瑪";
+    if (/太魯閣/.test(text)) return "太魯閣";
+    if (/區間快/.test(text)) return "區間快";
+    if (/區間/.test(text)) return "區間車";
+    if (/莒光/.test(text)) return "莒光號";
     return "";
   }
 
   function matchesTraType(typeName, preference) {
     if (!preference) return true;
-    const a = simplifyTraTypeName(typeName).replace(/號/g, "");
-    const b = simplifyTraTypeName(preference).replace(/號/g, "");
+    const a = simplifyTypeName(typeName).replace(/\s+/g, "");
+    const b = simplifyTypeName(preference).replace(/\s+/g, "");
     return a.includes(b) || b.includes(a);
   }
 
   function findMentionedStations(text, sys) {
-    const normalized = normalizeLooseStation(text);
+    const normalizedText = normalizeLoose(text);
     const hits = [];
     (stationDB[sys] || []).forEach((item) => {
-      const key = normalizeLooseStation(item.name);
-      const idx = normalized.indexOf(key);
-      if (idx >= 0) hits.push({ name: item.name, idx, len: key.length });
-      if (sys === "thsr" && item.name === "左營") {
-        const aliasIdx = normalized.indexOf(normalizeLooseStation("新左營"));
-        if (aliasIdx >= 0) hits.push({ name: item.name, idx: aliasIdx, len: 3 });
-      }
+      const key = normalizeLoose(item.name);
+      const idx = normalizedText.indexOf(key);
+      if (idx >= 0) hits.push({ name: item.name, idx, len: key.length, sys });
     });
     const seen = new Set();
     return hits
       .sort((a, b) => a.idx - b.idx || b.len - a.len)
       .filter((item) => {
-        if (seen.has(item.name)) return false;
-        seen.add(item.name);
+        const key = `${item.sys}|${item.name}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
         return true;
       });
+  }
+
+  function cleanupRouteToken(value) {
+    return String(value || "")
+      .replace(/^(高鐵|台鐵|臺鐵|TRA|THSR)\s*/i, "")
+      .replace(/\s*(高鐵|台鐵|臺鐵|TRA|THSR)$/i, "")
+      .replace(/\s*(自強(?:號|3000)?|普悠瑪|太魯閣|區間快|區間車|區間|莒光號|莒光|直達優先|直達|不轉乘|免轉乘|可轉乘|轉乘|有沒有票|有票|票況|可訂|訂票|座位|班次|查詢|呢|嗎|全部站|停靠站|停靠|沿途)+\s*$/g, "")
+      .replace(/\s*(車站|站)$/g, "")
+      .trim();
+  }
+
+  function parseRouteTokens(text) {
+    const routeMatch = text.match(/(.+?)(?:到|->|→|至)(.+)/);
+    if (!routeMatch) return null;
+    const startRaw = cleanupRouteToken(routeMatch[1]);
+    const endRaw = cleanupRouteToken(routeMatch[2]);
+    if (!startRaw || !endRaw || startRaw === endRaw) return null;
+    return { startRaw, endRaw };
   }
 
   function parseIntent(rawText) {
@@ -207,53 +268,30 @@
     const timeInfo = parseTimeWindow(dateInfo.cleanedText);
     const text = timeInfo.cleanedText;
     if (!text) return null;
-    const routeMatch = text.replace(/[，、。？]/g, " ").match(/(?:從)?\s*([^\s]+?)\s*(?:到|至|去|→|->)\s*([^\s]+)(?:\s|$)/);
-    if (routeMatch) {
-      const cleanToken = (value) =>
-        String(value || "")
-          .replace(/^(高鐵|台鐵|臺鐵|火車|列車|我要|我想|請問|幫我查|查一下)/i, "")
-          .replace(/(怎麼搭|怎麼去|有票嗎|有沒有票|可轉乘|轉乘|直達|幾點到|多久|車種|票況|座位|班次)$/g, "")
-          .trim();
-      const startRaw = cleanToken(routeMatch[1]);
-      const endRaw = cleanToken(routeMatch[2]);
-      if (startRaw && endRaw && startRaw !== endRaw) {
-        return {
-          kind: "route",
-          dateStr: dateInfo.dateStr,
-          dateLabel: dateInfo.dateLabel,
-          preference: detectSystem(text),
-          startRaw,
-          endRaw,
-          displayStart: startRaw,
-          displayEnd: endRaw,
-          typePreference: detectTraType(text),
-          directOnly: /直達|不要轉乘|不轉乘|免轉乘/.test(text),
-          allowTransfer: /轉乘|換車|可轉乘/.test(text),
-          wantsTicket: /有票|票況|可訂|訂票|座位/.test(text),
-          timeStartMin: timeInfo.timeStartMin,
-          timeEndMin: timeInfo.timeEndMin,
-          timeLabel: timeInfo.timeLabel,
-          hasTimeFilter: timeInfo.hasTimeFilter,
-        };
-      }
-    }
 
-    const trainMatch = text.match(/(?:車次|列車|高鐵|台鐵|臺鐵|火車)?\s*(\d{1,4}[A-Z]?)(?:\s*次)?/i);
+    const preference = detectSystem(text);
+    const typePreference = detectTraType(text);
+    const directOnly = /直達|不轉乘|免轉乘|直達優先/.test(text);
+    const allowTransfer = /轉乘|換車|接駁/.test(text);
+    const wantsTicket = /有票|票況|可訂|訂票|座位/.test(text);
+    const showStops = /停靠|停靠站|沿途|全部站/.test(text);
+
+    const trainMatch = text.match(/(?:車次|列車|高鐵|台鐵|臺鐵)?\s*(\d{1,4}[A-Z]?)\s*(?:次|號)?/i);
     if (trainMatch && String(trainMatch[1]).length >= 2) {
-      const preference = detectSystem(text);
       const remaining = text.replace(trainMatch[0], " ");
-      const mentions = [];
-      if (preference !== "thsr") mentions.push(...findMentionedStations(remaining, "tr").map((item) => ({ ...item, sys: "tr" })));
-      if (preference !== "tr") mentions.push(...findMentionedStations(remaining, "thsr").map((item) => ({ ...item, sys: "thsr" })));
-      mentions.sort((a, b) => a.idx - b.idx || b.len - a.len);
+      const targetMentions = [
+        ...findMentionedStations(remaining, "tr"),
+        ...findMentionedStations(remaining, "thsr"),
+      ].sort((a, b) => a.idx - b.idx || b.len - a.len);
+
       return {
         kind: "train",
         dateStr: dateInfo.dateStr,
         dateLabel: dateInfo.dateLabel,
         preference,
         trainNoRaw: String(trainMatch[1]).toUpperCase(),
-        targetRaw: mentions[0] ? mentions[0].name : "",
-        showStops: /停靠|停哪些站|停哪裡|沿途|停靠站|全部站/.test(text),
+        targetRaw: targetMentions[0] ? targetMentions[0].name : "",
+        showStops,
         timeStartMin: timeInfo.timeStartMin,
         timeEndMin: timeInfo.timeEndMin,
         timeLabel: timeInfo.timeLabel,
@@ -261,18 +299,39 @@
       };
     }
 
-    const stationPreference = detectSystem(text);
-    const systems = stationPreference ? [stationPreference] : ["tr", "thsr"];
-    const stationMentions = systems
-      .flatMap((sys) => findMentionedStations(text, sys).map((item) => ({ ...item, sys })))
-      .sort((a, b) => a.idx - b.idx || b.len - a.len);
-    const wantsStationInfo = /車站|班次|列車|有什麼車|有什麼班次|下一班|出發|到站|進站/.test(text);
-    if (stationMentions.length && (wantsStationInfo || normalizeLooseStation(text) === normalizeLooseStation(stationMentions[0].name))) {
+    const routeTokens = parseRouteTokens(text);
+    if (routeTokens) {
+      return {
+        kind: "route",
+        dateStr: dateInfo.dateStr,
+        dateLabel: dateInfo.dateLabel,
+        preference,
+        startRaw: routeTokens.startRaw,
+        endRaw: routeTokens.endRaw,
+        displayStart: routeTokens.startRaw,
+        displayEnd: routeTokens.endRaw,
+        typePreference,
+        directOnly,
+        allowTransfer,
+        wantsTicket,
+        timeStartMin: timeInfo.timeStartMin,
+        timeEndMin: timeInfo.timeEndMin,
+        timeLabel: timeInfo.timeLabel,
+        hasTimeFilter: timeInfo.hasTimeFilter,
+      };
+    }
+
+    const stationMentions = [
+      ...(preference === "thsr" ? [] : findMentionedStations(text, "tr")),
+      ...(preference === "tr" ? [] : findMentionedStations(text, "thsr")),
+    ].sort((a, b) => a.idx - b.idx || b.len - a.len);
+
+    if (stationMentions.length && (/有什麼車|班次|列車|車站|站/.test(text) || stationMentions.length === 1)) {
       return {
         kind: "station",
         dateStr: dateInfo.dateStr,
         dateLabel: dateInfo.dateLabel,
-        preference: stationPreference,
+        preference,
         stationRaw: stationMentions[0].name,
         timeStartMin: timeInfo.timeStartMin,
         timeEndMin: timeInfo.timeEndMin,
@@ -284,41 +343,129 @@
     return null;
   }
 
+  async function fetchWithTimeout(url, options, timeoutMs = 8000) {
+    const controller = typeof AbortController === "function" ? new AbortController() : null;
+    const timer = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
+    try {
+      return await fetch(url, controller ? { ...options, signal: controller.signal } : options);
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+  }
+
+  async function fetchJsonWithTimeout(url, options, timeoutMs = 8000) {
+    const response = await fetchWithTimeout(url, options, timeoutMs);
+    if (!response.ok) throw new Error(`HTTP_${response.status}`);
+    return response.json();
+  }
+
+  function buildStopTimeline(stops) {
+    let lastAbs = null;
+    return (stops || []).map((stop) => {
+      const arrMin = timeToMin(stop.arr || stop.dep || "");
+      const depMin = timeToMin(stop.dep || stop.arr || "");
+      let arrAbs = arrMin;
+      let depAbs = depMin;
+
+      if (Number.isFinite(arrAbs)) {
+        while (lastAbs !== null && arrAbs < lastAbs) arrAbs += 1440;
+        lastAbs = arrAbs;
+      }
+      if (Number.isFinite(depAbs)) {
+        while (lastAbs !== null && depAbs < lastAbs) depAbs += 1440;
+        lastAbs = depAbs;
+      }
+
+      return { ...stop, arrAbs, depAbs };
+    });
+  }
+
   function buildStopMap(stops) {
     const map = {};
-    (stops || []).forEach((stop, idx) => {
-      if (stop && stop.name) map[stop.name] = idx;
+    (stops || []).forEach((stop, index) => {
+      if (stop && stop.name) map[stop.name] = index;
     });
     return map;
   }
 
+  function getStopAbs(stop, kind) {
+    if (!stop) return null;
+    if (kind === "arr") return Number.isFinite(stop.arrAbs) ? stop.arrAbs : stop.depAbs;
+    return Number.isFinite(stop.depAbs) ? stop.depAbs : stop.arrAbs;
+  }
+
+  function buildDateTimeByAbs(originDate, absMin) {
+    if (!originDate || !Number.isFinite(absMin)) return null;
+    const base = new Date(`${originDate}T00:00:00`);
+    return new Date(base.getTime() + absMin * 60000);
+  }
+
+  function getDisplayDateByAbs(originDate, absMin) {
+    const dt = buildDateTimeByAbs(originDate, absMin);
+    return dt ? dateToStr(dt) : originDate || "";
+  }
+
+  function getNowRelativeAbs(originDate) {
+    if (!originDate) return null;
+    const base = new Date(`${originDate}T00:00:00`);
+    return Math.floor((Date.now() - base.getTime()) / 60000);
+  }
+
+  function mapDailyTrain(item, sys, originDate) {
+    const rawStops = (item.StopTimes || []).map((stop) => ({
+      name: stop.StationName && stop.StationName.Zh_tw ? stop.StationName.Zh_tw : "",
+      dep: stop.DepartureTime || stop.ArrivalTime || "",
+      arr: stop.ArrivalTime || stop.DepartureTime || "",
+    }));
+    const stops = buildStopTimeline(rawStops);
+    return {
+      trainNo: sys === "tr"
+        ? (item.TrainInfo && item.TrainInfo.TrainNo ? item.TrainInfo.TrainNo : "")
+        : (item.DailyTrainInfo && item.DailyTrainInfo.TrainNo
+            ? item.DailyTrainInfo.TrainNo
+            : (item.TrainDate && item.TrainDate.TrainNo ? item.TrainDate.TrainNo : "")),
+      type: sys === "tr"
+        ? simplifyTypeName(item.TrainInfo && item.TrainInfo.TrainTypeName ? item.TrainInfo.TrainTypeName.Zh_tw || "" : "")
+        : "高鐵",
+      originDate,
+      stops,
+      stopMap: buildStopMap(stops),
+    };
+  }
+
+  async function ensureToken() {
+    if (typeof getTdxToken === "function") await getTdxToken();
+    if (typeof tdxToken !== "undefined" && tdxToken) return tdxToken;
+    return window.tdxToken || "";
+  }
+
+  async function loadDailyDataset(sys, originDate) {
+    const token = await ensureToken();
+    if (!token) return [];
+    const headers = { Authorization: `Bearer ${token}` };
+    const url = sys === "tr"
+      ? `https://tdx.transportdata.tw/api/basic/v3/Rail/TRA/DailyTrainTimetable/TrainDate/${originDate}?%24format=JSON`
+      : `https://tdx.transportdata.tw/api/basic/v2/Rail/THSR/DailyTimetable/TrainDate/${originDate}?$format=JSON`;
+    try {
+      const data = await fetchJsonWithTimeout(url, { headers }, 9000);
+      const list = sys === "tr" ? (data.TrainTimetables || []) : (Array.isArray(data) ? data : []);
+      return list.map((item) => mapDailyTrain(item, sys, originDate));
+    } catch (_) {
+      return [];
+    }
+  }
+
   async function ensureData(dateStr, systems) {
     const wanted = Array.isArray(systems) ? systems : ["tr", "thsr"];
-    if (!tdxToken) await getTdxToken();
-    if (!tdxToken) return;
     if (assistantRouteCache.date !== dateStr) {
-      assistantRouteCache = { date: dateStr, tra: null, thsr: null };
+      assistantRouteCache = window.assistantRouteCache = { date: dateStr, tra: null, thsr: null };
     }
-    const headers = { Authorization: `Bearer ${tdxToken}` };
     const tasks = [];
     if (wanted.includes("tr") && !assistantRouteCache.tra) {
       tasks.push(
-        fetch(`https://tdx.transportdata.tw/api/basic/v3/Rail/TRA/DailyTrainTimetable/TrainDate/${dateStr}?%24format=JSON`, { headers })
-          .then((res) => res.json())
-          .then((data) => {
-            assistantRouteCache.tra = (data.TrainTimetables || []).map((item) => {
-              const stops = (item.StopTimes || []).map((stop) => ({
-                name: stop.StationName && stop.StationName.Zh_tw ? stop.StationName.Zh_tw : "",
-                dep: stop.DepartureTime || stop.ArrivalTime || "",
-                arr: stop.ArrivalTime || stop.DepartureTime || "",
-              }));
-              return {
-                trainNo: item.TrainInfo && item.TrainInfo.TrainNo ? item.TrainInfo.TrainNo : "",
-                type: simplifyTraTypeName(item.TrainInfo && item.TrainInfo.TrainTypeName ? item.TrainInfo.TrainTypeName.Zh_tw || "" : ""),
-                stops,
-                stopMap: buildStopMap(stops),
-              };
-            });
+        Promise.all([loadDailyDataset("tr", dateStr), loadDailyDataset("tr", addDays(dateStr, -1))])
+          .then(([current, previous]) => {
+            assistantRouteCache.tra = [...current, ...previous];
           })
           .catch(() => {
             assistantRouteCache.tra = [];
@@ -327,22 +474,9 @@
     }
     if (wanted.includes("thsr") && !assistantRouteCache.thsr) {
       tasks.push(
-        fetch(`https://tdx.transportdata.tw/api/basic/v2/Rail/THSR/DailyTimetable/TrainDate/${dateStr}?$format=JSON`, { headers })
-          .then((res) => res.json())
-          .then((data) => {
-            assistantRouteCache.thsr = (Array.isArray(data) ? data : []).map((item) => {
-              const stops = (item.StopTimes || []).map((stop) => ({
-                name: stop.StationName && stop.StationName.Zh_tw ? stop.StationName.Zh_tw : "",
-                dep: stop.DepartureTime || stop.ArrivalTime || "",
-                arr: stop.ArrivalTime || stop.DepartureTime || "",
-              }));
-              return {
-                trainNo: item.DailyTrainInfo && item.DailyTrainInfo.TrainNo ? item.DailyTrainInfo.TrainNo : (item.TrainDate && item.TrainDate.TrainNo ? item.TrainDate.TrainNo : ""),
-                type: "高鐵",
-                stops,
-                stopMap: buildStopMap(stops),
-              };
-            });
+        Promise.all([loadDailyDataset("thsr", dateStr), loadDailyDataset("thsr", addDays(dateStr, -1))])
+          .then(([current, previous]) => {
+            assistantRouteCache.thsr = [...current, ...previous];
           })
           .catch(() => {
             assistantRouteCache.thsr = [];
@@ -362,132 +496,129 @@
   }
 
   function getStationMeta(name, sys) {
-    const resolved = resolveStationName(name, sys);
-    if (!resolved) return null;
-    return (stationDB[sys] || []).find((item) => item.name === resolved) || null;
+    return (stationDB[sys] || []).find((item) => item.name === name) || null;
   }
 
   async function fetchSeatStatus(dateStr, startName, endName) {
     const startMeta = getStationMeta(startName, "thsr");
     const endMeta = getStationMeta(endName, "thsr");
-    if (!startMeta || !startMeta.id || !endMeta || !endMeta.id) return {};
+    if (!startMeta || !endMeta || !startMeta.id || !endMeta.id) return {};
     const key = `${dateStr}|${startMeta.id}|${endMeta.id}`;
     if (assistantSeatCache[key]) return assistantSeatCache[key];
-    if (!tdxToken) await getTdxToken();
-    if (!tdxToken) return {};
+
+    const token = await ensureToken();
+    if (!token) return {};
     try {
-      const res = await fetch(`https://tdx.transportdata.tw/api/basic/v2/Rail/THSR/AvailableSeatStatus/Train/OD/${startMeta.id}/to/${endMeta.id}/TrainDate/${dateStr}?$format=JSON`, {
-        headers: { Authorization: `Bearer ${tdxToken}` },
-      });
-      if (!res.ok) return {};
-      const data = await res.json();
+      const data = await fetchJsonWithTimeout(
+        `https://tdx.transportdata.tw/api/basic/v2/Rail/THSR/AvailableSeatStatus/Train/OD/${startMeta.id}/to/${endMeta.id}/TrainDate/${dateStr}?$format=JSON`,
+        { headers: { Authorization: `Bearer ${token}` } },
+        6000
+      );
       const map = {};
       (data.AvailableSeats || []).forEach((item) => {
         map[String(item.TrainNo)] = item.StandardSeatStatus;
       });
       assistantSeatCache[key] = map;
       return map;
-    } catch (e) {
+    } catch (_) {
       return {};
     }
   }
 
   function seatMeta(code) {
-    if (code === "O") return { text: "標準車廂可訂", cls: "ok" };
+    if (code === "O") return { text: "可訂", cls: "ok" };
     if (code === "L") return { text: "座位有限", cls: "warn" };
     if (code === "X") return { text: "接近售完", cls: "bad" };
     return null;
   }
 
   async function fetchTraLive(trainNo) {
-    const key = `${todayDateStr()}|${trainNo}`;
+    const key = `${getTodayDateStr()}|${trainNo}`;
     if (assistantTrainLiveCache[key] !== undefined) return assistantTrainLiveCache[key];
-    if (!tdxToken) await getTdxToken();
-    if (!tdxToken) return null;
+    const token = await ensureToken();
+    if (!token) return null;
     try {
-      const res = await fetch(`https://tdx.transportdata.tw/api/basic/v3/Rail/TRA/TrainLiveBoard/TrainNo/${trainNo}?%24format=JSON`, {
-        headers: { Authorization: `Bearer ${tdxToken}` },
-      });
-      const data = await res.json();
+      const data = await fetchJsonWithTimeout(
+        `https://tdx.transportdata.tw/api/basic/v3/Rail/TRA/TrainLiveBoard/TrainNo/${trainNo}?%24format=JSON`,
+        { headers: { Authorization: `Bearer ${token}` } },
+        5000
+      );
       assistantTrainLiveCache[key] = data.TrainLiveBoards ? data.TrainLiveBoards[0] : null;
       return assistantTrainLiveCache[key];
-    } catch (e) {
+    } catch (_) {
       assistantTrainLiveCache[key] = null;
       return null;
     }
   }
 
-  function matchesQueryTime(depMin, options) {
-    const hasTimeFilter = Number.isFinite(options && options.timeStartMin);
-    if (!hasTimeFilter) return true;
+  function matchesQueryTime(minuteValue, options) {
+    if (!Number.isFinite(options && options.timeStartMin)) return true;
+    if (!Number.isFinite(minuteValue)) return false;
     const start = options.timeStartMin;
     const end = Number.isFinite(options.timeEndMin) ? options.timeEndMin : null;
-    if (end === null) return depMin >= start;
-    if (end >= start) return depMin >= start && depMin <= end;
-    return depMin >= start || depMin <= end;
+    if (end === null) return minuteValue >= start;
+    if (end >= start) return minuteValue >= start && minuteValue <= end;
+    return minuteValue >= start || minuteValue <= end;
   }
 
   async function addTodayLiveStatus(sys, services, dateStr) {
-    if (dateStr !== todayDateStr()) return services;
-    const nowMin = currentMinutes();
-    if (sys !== "tr") return services;
-    return Promise.all(
-      (services || []).map(async (service) => {
-        if (!Number.isFinite(service.depMin) || service.depMin > nowMin) {
-          return {
-            ...service,
-            depDisplay: service.dep,
-            arrDisplay: service.arr,
-          };
-        }
-        const live = await fetchTraLive(service.trainNo);
-        const delayMin = Number(live && live.DelayTime ? live.DelayTime : 0);
-        if (live) {
-          return {
-            ...service,
-            depDisplay: withDelayClock(service.dep, delayMin),
-            arrDisplay: withDelayClock(service.arr, delayMin),
-            delayMin: Math.max(0, delayMin),
-            hasAdjustedTime: delayMin > 0,
-            liveStatusText: delayMin > 0 ? `目前狀態：晚 ${delayMin} 分` : "目前狀態：準點",
-          };
-        }
-        return {
-          ...service,
-          depDisplay: service.dep,
-          arrDisplay: service.arr,
-        };
-      })
-    );
+    if (sys !== "tr" || dateStr !== getTodayDateStr()) return services;
+    const nowTs = Date.now();
+    return Promise.all((services || []).map(async (service) => {
+      if (!Number.isFinite(service.depTimestamp) || service.depTimestamp > nowTs) {
+        return { ...service, depDisplay: service.dep, arrDisplay: service.arr };
+      }
+      const live = await fetchTraLive(service.trainNo);
+      const delayMin = Math.max(0, Number(live && live.DelayTime ? live.DelayTime : 0));
+      return {
+        ...service,
+        depDisplay: withDelayClock(service.dep, delayMin),
+        arrDisplay: withDelayClock(service.arr, delayMin),
+        delayMin,
+        hasAdjustedTime: delayMin > 0,
+        liveStatusText: delayMin > 0 ? `目前狀態：晚 ${delayMin} 分` : "目前狀態：準點",
+      };
+    }));
   }
 
   function collectDirect(dataset, startName, endName, options) {
-    const useNow = options.dateStr === todayDateStr() && !options.hasTimeFilter;
-    const nowMin = currentMinutes();
-    const all = (dataset || [])
-      .map((train) => {
-        const startIdx = train.stopMap ? train.stopMap[startName] : undefined;
-        const endIdx = train.stopMap ? train.stopMap[endName] : undefined;
-        if (!Number.isInteger(startIdx) || !Number.isInteger(endIdx) || endIdx <= startIdx) return null;
-        if (options.sys === "tr" && options.typePreference && !matchesTraType(train.type, options.typePreference)) return null;
-        const dep = train.stops[startIdx].dep || train.stops[startIdx].arr || "";
-        const arr = train.stops[endIdx].arr || train.stops[endIdx].dep || "";
-        const depMin = timeToMinutes(dep);
-        if (depMin === null) return null;
-        if (!matchesQueryTime(depMin, options)) return null;
-        return {
-          trainNo: train.trainNo,
-          type: train.type,
-          dep,
-          arr,
-          depMin,
-          stopCount: Math.max(0, endIdx - startIdx - 1),
-          duration: durationTextByClock(dep, arr),
-        };
-      })
-      .filter(Boolean)
-      .sort((a, b) => a.depMin - b.depMin);
-    const filtered = useNow ? all.filter((item) => item.depMin >= nowMin - 1) : all;
+    const useNow = options.dateStr === getTodayDateStr() && !options.hasTimeFilter;
+    const nowTs = Date.now();
+    const all = (dataset || []).map((train) => {
+      const startIdx = train.stopMap ? train.stopMap[startName] : undefined;
+      const endIdx = train.stopMap ? train.stopMap[endName] : undefined;
+      if (!Number.isInteger(startIdx) || !Number.isInteger(endIdx) || endIdx <= startIdx) return null;
+      if (options.sys === "tr" && options.typePreference && !matchesTraType(train.type, options.typePreference)) return null;
+
+      const startStop = train.stops[startIdx];
+      const endStop = train.stops[endIdx];
+      const dep = startStop.dep || startStop.arr || "";
+      const arr = endStop.arr || endStop.dep || "";
+      const depAbs = getStopAbs(startStop, "dep");
+      const arrAbs = getStopAbs(endStop, "arr");
+      const depMin = timeToMin(dep);
+      const depDT = buildDateTimeByAbs(train.originDate, depAbs);
+      const arrDT = buildDateTimeByAbs(train.originDate, arrAbs);
+      if (depMin === null || !depDT || !arrDT) return null;
+      if (getDisplayDateByAbs(train.originDate, depAbs) !== options.dateStr) return null;
+      if (!matchesQueryTime(depMin, options)) return null;
+
+      let durationMin = Math.round((arrDT.getTime() - depDT.getTime()) / 60000);
+      if (!Number.isFinite(durationMin) || durationMin < 0) durationMin += 1440;
+
+      return {
+        trainNo: train.trainNo,
+        type: train.type,
+        dep,
+        arr,
+        depMin,
+        depTimestamp: depDT.getTime(),
+        stopCount: Math.max(0, endIdx - startIdx - 1),
+        duration: formatDurationMinutes(durationMin),
+      };
+    }).filter(Boolean).sort((a, b) => a.depTimestamp - b.depTimestamp);
+
+    const filtered = useNow ? all.filter((item) => item.depTimestamp >= nowTs - 60000) : all;
     return {
       total: all.length,
       matches: filtered.slice(0, 3),
@@ -496,93 +627,108 @@
 
   function collectTransfer(dataset, startName, endName, options) {
     if (!Array.isArray(dataset) || !dataset.length) return [];
-    const useNow = options.dateStr === todayDateStr() && !options.hasTimeFilter;
-    const nowMin = currentMinutes();
-    const firstByStation = new Map();
-    const secondByStation = new Map();
+    const useNow = options.dateStr === getTodayDateStr() && !options.hasTimeFilter;
+    const nowTs = Date.now();
+    const plans = [];
 
-    (dataset || []).forEach((train) => {
-      if (options.typePreference && !matchesTraType(train.type, options.typePreference)) return;
-      const startIdx = train.stopMap ? train.stopMap[startName] : undefined;
-      if (Number.isInteger(startIdx) && startIdx < train.stops.length - 1) {
-        const dep = train.stops[startIdx].dep || train.stops[startIdx].arr || "";
-        const depMin = timeToMinutes(dep);
-        if (depMin !== null && matchesQueryTime(depMin, options) && (!useNow || depMin >= nowMin - 1)) {
-          for (let i = startIdx + 1; i < train.stops.length - 1; i += 1) {
-            const arr = train.stops[i].arr || train.stops[i].dep || "";
-            const arrMin = timeToMinutes(arr);
-            if (arrMin === null) continue;
-            const bucket = firstByStation.get(train.stops[i].name) || [];
-            bucket.push({ trainNo: train.trainNo, type: train.type, dep, depMin, arr, arrMin, transfer: train.stops[i].name });
-            firstByStation.set(train.stops[i].name, bucket);
-          }
+    (dataset || []).forEach((firstTrain) => {
+      if (options.typePreference && !matchesTraType(firstTrain.type, options.typePreference)) return;
+      const startIdx = firstTrain.stopMap ? firstTrain.stopMap[startName] : undefined;
+      if (!Number.isInteger(startIdx) || startIdx >= firstTrain.stops.length - 1) return;
+
+      const startStop = firstTrain.stops[startIdx];
+      const dep = startStop.dep || startStop.arr || "";
+      const depAbs = getStopAbs(startStop, "dep");
+      const depDT = buildDateTimeByAbs(firstTrain.originDate, depAbs);
+      const depMin = timeToMin(dep);
+      if (!depDT || depMin === null) return;
+      if (getDisplayDateByAbs(firstTrain.originDate, depAbs) !== options.dateStr) return;
+      if (!matchesQueryTime(depMin, options)) return;
+      if (useNow && depDT.getTime() < nowTs - 60000) return;
+
+      (dataset || []).forEach((secondTrain) => {
+        if (secondTrain.trainNo === firstTrain.trainNo && secondTrain.originDate === firstTrain.originDate) return;
+        const endIdx = secondTrain.stopMap ? secondTrain.stopMap[endName] : undefined;
+        if (!Number.isInteger(endIdx) || endIdx <= 0) return;
+
+        for (let midFirstIdx = startIdx + 1; midFirstIdx < firstTrain.stops.length; midFirstIdx += 1) {
+          const transfer = firstTrain.stops[midFirstIdx].name;
+          const midSecondIdx = secondTrain.stopMap ? secondTrain.stopMap[transfer] : undefined;
+          if (!Number.isInteger(midSecondIdx) || midSecondIdx >= endIdx) continue;
+
+          const firstMid = firstTrain.stops[midFirstIdx];
+          const secondMid = secondTrain.stops[midSecondIdx];
+          const endStop = secondTrain.stops[endIdx];
+          const midArrDT = buildDateTimeByAbs(firstTrain.originDate, getStopAbs(firstMid, "arr"));
+          const midDepDT = buildDateTimeByAbs(secondTrain.originDate, getStopAbs(secondMid, "dep"));
+          const endArrDT = buildDateTimeByAbs(secondTrain.originDate, getStopAbs(endStop, "arr"));
+          if (!midArrDT || !midDepDT || !endArrDT) continue;
+
+          const waitMin = Math.round((midDepDT.getTime() - midArrDT.getTime()) / 60000);
+          const totalMin = Math.round((endArrDT.getTime() - depDT.getTime()) / 60000);
+          if (!Number.isFinite(waitMin) || waitMin < 0 || waitMin > 90) continue;
+          if (!Number.isFinite(totalMin) || totalMin < 0) continue;
+
+          plans.push({
+            transfer,
+            first: {
+              trainNo: firstTrain.trainNo,
+              type: firstTrain.type,
+              dep,
+              arr: firstMid.arr || firstMid.dep || "",
+            },
+            second: {
+              trainNo: secondTrain.trainNo,
+              type: secondTrain.type,
+              dep: secondMid.dep || secondMid.arr || "",
+              arr: endStop.arr || endStop.dep || "",
+            },
+            waitMin,
+            totalMin,
+            duration: formatDurationMinutes(totalMin),
+            depTimestamp: depDT.getTime(),
+          });
         }
-      }
-
-      const endIdx = train.stopMap ? train.stopMap[endName] : undefined;
-      if (Number.isInteger(endIdx) && endIdx > 0) {
-        for (let i = 1; i < endIdx; i += 1) {
-          const dep = train.stops[i].dep || train.stops[i].arr || "";
-          const depMin = timeToMinutes(dep);
-          const arr = train.stops[endIdx].arr || train.stops[endIdx].dep || "";
-          const arrMin = timeToMinutes(arr);
-          if (depMin === null || arrMin === null || (useNow && depMin < nowMin - 1)) continue;
-          const bucket = secondByStation.get(train.stops[i].name) || [];
-          bucket.push({ trainNo: train.trainNo, type: train.type, dep, depMin, arr, arrMin, transfer: train.stops[i].name });
-          secondByStation.set(train.stops[i].name, bucket);
-        }
-      }
-    });
-
-    const results = [];
-    const seen = new Set();
-    Array.from(firstByStation.keys()).forEach((transfer) => {
-      const firstList = (firstByStation.get(transfer) || []).sort((a, b) => a.depMin - b.depMin).slice(0, 10);
-      const secondList = (secondByStation.get(transfer) || []).sort((a, b) => a.depMin - b.depMin);
-      firstList.forEach((first) => {
-        const second = secondList.find((item) => item.trainNo !== first.trainNo && item.depMin >= first.arrMin + 5 && item.depMin <= first.arrMin + 50);
-        if (!second) return;
-        const key = `${first.trainNo}|${transfer}|${second.trainNo}|${second.dep}`;
-        if (seen.has(key)) return;
-        seen.add(key);
-        let totalMin = second.arrMin - first.depMin;
-        if (totalMin < 0) totalMin += 1440;
-        results.push({
-          transfer,
-          first,
-          second,
-          waitMin: second.depMin - first.arrMin,
-          duration: durationTextByClock(first.dep, second.arr),
-          totalMin,
-        });
       });
     });
 
-    return results.sort((a, b) => a.totalMin - b.totalMin || a.first.depMin - b.first.depMin).slice(0, 3);
+    const seen = new Set();
+    return plans
+      .sort((a, b) => a.depTimestamp - b.depTimestamp || a.totalMin - b.totalMin)
+      .filter((plan) => {
+        const key = `${plan.first.trainNo}|${plan.first.dep}|${plan.second.trainNo}|${plan.transfer}|${plan.second.arr}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
+      .slice(0, 3);
   }
 
   function collectStation(dataset, stationName, options) {
-    const useNow = options.dateStr === todayDateStr() && !options.hasTimeFilter;
-    const nowMin = currentMinutes();
-    const all = (dataset || [])
-      .map((train) => {
-        const idx = train.stopMap ? train.stopMap[stationName] : undefined;
-        if (!Number.isInteger(idx)) return null;
-        const time = train.stops[idx].dep || train.stops[idx].arr || "";
-        const timeMin = timeToMinutes(time);
-        if (timeMin === null) return null;
-        if (!matchesQueryTime(timeMin, options)) return null;
-        return {
-          trainNo: train.trainNo,
-          type: train.type,
-          time,
-          timeMin,
-          range: `${train.stops[0] && train.stops[0].name ? train.stops[0].name : "--"} → ${train.stops[train.stops.length - 1] && train.stops[train.stops.length - 1].name ? train.stops[train.stops.length - 1].name : "--"}`,
-        };
-      })
-      .filter(Boolean)
-      .sort((a, b) => a.timeMin - b.timeMin);
-    const filtered = useNow ? all.filter((item) => item.timeMin >= nowMin - 1) : all;
+    const useNow = options.dateStr === getTodayDateStr() && !options.hasTimeFilter;
+    const nowTs = Date.now();
+    const all = (dataset || []).map((train) => {
+      const idx = train.stopMap ? train.stopMap[stationName] : undefined;
+      if (!Number.isInteger(idx)) return null;
+      const stop = train.stops[idx];
+      const time = stop.dep || stop.arr || "";
+      const timeMin = timeToMin(time);
+      const timeAbs = getStopAbs(stop, "dep");
+      const timeDT = buildDateTimeByAbs(train.originDate, timeAbs);
+      if (timeMin === null || !timeDT) return null;
+      if (getDisplayDateByAbs(train.originDate, timeAbs) !== options.dateStr) return null;
+      if (!matchesQueryTime(timeMin, options)) return null;
+
+      return {
+        trainNo: train.trainNo,
+        type: train.type,
+        time,
+        timeTimestamp: timeDT.getTime(),
+        range: `${train.stops[0] ? train.stops[0].name : "--"} → ${train.stops[train.stops.length - 1] ? train.stops[train.stops.length - 1].name : "--"}`,
+      };
+    }).filter(Boolean).sort((a, b) => a.timeTimestamp - b.timeTimestamp);
+
+    const filtered = useNow ? all.filter((item) => item.timeTimestamp >= nowTs - 60000) : all;
     return {
       total: all.length,
       matches: filtered.slice(0, 6),
@@ -591,19 +737,17 @@
 
   function isCrossDay(stops) {
     if (!Array.isArray(stops) || stops.length < 2) return false;
-    const first = timeToMinutes(stops[0].dep || stops[0].arr);
-    const last = timeToMinutes(stops[stops.length - 1].arr || stops[stops.length - 1].dep);
-    return first !== null && last !== null && last < first;
+    const first = timeToMin(stops[0].dep || stops[0].arr || "");
+    const last = timeToMin(stops[stops.length - 1].arr || stops[stops.length - 1].dep || "");
+    return Number.isFinite(first) && Number.isFinite(last) && last < first;
   }
 
-  function findNextStopIndex(stops, delayMin) {
-    const nowMin = currentMinutes();
-    for (let i = 0; i < (stops || []).length; i += 1) {
-      const value = timeToMinutes(stops[i].arr || stops[i].dep);
-      if (value === null) continue;
-      let adjusted = value + Math.max(0, Number(delayMin || 0));
-      if (adjusted < nowMin - 720) adjusted += 1440;
-      if (adjusted >= nowMin) return i;
+  function findNextStopIndex(stops, delayMin, nowAbs) {
+    if (!Number.isFinite(nowAbs)) return -1;
+    for (let index = 0; index < (stops || []).length; index += 1) {
+      const value = getStopAbs(stops[index], "arr");
+      if (!Number.isFinite(value)) continue;
+      if (value + Math.max(0, Number(delayMin || 0)) >= nowAbs) return index;
     }
     return -1;
   }
@@ -626,48 +770,58 @@
 
   async function buildTraTrain(train, intent, targetStation) {
     const stops = train.stops || [];
-    const firstStation = stops[0] && stops[0].name ? stops[0].name : "--";
-    const lastStation = stops[stops.length - 1] && stops[stops.length - 1].name ? stops[stops.length - 1].name : "--";
+    const firstStation = stops[0] ? stops[0].name : "--";
+    const lastStation = stops[stops.length - 1] ? stops[stops.length - 1].name : "--";
     const firstDep = stops[0] ? stops[0].dep || stops[0].arr || "--" : "--";
     const lastArr = stops[stops.length - 1] ? stops[stops.length - 1].arr || stops[stops.length - 1].dep || "--" : "--";
-    const today = intent.dateStr === todayDateStr();
+    const today = intent.dateStr === getTodayDateStr();
+    const startAbs = getStopAbs(stops[0], "dep");
+    const endAbs = getStopAbs(stops[stops.length - 1], "arr");
+    const nowAbs = today ? getNowRelativeAbs(train.originDate) : null;
     let delayMin = 0;
-    let statusText = today ? "行駛中" : "非今日查詢";
-    let currentLocation = today ? "同步中" : "依時刻表顯示";
-    let nextIndex = today ? findNextStopIndex(stops, 0) : -1;
+    let statusText = today ? "準點" : "依時刻表";
+    let currentLocation = today ? "正在整理即時位置" : "查詢日期非今日，僅顯示時刻表";
+    let nextIndex = today ? findNextStopIndex(stops, 0, nowAbs) : -1;
+
     if (today) {
       const live = await fetchTraLive(train.trainNo);
-      delayMin = Number(live && live.DelayTime ? live.DelayTime : 0);
-      if (!Number.isFinite(delayMin)) delayMin = 0;
+      delayMin = Math.max(0, Number(live && live.DelayTime ? live.DelayTime : 0));
       const liveStation = live && live.StationName ? live.StationName.Zh_tw || "" : "";
-      const startMin = timeToMinutes(firstDep);
-      const endMin = timeToMinutes(lastArr);
-      const nowMin = currentMinutes();
-      nextIndex = findNextStopIndex(stops, delayMin);
-      if (startMin !== null && nowMin < startMin) {
+      nextIndex = findNextStopIndex(stops, delayMin, nowAbs);
+
+      if (Number.isFinite(startAbs) && Number.isFinite(nowAbs) && nowAbs < startAbs + delayMin) {
         statusText = "尚未發車";
-        currentLocation = `預計 ${withDelayClock(firstDep, delayMin)} 自 ${firstStation} 發車`;
+        currentLocation = `預計 ${withDelayClock(firstDep, delayMin)} 由 ${firstStation} 發車`;
         nextIndex = 0;
-      } else if (endMin !== null && nowMin > endMin + delayMin + 5) {
+      } else if (Number.isFinite(endAbs) && Number.isFinite(nowAbs) && nowAbs > endAbs + delayMin + 5) {
         statusText = "已到終點";
-        currentLocation = "已到終點";
+        currentLocation = `已抵達 ${lastStation}`;
         nextIndex = -1;
-      } else if (liveStation) {
-        statusText = delayMin > 0 ? `晚 ${delayMin} 分` : "準點";
-        currentLocation = `目前在 ${liveStation}`;
-        const liveIndex = train.stopMap ? train.stopMap[liveStation] : undefined;
-        if (Number.isInteger(liveIndex) && liveIndex < stops.length - 1) nextIndex = Math.max(nextIndex, liveIndex + 1);
       } else {
-        statusText = delayMin > 0 ? `晚 ${delayMin} 分` : "已發車";
-        currentLocation = nextIndex >= 0 ? `前往 ${stops[nextIndex] && stops[nextIndex].name ? stops[nextIndex].name : lastStation}` : "已到終點";
+        statusText = delayMin > 0 ? `晚 ${delayMin} 分` : "準點";
+        if (liveStation) {
+          currentLocation = `目前位置 ${liveStation}`;
+          const liveIndex = train.stopMap ? train.stopMap[liveStation] : -1;
+          if (Number.isInteger(liveIndex) && liveIndex < stops.length - 1) nextIndex = Math.max(nextIndex, liveIndex + 1);
+        } else if (nextIndex > 0 && stops[nextIndex]) {
+          currentLocation = `已離開 ${stops[nextIndex - 1].name}，前往 ${stops[nextIndex].name}`;
+        } else if (nextIndex === 0) {
+          currentLocation = `目前位置 ${firstStation}`;
+        } else {
+          currentLocation = `已抵達 ${lastStation}`;
+        }
       }
     }
+
     const targetIndex = targetStation && train.stopMap ? train.stopMap[targetStation] : -1;
     const targetStop = Number.isInteger(targetIndex) ? stops[targetIndex] : null;
     const targetClock = targetStop ? targetStop.arr || targetStop.dep || "--" : "";
+    const targetAbs = targetStop ? getStopAbs(targetStop, "arr") : null;
+    const remainDiff = Number.isFinite(targetAbs) && Number.isFinite(nowAbs) ? targetAbs + delayMin - nowAbs : null;
+
     return {
       sys: "tr",
-      label: "臺鐵",
+      label: "台鐵",
       routeText: `${firstStation} → ${lastStation}`,
       typeText: train.type,
       travelText: durationTextByClock(firstDep, lastArr),
@@ -676,7 +830,7 @@
       currentLocation,
       targetStation,
       etaClock: targetClock ? withDelayClock(targetClock, delayMin) : "",
-      remainText: targetClock ? countdownText(minutesUntil(targetClock, intent.dateStr, delayMin)) : "",
+      remainText: targetClock ? countdownText(remainDiff) : "",
       stopPreview: buildStopPreview(stops, nextIndex, targetIndex, intent.showStops),
       queryAction: `openAppOverlay("tr", { start: ${JSON.stringify(firstStation)}, end: ${JSON.stringify(lastStation)} })`,
       bookingAction: `assistantOpenTraBooking(${JSON.stringify(train.trainNo)}, ${JSON.stringify(firstStation)}, ${JSON.stringify(targetStation || lastStation)}, ${JSON.stringify(intent.dateStr)})`,
@@ -685,40 +839,42 @@
 
   async function buildThsrTrain(train, intent, targetStation) {
     const stops = train.stops || [];
-    const firstStation = stops[0] && stops[0].name ? stops[0].name : "--";
-    const lastStation = stops[stops.length - 1] && stops[stops.length - 1].name ? stops[stops.length - 1].name : "--";
+    const firstStation = stops[0] ? stops[0].name : "--";
+    const lastStation = stops[stops.length - 1] ? stops[stops.length - 1].name : "--";
     const firstDep = stops[0] ? stops[0].dep || stops[0].arr || "--" : "--";
     const lastArr = stops[stops.length - 1] ? stops[stops.length - 1].arr || stops[stops.length - 1].dep || "--" : "--";
-    const today = intent.dateStr === todayDateStr();
-    let statusText = today ? "行駛中" : "非今日查詢";
-    let currentLocation = today ? "行駛中" : "依時刻表顯示";
-    let nextIndex = today ? findNextStopIndex(stops, 0) : -1;
+    const today = intent.dateStr === getTodayDateStr();
+    const startAbs = getStopAbs(stops[0], "dep");
+    const endAbs = getStopAbs(stops[stops.length - 1], "arr");
+    const nowAbs = today ? getNowRelativeAbs(train.originDate) : null;
+    let statusText = today ? "準點" : "依時刻表";
+    let currentLocation = today ? "正在整理行駛區間" : "查詢日期非今日，僅顯示時刻表";
+    let nextIndex = today ? findNextStopIndex(stops, 0, nowAbs) : -1;
+
     if (today) {
-      const startMin = timeToMinutes(firstDep);
-      const endMin = timeToMinutes(lastArr);
-      const nowMin = currentMinutes();
-      if (startMin !== null && nowMin < startMin) {
+      if (Number.isFinite(startAbs) && Number.isFinite(nowAbs) && nowAbs < startAbs) {
         statusText = "尚未發車";
-        currentLocation = `預計 ${firstDep} 自 ${firstStation} 發車`;
+        currentLocation = `預計 ${firstDep} 由 ${firstStation} 發車`;
         nextIndex = 0;
-      } else if (endMin !== null && nowMin > endMin + 5) {
+      } else if (Number.isFinite(endAbs) && Number.isFinite(nowAbs) && nowAbs > endAbs + 5) {
         statusText = "已到終點";
-        currentLocation = "已到終點";
+        currentLocation = `已抵達 ${lastStation}`;
         nextIndex = -1;
+      } else if (nextIndex > 0 && stops[nextIndex]) {
+        currentLocation = `已離開 ${stops[nextIndex - 1].name}，前往 ${stops[nextIndex].name}`;
+      } else if (nextIndex === 0) {
+        currentLocation = `目前位置 ${firstStation}`;
       } else {
-        statusText = "已發車";
-        const lastPassed = stops.reduce((idx, stop, stopIdx) => {
-          const value = timeToMinutes(stop.dep || stop.arr);
-          return value !== null && value <= nowMin ? stopIdx : idx;
-        }, -1);
-        if (lastPassed >= 0 && nextIndex >= 0 && nextIndex !== lastPassed) currentLocation = `已通過 ${stops[lastPassed].name}，前往 ${stops[nextIndex].name}`;
-        else if (lastPassed >= 0) currentLocation = `目前在 ${stops[lastPassed].name}`;
-        else currentLocation = `前往 ${firstStation}`;
+        currentLocation = `已抵達 ${lastStation}`;
       }
     }
+
     const targetIndex = targetStation && train.stopMap ? train.stopMap[targetStation] : -1;
     const targetStop = Number.isInteger(targetIndex) ? stops[targetIndex] : null;
     const targetClock = targetStop ? targetStop.arr || targetStop.dep || "--" : "";
+    const targetAbs = targetStop ? getStopAbs(targetStop, "arr") : null;
+    const remainDiff = Number.isFinite(targetAbs) && Number.isFinite(nowAbs) ? targetAbs - nowAbs : null;
+
     return {
       sys: "thsr",
       label: "高鐵",
@@ -730,11 +886,20 @@
       currentLocation,
       targetStation,
       etaClock: targetClock,
-      remainText: targetClock ? countdownText(minutesUntil(targetClock, intent.dateStr, 0)) : "",
+      remainText: targetClock ? countdownText(remainDiff) : "",
       stopPreview: buildStopPreview(stops, nextIndex, targetIndex, intent.showStops),
       queryAction: `openAppOverlay("thsr", { start: ${JSON.stringify(firstStation)}, end: ${JSON.stringify(lastStation)} })`,
       bookingAction: `assistantOpenTHSRBooking(${JSON.stringify(train.trainNo)}, ${JSON.stringify(firstStation)}, ${JSON.stringify(targetStation || lastStation)}, ${JSON.stringify(intent.dateStr)}, ${JSON.stringify(firstDep)})`,
     };
+  }
+
+  function escapeHtml(text) {
+    return String(text || "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
   }
 
   function metaRow(items) {
@@ -745,96 +910,40 @@
     return html ? `<div class="assistant-meta-row">${html}</div>` : "";
   }
 
-  function renderLoading() {
-    const answer = document.getElementById("assistantAnswer");
+  function syncAssistantState(title, hint, tone) {
+    if (typeof window.updateAssistantLoadingState === "function") {
+      window.updateAssistantLoadingState(title, hint, tone);
+    }
+  }
+
+  function getAnswerElement() {
+    return window.assistantRenderTarget || document.getElementById("assistantAnswer");
+  }
+
+  function renderLoading(title, detail) {
+    const answer = getAnswerElement();
+    const finalTitle = title || "正在整理資料";
+    const finalDetail = detail || "正在同步台鐵 / 高鐵資料、票況與列車狀態，幫你整理最適合的結果。";
+    syncAssistantState(finalTitle, finalDetail, "loading");
     if (!answer) return;
     answer.innerHTML = `
       <div class="assistant-placeholder">
-        <strong>正在整理資料</strong>
-        <div>我正在同步臺鐵 / 高鐵資料、票況與列車狀態，幫你整理最適合的結果。</div>
+        <strong>${escapeHtml(finalTitle)}</strong>
+        <div>${escapeHtml(finalDetail)}</div>
       </div>
     `;
   }
 
   function renderError(message) {
-    const answer = document.getElementById("assistantAnswer");
+    const answer = getAnswerElement();
+    syncAssistantState("這次查詢沒有成功", message, "error");
     if (!answer) return;
     answer.innerHTML = `<div class="assistant-error">${escapeHtml(message)}</div>`;
   }
 
-  async function assistantOpenTraBooking(trainNo, startStationName, endStationName, dateStr) {
-    try {
-      if (!tdxToken) await getTdxToken();
-      if (!tdxToken) {
-        alert("認證授權失敗，請稍後再試。");
-        return;
-      }
-      const start = String(startStationName || "").replace(/台/g, "臺");
-      const end = String(endStationName || "").replace(/台/g, "臺");
-      const response = await fetch(`https://tdx.transportdata.tw/api/maas-tra/booking/deeplink/direct/tra?start_station=${encodeURIComponent(start)}&end_station=${encodeURIComponent(end)}&train_date=${encodeURIComponent(dateStr)}&train_number=${encodeURIComponent(String(trainNo))}`, {
-        method: "GET",
-        headers: {
-          Authorization: `Bearer ${tdxToken}`,
-          Accept: "application/json",
-        },
-      });
-      const result = await response.json();
-      const jumpUrl = (result.data && result.data.deeplink) || result.DeepLinkUrl || result.url;
-      if (!jumpUrl) {
-        alert("取得訂票連結失敗。");
-        return;
-      }
-      try {
-        if (window.top && window.top !== window) window.top.location.href = jumpUrl;
-        else window.location.href = jumpUrl;
-      } catch (e) {
-        window.location.href = jumpUrl;
-      }
-    } catch (e) {
-      alert("訂票流程暫時無法使用。");
-    }
-  }
-
-  async function assistantOpenTHSRBooking(trainNo, startStationName, endStationName, dateStr, timeStr) {
-    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-    if (!isMobile) {
-      alert("限使用行動裝置並已下載高鐵 T Express 行動購票 App 使用。");
-      return;
-    }
-    try {
-      if (!tdxToken) await getTdxToken();
-      if (!tdxToken) {
-        alert("認證授權失敗，請稍後再試。");
-        return;
-      }
-      const start = String(startStationName || "").replace(/台/g, "臺");
-      const end = String(endStationName || "").replace(/台/g, "臺");
-      const response = await fetch(`https://tdx.transportdata.tw/api/maas-thsr/booking/deeplink/direct/hsr?start_station=${encodeURIComponent(start)}&end_station=${encodeURIComponent(end)}&train_date=${dateStr}&train_time=${encodeURIComponent(timeStr)}&train_number=${trainNo}`, {
-        method: "GET",
-        headers: {
-          Authorization: `Bearer ${tdxToken}`,
-          Accept: "application/json",
-        },
-      });
-      const result = await response.json();
-      const jumpUrl = (result.data && result.data.deeplink) || result.DeepLinkUrl || result.url;
-      if (!jumpUrl) {
-        alert("取得訂票連結失敗。");
-        return;
-      }
-      try {
-        if (window.top && window.top !== window) window.top.location.href = jumpUrl;
-        else window.location.href = jumpUrl;
-      } catch (e) {
-        window.location.href = jumpUrl;
-      }
-    } catch (e) {
-      alert("高鐵訂票流程暫時無法使用。");
-    }
-  }
-
   function renderRoute(intent, results) {
-    const answer = document.getElementById("assistantAnswer");
+    const answer = getAnswerElement();
+    syncAssistantState("旅程建議已整理完成", "你可以繼續換條件，或直接打開完整查詢與訂票入口。", "ready");
     if (!answer) return;
     answer.innerHTML = `
       <div class="assistant-route-title">
@@ -843,49 +952,53 @@
       </div>
       ${metaRow([
         formatDateLabel(intent.dateStr),
-        intent.timeLabel ? `時段 ${intent.timeLabel}` : "",
-        intent.preference ? (intent.preference === "tr" ? "臺鐵" : "高鐵") : "自動比較臺鐵 / 高鐵",
+        intent.timeLabel ? `時間 ${intent.timeLabel}` : "",
+        intent.preference ? (intent.preference === "tr" ? "台鐵" : "高鐵") : "自動比較台鐵 / 高鐵",
         intent.typePreference || "",
-        intent.directOnly ? "只看直達" : (intent.allowTransfer ? "可轉乘" : "直達優先"),
+        intent.directOnly ? "直達優先" : (intent.allowTransfer ? "可轉乘" : ""),
       ])}
-      <div class="assistant-note">先整理最接近的直達班次；如果你允許轉乘，或直達不足時，會再補上 1 次轉乘建議。</div>
+      <div class="assistant-note">先整理直達班次；如果你允許轉乘，或直達不足時，會再補上 1 次轉乘建議。高鐵若有查票需求，也會一起顯示票況。</div>
       <div class="assistant-system-list" style="margin-top:14px;">
         ${results.map((result) => `
           <div class="assistant-system-card">
             <div class="assistant-system-head">
               <span class="assistant-system-tag ${result.sys === "tr" ? "tr" : "thsr"}">${escapeHtml(result.label)}</span>
-              <span class="assistant-system-note">${result.direct.matches.length ? "優先整理直達" : "改看轉乘或完整查詢"}</span>
+              <span class="assistant-system-note">${result.direct.matches.length ? "已有可搭班次" : "目前沒有符合條件的直達班次"}</span>
             </div>
             <div class="assistant-section-block">
               <div class="assistant-section-title">直達建議</div>
-              ${result.direct.matches.length ? `<div class="assistant-service-grid">
-                ${result.direct.matches.map((service) => `
-                  <div class="assistant-service-row">
-                    <div class="assistant-service-main">
-                      <strong>${escapeHtml(service.trainNo)} 次${result.sys === "tr" ? ` <span class="assistant-inline-tag">${escapeHtml(service.type)}</span>` : ""}</strong>
-                      <small>${escapeHtml(service.depDisplay || service.dep)} ${escapeHtml(result.start)} 出發 → ${escapeHtml(service.arrDisplay || service.arr)} ${escapeHtml(result.end)} 抵達 ｜ ${escapeHtml(service.duration)}${service.stopCount > 0 ? ` ｜ 中途 ${service.stopCount} 站` : " ｜ 直達"}${service.liveStatusText ? ` ｜ ${escapeHtml(service.liveStatusText)}` : ""}${service.hasAdjustedTime ? ` ｜ 原定 ${escapeHtml(service.dep)}→${escapeHtml(service.arr)}` : ""}</small>
+              ${result.direct.matches.length ? `
+                <div class="assistant-service-grid">
+                  ${result.direct.matches.map((service) => `
+                    <div class="assistant-service-row">
+                      <div class="assistant-service-main">
+                        <strong>${escapeHtml(service.trainNo)} 次${result.sys === "tr" ? ` <span class="assistant-inline-tag">${escapeHtml(service.type)}</span>` : ""}</strong>
+                        <small>${escapeHtml(service.depDisplay || service.dep)} ${escapeHtml(result.start)} 出發 → ${escapeHtml(service.arrDisplay || service.arr)} ${escapeHtml(result.end)} 抵達 ｜ ${escapeHtml(service.duration)}${service.stopCount > 0 ? ` ｜ 中途 ${service.stopCount} 站` : " ｜ 直達"}${service.liveStatusText ? ` ｜ ${escapeHtml(service.liveStatusText)}` : ""}${service.hasAdjustedTime ? ` ｜ 原定 ${escapeHtml(service.dep)}→${escapeHtml(service.arr)}` : ""}</small>
+                      </div>
+                      <div class="assistant-service-side">
+                        ${service.seat ? `<span class="assistant-seat-pill ${service.seat.cls}">${escapeHtml(service.seat.text)}</span>` : ""}
+                        <button class="assistant-compact-btn" type="button" onclick='${result.sys === "tr" ? `assistantOpenTraBooking(${JSON.stringify(service.trainNo)}, ${JSON.stringify(result.start)}, ${JSON.stringify(result.end)}, ${JSON.stringify(intent.dateStr)})` : `assistantOpenTHSRBooking(${JSON.stringify(service.trainNo)}, ${JSON.stringify(result.start)}, ${JSON.stringify(result.end)}, ${JSON.stringify(intent.dateStr)}, ${JSON.stringify(service.dep)})`}'>訂票</button>
+                      </div>
                     </div>
-                    <div class="assistant-service-side">
-                      ${service.seat ? `<span class="assistant-seat-pill ${service.seat.cls}">${escapeHtml(service.seat.text)}</span>` : ""}
-                      <button class="assistant-compact-btn" type="button" onclick='${result.sys === "tr" ? `assistantOpenTraBooking(${JSON.stringify(service.trainNo)}, ${JSON.stringify(result.start)}, ${JSON.stringify(result.end)}, ${JSON.stringify(intent.dateStr)})` : `assistantOpenTHSRBooking(${JSON.stringify(service.trainNo)}, ${JSON.stringify(result.start)}, ${JSON.stringify(result.end)}, ${JSON.stringify(intent.dateStr)}, ${JSON.stringify(service.dep)})`}'>訂票</button>
-                    </div>
-                  </div>
-                `).join("")}
-              </div>` : `<div class="assistant-empty-note">${result.direct.total > 0 ? "這一天符合條件的直達班次已經沒有更晚的選項。" : "這條路線沒有找到符合條件的直達班次。"}</div>`}
+                  `).join("")}
+                </div>
+              ` : `<div class="assistant-empty-note">${result.direct.total > 0 ? "當日有班次，但目前時間條件下沒有符合的直達車。" : "這一天查不到符合條件的直達資料。"}</div>`}
             </div>
-            ${!intent.directOnly && result.transfers.length ? `<div class="assistant-section-block">
-              <div class="assistant-section-title">轉乘建議</div>
-              <div class="assistant-service-grid">
-                ${result.transfers.map((item) => `
-                  <div class="assistant-service-row">
-                    <div class="assistant-service-main">
-                      <strong>${escapeHtml(item.first.trainNo)} 次 <span class="assistant-inline-tag">${escapeHtml(item.first.type)}</span> → ${escapeHtml(item.second.trainNo)} 次 <span class="assistant-inline-tag">${escapeHtml(item.second.type)}</span></strong>
-                      <small>${escapeHtml(item.first.dep)} ${escapeHtml(result.start)} 出發 ｜ ${escapeHtml(item.first.arr)} 在 ${escapeHtml(item.transfer)} 轉乘 ｜ 等待 ${item.waitMin} 分 ｜ ${escapeHtml(item.second.arr)} 抵達 ${escapeHtml(result.end)} ｜ 總耗時 ${escapeHtml(item.duration)}</small>
+            ${!intent.directOnly && result.transfers.length ? `
+              <div class="assistant-section-block">
+                <div class="assistant-section-title">轉乘建議</div>
+                <div class="assistant-service-grid">
+                  ${result.transfers.map((item) => `
+                    <div class="assistant-service-row">
+                      <div class="assistant-service-main">
+                        <strong>${escapeHtml(item.first.trainNo)} 次 <span class="assistant-inline-tag">${escapeHtml(item.first.type)}</span> → ${escapeHtml(item.second.trainNo)} 次 <span class="assistant-inline-tag">${escapeHtml(item.second.type)}</span></strong>
+                        <small>${escapeHtml(item.first.dep)} ${escapeHtml(result.start)} 出發 ｜ ${escapeHtml(item.first.arr)} 於 ${escapeHtml(item.transfer)} 轉乘 ｜ 等待 ${item.waitMin} 分 ｜ ${escapeHtml(item.second.arr)} 抵達 ${escapeHtml(result.end)} ｜ 總耗時 ${escapeHtml(item.duration)}</small>
+                      </div>
                     </div>
-                  </div>
-                `).join("")}
+                  `).join("")}
+                </div>
               </div>
-            </div>` : ""}
+            ` : ""}
             <div class="assistant-actions">
               <button class="assistant-action-btn" type="button" onclick='openAppOverlay(${JSON.stringify(result.sys)}, { start: ${JSON.stringify(result.start)}, end: ${JSON.stringify(result.end)} })'>打開${escapeHtml(result.label)}完整查詢</button>
             </div>
@@ -896,18 +1009,19 @@
   }
 
   function renderTrain(intent, results) {
-    const answer = document.getElementById("assistantAnswer");
+    const answer = getAnswerElement();
+    syncAssistantState("車次資訊已整理完成", "已整理目前狀態、目前位置與預估抵達資訊。", "ready");
     if (!answer) return;
     answer.innerHTML = `
       <div class="assistant-route-title">
-        <span class="assistant-helper-badge">車次助手</span>
+        <span class="assistant-helper-badge">車次狀態</span>
         <strong>${escapeHtml(intent.trainNoRaw)} 次</strong>
       </div>
       ${metaRow([
         formatDateLabel(intent.dateStr),
         intent.timeLabel ? `時間 ${intent.timeLabel}` : "",
         intent.targetRaw ? `目標站 ${intent.targetRaw}` : "",
-        intent.showStops ? "顯示停靠站" : "精簡摘要",
+        intent.showStops ? "顯示停靠站" : "",
       ])}
       <div class="assistant-system-list" style="margin-top:14px;">
         ${results.map((result) => `
@@ -919,13 +1033,13 @@
             <div class="assistant-train-grid">
               <div class="assistant-stat-card"><span>目前狀態</span><strong>${escapeHtml(result.statusText)}</strong></div>
               <div class="assistant-stat-card"><span>目前位置</span><strong>${escapeHtml(result.currentLocation)}</strong></div>
-              <div class="assistant-stat-card"><span>車種 / 區間</span><strong>${escapeHtml(result.typeText)} ｜ ${escapeHtml(result.crossDayText)}</strong></div>
+              <div class="assistant-stat-card"><span>車種 / 跨日</span><strong>${escapeHtml(result.typeText)} ｜ ${escapeHtml(result.crossDayText)}</strong></div>
               <div class="assistant-stat-card"><span>${result.targetStation ? "預估抵達" : "預估車程"}</span><strong>${result.targetStation ? escapeHtml(etaText(result.etaClock || "--", result.remainText || "")) : escapeHtml(result.travelText)}</strong></div>
             </div>
             ${result.stopPreview.length ? `<div class="assistant-section-title">停靠摘要</div><div class="assistant-stop-strip">${result.stopPreview.map((item) => `<span class="assistant-stop-chip">${escapeHtml(item)}</span>`).join("")}</div>` : ""}
             <div class="assistant-actions">
               <button class="assistant-action-btn" type="button" onclick='${result.queryAction}'>打開${escapeHtml(result.label)}完整查詢</button>
-              <button class="assistant-action-btn" type="button" onclick='${result.bookingAction}'>導訂這班車</button>
+              <button class="assistant-action-btn" type="button" onclick='${result.bookingAction}'>前往訂票</button>
             </div>
           </div>
         `).join("")}
@@ -934,7 +1048,8 @@
   }
 
   function renderStation(intent, results) {
-    const answer = document.getElementById("assistantAnswer");
+    const answer = getAnswerElement();
+    syncAssistantState("車站班次已整理完成", "已依日期與時間條件列出下一批班次。", "ready");
     if (!answer) return;
     answer.innerHTML = `
       <div class="assistant-route-title">
@@ -943,15 +1058,15 @@
       </div>
       ${metaRow([
         formatDateLabel(intent.dateStr),
-        intent.timeLabel ? `時段 ${intent.timeLabel}` : "",
-        intent.preference ? (intent.preference === "tr" ? "臺鐵" : "高鐵") : "同時比對臺鐵 / 高鐵",
+        intent.timeLabel ? `時間 ${intent.timeLabel}` : "",
+        intent.preference ? (intent.preference === "tr" ? "台鐵" : "高鐵") : "台鐵 / 高鐵",
       ])}
       <div class="assistant-system-list" style="margin-top:14px;">
         ${results.map((result) => `
           <div class="assistant-system-card">
             <div class="assistant-system-head">
               <span class="assistant-system-tag ${result.sys === "tr" ? "tr" : "thsr"}">${escapeHtml(result.label)}</span>
-              <span class="assistant-system-note">${result.services.matches.length ? "接下來可搭" : "尚無可整理班次"}</span>
+              <span class="assistant-system-note">${result.services.matches.length ? "已整理下一批班次" : "沒有符合時間條件的班次"}</span>
             </div>
             <div class="assistant-service-grid">
               ${result.services.matches.length ? result.services.matches.map((item) => `
@@ -961,7 +1076,7 @@
                     <small>${escapeHtml(item.time)} ｜ ${escapeHtml(item.range)}</small>
                   </div>
                 </div>
-              `).join("") : `<div class="assistant-empty-note">這一天目前沒有可直接整理的班次資料。</div>`}
+              `).join("") : `<div class="assistant-empty-note">目前沒有符合這個日期與時間條件的班次。</div>`}
             </div>
             <div class="assistant-actions">
               <button class="assistant-action-btn" type="button" onclick='openAppOverlay(${JSON.stringify(result.sys)}, { station: ${JSON.stringify(result.station)} })'>打開${escapeHtml(result.label)}車站查詢</button>
@@ -972,47 +1087,106 @@
     `;
   }
 
+  async function assistantOpenTraBooking(trainNo, startStationName, endStationName, dateStr) {
+    try {
+      const token = await ensureToken();
+      if (!token) {
+        alert("目前無法取得訂票授權，請稍後再試。");
+        return;
+      }
+      const start = String(startStationName || "").replace(/台/g, "臺");
+      const end = String(endStationName || "").replace(/台/g, "臺");
+      const result = await fetchJsonWithTimeout(
+        `https://tdx.transportdata.tw/api/maas-tra/booking/deeplink/direct/tra?start_station=${encodeURIComponent(start)}&end_station=${encodeURIComponent(end)}&train_date=${encodeURIComponent(dateStr)}&train_number=${encodeURIComponent(String(trainNo))}`,
+        { method: "GET", headers: { Authorization: `Bearer ${token}`, Accept: "application/json" } },
+        8000
+      );
+      const jumpUrl = (result.data && result.data.deeplink) || result.DeepLinkUrl || result.url;
+      if (!jumpUrl) {
+        alert("目前拿不到台鐵訂票連結。");
+        return;
+      }
+      if (window.top && window.top !== window) window.top.location.href = jumpUrl;
+      else window.location.href = jumpUrl;
+    } catch (_) {
+      alert("台鐵訂票導頁失敗，請稍後再試。");
+    }
+  }
+
+  async function assistantOpenTHSRBooking(trainNo, startStationName, endStationName, dateStr, timeStr) {
+    try {
+      const token = typeof getAccessToken === "function" ? await getAccessToken() : await ensureToken();
+      if (!token) {
+        alert("目前無法取得高鐵訂票授權，請稍後再試。");
+        return;
+      }
+      const start = String(startStationName || "").replace(/臺/g, "台");
+      const end = String(endStationName || "").replace(/臺/g, "台");
+      const response = await fetchWithTimeout(
+        `https://tdx.transportdata.tw/api/maas-thsr/booking/deeplink/direct/hsr?start_station=${encodeURIComponent(start)}&end_station=${encodeURIComponent(end)}&train_date=${dateStr}&train_time=${encodeURIComponent(timeStr)}&train_number=${trainNo}`,
+        { method: "GET", headers: { Authorization: `Bearer ${token}`, Accept: "application/json" } },
+        8000
+      );
+      if (!response.ok) {
+        alert(`高鐵訂票導頁失敗（HTTP ${response.status}）。`);
+        return;
+      }
+      const result = await response.json();
+      const jumpUrl = result.url || (result.data && result.data.deeplink) || result.DeepLinkUrl;
+      if (!jumpUrl) {
+        alert("目前拿不到高鐵訂票連結。");
+        return;
+      }
+      if (window.top && window.top !== window) window.top.location.href = jumpUrl;
+      else window.location.href = jumpUrl;
+    } catch (_) {
+      alert("高鐵訂票導頁失敗，請稍後再試。");
+    }
+  }
+
   window.assistantOpenTraBooking = assistantOpenTraBooking;
   window.assistantOpenTHSRBooking = assistantOpenTHSRBooking;
-  window.ensureAssistantRouteData = ensureAssistantRouteData = ensureData;
-  window.handleAssistantQuery = handleAssistantQuery = async function (rawText) {
+  window.ensureAssistantRouteData = ensureData;
+  window.handleAssistantQuery = async function (rawText) {
     const text = String(rawText || "").trim();
     if (!text) {
       renderError("請先輸入問題，例如「今天 08:00 台北到台中」「4/5 08:10-12:00 高鐵台北到左營」「412次台中幾點到」或「板橋站有什麼車」。");
       return;
     }
-    if (!tdxToken) await getTdxToken();
+
     if ((!stationDB.tr || !stationDB.tr.length) || (!stationDB.thsr || !stationDB.thsr.length)) {
-      await fetchAllStations();
+      renderLoading("正在同步站點資料", "第一次查詢會先確認台鐵與高鐵站名資料。");
+      if (typeof fetchAllStations === "function") await fetchAllStations();
     }
+
     const intent = parseIntent(text);
     if (!intent) {
-      renderError("我目前支援三種問法：起訖站旅程、車次狀態、車站班次，也支援加上時間條件。例如「今天 08:00 台北到台中」「126次現在到哪了」「台中站 08:10-12:00 有什麼車」。");
+      renderError("我目前支援三種問法：起訖站旅程、車次狀態、車站班次，也支援加上時間條件。例如「明天台北到台中自強號」「高鐵台北到左營有沒有票」「126次現在到哪了」或「台中站 08:10-12:00 有什麼車」。");
       return;
     }
-    renderLoading();
+
+    renderLoading("正在解析問題", "正在確認日期、時間、車次與車站條件。");
 
     if (intent.kind === "route") {
-      const candidates = [];
-      const traLocked = !!intent.typePreference && intent.preference !== "thsr";
-      if (intent.preference !== "thsr") {
-        const start = resolveStationName(intent.startRaw, "tr");
-        const end = resolveStationName(intent.endRaw, "tr");
-        if (start && end) candidates.push({ sys: "tr", label: "臺鐵", start, end });
-      }
-      if (intent.preference !== "tr" && !traLocked) {
-        const start = resolveStationName(intent.startRaw, "thsr");
-        const end = resolveStationName(intent.endRaw, "thsr");
-        if (start && end) candidates.push({ sys: "thsr", label: "高鐵", start, end });
-      }
+      const systems = intent.preference ? [intent.preference] : (intent.typePreference ? ["tr"] : ["tr", "thsr"]);
+      const candidates = systems.map((sys) => {
+        const start = resolveLocalStationName(intent.startRaw, sys);
+        const end = resolveLocalStationName(intent.endRaw, sys);
+        if (!start || !end || start === end) return null;
+        return { sys, label: sys === "tr" ? "台鐵" : "高鐵", start, end };
+      }).filter(Boolean);
+
       if (!candidates.length) {
         renderError(`我暫時找不到「${intent.startRaw} → ${intent.endRaw}」對應的站名，請再試一次完整站名。`);
         return;
       }
+
+      renderLoading("正在同步時刻表", "正在讀取查詢日期與前一天的台鐵 / 高鐵時刻資料。");
       await ensureData(intent.dateStr, candidates.map((item) => item.sys));
+
       const results = [];
-      for (let i = 0; i < candidates.length; i += 1) {
-        const item = candidates[i];
+      for (let index = 0; index < candidates.length; index += 1) {
+        const item = candidates[index];
         const dataset = item.sys === "tr" ? assistantRouteCache.tra : assistantRouteCache.thsr;
         const direct = collectDirect(dataset, item.start, item.end, {
           dateStr: intent.dateStr,
@@ -1022,14 +1196,19 @@
           timeEndMin: intent.timeEndMin,
           hasTimeFilter: intent.hasTimeFilter,
         });
+
         if (item.sys === "thsr" && direct.matches.length && intent.wantsTicket) {
+          renderLoading("正在查詢高鐵票況", `正在確認 ${item.start} → ${item.end} 的可售座位。`);
           const seatMap = await fetchSeatStatus(intent.dateStr, item.start, item.end);
           direct.matches = direct.matches.map((service) => ({
             ...service,
             seat: seatMeta(seatMap[String(service.trainNo)]),
           }));
         }
+
+        renderLoading("正在整理列車狀態", "正在比對今日班次的準點、誤點與調整後時間。");
         direct.matches = await addTodayLiveStatus(item.sys, direct.matches, intent.dateStr);
+
         const transfers = !intent.directOnly && item.sys === "tr" && (intent.allowTransfer || !direct.matches.length)
           ? collectTransfer(dataset, item.start, item.end, {
               dateStr: intent.dateStr,
@@ -1039,25 +1218,26 @@
               hasTimeFilter: intent.hasTimeFilter,
             })
           : [];
+
         results.push({ ...item, direct, transfers });
       }
+
       renderRoute(intent, results);
       return;
     }
 
     if (intent.kind === "train") {
       const systems = intent.preference ? [intent.preference] : ["tr", "thsr"];
+      renderLoading("正在查詢列車資料", "正在讀取該車次的完整停靠、跨日與即時狀態資訊。");
       await ensureData(intent.dateStr, systems);
       const results = [];
-      for (let i = 0; i < systems.length; i += 1) {
-        const sys = systems[i];
+      for (let index = 0; index < systems.length; index += 1) {
+        const sys = systems[index];
         const dataset = sys === "tr" ? assistantRouteCache.tra : assistantRouteCache.thsr;
         const train = (dataset || []).find((item) => trainVariants(intent.trainNoRaw, sys).includes(String(item.trainNo).toUpperCase()));
         if (!train) continue;
-        const targetStation = intent.targetRaw ? resolveStationName(intent.targetRaw, sys) : "";
-        const summary = sys === "tr"
-          ? await buildTraTrain(train, intent, targetStation)
-          : await buildThsrTrain(train, intent, targetStation);
+        const targetStation = intent.targetRaw ? resolveLocalStationName(intent.targetRaw, sys) : "";
+        const summary = sys === "tr" ? await buildTraTrain(train, intent, targetStation) : await buildThsrTrain(train, intent, targetStation);
         results.push(summary);
       }
       if (!results.length) {
@@ -1070,16 +1250,17 @@
 
     if (intent.kind === "station") {
       const systems = intent.preference ? [intent.preference] : ["tr", "thsr"];
+      renderLoading("正在查詢車站班次", "正在整理指定日期與時間條件下的下一批班次。");
       await ensureData(intent.dateStr, systems);
       const results = [];
-      for (let i = 0; i < systems.length; i += 1) {
-        const sys = systems[i];
-        const station = resolveStationName(intent.stationRaw, sys);
+      for (let index = 0; index < systems.length; index += 1) {
+        const sys = systems[index];
+        const station = resolveLocalStationName(intent.stationRaw, sys);
         if (!station) continue;
         const dataset = sys === "tr" ? assistantRouteCache.tra : assistantRouteCache.thsr;
         results.push({
           sys,
-          label: sys === "tr" ? "臺鐵" : "高鐵",
+          label: sys === "tr" ? "台鐵" : "高鐵",
           station,
           services: collectStation(dataset, station, {
             dateStr: intent.dateStr,

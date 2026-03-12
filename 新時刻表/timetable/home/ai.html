@@ -1,0 +1,751 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Rail AI 助手</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+  <style>
+    :root{
+      --bg:#07111f;
+      --bg-soft:#0d1b30;
+      --panel:rgba(9, 18, 34, 0.78);
+      --panel-solid:#0d1728;
+      --border:rgba(148,163,184,0.16);
+      --text:#e2e8f0;
+      --muted:#94a3b8;
+      --dim:#64748b;
+      --accent:#60a5fa;
+      --accent-strong:#2563eb;
+      --good:#22c55e;
+      --warn:#f59e0b;
+      --danger:#f43f5e;
+      --shadow:0 28px 60px rgba(2, 6, 23, 0.38);
+      --radius-xl:28px;
+      --radius-lg:22px;
+      --radius-md:16px;
+      --shell-max:1160px;
+      --font:'Inter','Noto Sans TC',sans-serif;
+    }
+
+    body.light-mode{
+      --bg:#f3f6fb;
+      --bg-soft:#e8eef7;
+      --panel:rgba(255,255,255,0.88);
+      --panel-solid:#ffffff;
+      --border:rgba(15,23,42,0.08);
+      --text:#0f172a;
+      --muted:#475569;
+      --dim:#64748b;
+      --accent:#2563eb;
+      --accent-strong:#1d4ed8;
+      --shadow:0 22px 48px rgba(15, 23, 42, 0.08);
+    }
+
+    *{
+      box-sizing:border-box;
+      -webkit-tap-highlight-color:transparent;
+    }
+
+    html,body{
+      margin:0;
+      min-height:100%;
+      background:
+        radial-gradient(circle at top left, rgba(37,99,235,0.18), transparent 26%),
+        radial-gradient(circle at bottom right, rgba(14,165,233,0.12), transparent 24%),
+        var(--bg);
+      color:var(--text);
+      font-family:var(--font);
+    }
+
+    body{
+      padding:20px 16px 28px;
+    }
+
+    button,
+    input{
+      font:inherit;
+    }
+
+    .ai-page-shell{
+      width:min(var(--shell-max), 100%);
+      margin:0 auto;
+      display:grid;
+      gap:18px;
+    }
+
+    .ai-topbar,
+    .ai-intro,
+    .ai-chat-shell{
+      border:1px solid var(--border);
+      background:var(--panel);
+      box-shadow:var(--shadow);
+      backdrop-filter:blur(18px);
+      -webkit-backdrop-filter:blur(18px);
+    }
+
+    .ai-topbar{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:16px;
+      padding:14px 18px;
+      border-radius:999px;
+    }
+
+    .ai-brand{
+      min-width:0;
+      display:flex;
+      align-items:center;
+      gap:12px;
+    }
+
+    .ai-brand-mark{
+      width:42px;
+      height:42px;
+      display:grid;
+      place-items:center;
+      border-radius:14px;
+      background:linear-gradient(135deg, #2563eb, #0ea5e9);
+      color:#fff;
+      font-size:1rem;
+      font-weight:900;
+      flex:0 0 auto;
+    }
+
+    .ai-brand-copy strong{
+      display:block;
+      font-size:1rem;
+      line-height:1.2;
+    }
+
+    .ai-brand-copy span{
+      display:block;
+      margin-top:3px;
+      color:var(--muted);
+      font-size:.84rem;
+      line-height:1.5;
+    }
+
+    .ai-nav{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      flex-wrap:wrap;
+      justify-content:flex-end;
+    }
+
+    .ai-nav-link,
+    .ai-nav button,
+    .assistant-chip,
+    .assistant-secondary-btn,
+    .assistant-action-btn,
+    .assistant-compact-btn{
+      border:1px solid var(--border);
+      background:rgba(255,255,255,0.04);
+      color:var(--text);
+      border-radius:999px;
+      cursor:pointer;
+      text-decoration:none;
+      transition:transform .18s ease, background .18s ease, border-color .18s ease;
+    }
+
+    .ai-nav-link,
+    .ai-nav button{
+      min-height:40px;
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      padding:0 14px;
+    }
+
+    .ai-nav-link:hover,
+    .ai-nav button:hover,
+    .assistant-chip:hover,
+    .assistant-secondary-btn:hover,
+    .assistant-action-btn:hover,
+    .assistant-compact-btn:hover{
+      transform:translateY(-1px);
+      border-color:rgba(96,165,250,0.28);
+      background:rgba(96,165,250,0.10);
+    }
+
+    .ai-intro{
+      padding:24px;
+      border-radius:var(--radius-xl);
+      display:grid;
+      grid-template-columns:1fr;
+      gap:18px;
+      align-items:start;
+    }
+
+    .ai-intro-copy h1{
+      margin:0;
+      font-size:clamp(1.8rem, 3.8vw, 2.8rem);
+      line-height:1.04;
+      letter-spacing:-.04em;
+    }
+
+    .ai-intro-copy p{
+      margin:12px 0 0;
+      max-width:700px;
+      color:var(--muted);
+      line-height:1.75;
+    }
+
+    .ai-intro-points{
+      display:flex;
+      flex-wrap:wrap;
+      gap:10px;
+      margin-top:18px;
+    }
+
+    .ai-intro-points span{
+      display:inline-flex;
+      align-items:center;
+      padding:8px 12px;
+      border-radius:999px;
+      background:rgba(96,165,250,0.10);
+      border:1px solid rgba(96,165,250,0.18);
+      color:var(--text);
+      font-size:.84rem;
+      font-weight:700;
+    }
+
+    .ai-chat-shell{
+      border-radius:32px;
+      overflow:hidden;
+      display:grid;
+      grid-template-rows:minmax(420px, 1fr) auto;
+      min-height:620px;
+    }
+
+    .assistant-answer{
+      padding:22px;
+      overflow:auto;
+      display:flex;
+      flex-direction:column;
+      gap:14px;
+      background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.00));
+    }
+
+    .assistant-placeholder{
+      margin:auto 0;
+      padding:22px;
+      border-radius:24px;
+      border:1px dashed rgba(148,163,184,0.24);
+      background:rgba(255,255,255,0.03);
+    }
+
+    .assistant-placeholder strong{
+      display:block;
+      margin-bottom:8px;
+      font-size:1rem;
+    }
+
+    .assistant-placeholder div{
+      color:var(--muted);
+      line-height:1.75;
+      font-size:.92rem;
+    }
+
+    .assistant-message{
+      display:flex;
+      flex-direction:column;
+      gap:6px;
+    }
+
+    .assistant-message-user{
+      align-items:flex-end;
+    }
+
+    .assistant-message-assistant{
+      align-items:flex-start;
+    }
+
+    .assistant-message-label{
+      color:var(--dim);
+      font-size:.75rem;
+      font-weight:800;
+      letter-spacing:.06em;
+      text-transform:uppercase;
+    }
+
+    .assistant-message-bubble{
+      width:min(880px, 100%);
+      padding:16px 18px;
+      border-radius:22px;
+      border:1px solid var(--border);
+      background:rgba(255,255,255,0.05);
+      line-height:1.72;
+      overflow-wrap:anywhere;
+    }
+
+    .assistant-message-user .assistant-message-bubble{
+      background:linear-gradient(135deg, rgba(37,99,235,0.22), rgba(14,165,233,0.18));
+      border-color:rgba(96,165,250,0.24);
+    }
+
+    .assistant-message-bubble-loading{
+      color:var(--muted);
+    }
+
+    .assistant-error{
+      color:var(--danger);
+      font-weight:700;
+    }
+
+    .assistant-composer{
+      padding:18px;
+      border-top:1px solid var(--border);
+      background:rgba(7, 17, 31, 0.42);
+      display:grid;
+      gap:12px;
+    }
+
+    body.light-mode .assistant-composer{
+      background:rgba(255,255,255,0.78);
+    }
+
+    .assistant-input-wrap{
+      display:grid;
+      grid-template-columns:minmax(0, 1fr) auto;
+      gap:12px;
+    }
+
+    .assistant-input{
+      width:100%;
+      min-height:54px;
+      padding:0 18px;
+      border-radius:18px;
+      border:1px solid var(--border);
+      background:var(--panel-solid);
+      color:var(--text);
+      outline:none;
+    }
+
+    .assistant-input:focus{
+      border-color:rgba(96,165,250,0.30);
+      box-shadow:0 0 0 4px rgba(96,165,250,0.12);
+    }
+
+    .assistant-submit{
+      min-width:132px;
+      padding:0 18px;
+      border:0;
+      border-radius:18px;
+      background:linear-gradient(135deg, #2563eb, #0ea5e9);
+      color:#fff;
+      font-weight:900;
+      cursor:pointer;
+      box-shadow:0 16px 30px rgba(37,99,235,0.22);
+    }
+
+    .assistant-toolbar-row{
+      display:flex;
+      align-items:flex-start;
+      justify-content:space-between;
+      gap:12px;
+      flex-wrap:wrap;
+    }
+
+    .assistant-note{
+      color:var(--muted);
+      font-size:.85rem;
+      line-height:1.7;
+      max-width:760px;
+    }
+
+    .assistant-secondary-btn{
+      min-height:40px;
+      padding:0 14px;
+    }
+
+    .assistant-chip-row{
+      display:flex;
+      flex-wrap:wrap;
+      gap:10px;
+    }
+
+    .assistant-chip{
+      padding:10px 14px;
+      font-size:.84rem;
+      font-weight:800;
+    }
+
+    .assistant-meta-row{
+      display:flex;
+      flex-wrap:wrap;
+      gap:8px;
+      margin-bottom:12px;
+    }
+
+    .assistant-meta-pill{
+      display:inline-flex;
+      align-items:center;
+      padding:6px 10px;
+      border-radius:999px;
+      background:rgba(96,165,250,0.12);
+      border:1px solid rgba(96,165,250,0.18);
+      color:var(--accent);
+      font-size:.76rem;
+      font-weight:800;
+    }
+
+    .assistant-route-title{
+      display:flex;
+      align-items:center;
+      flex-wrap:wrap;
+      gap:10px;
+      margin-bottom:10px;
+    }
+
+    .assistant-route-title strong{
+      font-size:1.02rem;
+      line-height:1.4;
+    }
+
+    .assistant-helper-badge{
+      display:inline-flex;
+      align-items:center;
+      padding:6px 10px;
+      border-radius:999px;
+      background:rgba(37,99,235,0.14);
+      color:var(--accent);
+      font-size:.76rem;
+      font-weight:900;
+      letter-spacing:.04em;
+    }
+
+    .assistant-system-list{
+      display:grid;
+      gap:12px;
+    }
+
+    .assistant-system-card,
+    .assistant-section-block,
+    .assistant-stat-card{
+      border:1px solid var(--border);
+      background:rgba(255,255,255,0.04);
+      border-radius:18px;
+    }
+
+    .assistant-system-card{
+      padding:16px;
+    }
+
+    .assistant-system-head{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      flex-wrap:wrap;
+      margin-bottom:12px;
+    }
+
+    .assistant-system-tag,
+    .assistant-inline-tag,
+    .assistant-seat-pill{
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      border-radius:999px;
+      font-size:.75rem;
+      font-weight:900;
+    }
+
+    .assistant-system-tag{
+      padding:6px 10px;
+      color:#fff;
+    }
+
+    .assistant-system-tag.tr{
+      background:#2563eb;
+    }
+
+    .assistant-system-tag.thsr{
+      background:#ea580c;
+    }
+
+    .assistant-system-note{
+      color:var(--muted);
+      font-size:.84rem;
+      line-height:1.6;
+    }
+
+    .assistant-section-block{
+      padding:14px;
+      margin-top:12px;
+    }
+
+    .assistant-section-title{
+      margin-bottom:10px;
+      font-size:.84rem;
+      color:var(--dim);
+      font-weight:900;
+      letter-spacing:.06em;
+      text-transform:uppercase;
+    }
+
+    .assistant-service-grid{
+      display:grid;
+      gap:10px;
+    }
+
+    .assistant-service-row{
+      display:flex;
+      align-items:flex-start;
+      justify-content:space-between;
+      gap:12px;
+      padding:12px 14px;
+      border-radius:16px;
+      background:rgba(255,255,255,0.03);
+      border:1px solid rgba(148,163,184,0.12);
+    }
+
+    .assistant-service-main{
+      min-width:0;
+      flex:1 1 auto;
+    }
+
+    .assistant-service-main strong{
+      display:block;
+      line-height:1.5;
+    }
+
+    .assistant-service-main div{
+      color:var(--muted);
+      font-size:.88rem;
+      line-height:1.65;
+      margin-top:4px;
+    }
+
+    .assistant-service-side{
+      display:flex;
+      flex-wrap:wrap;
+      align-items:center;
+      justify-content:flex-end;
+      gap:8px;
+      min-width:116px;
+    }
+
+    .assistant-inline-tag{
+      margin-left:6px;
+      padding:3px 8px;
+      background:rgba(96,165,250,0.12);
+      color:var(--accent);
+    }
+
+    .assistant-seat-pill{
+      padding:5px 10px;
+      color:#fff;
+      background:#16a34a;
+    }
+
+    .assistant-seat-pill.warn{
+      background:#d97706;
+    }
+
+    .assistant-seat-pill.danger{
+      background:#dc2626;
+    }
+
+    .assistant-action-btn,
+    .assistant-compact-btn{
+      min-height:38px;
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      padding:0 14px;
+      font-size:.84rem;
+      font-weight:800;
+    }
+
+    .assistant-actions{
+      display:flex;
+      flex-wrap:wrap;
+      gap:10px;
+      margin-top:12px;
+    }
+
+    .assistant-empty-note{
+      color:var(--muted);
+      font-size:.88rem;
+      line-height:1.65;
+    }
+
+    .assistant-train-grid{
+      display:grid;
+      grid-template-columns:repeat(2, minmax(0, 1fr));
+      gap:10px;
+      margin-top:12px;
+    }
+
+    .assistant-stat-card{
+      padding:14px;
+    }
+
+    .assistant-stat-card span{
+      display:block;
+      color:var(--dim);
+      font-size:.76rem;
+      font-weight:800;
+      letter-spacing:.06em;
+      text-transform:uppercase;
+      margin-bottom:8px;
+    }
+
+    .assistant-stat-card strong{
+      display:block;
+      line-height:1.6;
+      font-size:.95rem;
+    }
+
+    .assistant-stop-strip{
+      display:flex;
+      flex-wrap:wrap;
+      gap:8px;
+      margin-top:10px;
+    }
+
+    .assistant-stop-chip{
+      display:inline-flex;
+      align-items:center;
+      padding:7px 10px;
+      border-radius:999px;
+      background:rgba(148,163,184,0.12);
+      color:var(--text);
+      font-size:.8rem;
+      font-weight:700;
+    }
+
+    @media (max-width: 980px){
+      .ai-intro{
+        grid-template-columns:1fr;
+      }
+    }
+
+    @media (max-width: 760px){
+      body{
+        padding:12px 10px 18px;
+      }
+
+      .ai-topbar{
+        border-radius:24px;
+        padding:14px;
+        flex-direction:column;
+        align-items:flex-start;
+      }
+
+      .ai-nav{
+        width:100%;
+        justify-content:flex-start;
+      }
+
+      .ai-intro{
+        padding:18px;
+        border-radius:24px;
+      }
+
+      .ai-chat-shell{
+        border-radius:24px;
+        min-height:calc(100vh - 280px);
+        grid-template-rows:minmax(360px, 1fr) auto;
+      }
+
+      .assistant-answer{
+        padding:16px;
+      }
+
+      .assistant-composer{
+        padding:14px;
+      }
+
+      .assistant-input-wrap{
+        grid-template-columns:1fr;
+      }
+
+      .assistant-submit{
+        min-height:52px;
+      }
+
+      .assistant-train-grid{
+        grid-template-columns:1fr;
+      }
+
+      .assistant-service-row,
+      .assistant-toolbar-row{
+        flex-direction:column;
+      }
+
+      .assistant-service-side{
+        width:100%;
+        justify-content:flex-start;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="ai-page-shell" data-state="idle">
+    <nav class="ai-topbar" aria-label="AI 頁面工具列">
+      <div class="ai-brand">
+        <div class="ai-brand-mark">AI</div>
+        <div class="ai-brand-copy">
+          <strong>Rail AI 助手</strong>
+          <span>只保留旅程、車次、車站與票況的核心查詢。</span>
+        </div>
+      </div>
+      <div class="ai-nav">
+        <a class="ai-nav-link" href="./index.html">首頁</a>
+        <a class="ai-nav-link" href="../tr/tr.html">臺鐵</a>
+        <a class="ai-nav-link" href="../thsr/thsr.html">高鐵</a>
+        <button id="aiThemeToggle" type="button">主題</button>
+      </div>
+    </nav>
+
+    <section class="ai-intro">
+      <div class="ai-intro-copy">
+        <h1>用一句話問旅程、車次、車站或票況。</h1>
+        <p>支援日期、單一時間、時間區間、車種、車次目前位置、預估抵達與高鐵票況。頁面只保留必要說明與對話結果。</p>
+        <div class="ai-intro-points">
+          <span>今天 08:00 台北到台中</span>
+          <span>412次 台中幾點到</span>
+          <span>板橋站有什麼車</span>
+          <span>高鐵台北到左營有沒有票</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="ai-chat-shell" aria-label="AI 對話區">
+      <article class="assistant-answer assistant-thread" id="assistantAnswer" aria-live="polite">
+        <div class="assistant-placeholder assistant-thread-empty" data-thread-empty="1">
+          <strong>輸入一句話，我直接整理最重要的結果。</strong>
+          <div>可以直接問起訖站、車次、車站，也可以加入日期、時間、時段、車種或高鐵票況條件。</div>
+        </div>
+      </article>
+
+      <div class="assistant-composer">
+        <div class="assistant-input-wrap">
+          <input id="routeAssistantInput" class="assistant-input" type="text" placeholder="例如：今天 08:00 台北到台中、412次台中幾點到、板橋站有什麼車">
+          <button id="routeAssistantBtn" class="assistant-submit" type="button">開始詢問</button>
+        </div>
+        <div class="assistant-toolbar-row">
+          <div class="assistant-note">支援旅程、車次、車站三種核心問法，結果會附上對應的查詢與訂票入口。</div>
+          <button id="assistantClearBtn" class="assistant-secondary-btn" type="button">清除對話</button>
+        </div>
+        <div class="assistant-chip-row">
+          <button class="assistant-chip" type="button" data-query="今天 08:00 台北到台中">今天 08:00 台北到台中</button>
+          <button class="assistant-chip" type="button" data-query="412次 台中幾點到">車次 ETA</button>
+          <button class="assistant-chip" type="button" data-query="板橋站有什麼車">車站班次</button>
+          <button class="assistant-chip" type="button" data-query="高鐵台北到左營有沒有票">高鐵票況</button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script src="./ai-hub.js"></script>
+  <script src="./assistant-upgrade.js"></script>
+</body>
+</html>
