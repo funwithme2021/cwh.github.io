@@ -240,14 +240,14 @@ function rememberRecentLaunch(sys, params) {
 }
 
 function buildUrl(sys, params) {
-  const baseUrl = sys === "tr" ? "../tr/tr.html" : "../thsr/thsr.html";
   const query = new URLSearchParams();
   if (params) {
     Object.entries(params).forEach(([key, value]) => {
       if (value !== undefined && value !== null && value !== "") query.set(key, value);
     });
   }
-  return `${baseUrl}?${query.toString()}`;
+  const search = query.toString();
+  return `./index.html${search ? `?${search}` : ""}#${sys}`;
 }
 
 function openAppOverlay(sys, params, options) {
@@ -259,6 +259,43 @@ function toggleTheme() {
   document.body.classList.toggle("light-mode");
   const isLight = document.body.classList.contains("light-mode");
   localStorage.setItem("theme", isLight ? "light" : "dark");
+}
+
+function initEmbeddedNav() {
+  const isEmbed = new URLSearchParams(location.search).get("embed") === "1";
+  if (!isEmbed) return;
+  document.querySelectorAll(".ai-nav-link").forEach((link) => {
+    if (link.dataset.embedBound) return;
+    link.dataset.embedBound = "1";
+    link.addEventListener("click", (event) => {
+      const href = link.getAttribute("href") || "";
+      if (!href) return;
+      event.preventDefault();
+      if (href.includes("./index.html")) {
+        try {
+          parent.postMessage({ type: "APP_CLOSE" }, "*");
+        } catch (_) {
+          location.href = "./index.html";
+        }
+        return;
+      }
+      if (href.includes("../tr/tr.html")) {
+        try {
+          parent.postMessage({ type: "OPEN_OVERLAY", sys: "tr" }, "*");
+        } catch (_) {
+          location.href = "./index.html#tr";
+        }
+        return;
+      }
+      if (href.includes("../thsr/thsr.html")) {
+        try {
+          parent.postMessage({ type: "OPEN_OVERLAY", sys: "thsr" }, "*");
+        } catch (_) {
+          location.href = "./index.html#thsr";
+        }
+      }
+    });
+  });
 }
 
 function getThreadContainer() {
@@ -365,6 +402,7 @@ function applySavedTheme() {
 
 function initAiHub() {
   applySavedTheme();
+  initEmbeddedNav();
   bindAssistantUI();
 
   const themeBtn = document.getElementById("aiThemeToggle");

@@ -2196,7 +2196,7 @@ select.setting-input[id*="pick"] {
                     <strong id="heroOpsSummary">讀取營運訊息中</strong>
                     <p id="heroOpsDetail" class="home-toolbar-text">正在同步臺鐵與高鐵的最新營運狀態。</p>
                     <div class="home-toolbar-actions">
-                        <button class="home-tool-btn primary" type="button" onclick="location.href='./ai.html'">AI 專頁</button>
+                        <button class="home-tool-btn primary" type="button" onclick="openAppOverlay('ai')">AI 專頁</button>
                         <button class="home-tool-btn" type="button" onclick="openPreferredHome('tr')">臺鐵首頁站</button>
                         <button class="home-tool-btn" type="button" onclick="openPreferredHome('thsr')">高鐵首頁站</button>
                         <button class="home-tool-btn" type="button" onclick="toggleSettings(true)">設定 / 監控</button>
@@ -2274,7 +2274,7 @@ select.setting-input[id*="pick"] {
                 </div>
             </div>
 
-            <div class="entry-card" onclick="location.href='./ai.html'">
+            <div class="entry-card" onclick="openAppOverlay('ai')">
                 <div class="card-sheen"></div>
                 <div class="card-content-layer">
                     <span class="system-badge assistant-entry-badge">AI Hub</span>
@@ -2332,7 +2332,7 @@ select.setting-input[id*="pick"] {
                     <div class="monitor-empty" id="homeMonitorSummary">尚未啟用監控。可在設定中開啟多車次輪播與通知提醒。</div>
                 </div>
                 <div class="home-toolbar-actions">
-                    <button class="home-tool-btn primary" type="button" onclick="location.href='./ai.html'">AI 追蹤</button>
+                    <button class="home-tool-btn primary" type="button" onclick="openAppOverlay('ai')">AI 追蹤</button>
                     <button class="home-tool-btn" type="button" onclick="toggleSettings(true)">管理監控與收藏</button>
                 </div>
             </article>
@@ -2601,8 +2601,23 @@ select.setting-input[id*="pick"] {
         const overlay = document.getElementById('appOverlay');
         const frame = document.getElementById('appOverlayFrame');
 
+        function readOverlayParamsFromUrl(){
+          const q = new URLSearchParams(location.search);
+          const params = {};
+          ['start', 'end', 'station', 'q'].forEach((key) => {
+            const value = q.get(key);
+            if(value) params[key] = value;
+          });
+          return Object.keys(params).length ? params : null;
+        }
+
         function buildUrl(sys, params){
-          const baseUrl = sys === 'tr' ? '../tr/tr.html' : '../thsr/thsr.html';
+          const baseUrl =
+            sys === 'tr'
+              ? '../tr/tr.html'
+              : sys === 'thsr'
+                ? '../thsr/thsr.html'
+                : './ai.html';
           const q = new URLSearchParams();
           q.set('embed','1');
           if(params){
@@ -2621,7 +2636,7 @@ select.setting-input[id*="pick"] {
           frame.src = buildUrl(sys, params);
           overlay.classList.add('show');
           overlay.setAttribute('aria-hidden','false');
-          history.pushState({app: sys, params: params||null}, '', '#' + sys);
+          history.pushState({app: sys, params: params||null}, '', location.pathname + '#' + sys);
         };
 
         window.closeAppOverlay = function(){
@@ -2629,7 +2644,7 @@ select.setting-input[id*="pick"] {
           overlay.setAttribute('aria-hidden','true');
           // stop audio/network in iframe
           frame.src = 'about:blank';
-          if(location.hash) history.pushState({}, '', location.pathname + location.search);
+          if(location.hash || location.search) history.pushState({}, '', location.pathname);
         };
 
         // Allow iframe to ask parent to close
@@ -2637,13 +2652,17 @@ select.setting-input[id*="pick"] {
           if(!ev || !ev.data) return;
           if(ev.data === 'APP_CLOSE' || (ev.data && ev.data.type === 'APP_CLOSE')){
             window.closeAppOverlay();
+            return;
+          }
+          if(ev.data && ev.data.type === 'OPEN_OVERLAY' && (ev.data.sys === 'ai' || ev.data.sys === 'tr' || ev.data.sys === 'thsr')){
+            window.openAppOverlay(ev.data.sys, ev.data.params || null, { skipRecent: true });
           }
         });
 
         // Back button
         window.addEventListener('popstate', (e) => {
           const h = (location.hash || '').replace('#','');
-          if(h === 'tr' || h === 'thsr'){
+          if(h === 'ai' || h === 'tr' || h === 'thsr'){
             // if navigating back into app, reopen without params
             window.openAppOverlay(h, (e.state && e.state.params) ? e.state.params : null, { skipRecent: true });
           }else{
@@ -2654,8 +2673,8 @@ select.setting-input[id*="pick"] {
         // On reload with hash
         window.addEventListener('load', () => {
           const h = (location.hash || '').replace('#','');
-          if(h === 'tr' || h === 'thsr'){
-            window.openAppOverlay(h, null, { skipRecent: true });
+          if(h === 'ai' || h === 'tr' || h === 'thsr'){
+            window.openAppOverlay(h, readOverlayParamsFromUrl(), { skipRecent: true });
           }
         });
       })();
@@ -4112,8 +4131,12 @@ function toggleSettings(show) {
 
         function formatRecentLaunchLabel(item) {
             if (!item) return '尚無紀錄';
-            const sysLabel = item.sys === 'thsr' ? '高鐵' : '臺鐵';
+            const sysLabel = item.sys === 'ai' ? 'AI' : (item.sys === 'thsr' ? '高鐵' : '臺鐵');
             const params = item.params || {};
+            if (item.sys === 'ai') {
+                if (params.q) return `AI · ${String(params.q).slice(0, 18)}`;
+                return 'AI · 助手頁';
+            }
             if (params.start && params.end) return `${sysLabel} · ${params.start} → ${params.end}`;
             if (params.station) return `${sysLabel} · ${params.station}`;
             return `${sysLabel} · 系統首頁`;
@@ -4191,7 +4214,7 @@ function toggleSettings(show) {
                         </div>
                         <div class="pinned-train-note">${escapeHtml(item.station ? `目標站 ${item.station} ｜ 直接查看預估到站與目前位置` : '查看目前狀態、目前位置與後續停靠站')}</div>
                         <div class="home-toolbar-actions">
-                            <button class="home-tool-btn" type="button" onclick="location.href='./ai.html?q=${encodeURIComponent(query)}'">AI 追蹤</button>
+                            <button class="home-tool-btn" type="button" onclick='openAppOverlay("ai", { q: ${JSON.stringify(query)} })'>AI 追蹤</button>
                             <button class="home-tool-btn" type="button" onclick="toggleSettings(true)">管理釘選</button>
                         </div>
                     </div>
