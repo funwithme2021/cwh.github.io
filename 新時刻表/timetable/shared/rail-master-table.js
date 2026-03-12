@@ -94,6 +94,7 @@
     if (startMin === null || endMin === null) return "";
     let diff = endMin - startMin;
     if (diff < 0) diff += 1440;
+    if (diff > 720) diff = Math.abs(diff - 1440);
     const hours = Math.floor(diff / 60);
     const minutes = diff % 60;
     return `${hours ? `${hours}時` : ""}${minutes}分`;
@@ -130,6 +131,15 @@
   function matchesDirectionFilter(trainNo, filterValue) {
     if (!filterValue || filterValue === "all") return true;
     return getTrainNoParity(trainNo) === filterValue;
+  }
+
+  function getDisplayStationList(system, stations, direction) {
+    if (!Array.isArray(stations)) return [];
+    const list = stations.slice();
+    if (direction === "even" && (system === "tr" || system === "thsr")) {
+      list.reverse();
+    }
+    return list;
   }
 
   function sanitizeFilename(name) {
@@ -740,10 +750,18 @@
     });
     const reserved = sortEntries(filtered.filter((entry) => entry.isReserved), range, rangeSet, pivot);
     const nonReserved = sortEntries(filtered.filter((entry) => !entry.isReserved), range, rangeSet, pivot);
-    const reservedStations = range.filter((station) => reserved.some((entry) => entry.stopMap.has(station)));
-    const nonReservedStations = state.onlyStopCheckbox.checked
+    const reservedStations = getDisplayStationList(
+      "tr",
+      range.filter((station) => reserved.some((entry) => entry.stopMap.has(station))),
+      direction
+    );
+    const nonReservedStations = getDisplayStationList(
+      "tr",
+      state.onlyStopCheckbox.checked
       ? range.filter((station) => nonReserved.some((entry) => entry.stopMap.has(station)))
-      : range;
+      : range,
+      direction
+    );
     state.output.innerHTML = `
       <div class="rail-master-export-scope">
         <div class="rail-master-meta-line"></div>
@@ -792,9 +810,13 @@
       return entry.stops.some((stop) => rangeSet.has(stop.name));
     });
     const sorted = sortEntries(filtered, range, rangeSet, pivot);
-    const stationList = state.onlyStopCheckbox.checked
+    const stationList = getDisplayStationList(
+      "thsr",
+      state.onlyStopCheckbox.checked
       ? range.filter((station) => sorted.some((entry) => entry.stopMap.has(station)))
-      : range;
+      : range,
+      direction
+    );
     state.output.innerHTML = `
       <div class="rail-master-export-scope">
         <div class="rail-master-meta-line"></div>
