@@ -1,0 +1,1212 @@
+(function () {
+  const STYLE_ID = "rail-master-table-styles";
+  const TAB_ID = "tab-master-table";
+  const PANEL_ID = "panel-master-table";
+  const SEA_LINE_STATIONS = new Set([
+    "談文",
+    "大山",
+    "後龍",
+    "龍港",
+    "白沙屯",
+    "新埔",
+    "通霄",
+    "苑裡",
+    "日南",
+    "大甲",
+    "台中港",
+    "清水",
+    "沙鹿",
+    "龍井",
+    "大肚",
+    "追分",
+    "臺中港",
+  ]);
+  const TRA_NON_RESERVED_TYPES = new Set(["區間快", "區間車"]);
+  const TRA_TYPE_COLORS = {
+    新自強: "#7c3aed",
+    普悠瑪: "#e11d48",
+    太魯閣: "#be123c",
+    自強號: "#ea580c",
+    自強: "#ea580c",
+    "自強號(新)": "#b45309",
+    莒光號: "#d97706",
+    復興號: "#0284c7",
+    區間快: "#15803d",
+    區間車: "#334155",
+  };
+
+  function maybePromise(value) {
+    return value && typeof value.then === "function" ? value : Promise.resolve(value);
+  }
+
+  function escapeHtml(value) {
+    return String(value || "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+
+  function escapeAttr(value) {
+    return escapeHtml(value).replace(/`/g, "&#96;");
+  }
+
+  function readPageValue(expression) {
+    try {
+      return window.eval(expression);
+    } catch (_) {
+      return undefined;
+    }
+  }
+
+  function getSystem() {
+    const path = String(location.pathname || "").toLowerCase();
+    if (path.includes("/tr/")) return "tr";
+    if (path.includes("/thsr/")) return "thsr";
+    return "";
+  }
+
+  function getQueryDate() {
+    return document.getElementById("mainQueryDate")?.value || readPageValue("currentQueryDateStr") || "";
+  }
+
+  function normalizeTraStation(name) {
+    return String(name || "").trim().replace(/台/g, "臺");
+  }
+
+  function normalizeThsrStation(name) {
+    return String(name || "").trim().replace(/臺/g, "台");
+  }
+
+  function parseMinutes(time) {
+    const match = String(time || "").trim().match(/^(\d{1,2}):(\d{2})$/);
+    if (!match) return null;
+    const hour = Number(match[1]);
+    const minute = Number(match[2]);
+    if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return null;
+    return hour * 60 + minute;
+  }
+
+  function formatDuration(start, end) {
+    const startMin = parseMinutes(start);
+    const endMin = parseMinutes(end);
+    if (startMin === null || endMin === null) return "";
+    let diff = endMin - startMin;
+    if (diff < 0) diff += 1440;
+    const hours = Math.floor(diff / 60);
+    const minutes = diff % 60;
+    return `${hours ? `${hours}時` : ""}${minutes}分`;
+  }
+
+  function displayStopTime(stop) {
+    if (!Array.isArray(stop)) return "";
+    return String(stop[1] || stop[2] || "").trim();
+  }
+
+  function getTrainDirectionOptions(system) {
+    if (system === "tr") {
+      return [
+        { value: "all", label: "全部" },
+        { value: "even", label: "順行(偶數車次)" },
+        { value: "odd", label: "逆行(基數車次)" },
+      ];
+    }
+    return [
+      { value: "all", label: "全部" },
+      { value: "even", label: "北上(偶數車次)" },
+      { value: "odd", label: "南下(基數車次)" },
+    ];
+  }
+
+  function getTrainNoParity(trainNo) {
+    const digits = String(trainNo || "").match(/\d+/g);
+    if (!digits || !digits.length) return "";
+    const number = Number(digits.join(""));
+    if (!Number.isFinite(number)) return "";
+    return number % 2 === 0 ? "even" : "odd";
+  }
+
+  function matchesDirectionFilter(trainNo, filterValue) {
+    if (!filterValue || filterValue === "all") return true;
+    return getTrainNoParity(trainNo) === filterValue;
+  }
+
+  function sanitizeFilename(name) {
+    return String(name || "download")
+      .replace(/[\\/:*?"<>|]+/g, "-")
+      .replace(/\s+/g, "-")
+      .replace(/-+/g, "-")
+      .replace(/^-|-$/g, "");
+  }
+
+  async function waitFrames(count = 2) {
+    for (let i = 0; i < count; i += 1) {
+      await new Promise((resolve) => requestAnimationFrame(() => resolve()));
+    }
+  }
+
+  function inlineComputedStyles(source, target) {
+    if (!source || !target || source.nodeType !== 1 || target.nodeType !== 1) return;
+    const computed = getComputedStyle(source);
+    for (let i = 0; i < computed.length; i += 1) {
+      const propertyName = computed[i];
+      target.style.setProperty(propertyName, computed.getPropertyValue(propertyName), computed.getPropertyPriority(propertyName));
+    }
+    if (source instanceof HTMLInputElement) {
+      target.value = source.value;
+      if (source.checked) target.setAttribute("checked", "checked");
+      else target.removeAttribute("checked");
+    } else if (source instanceof HTMLTextAreaElement || source instanceof HTMLSelectElement) {
+      target.value = source.value;
+    } else if (source instanceof HTMLCanvasElement) {
+      const dataUrl = source.toDataURL();
+      const image = document.createElement("img");
+      image.src = dataUrl;
+      image.alt = "";
+      image.style.cssText = target.style.cssText;
+      image.width = source.width;
+      image.height = source.height;
+      target.replaceWith(image);
+      target = image;
+    }
+    const sourceChildren = Array.from(source.childNodes);
+    const targetChildren = Array.from(target.childNodes);
+    for (let i = 0; i < sourceChildren.length; i += 1) {
+      inlineComputedStyles(sourceChildren[i], targetChildren[i]);
+    }
+  }
+
+  async function loadSvgImage(svg) {
+    const blob = new Blob([svg], { type: "image/svg+xml;charset=utf-8" });
+    const blobUrl = URL.createObjectURL(blob);
+    const dataUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+    const candidates = [blobUrl, dataUrl];
+    try {
+      for (const src of candidates) {
+        try {
+          const image = new Image();
+          image.decoding = "async";
+          await new Promise((resolve, reject) => {
+            image.onload = () => resolve();
+            image.onerror = () => reject(new Error("畫面擷取失敗，請稍後再試。"));
+            image.src = src;
+          });
+          return image;
+        } catch (_) {
+        }
+      }
+      throw new Error("畫面擷取失敗，請稍後再試。");
+    } finally {
+      URL.revokeObjectURL(blobUrl);
+    }
+  }
+
+  async function captureElementToCanvas(element, options = {}) {
+    if (!element) throw new Error("找不到要匯出的內容。");
+    await waitFrames(2);
+    const rect = element.getBoundingClientRect();
+    const width = Math.max(1, Math.ceil(options.width || element.scrollWidth || rect.width || 1));
+    const height = Math.max(1, Math.ceil(options.height || element.scrollHeight || rect.height || 1));
+    const padding = Math.max(0, Number(options.padding || 0));
+    const scale = Math.max(1, Math.min(2, Number(options.scale || window.devicePixelRatio || 1)));
+    const cloneHost = document.createElement("div");
+    const clone = element.cloneNode(true);
+    inlineComputedStyles(element, clone);
+    if (typeof options.prepareClone === "function") options.prepareClone(clone);
+    cloneHost.appendChild(clone);
+    clone.style.margin = "0";
+    clone.style.transform = "none";
+    clone.style.maxHeight = "none";
+    clone.style.height = "auto";
+    const serialized = new XMLSerializer().serializeToString(cloneHost);
+    const bg = options.background || getComputedStyle(document.body).backgroundColor || "#ffffff";
+    const totalWidth = width + padding * 2;
+    const totalHeight = height + padding * 2;
+    const svg = `
+      <svg xmlns="http://www.w3.org/2000/svg" width="${totalWidth}" height="${totalHeight}" viewBox="0 0 ${totalWidth} ${totalHeight}">
+        <foreignObject x="0" y="0" width="100%" height="100%">
+          <div xmlns="http://www.w3.org/1999/xhtml" class="${escapeAttr(document.body.className)}" style="margin:0;padding:${padding}px;width:${totalWidth}px;height:${totalHeight}px;overflow:hidden;background:${escapeAttr(bg)};">
+            ${serialized}
+          </div>
+        </foreignObject>
+      </svg>
+    `;
+    const image = await loadSvgImage(svg);
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.ceil(totalWidth * scale);
+    canvas.height = Math.ceil(totalHeight * scale);
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("畫布初始化失敗，請稍後再試。");
+    ctx.scale(scale, scale);
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, totalWidth, totalHeight);
+    ctx.drawImage(image, 0, 0, totalWidth, totalHeight);
+    return canvas;
+  }
+
+  function canvasToBlob(canvas, type, quality) {
+    return new Promise((resolve, reject) => {
+      canvas.toBlob((blob) => {
+        if (blob) resolve(blob);
+        else reject(new Error("檔案產生失敗。"));
+      }, type, quality);
+    });
+  }
+
+  function triggerDownload(blob, filename) {
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = sanitizeFilename(filename);
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1500);
+  }
+
+  function concatUint8(parts) {
+    const total = parts.reduce((sum, part) => sum + part.length, 0);
+    const merged = new Uint8Array(total);
+    let offset = 0;
+    parts.forEach((part) => {
+      merged.set(part, offset);
+      offset += part.length;
+    });
+    return merged;
+  }
+
+  function toBytes(text) {
+    return new TextEncoder().encode(text);
+  }
+
+  function buildPdfFromJpeg(jpegBytes, widthPx, heightPx) {
+    const widthPt = Math.max(72, Math.round((widthPx * 72) / 96));
+    const heightPt = Math.max(72, Math.round((heightPx * 72) / 96));
+    const content = `q\n${widthPt} 0 0 ${heightPt} 0 0 cm\n/Im0 Do\nQ\n`;
+    const objects = [
+      toBytes("1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"),
+      toBytes("2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"),
+      toBytes(
+        `3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${widthPt} ${heightPt}] /Resources << /XObject << /Im0 4 0 R >> >> /Contents 5 0 R >>\nendobj\n`
+      ),
+      concatUint8([
+        toBytes(
+          `4 0 obj\n<< /Type /XObject /Subtype /Image /Width ${widthPx} /Height ${heightPx} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${jpegBytes.length} >>\nstream\n`
+        ),
+        jpegBytes,
+        toBytes("\nendstream\nendobj\n"),
+      ]),
+      toBytes(`5 0 obj\n<< /Length ${content.length} >>\nstream\n${content}endstream\nendobj\n`),
+    ];
+
+    const header = toBytes("%PDF-1.4\n%\u00ff\u00ff\u00ff\u00ff\n");
+    const parts = [header];
+    const offsets = [0];
+    let cursor = header.length;
+    objects.forEach((objectBytes) => {
+      offsets.push(cursor);
+      parts.push(objectBytes);
+      cursor += objectBytes.length;
+    });
+    const xrefOffset = cursor;
+    const xref = [
+      "xref",
+      `0 ${objects.length + 1}`,
+      "0000000000 65535 f ",
+      ...offsets.slice(1).map((offset) => `${String(offset).padStart(10, "0")} 00000 n `),
+      "trailer",
+      `<< /Size ${objects.length + 1} /Root 1 0 R >>`,
+      "startxref",
+      `${xrefOffset}`,
+      "%%EOF",
+      "",
+    ].join("\n");
+    parts.push(toBytes(xref));
+    return new Blob(parts, { type: "application/pdf" });
+  }
+
+  async function downloadElementAsPdf(element, filename, options = {}) {
+    const canvas = await captureElementToCanvas(element, options);
+    const jpeg = await canvasToBlob(canvas, "image/jpeg", 0.92);
+    const pdf = buildPdfFromJpeg(new Uint8Array(await jpeg.arrayBuffer()), canvas.width, canvas.height);
+    triggerDownload(pdf, filename.endsWith(".pdf") ? filename : `${filename}.pdf`);
+  }
+
+  async function downloadElementAsImage(element, filename, options = {}) {
+    const canvas = await captureElementToCanvas(element, options);
+    const png = await canvasToBlob(canvas, "image/png");
+    triggerDownload(png, filename.endsWith(".png") ? filename : `${filename}.png`);
+  }
+
+  async function shareElementAsImage(element, filename, options = {}) {
+    const canvas = await captureElementToCanvas(element, options);
+    const png = await canvasToBlob(canvas, "image/png");
+    const file = new File([png], filename.endsWith(".png") ? filename : `${filename}.png`, { type: "image/png" });
+    if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+      await navigator.share({
+        title: options.title || "列車資訊",
+        text: options.text || "",
+        files: [file],
+      });
+      return;
+    }
+    triggerDownload(png, file.name);
+  }
+
+  function getTraTypeColor(type) {
+    if (typeof window.getTrainTypeColor === "function") {
+      try {
+        return window.getTrainTypeColor(type);
+      } catch (_) {
+      }
+    }
+    return TRA_TYPE_COLORS[type] || "#475569";
+  }
+
+  function getStationOrder(system) {
+    if (system === "tr") {
+      const list = readPageValue("stationListSorted") || [];
+      const seen = new Set();
+      return list
+        .map((item) => normalizeTraStation(item?.name || ""))
+        .filter((name) => name && !seen.has(name) && seen.add(name));
+    }
+    const thsrOrder = readPageValue("THSR_STATION_ORDER");
+    if (Array.isArray(thsrOrder) && thsrOrder.length) {
+      const seen = new Set();
+      return thsrOrder
+        .map((name) => normalizeThsrStation(name))
+        .filter((name) => name && !seen.has(name) && seen.add(name));
+    }
+    const list = readPageValue("stationListSorted") || [];
+    const seen = new Set();
+    return list
+      .map((item) => normalizeThsrStation(item?.name || ""))
+      .filter((name) => name && !seen.has(name) && seen.add(name));
+  }
+
+  function getDefaultRange(system, stations) {
+    const startField = document.getElementById("startStation");
+    const endField = document.getElementById("endStation");
+    const normalize = system === "tr" ? normalizeTraStation : normalizeThsrStation;
+    const startValue = normalize(startField?.value || "");
+    const endValue = normalize(endField?.value || "");
+    const defaultStart = stations.includes(startValue) ? startValue : stations[0];
+    const defaultEnd = stations.includes(endValue) ? endValue : stations[stations.length - 1];
+    return { start: defaultStart, end: defaultEnd };
+  }
+
+  function ensureRange(start, end, stations) {
+    let startIndex = stations.indexOf(start);
+    let endIndex = stations.indexOf(end);
+    if (startIndex < 0 || endIndex < 0) return [];
+    if (startIndex > endIndex) {
+      const tmp = startIndex;
+      startIndex = endIndex;
+      endIndex = tmp;
+    }
+    return stations.slice(startIndex, endIndex + 1);
+  }
+
+  function buildTraEntries(schedule, stationOrder) {
+    const stationIndex = new Map(stationOrder.map((name, idx) => [name, idx]));
+    return Object.keys(schedule || {})
+      .sort((a, b) => String(a).localeCompare(String(b), "en"))
+      .map((trainNo) => {
+        const raw = schedule?.[trainNo];
+        if (!raw) return null;
+        const type = String(raw["車種"] || "").trim();
+        if (!type || type === "加班車") return null;
+        const stops = (raw["車站時間"] || [])
+          .map((stop) => ({
+            name: normalizeTraStation(stop?.[0] || ""),
+            time: displayStopTime(stop),
+            arr: String(stop?.[2] || "").trim(),
+            dep: String(stop?.[1] || "").trim(),
+          }))
+          .filter((stop) => stop.name);
+        if (!stops.length) return null;
+        const indexes = stops.map((stop) => stationIndex.get(stop.name)).filter(Number.isFinite);
+        const stopMap = new Map(stops.map((stop) => [stop.name, stop.time]));
+        const firstIdx = indexes.length ? indexes[0] : -1;
+        const lastIdx = indexes.length ? indexes[indexes.length - 1] : -1;
+        return {
+          trainNo: String(trainNo),
+          type,
+          stops,
+          stopMap,
+          firstIdx,
+          lastIdx,
+          dir: firstIdx >= 0 && lastIdx >= 0 && lastIdx < firstIdx ? -1 : 1,
+          firstStation: stops[0].name,
+          lastStation: stops[stops.length - 1].name,
+          isReserved: !TRA_NON_RESERVED_TYPES.has(type),
+          isSea: stops.some((stop) => SEA_LINE_STATIONS.has(stop.name)),
+        };
+      })
+      .filter(Boolean);
+  }
+
+  function buildThsrEntries(schedule, stationOrder) {
+    const stationIndex = new Map(stationOrder.map((name, idx) => [name, idx]));
+    return Object.keys(schedule || {})
+      .sort((a, b) => String(a).localeCompare(String(b), "en"))
+      .map((trainNo) => {
+        const raw = schedule?.[trainNo];
+        if (!raw) return null;
+        const stops = (raw["車站時間"] || [])
+          .map((stop) => ({
+            name: normalizeThsrStation(stop?.[0] || ""),
+            time: displayStopTime(stop),
+            arr: String(stop?.[2] || "").trim(),
+            dep: String(stop?.[1] || "").trim(),
+          }))
+          .filter((stop) => stop.name);
+        if (!stops.length) return null;
+        const indexes = stops.map((stop) => stationIndex.get(stop.name)).filter(Number.isFinite);
+        const stopMap = new Map(stops.map((stop) => [stop.name, stop.time]));
+        const firstIdx = indexes.length ? indexes[0] : -1;
+        const lastIdx = indexes.length ? indexes[indexes.length - 1] : -1;
+        return {
+          trainNo: String(trainNo),
+          type: "",
+          stops,
+          stopMap,
+          firstIdx,
+          lastIdx,
+          dir: firstIdx >= 0 && lastIdx >= 0 && lastIdx < firstIdx ? -1 : 1,
+          firstStation: stops[0].name,
+          lastStation: stops[stops.length - 1].name,
+          isReserved: true,
+          isSea: false,
+        };
+      })
+      .filter(Boolean);
+  }
+
+  function passesStation(entry, stationName, stationIndexMap) {
+    const stationIdx = stationIndexMap.get(stationName);
+    if (!Number.isFinite(stationIdx) || !Number.isFinite(entry.firstIdx) || !Number.isFinite(entry.lastIdx)) return false;
+    return entry.dir === 1 ? stationIdx > entry.firstIdx && stationIdx < entry.lastIdx : stationIdx < entry.firstIdx && stationIdx > entry.lastIdx;
+  }
+
+  function firstTimeInRange(entry, rangeSet) {
+    const sequence = [];
+    entry.stops.forEach((stop) => {
+      if (!rangeSet.has(stop.name)) return;
+      const min = parseMinutes(stop.time);
+      if (min !== null) sequence.push(min);
+    });
+    if (!sequence.length) return null;
+    let offset = 0;
+    let previous = sequence[0];
+    const adjusted = [previous];
+    for (let i = 1; i < sequence.length; i += 1) {
+      if (sequence[i] < previous) offset += 1440;
+      adjusted.push(sequence[i] + offset);
+      previous = sequence[i];
+    }
+    return adjusted[0];
+  }
+
+  function isOvernightInRange(entry, rangeSet) {
+    let previous = null;
+    for (const stop of entry.stops) {
+      if (!rangeSet.has(stop.name)) continue;
+      const min = parseMinutes(stop.time);
+      if (min === null) continue;
+      if (previous !== null && min < previous) return true;
+      previous = min;
+    }
+    return false;
+  }
+
+  function sortEntries(entries, range, rangeSet, pivotStation) {
+    const pivot = pivotStation || "";
+    const sorter = (a, b) => {
+      if (pivot) {
+        const aPivot = parseMinutes(a.stopMap.get(pivot)) ?? 9999;
+        const bPivot = parseMinutes(b.stopMap.get(pivot)) ?? 9999;
+        if (aPivot !== bPivot) return aPivot - bPivot;
+      }
+      for (const station of range) {
+        if (!a.stopMap.has(station) || !b.stopMap.has(station)) continue;
+        const aTime = parseMinutes(a.stopMap.get(station));
+        const bTime = parseMinutes(b.stopMap.get(station));
+        if (aTime !== bTime) return (aTime ?? 9999) - (bTime ?? 9999);
+      }
+      return (firstTimeInRange(a, rangeSet) ?? 9999) - (firstTimeInRange(b, rangeSet) ?? 9999);
+    };
+    const daytime = [];
+    const overnight = [];
+    entries.forEach((entry) => (isOvernightInRange(entry, rangeSet) ? overnight : daytime).push(entry));
+    daytime.sort(sorter);
+    overnight.sort(sorter);
+    return [...daytime, ...overnight];
+  }
+
+  function createSelectOptions(select, stations, defaultValue) {
+    if (!select) return;
+    select.innerHTML = stations.map((station) => `<option value="${escapeAttr(station)}">${escapeHtml(station)}</option>`).join("");
+    if (stations.includes(defaultValue)) {
+      select.value = defaultValue;
+    }
+  }
+
+  function buildTraTypeControls(state, entries) {
+    if (state.system !== "tr") return;
+    const host = state.panel.querySelector("#railMasterTypeDropdown");
+    const count = state.panel.querySelector("#railMasterTypeCount");
+    if (!host || !count) return;
+    const nextTypes = Array.from(new Set(entries.map((entry) => entry.type).filter(Boolean))).sort((a, b) => a.localeCompare(b, "zh-Hant"));
+    const listChanged =
+      nextTypes.length !== state.allTypes.length ||
+      nextTypes.some((type, index) => type !== state.allTypes[index]);
+    if (!listChanged && host.childElementCount) {
+      count.textContent = state.selectedTypes.size === state.allTypes.length ? "(全)" : `(${state.selectedTypes.size})`;
+      return;
+    }
+    state.allTypes = nextTypes;
+    if (!state.selectedTypes.size || listChanged) {
+      state.selectedTypes = new Set(nextTypes);
+    }
+    host.innerHTML = `
+      <div class="rail-master-type-actions">
+        <button type="button" class="btn-ghost rail-master-mini-btn" data-master-type="all">全選</button>
+        <button type="button" class="btn-ghost rail-master-mini-btn" data-master-type="none">全無</button>
+      </div>
+      <div class="rail-master-type-list">
+        ${nextTypes
+          .map(
+            (type) => `
+              <label class="rail-master-type-item">
+                <span class="rail-master-type-dot" style="background:${getTraTypeColor(type)}"></span>
+                <span>${escapeHtml(type)}</span>
+                <input type="checkbox" value="${escapeAttr(type)}" ${state.selectedTypes.has(type) ? "checked" : ""}>
+              </label>
+            `
+          )
+          .join("")}
+      </div>
+    `;
+    host.querySelector('[data-master-type="all"]')?.addEventListener("click", () => {
+      state.selectedTypes = new Set(state.allTypes);
+      buildTraTypeControls(state, entries);
+      renderMasterTable(state);
+    });
+    host.querySelector('[data-master-type="none"]')?.addEventListener("click", () => {
+      state.selectedTypes = new Set();
+      buildTraTypeControls(state, entries);
+      renderMasterTable(state);
+    });
+    host.querySelectorAll('input[type="checkbox"]').forEach((checkbox) => {
+      checkbox.addEventListener("change", () => {
+        if (checkbox.checked) state.selectedTypes.add(checkbox.value);
+        else state.selectedTypes.delete(checkbox.value);
+        count.textContent = state.selectedTypes.size === state.allTypes.length ? "(全)" : `(${state.selectedTypes.size})`;
+        renderMasterTable(state);
+      });
+    });
+    count.textContent = state.selectedTypes.size === state.allTypes.length ? "(全)" : `(${state.selectedTypes.size})`;
+  }
+
+  function getDurationTag(entry, startStation, endStation) {
+    if (!entry.stopMap.has(startStation) || !entry.stopMap.has(endStation)) return "";
+    const duration = formatDuration(entry.stopMap.get(startStation), entry.stopMap.get(endStation));
+    return duration ? `<div class="rail-master-train-duration">${escapeHtml(duration)}</div>` : "";
+  }
+
+  function createMatrixBlock(system, title, entries, stationList, startStation, endStation, stationOrder) {
+    const stationIndexMap = new Map(stationOrder.map((name, idx) => [name, idx]));
+    const section = document.createElement("section");
+    section.className = "rail-master-block";
+    section.innerHTML = `<div class="rail-master-section-title">${escapeHtml(title)} <span>${entries.length} 班</span></div>`;
+
+    const shell = document.createElement("div");
+    shell.className = "rail-master-table-shell";
+    const scroll = document.createElement("div");
+    scroll.className = "rail-master-scroll";
+    const table = document.createElement("table");
+    table.className = "rail-master-table";
+
+    const thead = table.createTHead();
+    const headerRow = thead.insertRow();
+    const corner = document.createElement("th");
+    corner.className = "rail-master-corner";
+    corner.textContent = "車站";
+    headerRow.appendChild(corner);
+
+    entries.forEach((entry) => {
+      const th = document.createElement("th");
+      th.className = "rail-master-train-header";
+      const color = system === "tr" ? getTraTypeColor(entry.type) : "var(--primary)";
+      const seaTag = system === "tr" && entry.isSea ? `<span class="rail-master-inline-badge sea">海</span>` : "";
+      th.innerHTML = `
+        <div class="rail-master-train-stack">
+          <div>
+            <span class="rail-master-train-no" style="color:${color}">${escapeHtml(entry.trainNo)}</span>
+            ${
+              system === "tr"
+                ? `<span class="rail-master-train-type" style="color:${color}">${escapeHtml(entry.type)}${seaTag}</span>`
+                : `<span class="rail-master-train-type rail-master-thsr-tag">THSR</span>`
+            }
+          </div>
+          <div class="rail-master-route-stack">
+            <span class="rail-master-route">${escapeHtml(entry.firstStation)}<br>↓<br>${escapeHtml(entry.lastStation)}</span>
+            ${getDurationTag(entry, startStation, endStation)}
+          </div>
+        </div>
+      `;
+      headerRow.appendChild(th);
+    });
+
+    const tbody = table.createTBody();
+    stationList.forEach((station) => {
+      const row = tbody.insertRow();
+      const nameCell = row.insertCell();
+      nameCell.className = "rail-master-station";
+      nameCell.textContent = station;
+      entries.forEach((entry) => {
+        const cell = row.insertCell();
+        if (entry.stopMap.has(station)) {
+          cell.className = "rail-master-time";
+          cell.textContent = entry.stopMap.get(station);
+        } else if (passesStation(entry, station, stationIndexMap)) {
+          cell.className = "rail-master-pass";
+          cell.textContent = "↓";
+        }
+      });
+    });
+
+    scroll.appendChild(table);
+    shell.appendChild(scroll);
+    section.appendChild(shell);
+    return section;
+  }
+
+  function renderEmpty(state, message) {
+    state.output.innerHTML = `<div class="rail-master-empty">${escapeHtml(message)}</div>`;
+  }
+
+  function renderSummary(state, title, subtitle) {
+    const meta = state.output.querySelector(".rail-master-meta-line");
+    if (!meta) return;
+    meta.innerHTML = `
+      <strong>${escapeHtml(title)}</strong>
+      <span>${escapeHtml(subtitle)}</span>
+    `;
+  }
+
+  async function ensureScheduleReady(state) {
+    const dateStr = getQueryDate();
+    let schedule = readPageValue("baseSchedule") || window.trainSchedule || {};
+    if ((!schedule || !Object.keys(schedule).length) && typeof window.refreshData === "function" && dateStr) {
+      await maybePromise(window.refreshData(dateStr));
+      schedule = readPageValue("baseSchedule") || window.trainSchedule || {};
+    }
+    return schedule || {};
+  }
+
+  async function renderTraTable(state) {
+    const schedule = await ensureScheduleReady(state);
+    if (!Object.keys(schedule).length) {
+      renderEmpty(state, "目前還沒有台鐵真實時刻資料，請先更新頁面資料後再試。");
+      return;
+    }
+    if (!syncStationControls(state)) {
+      renderEmpty(state, "台鐵站點索引尚未完成，請稍後再試一次。");
+      return;
+    }
+    const entries = buildTraEntries(schedule, state.stationOrder);
+    buildTraTypeControls(state, entries);
+    const start = normalizeTraStation(state.startSelect.value);
+    const end = normalizeTraStation(state.endSelect.value);
+    const pivot = normalizeTraStation(state.pivotSelect.value);
+    const range = ensureRange(start, end, state.stationOrder);
+    if (!range.length) {
+      renderEmpty(state, "找不到這組起訖站範圍。");
+      return;
+    }
+    const direction = state.directionSelect?.value || "all";
+    const rangeSet = new Set(range);
+    const query = String(state.searchInput.value || "").trim();
+    const filtered = entries.filter((entry) => {
+      if (state.selectedTypes.size && !state.selectedTypes.has(entry.type)) return false;
+      if (!matchesDirectionFilter(entry.trainNo, direction)) return false;
+      if (query && !entry.trainNo.includes(query)) return false;
+      if (pivot && !entry.stopMap.has(pivot)) return false;
+      return entry.stops.some((stop) => rangeSet.has(stop.name));
+    });
+    const reserved = sortEntries(filtered.filter((entry) => entry.isReserved), range, rangeSet, pivot);
+    const nonReserved = sortEntries(filtered.filter((entry) => !entry.isReserved), range, rangeSet, pivot);
+    const reservedStations = range.filter((station) => reserved.some((entry) => entry.stopMap.has(station)));
+    const nonReservedStations = state.onlyStopCheckbox.checked
+      ? range.filter((station) => nonReserved.some((entry) => entry.stopMap.has(station)))
+      : range;
+    state.output.innerHTML = `
+      <div class="rail-master-export-scope">
+        <div class="rail-master-meta-line"></div>
+      </div>
+    `;
+    const directionLabel = getTrainDirectionOptions("tr").find((item) => item.value === direction)?.label || "全部";
+    renderSummary(state, "台鐵時刻總表", `${getQueryDate() || "未指定日期"}｜方向 ${directionLabel}｜對號 ${reserved.length} 班｜區間 ${nonReserved.length} 班`);
+    const scope = state.output.querySelector(".rail-master-export-scope");
+    if (reserved.length) {
+      scope.appendChild(createMatrixBlock("tr", "對號列車", reserved, reservedStations, start, end, state.stationOrder));
+    }
+    if (nonReserved.length) {
+      scope.appendChild(createMatrixBlock("tr", "區間 / 區間快", nonReserved, nonReservedStations, start, end, state.stationOrder));
+    }
+    if (!reserved.length && !nonReserved.length) {
+      renderEmpty(state, "這個範圍沒有符合條件的台鐵班次。");
+    }
+  }
+
+  async function renderThsrTable(state) {
+    const schedule = await ensureScheduleReady(state);
+    if (!Object.keys(schedule).length) {
+      renderEmpty(state, "目前還沒有高鐵真實時刻資料，請先更新頁面資料後再試。");
+      return;
+    }
+    if (!syncStationControls(state)) {
+      renderEmpty(state, "高鐵站點索引尚未完成，請稍後再試一次。");
+      return;
+    }
+    const entries = buildThsrEntries(schedule, state.stationOrder);
+    const start = normalizeThsrStation(state.startSelect.value);
+    const end = normalizeThsrStation(state.endSelect.value);
+    const pivot = normalizeThsrStation(state.pivotSelect.value);
+    const range = ensureRange(start, end, state.stationOrder);
+    if (!range.length) {
+      renderEmpty(state, "找不到這組起訖站範圍。");
+      return;
+    }
+    const direction = state.directionSelect?.value || "all";
+    const rangeSet = new Set(range);
+    const query = String(state.searchInput.value || "").trim();
+    const filtered = entries.filter((entry) => {
+      if (!matchesDirectionFilter(entry.trainNo, direction)) return false;
+      if (query && !entry.trainNo.includes(query)) return false;
+      if (pivot && !entry.stopMap.has(pivot)) return false;
+      return entry.stops.some((stop) => rangeSet.has(stop.name));
+    });
+    const sorted = sortEntries(filtered, range, rangeSet, pivot);
+    const stationList = state.onlyStopCheckbox.checked
+      ? range.filter((station) => sorted.some((entry) => entry.stopMap.has(station)))
+      : range;
+    state.output.innerHTML = `
+      <div class="rail-master-export-scope">
+        <div class="rail-master-meta-line"></div>
+      </div>
+    `;
+    const directionLabel = getTrainDirectionOptions("thsr").find((item) => item.value === direction)?.label || "全部";
+    renderSummary(state, "高鐵時刻總表", `${getQueryDate() || "未指定日期"}｜方向 ${directionLabel}｜共 ${sorted.length} 班`);
+    const scope = state.output.querySelector(".rail-master-export-scope");
+    if (sorted.length) {
+      scope.appendChild(createMatrixBlock("thsr", "高鐵班次", sorted, stationList, start, end, state.stationOrder));
+    } else {
+      renderEmpty(state, "這個範圍沒有符合條件的高鐵班次。");
+    }
+  }
+
+  async function renderMasterTable(state) {
+    const button = state.renderButton;
+    const exportButton = state.exportButton;
+    const oldLabel = button.textContent;
+    button.disabled = true;
+    exportButton.disabled = true;
+    button.textContent = "產生中...";
+    try {
+      if (state.system === "tr") await renderTraTable(state);
+      else await renderThsrTable(state);
+      if (state.output.querySelector(".rail-master-export-scope")) {
+        exportButton.disabled = false;
+      }
+    } catch (error) {
+      console.error(error);
+      renderEmpty(state, "總表建立失敗，請稍後再試。");
+    } finally {
+      button.disabled = false;
+      button.textContent = oldLabel;
+    }
+  }
+
+  function resetState(state) {
+    const defaults = getDefaultRange(state.system, state.stationOrder);
+    state.startSelect.value = defaults.start;
+    state.endSelect.value = defaults.end;
+    state.pivotSelect.value = "";
+    if (state.directionSelect) state.directionSelect.value = "all";
+    state.searchInput.value = "";
+    state.onlyStopCheckbox.checked = false;
+    if (state.system === "tr") {
+      state.selectedTypes = new Set(state.allTypes);
+      buildTraTypeControls(state, []);
+    }
+    renderMasterTable(state);
+  }
+
+  function prepareExportClone(clone) {
+    clone.querySelectorAll(".rail-master-scroll").forEach((el) => {
+      el.style.maxHeight = "none";
+      el.style.overflow = "visible";
+    });
+    clone.querySelectorAll(".rail-master-corner, .rail-master-station").forEach((el) => {
+      el.style.position = "static";
+      el.style.left = "auto";
+      el.style.top = "auto";
+    });
+    clone.querySelectorAll(".rail-master-table thead").forEach((el) => {
+      el.style.position = "static";
+    });
+  }
+
+  async function exportMasterPdf(state) {
+    const target = state.output.querySelector(".rail-master-export-scope");
+    if (!target) return;
+    const dateStr = getQueryDate() || "today";
+    await downloadElementAsPdf(target, `${state.system}-master-table-${dateStr}.pdf`, {
+      padding: 14,
+      scale: 1.6,
+      prepareClone: prepareExportClone,
+    });
+  }
+
+  function buildPanelHTML(system) {
+    const isTra = system === "tr";
+    const directionOptions = getTrainDirectionOptions(system)
+      .map((option) => `<option value="${escapeAttr(option.value)}">${escapeHtml(option.label)}</option>`)
+      .join("");
+    return `
+      <div class="section-title">時刻總表</div>
+      <p class="rail-master-lead">${isTra ? "依目前查詢日期的真實台鐵資料，整理成完整矩陣總表；對號列車與區間車分開顯示。" : "依目前查詢日期的真實高鐵資料，整理成完整矩陣總表。"}</p>
+      <div class="rail-master-toolbar">
+        <div class="rail-master-control">
+          <span>起</span>
+          <select id="railMasterStart" class="rail-master-select"></select>
+          <button id="railMasterSwap" class="btn-ghost rail-master-icon-btn" type="button" title="交換起訖">⇄</button>
+          <span>迄</span>
+          <select id="railMasterEnd" class="rail-master-select"></select>
+        </div>
+        <div class="rail-master-control">
+          <span>經</span>
+          <select id="railMasterPivot" class="rail-master-select"><option value="">-</option></select>
+          <label class="rail-master-check">
+            <input id="railMasterOnlyStop" type="checkbox">
+            <span>僅停靠</span>
+          </label>
+        </div>
+        <div class="rail-master-control">
+          <span>方向</span>
+          <select id="railMasterDirection" class="rail-master-select">${directionOptions}</select>
+        </div>
+        <div class="rail-master-control rail-master-search">
+          <input id="railMasterTrainSearch" class="rail-master-input" type="text" placeholder="搜尋車次">
+          <button id="railMasterRender" class="btn-primary" type="button">產生總表</button>
+          <button id="railMasterReset" class="btn-ghost" type="button">重設</button>
+          <button id="railMasterExportPdf" class="btn-ghost" type="button" disabled>匯出 PDF</button>
+        </div>
+      </div>
+      ${
+        isTra
+          ? `
+            <details class="rail-master-type-box">
+              <summary>車種 <span id="railMasterTypeCount">(全)</span></summary>
+              <div id="railMasterTypeDropdown"></div>
+            </details>
+          `
+          : ""
+      }
+      <div id="railMasterOutput" class="rail-master-output">
+        <div class="rail-master-empty">可直接產生目前查詢日期的時刻總表，並支援匯出 PDF。</div>
+      </div>
+    `;
+  }
+
+  function injectStyles() {
+    if (document.getElementById(STYLE_ID)) return;
+    const style = document.createElement("style");
+    style.id = STYLE_ID;
+    style.textContent = `
+      .rail-master-panel{display:flex; flex-direction:column; gap:14px;}
+      .rail-master-lead{margin:0; color:var(--text-muted); line-height:1.7;}
+      .rail-master-toolbar{display:flex; flex-wrap:wrap; gap:10px;}
+      .rail-master-control{display:flex; align-items:center; gap:8px; padding:10px 12px; border-radius:16px; border:1px solid var(--border); background:var(--bg-body);}
+      .rail-master-control span{font-size:.85rem; color:var(--text-muted); font-weight:700;}
+      .rail-master-search{flex:1 1 340px; justify-content:flex-end;}
+      .rail-master-select,.rail-master-input{height:38px; border-radius:12px; border:1px solid var(--border); background:var(--bg-surface); color:var(--text-main); padding:0 12px; font:inherit;}
+      .rail-master-select{min-width:112px;}
+      .rail-master-input{min-width:120px; flex:1 1 120px;}
+      .rail-master-icon-btn{min-width:38px; height:38px; padding:0 12px;}
+      .rail-master-check{display:inline-flex; align-items:center; gap:6px; cursor:pointer; color:var(--text-main); font-size:.88rem;}
+      .rail-master-type-box{border:1px solid var(--border); border-radius:16px; background:var(--bg-body); overflow:hidden;}
+      .rail-master-type-box summary{cursor:pointer; list-style:none; padding:12px 14px; font-weight:700; display:flex; align-items:center; gap:8px;}
+      .rail-master-type-box summary::-webkit-details-marker{display:none;}
+      #railMasterTypeDropdown{padding:0 14px 14px; display:flex; flex-direction:column; gap:10px;}
+      .rail-master-type-actions{display:flex; gap:8px; padding-top:2px;}
+      .rail-master-mini-btn{padding:6px 10px !important; font-size:.82rem !important;}
+      .rail-master-type-list{display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:8px;}
+      .rail-master-type-item{display:flex; align-items:center; gap:8px; padding:8px 10px; border-radius:12px; border:1px solid var(--border); background:var(--bg-surface); font-size:.88rem; cursor:pointer;}
+      .rail-master-type-dot{width:10px; height:10px; border-radius:50%; flex:0 0 auto;}
+      .rail-master-type-item input{margin-left:auto;}
+      .rail-master-output{display:flex; flex-direction:column; gap:14px;}
+      .rail-master-export-scope{display:flex; flex-direction:column; gap:14px;}
+      .rail-master-meta-line{display:flex; flex-wrap:wrap; justify-content:space-between; gap:8px; padding:12px 14px; border-radius:16px; border:1px solid var(--border); background:var(--bg-body);}
+      .rail-master-meta-line strong{font-size:.96rem;}
+      .rail-master-meta-line span{color:var(--text-muted); font-size:.88rem;}
+      .rail-master-block{display:flex; flex-direction:column; gap:8px;}
+      .rail-master-section-title{display:flex; align-items:center; justify-content:space-between; gap:10px; font-size:1rem; font-weight:800; color:var(--text-main);}
+      .rail-master-section-title span{font-size:.86rem; color:var(--text-muted);}
+      .rail-master-table-shell{border:1px solid var(--border); border-radius:18px; background:var(--bg-surface); overflow:hidden;}
+      .rail-master-scroll{overflow:auto; max-height:70vh;}
+      .rail-master-table{border-collapse:separate; border-spacing:0; width:max-content; min-width:100%;}
+      .rail-master-table th,.rail-master-table td{padding:6px 4px; text-align:center; border-right:1px solid var(--border); border-bottom:1px solid var(--border); font-size:11px; background-clip:padding-box;}
+      .rail-master-table thead{position:sticky; top:0; z-index:20;}
+      .rail-master-corner{position:sticky; left:0; top:0; z-index:30; min-width:74px; background:var(--bg-surface); border-right:2px solid var(--border); border-bottom:2px solid var(--border); color:var(--text-muted);}
+      .rail-master-train-header{position:sticky; top:0; z-index:20; min-width:58px; height:114px; vertical-align:top; background:var(--bg-surface);}
+      .rail-master-train-stack{display:flex; flex-direction:column; justify-content:space-between; height:100%;}
+      .rail-master-train-no{display:block; font-weight:900; font-size:12px;}
+      .rail-master-train-type{display:block; margin-top:2px; font-size:11px; font-weight:700; line-height:1.25;}
+      .rail-master-route-stack{margin-top:auto; display:flex; flex-direction:column; align-items:center; gap:3px;}
+      .rail-master-route{color:var(--text-muted); font-size:10px; line-height:1.2;}
+      .rail-master-train-duration{display:inline-flex; align-items:center; justify-content:center; padding:2px 5px; border-radius:999px; background:rgba(59,130,246,0.12); color:#2563eb; font-size:10px; font-weight:800;}
+      .rail-master-station{position:sticky; left:0; z-index:15; min-width:74px; background:var(--bg-surface); border-right:2px solid var(--border); font-weight:800; color:var(--text-main);}
+      .rail-master-time{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-variant-numeric:tabular-nums; white-space:nowrap;}
+      .rail-master-pass{color:#cbd5e1;}
+      .rail-master-inline-badge{display:inline-flex; align-items:center; justify-content:center; min-width:18px; height:16px; margin-left:4px; padding:0 4px; border-radius:999px; font-size:10px; font-weight:800; border:1px solid currentColor;}
+      .rail-master-inline-badge.sea{color:#2563eb;}
+      .rail-master-thsr-tag{color:#ea580c;}
+      .rail-master-empty{padding:14px 16px; border-radius:16px; border:1px dashed var(--border); color:var(--text-muted); background:color-mix(in srgb, var(--bg-body) 85%, transparent); line-height:1.7;}
+      .rail-modal-actions{display:flex; align-items:center; gap:8px; margin-left:auto; padding-left:12px;}
+      .rail-modal-export-btn{border:1px solid var(--border); background:var(--bg-surface); color:var(--text-main); border-radius:12px; padding:8px 10px; font:inherit; font-size:.86rem; cursor:pointer; white-space:nowrap;}
+      .rail-modal-export-btn:hover{transform:translateY(-1px);}
+      @media (max-width: 860px){
+        .rail-master-search{flex:1 1 100%; justify-content:flex-start;}
+        .rail-master-table-shell{border-radius:16px;}
+      }
+      @media (max-width: 640px){
+        .rail-master-toolbar{gap:8px;}
+        .rail-master-control{width:100%; flex-wrap:wrap; justify-content:flex-start; border-radius:14px;}
+        .rail-master-search{flex-direction:row; align-items:center;}
+        .rail-master-select,.rail-master-input{min-width:0; flex:1 1 140px;}
+        .rail-master-table th,.rail-master-table td{padding:5px 4px; font-size:10px;}
+        .rail-master-corner,.rail-master-station{min-width:64px;}
+        .rail-master-train-header{min-width:52px; height:108px;}
+        .rail-modal-actions{width:100%; margin-left:0; padding-left:0; padding-top:10px; justify-content:flex-end;}
+      }
+    `;
+    document.head.appendChild(style);
+  }
+
+  function buildState(system, panel) {
+    const stationOrder = getStationOrder(system);
+    const defaults = getDefaultRange(system, stationOrder);
+    const state = {
+      system,
+      panel,
+      stationOrder,
+      allTypes: [],
+      selectedTypes: new Set(),
+      startSelect: panel.querySelector("#railMasterStart"),
+      endSelect: panel.querySelector("#railMasterEnd"),
+      pivotSelect: panel.querySelector("#railMasterPivot"),
+      directionSelect: panel.querySelector("#railMasterDirection"),
+      searchInput: panel.querySelector("#railMasterTrainSearch"),
+      onlyStopCheckbox: panel.querySelector("#railMasterOnlyStop"),
+      renderButton: panel.querySelector("#railMasterRender"),
+      resetButton: panel.querySelector("#railMasterReset"),
+      exportButton: panel.querySelector("#railMasterExportPdf"),
+      output: panel.querySelector("#railMasterOutput"),
+    };
+    createSelectOptions(state.startSelect, stationOrder, defaults.start);
+    createSelectOptions(state.endSelect, stationOrder, defaults.end);
+    state.pivotSelect.insertAdjacentHTML("beforeend", stationOrder.map((station) => `<option value="${escapeAttr(station)}">${escapeHtml(station)}</option>`).join(""));
+    state.startSelect.value = defaults.start;
+    state.endSelect.value = defaults.end;
+    if (state.directionSelect) state.directionSelect.value = "all";
+    return state;
+  }
+
+  function syncStationControls(state) {
+    const nextOrder = getStationOrder(state.system);
+    if (!nextOrder.length) return false;
+    const changed =
+      nextOrder.length !== state.stationOrder.length ||
+      nextOrder.some((station, index) => station !== state.stationOrder[index]);
+    if (!changed) return true;
+    const previousStart = state.startSelect.value;
+    const previousEnd = state.endSelect.value;
+    const previousPivot = state.pivotSelect.value;
+    const defaults = getDefaultRange(state.system, nextOrder);
+    state.stationOrder = nextOrder;
+    createSelectOptions(state.startSelect, nextOrder, nextOrder.includes(previousStart) ? previousStart : defaults.start);
+    createSelectOptions(state.endSelect, nextOrder, nextOrder.includes(previousEnd) ? previousEnd : defaults.end);
+    state.pivotSelect.innerHTML = '<option value="">-</option>' + nextOrder.map((station) => `<option value="${escapeAttr(station)}">${escapeHtml(station)}</option>`).join("");
+    if (previousPivot && nextOrder.includes(previousPivot)) state.pivotSelect.value = previousPivot;
+    return true;
+  }
+
+  function placeAfterAi(tab, panel) {
+    const grid = document.querySelector("main .grid");
+    const tabs = grid?.querySelector(".query-tabs");
+    const aiTab = document.getElementById("tab-ai");
+    const aiPanel = document.getElementById("panel-ai");
+    if (tabs && tab && aiTab?.parentElement === tabs && aiTab.nextElementSibling !== tab) {
+      aiTab.insertAdjacentElement("afterend", tab);
+    }
+    if (grid && panel && aiPanel?.parentElement === grid && aiPanel.nextElementSibling !== panel) {
+      aiPanel.insertAdjacentElement("afterend", panel);
+    }
+  }
+
+  function insertMasterPanel(system) {
+    const grid = document.querySelector("main .grid");
+    const tabs = grid?.querySelector(".query-tabs");
+    if (!grid || !tabs || document.getElementById(PANEL_ID)) return null;
+
+    const tab = document.createElement("button");
+    tab.className = "query-tab";
+    tab.id = TAB_ID;
+    tab.type = "button";
+    tab.dataset.target = PANEL_ID;
+    tab.textContent = "時刻總表";
+
+    const aiTab = document.getElementById("tab-ai");
+    if (aiTab?.parentElement === tabs) aiTab.insertAdjacentElement("afterend", tab);
+    else tabs.appendChild(tab);
+
+    const panel = document.createElement("section");
+    panel.id = PANEL_ID;
+    panel.className = "card query-panel rail-master-panel hidden";
+    panel.innerHTML = buildPanelHTML(system);
+
+    const aiPanel = document.getElementById("panel-ai");
+    if (aiPanel?.parentElement === grid) aiPanel.insertAdjacentElement("afterend", panel);
+    else {
+      const lastPanel = Array.from(grid.querySelectorAll(".query-panel")).slice(-1)[0];
+      if (lastPanel) lastPanel.insertAdjacentElement("afterend", panel);
+      else tabs.insertAdjacentElement("afterend", panel);
+    }
+
+    placeAfterAi(tab, panel);
+    return { tab, panel };
+  }
+
+  function bindMasterPanel(state, tab) {
+    const render = () => renderMasterTable(state);
+    tab.addEventListener("click", () => {
+      window.switchQueryPanel?.(PANEL_ID);
+      if (!state.output.querySelector(".rail-master-export-scope")) render();
+    });
+    state.renderButton.addEventListener("click", render);
+    state.exportButton.addEventListener("click", () => exportMasterPdf(state));
+    state.resetButton.addEventListener("click", () => resetState(state));
+    state.panel.querySelector("#railMasterSwap")?.addEventListener("click", () => {
+      const temp = state.startSelect.value;
+      state.startSelect.value = state.endSelect.value;
+      state.endSelect.value = temp;
+      render();
+    });
+    [state.startSelect, state.endSelect, state.pivotSelect, state.directionSelect, state.onlyStopCheckbox].forEach((el) => {
+      el?.addEventListener("change", render);
+    });
+    let timer = null;
+    state.searchInput?.addEventListener("input", () => {
+      clearTimeout(timer);
+      timer = setTimeout(render, 180);
+    });
+    document.getElementById("mainQueryDate")?.addEventListener("change", () => {
+      if (!state.panel.classList.contains("hidden")) render();
+    });
+  }
+
+  function buildModalFilename(system) {
+    const ctx = readPageValue("modalCtx");
+    const tag = ctx?.trainNo ? `-${ctx.trainNo}` : "";
+    return sanitizeFilename(`${system}-detail${tag}`);
+  }
+
+  function prepareModalClone(clone) {
+    clone.querySelector(".rail-modal-actions")?.remove();
+    clone.querySelectorAll(".close, #modalClose").forEach((el) => el.remove());
+    clone.style.maxHeight = "none";
+    clone.style.height = "auto";
+  }
+
+  function initModalCapture(system) {
+    const modal = document.getElementById("trainModal");
+    const header = modal?.querySelector(".modal-header");
+    const content = modal?.querySelector(".modal-content");
+    if (!modal || !header || !content || header.querySelector(".rail-modal-actions")) return;
+    const actions = document.createElement("div");
+    actions.className = "rail-modal-actions";
+    actions.innerHTML = `
+      <button type="button" class="rail-modal-export-btn" data-export="image">下載圖片</button>
+      <button type="button" class="rail-modal-export-btn" data-export="share">分享圖片</button>
+    `;
+    const closeButton = header.querySelector("#modalClose") || header.querySelector(".close");
+    if (closeButton) closeButton.insertAdjacentElement("beforebegin", actions);
+    else header.appendChild(actions);
+
+    const clickHandler = async (mode) => {
+      if (modal.style.display !== "flex") return;
+      const filename = buildModalFilename(system);
+      const button = actions.querySelector(`[data-export="${mode}"]`);
+      const original = button.textContent;
+      button.disabled = true;
+      button.textContent = mode === "share" ? "整理中..." : "匯出中...";
+      try {
+        if (mode === "share") {
+          await shareElementAsImage(content, `${filename}.png`, {
+            title: "列車資訊",
+            prepareClone: prepareModalClone,
+            padding: 12,
+            scale: 1.5,
+          });
+        } else {
+          await downloadElementAsImage(content, `${filename}.png`, {
+            prepareClone: prepareModalClone,
+            padding: 12,
+            scale: 1.5,
+          });
+        }
+      } catch (error) {
+        console.error(error);
+        alert("圖片匯出失敗，請稍後再試。");
+      } finally {
+        button.disabled = false;
+        button.textContent = original;
+      }
+    };
+
+    actions.querySelector('[data-export="image"]')?.addEventListener("click", () => clickHandler("image"));
+    actions.querySelector('[data-export="share"]')?.addEventListener("click", () => clickHandler("share"));
+  }
+
+  function init() {
+    const system = getSystem();
+    if (system !== "tr" && system !== "thsr") return;
+    injectStyles();
+    const inserted = insertMasterPanel(system);
+    if (!inserted) {
+      initModalCapture(system);
+      return;
+    }
+    const state = buildState(system, inserted.panel);
+    bindMasterPanel(state, inserted.tab);
+    initModalCapture(system);
+    const syncPlacement = () => placeAfterAi(inserted.tab, inserted.panel);
+    if (document.readyState === "complete") {
+      setTimeout(syncPlacement, 0);
+    } else {
+      window.addEventListener("load", () => setTimeout(syncPlacement, 0), { once: true });
+    }
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", init);
+  } else {
+    init();
+  }
+})();
