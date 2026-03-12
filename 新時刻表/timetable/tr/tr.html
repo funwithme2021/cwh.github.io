@@ -2313,6 +2313,115 @@ td{ border-bottom: 1px solid rgba(255,255,255,0.06); }
       .st-arr{
         font-size: .64rem;
       }
+
+      /* mobile result tables: minimize spacing between every visible column */
+      #panel-startend .table-wrapper,
+      #panel-station .table-wrapper,
+      #panel-trainno .table-wrapper{
+        margin: 0 -1px;
+      }
+      #scheduleTableByStation,
+      #scheduleTableByStationName,
+      #scheduleTableByNumber{
+        width: 100% !important;
+        min-width: 100% !important;
+        table-layout: auto !important;
+        font-size: .78rem !important;
+      }
+      #scheduleTableByStation th,
+      #scheduleTableByStation td,
+      #scheduleTableByStationName th,
+      #scheduleTableByStationName td,
+      #scheduleTableByNumber th,
+      #scheduleTableByNumber td{
+        padding: 10px 2px !important;
+      }
+      #scheduleTableByStation th:first-child,
+      #scheduleTableByStation td:first-child,
+      #scheduleTableByStationName th:first-child,
+      #scheduleTableByStationName td:first-child,
+      #scheduleTableByNumber th:first-child,
+      #scheduleTableByNumber td:first-child{
+        width: auto;
+        padding-left: 6px !important;
+        padding-right: 0 !important;
+      }
+      #scheduleTableByStation th:not(:first-child),
+      #scheduleTableByStation td:not(:first-child),
+      #scheduleTableByStationName th:not(:first-child),
+      #scheduleTableByStationName td:not(:first-child),
+      #scheduleTableByNumber th:not(:first-child),
+      #scheduleTableByNumber td:not(:first-child){
+        padding-left: 0 !important;
+        padding-right: 2px !important;
+      }
+      #scheduleTableByStation th:last-child,
+      #scheduleTableByStation td:last-child,
+      #scheduleTableByStationName th:last-child,
+      #scheduleTableByStationName td:last-child,
+      #scheduleTableByNumber th:last-child,
+      #scheduleTableByNumber td:last-child{
+        padding-right: 6px !important;
+      }
+      #scheduleTableByStation tbody td:first-child{
+        font-size: 0;
+        white-space: nowrap;
+      }
+      #scheduleTableByStation tbody td:first-child b{
+        font-size: .95rem;
+        letter-spacing: -.01em;
+      }
+      #scheduleTableByStation .mobile-transfer-trains{
+        display: inline-flex;
+        flex-direction: column;
+        gap: 3px;
+        vertical-align: middle;
+      }
+      #scheduleTableByStation .mobile-transfer-trains b{
+        font-size: .95rem;
+        line-height: 1.05;
+      }
+      #scheduleTableByStation .badge-sea{
+        margin-left: 2px;
+        font-size: .68rem;
+      }
+      #scheduleTableByStation .mobile-expand-btn{
+        width: 18px;
+        height: 18px;
+        margin-right: 2px;
+        font-size: 13px;
+      }
+      #scheduleTableByStation .progress-bar{
+        width: 44px !important;
+        margin-top: 4px;
+      }
+      #scheduleTableByStation .train-route,
+      #scheduleTableByStationName .train-route,
+      #scheduleTableByNumber .train-route{
+        margin-left: 0;
+        padding: 0;
+        border: 0;
+        background: transparent;
+        box-shadow: none;
+      }
+      #scheduleTableByStation th.col-type,
+      #scheduleTableByStation td.col-type,
+      #scheduleTableByStation th.col-duration,
+      #scheduleTableByStation td.col-duration{
+        min-width: 0;
+      }
+      .mobile-detail-row .stops-grid{
+        display: grid !important;
+        grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+        gap: 4px 6px !important;
+        font-size: .76rem;
+        line-height: 1.45;
+      }
+      .mobile-detail-row .stop-item,
+      .mobile-detail-wrap .stop-item{
+        margin: 0 !important;
+        white-space: nowrap !important;
+      }
     }
   </style>
 
@@ -2424,7 +2533,7 @@ td{ border-bottom: 1px solid rgba(255,255,255,0.06); }
           <thead>
             <tr>
               <th>車次</th>
-              <th class="col-type">車種 (區間)</th>
+              <th class="col-type">車種</th>
               <th>出發 <span id="sortDepIcon">↕</span></th>
               <th>抵達 <span id="sortArrIcon">↕</span></th>
               <th class="col-duration">耗時 <span id="sortDurIcon">↕</span></th>
@@ -2472,7 +2581,7 @@ td{ border-bottom: 1px solid rgba(255,255,255,0.06); }
       <div class="table-wrapper">
         <table id="scheduleTableByStationName">
           <thead>
-            <tr><th>車次</th><th>車種 (區間)</th><th>時間</th><th>狀態</th></tr>
+            <tr><th>車次</th><th>車種</th><th>時間</th><th>狀態</th></tr>
           </thead>
           <tbody></tbody>
         </table>
@@ -3019,7 +3128,7 @@ function splitArrDep(stopRow){
     if(!Array.isArray(stopsList) || stopsList.length === 0){
       return `<div class="stops-text-empty">直達，無中途停靠</div>`;
     }
-    const perLine = 10;
+    const perLine = (window.matchMedia && window.matchMedia('(max-width: 760px)').matches) ? 4 : 10;
     const lines = [];
     for(let i=0; i<stopsList.length; i+=perLine){
       lines.push(stopsList.slice(i, i + perLine));
@@ -3411,6 +3520,19 @@ function hexToRgb(hex){
       // tr.html 通常在 /tr/ 目錄下，回到上一層的 home/index.html
       location.href = '../home/index.html';
     });
+  }
+  function isMobileCompactTable(){
+    return !!(window.matchMedia && window.matchMedia('(max-width: 760px)').matches);
+  }
+
+  function getTraTypeHeaderLabel(){
+    return isMobileCompactTable() ? '車種' : '車種 (區間)';
+  }
+
+  function renderTraTypeCell(type, range){
+    return isMobileCompactTable()
+      ? `${colorType(type)}`
+      : `${colorType(type)} <span class="train-route">(${range})</span>`;
   }
 function renderHistory(){
     const box=document.getElementById('searchHistory');
@@ -4038,7 +4160,7 @@ function renderTimeWithDelay(trainNo, schedHHMM, queryDateStr, opts, baseAbsMin=
     if(theadTr){
       theadTr.innerHTML = `
         <th>車次</th>
-        <th class="col-type">車種 (區間)</th>
+        <th class="col-type">${getTraTypeHeaderLabel()}</th>
         <th>出發 <span id="sortDepIcon">↕</span></th>
         <th>抵達 <span id="sortArrIcon">↕</span></th>
         <th class="col-duration">耗時 <span id="sortDurIcon">↕</span></th>
@@ -4239,7 +4361,7 @@ function renderTimeWithDelay(trainNo, schedHHMM, queryDateStr, opts, baseAbsMin=
             <b>${r.num}</b>${isSea ? '<span class="badge-sea">海</span>' : ''}
           </td>
           <td class="col-type">
-            ${colorType(r.type)} <span class="pc-only train-route col-range">(${r.range})</span>
+            ${renderTraTypeCell(r.type, r.range)}
           </td>
           <td>${r.depHTML}</td>
           <td>${r.arrHTML}</td>
@@ -4574,7 +4696,7 @@ function renderTransferTable(){
   if(theadTr){
     theadTr.innerHTML = `
       <th>車次</th>
-      <th class="col-type">車種 (區間)</th>
+      <th class="col-type">${getTraTypeHeaderLabel()}</th>
       <th>出發 <span id="sortDepIcon">↕</span></th>
       <th>轉乘</th>
       <th>抵達 <span id="sortArrIcon">↕</span></th>
@@ -4713,16 +4835,23 @@ function renderTransferTable(){
   currentTransferList.forEach((r, idx)=>{
     let tr = tbody.insertRow();
     tr.dataset.idx = idx;
+    const mobileCompact = isMobileCompactTable();
 
-    tr.insertCell().innerHTML = String(r.trainNumber).includes('A')
-      ? `<span class="mobile-expand-btn" data-idx="${idx}">+</span><b>${r.trainNumber}</b><span class="badge-sea">海</span>`
-      : `<span class="mobile-expand-btn" data-idx="${idx}">+</span><b>${r.trainNumber}</b>`;
+    tr.insertCell().innerHTML = r.isDirect
+      ? (String(r.trainNumber).includes('A')
+          ? `<span class="mobile-expand-btn" data-idx="${idx}">+</span><b>${r.trainNumber}</b><span class="badge-sea">海</span>`
+          : `<span class="mobile-expand-btn" data-idx="${idx}">+</span><b>${r.trainNumber}</b>`)
+      : (mobileCompact
+          ? `<span class="mobile-expand-btn" data-idx="${idx}">+</span><span class="mobile-transfer-trains"><b>${r.n1}</b><b>${r.n2}</b></span>`
+          : `<span class="mobile-expand-btn" data-idx="${idx}">+</span><b>${r.trainNumber}</b>`);
 
     // 轉乘表格的車種(區間)欄位也加上 desktop-only
     let typeCell = tr.insertCell();
     typeCell.className = "col-type";
     if(r.isDirect){
-      typeCell.innerHTML = `${colorType(r.type1)} <span class="pc-only train-route col-range">(${r.startStation}➝${r.endStation})</span>`;
+      typeCell.innerHTML = renderTraTypeCell(r.type1, `${r.startStation}➝${r.endStation}`);
+    }else if(mobileCompact){
+      typeCell.innerHTML = `${colorType(r.type1)}<br>${colorType(r.type2)}`;
     }else{
       typeCell.innerHTML =
         `${colorType(r.type1)}<span class="pc-only train-route">(${r.startStation}➝${r.transferStation})</span><br>`+
@@ -4942,7 +5071,7 @@ function renderTransferTable(){
           rows.forEach(r=>{
             let tr=tbody.insertRow();
             tr.insertCell().innerHTML=String(r.trainNo).includes('A')?`<b>${r.trainNo}</b><span class="badge-sea">海</span>`:`<b>${r.trainNo}</b>`;
-            tr.insertCell().innerHTML=`${colorType(r.type)} <span class="train-route">(${r.range})</span>`;
+            tr.insertCell().innerHTML=renderTraTypeCell(r.type, r.range);
             tr.insertCell().innerHTML=highlightPeak(r.depHTML);
             tr.insertCell().innerHTML=colorStatus(r.status);
             tr.addEventListener('click',()=>showTrainDetails(r.trainNo, r.originDate));
