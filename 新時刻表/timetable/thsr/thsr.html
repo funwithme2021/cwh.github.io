@@ -1710,7 +1710,7 @@
       min-width: 420px !important;
     }
 
-    /* mobile result tables: minimize spacing between every visible column */
+    /* mobile result tables: all visible columns stay tight; JS spreads spare space by screen width */
     #panel-startend .table-wrapper,
     #panel-station .table-wrapper,
     #panel-trainno .table-wrapper{
@@ -1730,7 +1730,11 @@
     #scheduleTableByStationName td,
     #scheduleTableByNumber th,
     #scheduleTableByNumber td{
-      padding: 10px 2px !important;
+      padding: 10px 1px !important;
+      white-space: nowrap;
+      vertical-align: middle;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
     #scheduleTableByStation th:first-child,
     #scheduleTableByStation td:first-child,
@@ -1738,9 +1742,9 @@
     #scheduleTableByStationName td:first-child,
     #scheduleTableByNumber th:first-child,
     #scheduleTableByNumber td:first-child{
-      width: auto;
-      padding-left: 6px !important;
+      padding-left: 4px !important;
       padding-right: 0 !important;
+      width: 1%;
     }
     #scheduleTableByStation th:not(:first-child),
     #scheduleTableByStation td:not(:first-child),
@@ -1749,7 +1753,7 @@
     #scheduleTableByNumber th:not(:first-child),
     #scheduleTableByNumber td:not(:first-child){
       padding-left: 0 !important;
-      padding-right: 2px !important;
+      padding-right: 1px !important;
     }
     #scheduleTableByStation th:last-child,
     #scheduleTableByStation td:last-child,
@@ -1757,7 +1761,7 @@
     #scheduleTableByStationName td:last-child,
     #scheduleTableByNumber th:last-child,
     #scheduleTableByNumber td:last-child{
-      padding-right: 6px !important;
+      padding-right: 4px !important;
     }
     #scheduleTableByStation tbody td:first-child{
       font-size: 0;
@@ -1774,26 +1778,25 @@
       font-size: 13px;
     }
     #scheduleTableByStation .progress-bar{
-      width: 44px !important;
-      margin-top: 4px;
+      width: 40px !important;
+      margin-top: 3px;
     }
     #scheduleTableByStation td.col-dur > div{
-      gap: 2px !important;
+      gap: 1px !important;
+      align-items: flex-start;
     }
     #scheduleTableByStation .train-route,
     #scheduleTableByStationName .train-route,
     #scheduleTableByNumber .train-route{
+      display: block;
       margin-left: 0;
       padding: 0;
       border: 0;
       background: transparent;
       box-shadow: none;
-    }
-    #scheduleTableByStation .train-route{
-      display: block;
       max-width: 100%;
       font-size: .74rem;
-      line-height: 1.2;
+      line-height: 1.18;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
@@ -1803,8 +1806,37 @@
     #scheduleTableByStation th.col-range,
     #scheduleTableByStation td.col-range,
     #scheduleTableByStation th.col-seat-std,
-    #scheduleTableByStation td.col-seat-std{
+    #scheduleTableByStation td.col-seat-std,
+    #scheduleTableByStationName th:nth-child(2),
+    #scheduleTableByStationName td:nth-child(2),
+    #scheduleTableByNumber th:nth-child(2),
+    #scheduleTableByNumber td:nth-child(2){
       min-width: 0;
+    }
+    #scheduleTableByStation th:nth-child(3),
+    #scheduleTableByStation td:nth-child(3),
+    #scheduleTableByStation th:nth-child(4),
+    #scheduleTableByStation td:nth-child(4),
+    #scheduleTableByStation th:nth-child(5),
+    #scheduleTableByStation td:nth-child(5),
+    #scheduleTableByStation th:nth-child(8),
+    #scheduleTableByStation td:nth-child(8),
+    #scheduleTableByStationName th:nth-child(3),
+    #scheduleTableByStationName td:nth-child(3){
+      text-align: center;
+      font-variant-numeric: tabular-nums;
+    }
+    #scheduleTableByStation td.col-seat-std{
+      text-align: center;
+    }
+    #scheduleTableByStation td.col-seat-std .seat-icon{
+      width: 1em;
+      font-size: 1rem;
+    }
+    #scheduleTableByStation .status-badge,
+    #scheduleTableByStationName .status-badge,
+    #scheduleTableByNumber .status-badge{
+      gap: 0 !important;
     }
     .mobile-detail-row .stops-grid{
       display: grid !important;
@@ -2243,6 +2275,154 @@
       return { widthPct, isExtreme, fillBg };
     }
 
+  function isMobileTightTable(){
+    return !!(window.matchMedia && window.matchMedia('(max-width: 760px)').matches);
+  }
+
+  function applyTightMobileTableLayout(table, options){
+    if(!table) return;
+    const config = options || {};
+    const hiddenSet = new Set((config.hiddenColumns || []).map(Number));
+    const centeredSet = new Set((config.centeredColumns || []).map(Number));
+    const compactSet = new Set((config.compactColumns || []).map(Number));
+    const wrapper = table.closest('.table-wrapper');
+    if(!isMobileTightTable()){
+      if(wrapper){
+        wrapper.style.overflowX = '';
+        wrapper.style.margin = '';
+      }
+      table.style.removeProperty('table-layout');
+      table.style.removeProperty('width');
+      table.style.removeProperty('min-width');
+      table.style.removeProperty('max-width');
+      table.querySelectorAll('th, td').forEach(cell=>{
+        cell.style.width = '';
+        cell.style.maxWidth = '';
+        cell.style.padding = '';
+        cell.style.display = '';
+        cell.style.overflow = '';
+        cell.style.textOverflow = '';
+        cell.style.whiteSpace = '';
+        cell.style.fontSize = '';
+        cell.style.lineHeight = '';
+        cell.style.verticalAlign = '';
+        cell.style.textAlign = '';
+        cell.style.fontVariantNumeric = '';
+      });
+      table.querySelectorAll('.progress-bar').forEach(el=>{
+        el.style.width = '';
+        el.style.marginTop = '';
+      });
+      table.querySelectorAll('.est-tip').forEach(el=>{ el.style.display = ''; });
+      table.querySelectorAll('.train-route').forEach(el=>{
+        el.style.display = '';
+        el.style.fontSize = '';
+        el.style.lineHeight = '';
+        el.style.whiteSpace = '';
+        el.style.overflow = '';
+        el.style.textOverflow = '';
+      });
+      return;
+    }
+
+    if(wrapper){
+      wrapper.style.overflowX = 'hidden';
+      wrapper.style.margin = '0';
+    }
+    const wrapperWidth = Math.max(0, wrapper?.clientWidth || table.parentElement?.clientWidth || window.innerWidth || 0);
+    const visibleCount = Array.from(table.querySelectorAll('thead tr:first-child > *'))
+      .filter((_, idx) => !hiddenSet.has(idx + 1))
+      .length || 1;
+    const py = 10;
+    const edgePad = wrapperWidth <= 360 ? 3 : wrapperWidth <= 420 ? 4 : 5;
+    const baseGap = wrapperWidth <= 360 ? 0 : wrapperWidth <= 420 ? 1 : 2;
+    const compactFont = wrapperWidth <= 360 ? '.73rem' : '.74rem';
+    const normalFont = wrapperWidth <= 360 ? '.76rem' : '.78rem';
+    const progressWidth = wrapperWidth <= 360 ? '34px' : wrapperWidth <= 420 ? '37px' : '40px';
+    const maxExtraGap = wrapperWidth <= 360 ? 1 : wrapperWidth <= 420 ? 3 : wrapperWidth <= 520 ? 6 : 10;
+
+    table.style.setProperty('table-layout', 'auto', 'important');
+    table.style.setProperty('width', 'max-content', 'important');
+    table.style.setProperty('min-width', '0', 'important');
+    table.style.setProperty('max-width', 'none', 'important');
+
+    table.querySelectorAll('tr').forEach(row=>{
+      Array.from(row.children).forEach((cell, idx)=>{
+        const col = idx + 1;
+        if(hiddenSet.has(col)){
+          cell.style.display = 'none';
+          cell.style.width = '0';
+          cell.style.maxWidth = '0';
+          cell.style.padding = '0';
+          return;
+        }
+        cell.style.display = '';
+        cell.style.width = '1%';
+        cell.style.maxWidth = 'none';
+        cell.style.padding = `${py}px ${baseGap}px ${py}px 0`;
+        cell.style.overflow = 'hidden';
+        cell.style.textOverflow = 'ellipsis';
+        cell.style.whiteSpace = 'nowrap';
+        cell.style.fontSize = compactSet.has(col) ? compactFont : normalFont;
+        cell.style.lineHeight = '1.15';
+        cell.style.verticalAlign = 'middle';
+        cell.style.textAlign = centeredSet.has(col) ? 'center' : '';
+        cell.style.fontVariantNumeric = centeredSet.has(col) ? 'tabular-nums' : '';
+      });
+    });
+
+    const naturalWidth = Math.ceil(table.scrollWidth || 0);
+    const slack = Math.max(0, wrapperWidth - naturalWidth);
+    const gapSlots = Math.max(1, visibleCount - 1);
+    const extraEach = Math.min(maxExtraGap, Math.floor(slack / gapSlots));
+    const extraRemainder = Math.min(gapSlots, Math.max(0, slack - (extraEach * gapSlots)));
+
+    table.style.setProperty('width', '100%', 'important');
+    table.style.setProperty('min-width', '100%', 'important');
+    table.style.setProperty('max-width', '100%', 'important');
+
+    table.querySelectorAll('tr').forEach(row=>{
+      const visibleCells = Array.from(row.children).filter((cell, idx) => !hiddenSet.has(idx + 1));
+      visibleCells.forEach((cell, visibleIdx)=>{
+        const isFirst = visibleIdx === 0;
+        const isLast = visibleIdx === visibleCells.length - 1;
+        const sharedExtra = isLast ? 0 : extraEach + (visibleIdx < extraRemainder ? 1 : 0);
+        const pr = isLast ? edgePad : baseGap + sharedExtra;
+        const pl = isFirst ? edgePad : 0;
+        cell.style.padding = `${py}px ${pr}px ${py}px ${pl}px`;
+      });
+    });
+
+    table.querySelectorAll('.train-route').forEach(el=>{
+      el.style.display = 'block';
+      el.style.fontSize = compactFont;
+      el.style.lineHeight = '1.15';
+      el.style.whiteSpace = 'nowrap';
+      el.style.overflow = 'hidden';
+      el.style.textOverflow = 'ellipsis';
+    });
+    table.querySelectorAll('.progress-bar').forEach(el=>{
+      el.style.width = progressWidth;
+      el.style.marginTop = '3px';
+    });
+    table.querySelectorAll('.est-tip').forEach(el=>{ el.style.display = 'none'; });
+  }
+
+  function applyTHSRMobileTableLayouts(){
+    applyTightMobileTableLayout(document.getElementById('scheduleTableByStation'), {
+      hiddenColumns: [6, 9, 10],
+      centeredColumns: [3, 4, 5, 8],
+      compactColumns: [2],
+    });
+    applyTightMobileTableLayout(document.getElementById('scheduleTableByStationName'), {
+      centeredColumns: [3],
+      compactColumns: [2],
+    });
+    applyTightMobileTableLayout(document.getElementById('scheduleTableByNumber'), {
+      compactColumns: [2],
+    });
+  }
+
 
 
   function renderStartEndTable() {
@@ -2390,9 +2570,9 @@
             <td>${row.dep}</td>
             <td>${row.arr}</td>
             <td class="col-dur">
-                <div style="display:flex;flex-direction:column;gap:4px;">
+                <div style="display:flex;flex-direction:column;gap:2px;">
                     <div style="font-weight:800;font-size:0.85rem;">${durationText(0, row.durMin).replace('0h ','')}</div>
-                    <div class="progress-bar" style="width:60px;">
+                    <div class="progress-bar" style="width:44px;">
                         <div class="progress-fill" style="width:${(()=>{const s=getTravelBarStyle(row.durMin||0, minDur, capDur); return Math.round(s.widthPct);})()}%; background:${(()=>{const s=getTravelBarStyle(row.durMin||0, minDur, capDur); return s.fillBg;})()};"></div>
                     </div>
                 </div>
@@ -2403,6 +2583,7 @@
             <td class="col-ticket" style="text-align:center;">${ticketBtn}</td>`;
         tbody.appendChild(tr);
     });
+    applyTHSRMobileTableLayouts();
   }
 
   function filterTrainScheduleByStationName(){
@@ -2429,7 +2610,7 @@
       const aa = parseTime(a.time); const bb = parseTime(b.time);
       if(aa===null && bb===null) return String(a.trainNo).localeCompare(String(b.trainNo),'en'); if(aa===null) return 1; if(bb===null) return -1; return aa-bb;
     });
-    currentStationList = list; renderStationTable();
+    currentStationList = list; renderStationTable(); applyTHSRMobileTableLayouts();
   }
 
   function renderStationTable(){
@@ -2457,6 +2638,7 @@
     tr.innerHTML = `<td style="font-weight:800">${trainNo}</td><td><span class="train-route">${range}</span></td><td>${statusBadge(status)}</td>`;
     tr.addEventListener('click', ()=>showTrainDetails(trainNo, currentQueryDateStr));
     tbody.appendChild(tr);
+    applyTHSRMobileTableLayouts();
   }
 
   function loadHistory(){ try{ return JSON.parse(localStorage.getItem('thsr_search_history_v1')||'[]'); }catch{ return []; } }
@@ -2850,6 +3032,7 @@
     // 縮放到手機寬度時再初始化
     setupMobileTripSheet();
     updateTripSummary();
+    applyTHSRMobileTableLayouts();
   });
 
 </script>

@@ -374,6 +374,17 @@
       .rail-ai-card-main{display:flex; flex-direction:column; gap:6px;}
       .rail-ai-line{margin:0; color:var(--text-main); line-height:1.6;}
       .rail-ai-subline{margin:0; color:var(--text-muted); line-height:1.6; font-size:.92rem;}
+      .rail-ai-seat-line{display:inline-flex; flex-wrap:wrap; align-items:center; gap:8px; vertical-align:middle;}
+      .rail-ai-seat-group{display:inline-flex; align-items:center; gap:6px;}
+      .rail-ai-seat-label{color:var(--text-muted);}
+      .rail-ai-seat-pill{display:inline-flex; align-items:center; justify-content:center; padding:2px 8px; border-radius:999px; font-size:.78rem; font-weight:800; line-height:1.35; background:rgba(148,163,184,0.16); color:#cbd5e1;}
+      .rail-ai-seat-pill.ok{background:rgba(34,197,94,0.16); color:#86efac;}
+      .rail-ai-seat-pill.warn{background:rgba(245,158,11,0.16); color:#fdba74;}
+      .rail-ai-seat-pill.bad{background:rgba(239,68,68,0.16); color:#fda4af;}
+      body.light-mode .rail-ai-seat-pill{color:#475569;}
+      body.light-mode .rail-ai-seat-pill.ok{color:#166534;}
+      body.light-mode .rail-ai-seat-pill.warn{color:#b45309;}
+      body.light-mode .rail-ai-seat-pill.bad{color:#be123c;}
       .rail-ai-actions{display:flex; flex-wrap:wrap; gap:8px;}
       .rail-ai-btn{border:1px solid var(--border); background:var(--bg-surface); color:var(--text-main); border-radius:12px; padding:9px 12px; font:inherit; font-size:.9rem; cursor:pointer;}
       .rail-ai-btn.primary{background:var(--primary); border-color:var(--primary); color:#fff;}
@@ -729,11 +740,16 @@
     bindActionButtons(state);
   }
 
-  function seatText(code) {
-    if (code === "O") return "可訂";
-    if (code === "L") return "座位有限";
-    if (code === "X") return "接近售完";
-    return "--";
+  function seatMeta(code) {
+    if (code === "O") return { text: "座位充裕", cls: "ok" };
+    if (code === "L") return { text: "座位有限", cls: "warn" };
+    if (code === "X") return { text: "接近售完", cls: "bad" };
+    return { text: "--", cls: "" };
+  }
+
+  function renderSeatPill(label, code) {
+    const meta = seatMeta(code);
+    return `<span class="rail-ai-seat-group"><span class="rail-ai-seat-label">${escapeHtml(label)}</span><span class="rail-ai-seat-pill ${meta.cls}">${escapeHtml(meta.text)}</span></span>`;
   }
 
   function renderThsrRoute(state, intent, rows) {
@@ -753,13 +769,15 @@
             ? addAction(state, { type: "thsr-book", trainNo: item.trainNo, start: intent.startRaw, end: intent.endRaw, date: item.originDate, time: item.dep })
             : -1;
           const seatInfo = seatMap[`${item.trainNo}|${item.originDate}`] || null;
-          const seatLine = seatInfo ? ` ｜ 標準座 ${seatText(seatInfo.standard)} ｜ 商務座 ${seatText(seatInfo.business)}` : "";
+          const seatLine = seatInfo
+            ? ` ｜ <span class="rail-ai-seat-line">${renderSeatPill("標準座", seatInfo.standard)}${renderSeatPill("商務座", seatInfo.business)}</span>`
+            : "";
           return `
             <article class="rail-ai-card">
               <div class="rail-ai-card-main">
                 <strong>${escapeHtml(item.trainNo)} 次</strong>
                 <p class="rail-ai-line">${escapeHtml(item.dep)} ${escapeHtml(intent.startRaw)} 出發 → ${escapeHtml(item.arr)} ${escapeHtml(intent.endRaw)} 抵達</p>
-                <p class="rail-ai-subline">${escapeHtml(formatDurationMinutes(item.durMin))} ｜ ${item.stopBetween > 0 ? `中途 ${item.stopBetween} 站` : "直達"} ｜ 目前狀態 ${escapeHtml(item.status)}${escapeHtml(seatLine)}</p>
+                <p class="rail-ai-subline">${escapeHtml(formatDurationMinutes(item.durMin))} ｜ ${item.stopBetween > 0 ? `中途 ${item.stopBetween} 站` : "直達"} ｜ 目前狀態 ${escapeHtml(item.status)}${seatLine}</p>
               </div>
               <div class="rail-ai-actions">
                 <button class="rail-ai-btn" type="button" data-ai-action="${detailAction}">查看詳情</button>

@@ -526,7 +526,7 @@
   }
 
   function seatMeta(code) {
-    if (code === "O") return { text: "可訂", cls: "ok" };
+    if (code === "O") return { text: "座位充裕", cls: "ok" };
     if (code === "L") return { text: "座位有限", cls: "warn" };
     if (code === "X") return { text: "接近售完", cls: "bad" };
     return null;
