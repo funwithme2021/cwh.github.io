@@ -1,0 +1,2140 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>台灣高鐵時刻表 (真實數據即時版)</title>
+  <link href="https://fonts.googleapis.com" rel="preconnect"/><link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet"/>
+  <style> 
+  /* ===== 全域效能優化 (Performance) ===== */
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  /* ===== 核心變數與 Reset ===== */
+  :root {
+    --bg-card: #ffffff;
+    --font-main: 'Inter', 'Noto Sans TC', sans-serif;
+    --bg-body: #f5f7fa;
+    --bg-surface: #ffffff;
+    --bg-surface-alt: #fafbfc;
+    --bg-header: rgba(255, 255, 255, 0.95);
+    --text-main: #0f172a;
+    --text-muted: #64748b;
+    --text-light: #94a3b8;
+    --border: #e2e8f0;
+    --border-light: #f1f5f9;
+    --primary: #fb923c; /* 高鐵橘 */
+    --primary-dark: #ea580c;
+    --primary-bg: rgba(251, 146, 60, 0.1);
+    --primary-light: rgba(251, 146, 60, 0.05);
+    --success: #22c55e;
+    --warning: #f59e0b;
+    --error: #ef4444;
+    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+    --shadow-lg: 0 10px 28px rgba(0, 0, 0, 0.12);
+    --radius: 12px;
+    --radius-lg: 16px;
+    --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  /* 狀態文字顏色 */
+  .status-text-未發車 { color: var(--text-muted); }
+  .status-text-行駛中, .status-text-準點 { color: var(--success); font-weight: 700; }
+  .status-text-已過站, .status-text-已到終點 { color: var(--text-light); }
+
+  /* 剩餘座位圖示 */
+  .seat-icon { font-size: 1.2rem; font-weight: bold; display: inline-block; width: 1.3em; text-align: center; }
+  .seat-o { color: var(--success); }
+  .seat-l { color: var(--warning); }
+  .seat-x { color: var(--error); }
+  .seat-none { color: var(--text-light); opacity: 0.4; }
+
+  /* ===== 行動裝置優化增強 (Mobile Overrides) ===== */
+  @media (max-width: 760px) {
+    .bg-blobs { display: none !important; }
+    .header, .navbar, .card, .modal-content {
+        backdrop-filter: none !important;
+        -webkit-backdrop-filter: none !important;
+        background: var(--bg-surface) !important;
+    }
+
+    .col-range, .col-stops, .col-seat-biz, .col-ticket { display: none !important; }
+    
+    table { font-size: 0.9rem; }
+    th, td { padding: 14px 6px !important; }
+    
+    .mobile-expand-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 28px; height: 28px;
+        background: var(--primary-light);
+        color: var(--primary);
+        border-radius: 8px;
+        margin-right: 8px;
+        font-weight: 700;
+        font-size: 16px;
+        cursor: pointer;
+        user-select: none;
+        transition: var(--transition);
+    }
+    .mobile-expand-btn:active { transform: scale(0.9); background: var(--primary-bg); }
+
+    .mobile-detail-row td {
+        background: var(--bg-surface-alt) !important;
+        padding: 16px !important;
+        border-left: 3px solid var(--primary);
+        border-top: 1px solid var(--border-light);
+        box-shadow: inset 0 2px 8px rgba(0,0,0,0.02);
+    }
+
+    .detail-row-flex {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 12px;
+        padding-bottom: 10px;
+        border-bottom: 1px dashed var(--border);
+    }
+    
+    .detail-seats-row {
+        display: grid; 
+        grid-template-columns: 1fr 1fr;
+        gap: 12px; 
+        margin-bottom: 14px;
+        padding: 10px 12px; 
+        background: var(--primary-light); 
+        border-radius: 10px;
+        font-size: 0.95rem; 
+        color: var(--text-main);
+    }
+
+    .detail-range-info {
+        font-weight: 700;
+        font-size: 1.05rem;
+        color: var(--text-main);
+    }
+
+    .detail-label {
+        font-size: 0.8rem;
+        color: var(--text-muted);
+        font-weight: 700;
+        margin-bottom: 8px;
+        display: block;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+  }
+
+  /* 非手機端樣式 */
+  @media (min-width: 761px) {
+    .mobile-expand-btn { display: none; }
+  }
+
+  /* 通用：停靠站 Grid 排版 */
+  .stops-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(7.5em, 1fr));
+      gap: 8px 10px;
+      font-size: 0.9rem;
+      color: var(--text-muted);
+      line-height: 1.5;
+  }
+  .stop-item { 
+    white-space: nowrap; 
+    display: inline-block;
+    padding: 4px 8px;
+    background: var(--primary-light);
+    border-radius: 6px;
+    transition: var(--transition);
+  }
+  .stop-item:hover { background: var(--primary-bg); color: var(--primary); }
+
+  body.dark-mode {
+    --bg-body: #0a0e27;
+    --bg-card: #0b1220;
+    --bg-surface: #1a1f3a;
+    --bg-surface-alt: #1e2339;
+    --bg-header: rgba(15, 23, 42, 0.95);
+    --text-main: #f1f5f9;
+    --text-muted: #94a3b8;
+    --text-light: #64748b;
+    --border: #334155;
+    --border-light: #1e293b;
+    --primary: #fb923c;
+    --primary-bg: rgba(251, 146, 60, 0.15);
+    --primary-light: rgba(251, 146, 60, 0.08);
+  }
+
+  body {
+    font-family: var(--font-main);
+    background: var(--bg-body);
+    color: var(--text-main);
+    line-height: 1.6;
+    padding-bottom: 40px;
+  }
+
+  /* ===== 導航列 ===== */
+  .header{
+      position: sticky; top:0; z-index: 120;
+      background: var(--bg-header);
+      backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+      border-bottom: 1px solid var(--border);
+      padding: 14px 18px;
+      box-shadow: var(--shadow-sm);
+  }
+  
+  .header-content{
+      max-width: 1200px; margin: 0 auto;
+      display:flex; align-items:center; justify-content:space-between; gap: 16px;
+  }
+  
+  .logo{
+      font-weight: 900; letter-spacing: 1px; color: var(--primary);
+      display:flex; align-items: baseline; gap: 8px;
+      font-size: 1.2rem;
+  }
+  .logo span{ 
+    font-weight: 600; 
+    color: var(--text-muted); 
+    font-size: 0.75rem; 
+    background: var(--primary-light);
+    padding: 4px 8px;
+    border-radius: 20px;
+    letter-spacing: 0.5px;
+  }
+  
+  .date-picker{ display:flex; align-items:center; gap: 12px; flex-wrap: wrap; }
+  
+  .btn-ghost{
+      border:1px solid var(--border); 
+      background: transparent; 
+      color: var(--text-main);
+      padding: 8px 14px; 
+      border-radius: 8px; 
+      cursor:pointer; 
+      font-weight:600;
+      font-size: 0.95rem;
+      transition: var(--transition);
+  }
+  .btn-ghost:hover{ 
+    background: var(--primary-light);
+    border-color: var(--primary);
+    color: var(--primary);
+  }
+
+  /* ===== 3. 主要容器 ===== */
+  .container { max-width: 1200px; margin: 24px auto; padding: 0 18px; }
+  @media (max-width: 760px){ .container{ width: 95%; margin: 18px auto; padding: 0; } .header{ padding: 12px 14px; } }
+  .grid { display: grid; gap: 28px; }
+
+  .card {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 28px;
+    box-shadow: var(--shadow-md);
+    transition: var(--transition);
+  }
+  .card:hover { box-shadow: var(--shadow-lg); }
+  @media (max-width: 760px){ .card{ padding: 18px 16px; border-radius: 16px; } }
+
+  .section-title {
+    font-size: 1.25rem; 
+    font-weight: 800; 
+    margin-bottom: 20px;
+    display: flex; 
+    align-items: center; 
+    gap: 12px;
+    letter-spacing: -0.3px;
+  }
+  .section-title::before { 
+    content: ''; 
+    width: 5px; 
+    height: 24px; 
+    background: linear-gradient(180deg, var(--primary), var(--primary-dark));
+    border-radius: 3px; 
+  }
+
+  /* ===== 4. 表單與篩選 ===== */
+  .form-row { 
+    display: flex; 
+    flex-wrap: wrap; 
+    gap: 14px; 
+    align-items: center; 
+    margin-bottom: 18px; 
+    position: relative; 
+  }
+  @media (max-width: 760px){ .form-row{ gap: 12px; } }
+  
+  .input-group { 
+    display: flex; 
+    align-items: center; 
+    gap: 10px; 
+    background: var(--bg-body); 
+    padding: 6px 12px; 
+    border: 1px solid var(--border); 
+    border-radius: var(--radius); 
+    flex: 1; 
+    min-width: 140px;
+    transition: var(--transition);
+  }
+  .input-group:focus-within {
+    border-color: var(--primary);
+    background: var(--bg-surface-alt);
+    box-shadow: 0 0 0 3px var(--primary-light);
+  }
+  @media (max-width: 760px){ .input-group{ padding: 10px 12px; min-width: 140px; } }
+
+  .input-group label { 
+    font-size: 0.85rem; 
+    color: var(--text-muted); 
+    font-weight: 700; 
+    white-space: nowrap;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  
+  input, select {
+    border: none; 
+    background: transparent; 
+    color: var(--text-main); 
+    font-size: 0.95rem; 
+    padding: 6px; 
+    outline: none; 
+    width: 100%;
+    font-weight: 600;
+  }
+  
+  .input-field{
+      border:1px solid var(--border); 
+      background: var(--bg-body); 
+      color: var(--text-main);
+      padding: 8px 12px; 
+      border-radius: var(--radius); 
+      outline: none; 
+      font-family: var(--font-main);
+      font-weight: 600;
+      transition: var(--transition);
+      cursor: pointer;
+  }
+  .input-field:hover { border-color: var(--primary); }
+  .input-field:focus { 
+    border-color: var(--primary);
+    background: var(--bg-surface-alt);
+    box-shadow: 0 0 0 3px var(--primary-light);
+  }
+
+  /* 互換按鈕 */
+  .swap-btn {
+    width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--border);
+    background: var(--bg-surface); color: var(--primary);
+    display: flex; justify-content: center; align-items: center;
+    cursor: pointer; transition: var(--transition); font-size: 1.2rem; font-weight: 700;
+    flex-shrink: 0;
+  }
+  .swap-btn:hover { 
+    background: var(--primary-light); 
+    transform: rotate(180deg) scale(1.1);
+    border-color: var(--primary);
+  }
+  .swap-btn:active { transform: rotate(180deg) scale(0.95); }
+
+  button.btn-primary {
+    background: linear-gradient(135deg, var(--primary), var(--primary-dark)); 
+    color: #fff; 
+    border: none;
+    padding: 10px 18px; 
+    border-radius: var(--radius); 
+    font-weight: 700;
+    cursor: pointer; 
+    white-space: nowrap;
+    transition: var(--transition);
+    box-shadow: 0 4px 12px rgba(251, 146, 60, 0.3);
+    font-size: 0.95rem;
+  }
+  button.btn-primary:hover { 
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(251, 146, 60, 0.4);
+  }
+  button.btn-primary:active { transform: translateY(0); }
+
+  /* 常用行程按鈕 */
+  .btn-fav {
+    background: linear-gradient(135deg, var(--primary), var(--primary-dark)); 
+    color: white; 
+    border: none; 
+    border-radius: 99px; 
+    padding: 8px 16px; 
+    font-size: 0.95rem; 
+    font-weight: 700;
+    display: flex; 
+    align-items: center; 
+    gap: 6px;
+    cursor: pointer; 
+    box-shadow: 0 4px 12px rgba(251, 146, 60, 0.3);
+    white-space: nowrap; 
+    transition: var(--transition);
+    flex-shrink: 0;
+  }
+  .btn-fav:hover { 
+    transform: translateY(-2px); 
+    box-shadow: 0 6px 20px rgba(251, 146, 60, 0.4);
+  }
+  .fav-star { font-size: 1.1em; }
+
+  .fav-popup {
+     position: absolute; 
+     top: 100%; 
+     left: 0; 
+     z-index: 50;
+     background: var(--bg-surface); 
+     border: 1px solid var(--border);
+     border-radius: var(--radius); 
+     box-shadow: var(--shadow-lg);
+     padding: 8px; 
+     min-width: 240px; 
+     margin-top: 8px;
+     display: none; 
+     flex-direction: column; 
+     gap: 4px;
+  }
+  .fav-popup.show { display: flex; }
+  .fav-item {
+     padding: 12px 14px; 
+     border-radius: 8px; 
+     cursor: pointer;
+     font-size: 0.92rem; 
+     color: var(--text-main); 
+     font-weight: 600;
+     display: flex; 
+     align-items: center; 
+     gap: 10px;
+     transition: var(--transition);
+  }
+  .fav-item:hover { 
+    background: var(--primary-light); 
+    color: var(--primary);
+    transform: translateX(4px);
+  }
+  .fav-empty { 
+    padding: 12px; 
+    color: var(--text-muted); 
+    font-size: 0.85rem; 
+    text-align: center;
+    font-weight: 600;
+  }
+
+  /* Chips */
+  .history-chips { 
+    display: flex; 
+    gap: 10px; 
+    margin-bottom: 18px; 
+    flex-wrap: wrap; 
+  }
+  .history-chip {
+    font-size: 0.85rem; 
+    padding: 6px 12px; 
+    border-radius: 20px;
+    background: var(--bg-body); 
+    color: var(--text-main);
+    border: 1px solid var(--border); 
+    cursor: pointer; 
+    display: flex; 
+    align-items: center; 
+    gap: 6px;
+    transition: var(--transition);
+    font-weight: 600;
+  }
+  .history-chip:hover { 
+    background: var(--primary-light); 
+    color: var(--primary); 
+    border-color: var(--primary);
+    transform: translateY(-1px);
+  }
+
+  .chip-label {
+    display: inline-flex; 
+    align-items: center; 
+    gap: 8px;
+    padding: 7px 12px; 
+    border-radius: 20px;
+    border: 1px solid var(--border); 
+    background: var(--bg-body);
+    color: var(--text-main); 
+    font-size: 0.9rem; 
+    cursor: pointer;
+    user-select: none; 
+    transition: var(--transition);
+    font-weight: 600;
+  }
+  .chip-label:hover { 
+    background: var(--primary-light);
+    border-color: var(--primary);
+  }
+  .chip-label input { display: none; }
+  .chip-label:has(input:checked) {
+    background: linear-gradient(135deg, var(--primary-light), var(--primary-bg)); 
+    color: var(--primary); 
+    border-color: var(--primary);
+    font-weight: 700;
+  }
+
+  /* ===== 5. 表格樣式 ===== */
+  .table-wrapper { 
+    overflow-x: auto; 
+    border: 1px solid var(--border); 
+    border-radius: var(--radius); 
+    -webkit-overflow-scrolling: touch;
+    box-shadow: var(--shadow-sm);
+  }
+  table { 
+    width: 100%; 
+    border-collapse: collapse; 
+    font-size: 0.95rem; 
+    white-space: nowrap; 
+  }
+  
+  th {
+    background: var(--bg-body); 
+    color: var(--text-muted); 
+    font-weight: 700; 
+    text-align: left;
+    padding: 14px 16px; 
+    border-bottom: 2px solid var(--border);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-size: 0.8rem;
+  }
+  th.sortable { 
+    cursor: pointer;
+    user-select: none;
+    transition: var(--transition);
+  }
+  th.sortable:hover { color: var(--primary); background: var(--primary-light); }
+  
+  td { 
+    padding: 14px 16px; 
+    border-bottom: 1px solid var(--border); 
+    color: var(--text-main);
+  }
+  tr:last-child td { border-bottom: none; }
+  tr:hover { 
+    background: var(--bg-body);
+    cursor: pointer;
+    transition: var(--transition);
+  }
+
+  td { font-feature-settings: "tnum"; font-variant-numeric: tabular-nums; }
+  
+  .train-route { 
+    font-size: 0.85rem; 
+    color: var(--text-muted); 
+    margin-left: 8px;
+    font-weight: 600;
+  }
+  
+  .progress-bar { 
+    height: 7px; 
+    background: var(--border); 
+    border-radius: 99px; 
+    overflow: hidden; 
+    margin-top: 6px;
+    box-shadow: inset 0 1px 3px rgba(0,0,0,0.08);
+  }
+  .progress-fill { 
+    height: 100%; 
+    border-radius: 99px;
+  }
+
+  /* ===== 6. Modal (彈窗) & 時間軸 ===== */
+  .modal {
+    display: none; 
+    position: fixed; 
+    top: 0; 
+    left: 0; 
+    width: 100%; 
+    height: 100%;
+    background: rgba(15, 23, 42, 0.5); 
+    backdrop-filter: blur(4px);
+    z-index: 2000; 
+    justify-content: center; 
+    align-items: center;
+    opacity: 0; 
+    transition: opacity 0.3s;
+    padding: 16px;
+  }
+  .modal[style*="display: flex"] { opacity: 1; }
+
+  .modal-content {
+    background: var(--bg-surface); 
+    width: 95%; 
+    max-width: 520px; 
+    max-height: 88vh;
+    border-radius: var(--radius-lg); 
+    box-shadow: var(--shadow-lg);
+    overflow: hidden; 
+    display: flex; 
+    flex-direction: column;
+    transform: translateY(30px) scale(0.95); 
+    transition: var(--transition);
+  }
+  .modal[style*="display: flex"] .modal-content { 
+    transform: translateY(0) scale(1); 
+  }
+
+  .modal-header {
+    padding: 20px 24px; 
+    border-bottom: 1px solid var(--border);
+    display: flex; 
+    justify-content: space-between; 
+    align-items: flex-start;
+    background: linear-gradient(135deg, var(--bg-surface), var(--bg-body));
+    gap: 16px;
+  }
+  
+  .modal-title-main { 
+    font-size: 1.3rem; 
+    font-weight: 800; 
+    color: var(--text-main);
+    letter-spacing: -0.3px;
+  }
+  .modal-title-sub { 
+    font-size: 0.88rem; 
+    color: var(--text-muted); 
+    margin-top: 6px;
+    line-height: 1.5;
+    font-weight: 600;
+  }
+  
+  .close{
+    font-size:24px;
+    color:var(--text-muted);
+    background:var(--primary-light);
+    width: 36px;
+    height: 36px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    border-radius:8px;
+    cursor:pointer;
+    user-select:none;
+    border: none;
+    padding: 0;
+    line-height:1;
+    transition: var(--transition);
+    flex-shrink: 0;
+  }
+  .close:hover{
+    background:var(--primary-bg);
+    color:var(--primary);
+    transform: rotate(90deg);
+  }
+
+  .modal-body { 
+    padding: 0; 
+    overflow-y: auto;
+    flex: 1;
+  }
+  .modal-body::-webkit-scrollbar { width: 6px; }
+  .modal-body::-webkit-scrollbar-track { background: transparent; }
+  .modal-body::-webkit-scrollbar-thumb { 
+    background: var(--border); 
+    border-radius: 99px;
+  }
+  .modal-body::-webkit-scrollbar-thumb:hover { background: var(--text-light); }
+
+  /* 時間軸樣式 */
+  .timeline { 
+    padding: 16px 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  
+  .timeline-item { 
+    display: flex; 
+    position: relative; 
+    padding: 12px 0;
+    gap: 16px;
+    transition: var(--transition);
+  }
+  
+  .tl-time {
+    width: 60px; 
+    text-align: right; 
+    font-size: 0.95rem; 
+    font-weight: 700; 
+    color: var(--text-main);
+    padding-right: 12px;
+    font-variant-numeric: tabular-nums;
+    flex-shrink: 0;
+  }
+  
+  .tl-marker { 
+    display: flex; 
+    flex-direction: column; 
+    align-items: center; 
+    width: 24px; 
+    position: relative;
+    flex-shrink: 0;
+  }
+  
+  .tl-line { 
+    width: 2px; 
+    background: linear-gradient(180deg, var(--border), transparent);
+    flex-grow: 1; 
+    margin-top: 6px; 
+    margin-bottom: -6px;
+  }
+  .timeline-item:last-child .tl-line { display: none; }
+  
+  .tl-dot {
+    width: 12px; 
+    height: 12px; 
+    border-radius: 50%; 
+    background: var(--border);
+    border: 2px solid var(--bg-surface); 
+    z-index: 1; 
+    flex-shrink: 0; 
+    transition: var(--transition);
+  }
+  
+  .tl-content { 
+    padding-left: 8px; 
+    flex-grow: 1;
+  }
+  
+  .tl-station { 
+    font-size: 1.05rem; 
+    font-weight: 700; 
+    color: var(--text-main); 
+    display: flex; 
+    align-items: center;
+    gap: 8px;
+  }
+  
+  .st-arr{ 
+    font-size:0.6em; 
+    font-weight:600; 
+    color:var(--text-muted);
+    font-variant-numeric: tabular-nums;
+    opacity: 0.7;
+  }
+  
+  .timeline-item.passed .tl-time, 
+  .timeline-item.passed .tl-station { 
+    opacity: 0.45; 
+    color: var(--text-light);
+  }
+  .timeline-item.passed .tl-dot { 
+    background: var(--border);
+    box-shadow: none;
+  }
+  
+  .timeline-item.next .tl-dot { 
+    background: var(--success); 
+    width: 16px; 
+    height: 16px; 
+    box-shadow: 0 0 0 6px rgba(34, 197, 94, 0.15); 
+    border-color: #fff; 
+  }
+  .timeline-item.next .tl-station { 
+    color: #15803d; 
+    font-weight: 800;
+  }
+  
+  .badge-next {
+    display: inline-flex; 
+    align-items: center; 
+    gap: 4px;
+    background: var(--success); 
+    color: #fff; 
+    font-size: 0.7rem; 
+    padding: 3px 10px; 
+    border-radius: 99px; 
+    animation: pulse 2s infinite;
+    font-weight: 700;
+  }
+  @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.7; } 100% { opacity: 1; } }
+
+  .query-tabs{
+    display:flex;
+    gap: 12px;
+    flex-wrap:wrap;
+    margin: 0 0 20px 0;
+  }
+  
+  .query-tab{
+    appearance:none;
+    border:1px solid var(--border);
+    background: var(--bg-body);
+    color: var(--text-muted);
+    padding: 10px 14px;
+    border-radius: var(--radius);
+    font-weight: 700;
+    cursor:pointer;
+    transition: var(--transition);
+    font-size: 0.95rem;
+  }
+  
+  .query-tab:hover{
+    transform:translateY(-2px);
+    border-color: var(--primary);
+    color: var(--primary);
+  }
+  
+  .query-tab.active{
+    background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+    color:#fff;
+    border-color: transparent;
+    box-shadow: 0 4px 12px rgba(251, 146, 60, 0.3);
+  }
+  
+  .query-panel.hidden{display:none}
+
+  .ticket-btn{
+    border: 1px solid var(--border); 
+    background: var(--bg-body); 
+    color: var(--text-main);
+    border-radius: var(--radius); 
+    padding: 8px 12px; 
+    cursor: pointer; 
+    font-size: 0.9rem; 
+    line-height: 1; 
+    font-weight: 700;
+    transition: var(--transition);
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .ticket-btn:hover { 
+    background: var(--primary-light);
+    color: var(--primary);
+    border-color: var(--primary);
+  }
+  .ticket-btn:active{ 
+    transform: scale(0.95); 
+  }
+  .ticket-btn[disabled]{ 
+    opacity: 0.4; 
+    cursor: not-allowed; 
+    transform: none; 
+  }
+  
+  .est-tip{ 
+    font-size: 12px; 
+    opacity: 0.55; 
+    cursor: help; 
+    line-height: 1;
+  }
+
+  #loading-overlay{
+      position: fixed; 
+      inset: 0; 
+      background: rgba(15, 23, 42, 0.6);
+      display: none; 
+      align-items: center; 
+      justify-content: center; 
+      flex-direction: column;
+      z-index: 9999; 
+      backdrop-filter: blur(8px);
+      gap: 16px;
+  }
+  
+  .spinner{
+      width: 50px; 
+      height: 50px; 
+      border-radius: 50%;
+      border: 4px solid rgba(251, 146, 60, 0.2);
+      border-top-color: var(--primary);
+      animation: spin 1s linear infinite;
+  }
+  
+  #loading-text {
+    color: #fff;
+    font-weight: 700;
+    font-size: 1rem;
+  }
+  
+  @keyframes spin { to{ transform: rotate(360deg);} }
+
+  /* ===== 背景裝飾 (桌面版) ===== */
+  .bg-blobs { 
+    position: fixed; 
+    top: 0; 
+    left: 0; 
+    width: 100%; 
+    height: 100%; 
+    z-index: -1; 
+    filter: blur(100px); 
+    opacity: 0.35; 
+    pointer-events: none;
+  }
+  
+  .blob { 
+    position: absolute; 
+    width: 60vw; 
+    height: 60vw; 
+    border-radius: 50%; 
+    animation: float 25s infinite alternate ease-in-out;
+  }
+  .blob-1 { 
+    background: linear-gradient(135deg, #fb923c, #ea580c);
+    top: -10%; 
+    left: -10%;
+  }
+  .blob-2 { 
+    background: linear-gradient(135deg, #2563eb, #1d4ed8);
+    bottom: -10%; 
+    right: -10%;
+  }
+  @keyframes float { 
+    0% { transform: translate(0, 0); } 
+    100% { transform: translate(10%, 15%); } 
+  }
+
+  /* ===== 行動版：表頭與查詢設定收合 ===== */
+  @media (max-width: 720px){
+    .header-content{ 
+      flex-wrap: nowrap; 
+      gap: 10px; 
+    }
+    .logo{ 
+      white-space: nowrap;
+      font-size: 1rem;
+    }
+    .date-picker{ 
+      flex-wrap: nowrap; 
+      gap: 8px; 
+      min-width: 0; 
+    }
+    .date-picker label{ display:none; }
+    #refreshBtn{ padding: 8px 10px !important; white-space: nowrap; }
+    #homeBtn{ padding: 8px 10px !important; }
+  }
+
+  /* ===== 整合式搜尋列設計 ===== */
+  .trip-compact-bar {
+    display: none;
+    align-items: center;
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: 99px;
+    box-shadow: var(--shadow-md);
+    margin: 14px 0 24px 0;
+    padding: 4px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .trip-pill {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    padding-left: 14px;
+    height: 50px;
+    gap: 12px;
+  }
+
+  .trip-pill-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--primary);
+    font-weight: 900;
+    white-space: nowrap;
+    padding-right: 14px;
+    margin-right: 12px;
+    border-right: 1px solid var(--border);
+    height: 28px;
+  }
+
+  .trip-pill-left .trip-open-btn {
+    width: auto;
+    height: auto;
+    border-radius: 0;
+    padding: 0;
+    border: none !important;
+    background: transparent !important;
+    font-size: 1.3rem;
+    cursor: pointer;
+  }
+
+  .trip-pill .trip-summary {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-size: 0.95rem;
+    color: var(--text-main);
+    font-weight: 700;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    text-align: left;
+  }
+
+  .trip-compact-bar .trip-search-btn {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+    color: #fff;
+    border: none;
+    box-shadow: 0 4px 12px rgba(251, 146, 60, 0.3);
+    font-size: 1.3rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    padding: 0;
+    cursor: pointer;
+    transition: var(--transition);
+    flex-shrink: 0;
+  }
+
+  .trip-compact-bar .trip-search-btn:hover {
+    transform: scale(1.05);
+    box-shadow: 0 6px 20px rgba(251, 146, 60, 0.4);
+  }
+
+  .trip-compact-bar .trip-search-btn:active {
+    transform: scale(0.95);
+  }
+
+  body.dark-mode .trip-compact-bar {
+    background: var(--bg-surface);
+    border-color: var(--border);
+  }
+
+  .trip-sheet-backdrop{
+    display:none;
+    position:fixed; 
+    inset:0;
+    background: rgba(0,0,0,.4);
+    z-index: 90;
+    backdrop-filter: blur(3px);
+  }
+  
+  .trip-sheet{
+    display:none;
+    position:fixed;
+    left:0; 
+    right:0; 
+    bottom:0;
+    z-index: 91;
+    background: var(--bg-surface);
+    border-top-left-radius: 20px;
+    border-top-right-radius: 20px;
+    box-shadow: 0 -16px 48px rgba(0,0,0,.25);
+    max-height: 85vh;
+    overflow: hidden;
+    animation: slideUp 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  
+  @keyframes slideUp {
+    from { transform: translateY(100%); }
+    to { transform: translateY(0); }
+  }
+  
+  .trip-sheet-hd{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding: 16px 18px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-body);
+  }
+  
+  .trip-sheet-title{ 
+    font-weight: 800;
+    font-size: 1.1rem;
+  }
+  
+  .trip-sheet-body{
+    padding: 16px 18px 20px;
+    overflow:auto;
+    max-height: calc(85vh - 60px);
+  }
+
+  @media (max-width: 720px){
+    #panel-startend .form-row{ display:none; }
+    .trip-compact-bar{ display:flex; }
+    #searchHistory{ overflow-x:auto; white-space: nowrap; }
+  }
+
+  .hide-mobile{display:inline;}
+  .icon-btn .ico{display:inline-block;}
+  .icon-btn .txt{display:inline-block;}
+  .home-btn .ico{display:inline-block;}
+  .home-btn .txt{display:inline-block;}
+
+  @media (max-width: 720px){
+    .hide-mobile{display:none !important;}
+    .home-btn .txt{display:none !important;}
+    .icon-btn .txt{display:none !important;}
+    .logo span{display:none !important;}
+    .date-picker{gap:8px;}
+    .date-picker input[type="date"]{min-width: 150px;}
+    #refreshBtn{min-width:44px; padding: 8px 10px !important;}
+    #themeToggle{min-width:44px; padding: 8px 10px !important;}
+  }
+
+  @media (max-width: 720px){
+    #searchHistory{display:none !important;}
+    .trip-sheet-body{padding-top: 12px;}
+    .trip-sheet .form-row{display:grid !important; grid-template-columns: 1fr auto 1fr; gap: 12px; align-items:center; position: relative;}
+    .trip-sheet .btn-fav{grid-column: 1 / span 3;}
+    .trip-sheet .fav-popup{grid-column: 1 / span 3;}
+    .trip-sheet .input-group{min-width:0;}
+    .trip-sheet .swap-btn{justify-self:center; align-self:center; width: 40px; height:40px; flex:0 0 auto;}
+    .trip-sheet label.chip-label{grid-column: 1 / span 3; margin-top: 4px;}
+    .trip-sheet #searchBtn{grid-column: 1 / span 3; height: 44px;}
+    #searchHistoryMobile{display:flex; flex-wrap: nowrap; overflow-x:auto; gap: 12px; padding: 8px 2px 12px; margin-bottom: 8px; -webkit-overflow-scrolling: touch;}
+    #searchHistoryMobile .history-chip{flex: 0 0 auto; white-space: nowrap;}
+    #searchHistoryMobile::-webkit-scrollbar{height:6px;}
+    #searchHistoryMobile::-webkit-scrollbar-thumb{background: var(--border); border-radius: 999px;}
+    .trip-sheet .fav-popup{position: static; display:none; flex-direction: row; overflow-x:auto; gap:12px; padding: 8px 2px 12px; margin: 0 0 8px; background: transparent; border: 0; box-shadow:none;}
+    .trip-sheet .fav-popup.show{display:flex;}
+    .trip-sheet .fav-item{border:1px solid var(--border); border-radius:999px; padding: 10px 14px; background: var(--bg-body); white-space: nowrap; font-size: 0.9rem;}
+    .trip-sheet .fav-empty{padding: 10px 14px; color: var(--text-muted);}
+  }
+
+  </style>
+</head>
+<body class="light-mode">
+
+<div class="bg-blobs" aria-hidden="true">
+  <div class="blob blob-1"></div>
+  <div class="blob blob-2"></div>
+</div>
+
+<div id="loading-overlay">
+  <div class="spinner"></div>
+  <div id="loading-text">正在初始化高鐵真實數據...</div>
+</div>
+
+<header class="header">
+  <div class="header-content">
+    <div class="logo">🚄 THSR <span>Real-Time</span></div>
+
+    <div class="date-picker">
+      <button class="btn-ghost home-btn" onclick="window.location.href='../home/index.html'" style="margin-right:8px;" title="回首頁"><span class="ico">🏠</span><span class="txt">首頁</span></button>
+      
+      <span class="hide-mobile" style="font-size: 0.85em; color: var(--text-muted); font-weight: 600;">選擇日期：</span>
+      <input type="date" id="mainQueryDate" class="input-field" style="width: auto; display: inline-block;">
+      <button class="btn-primary icon-btn" id="refreshBtn" style="padding: 8px 12px;" title="更新資料"><span class="ico">⟳</span><span class="txt">更新</span></button>
+      <button class="btn-ghost icon-btn" id="themeToggle" type="button" title="切換深色模式"><span class="ico">🌙</span><span class="txt">深夜模式</span></button>
+    </div>
+  </div>
+</header>
+
+<main class="container">
+  <div class="grid">
+
+    <div class="query-tabs" role="tablist" aria-label="查詢模式">
+      <button class="query-tab active" id="tab-startend" type="button" data-target="panel-startend">🚩 起訖站查詢</button>
+      <button class="query-tab" id="tab-station" type="button" data-target="panel-station">🏢 車站時刻表</button>
+      <button class="query-tab" id="tab-trainno" type="button" data-target="panel-trainno">🎫 車次查詢</button>
+    </div>
+
+    <section id="panel-startend" class="card query-panel">
+      <div class="section-title">起訖站快速查詢</div>
+
+      <datalist id="stationList"></datalist>
+
+      <div id="searchHistory" class="history-chips"></div>
+
+      
+      <div class="trip-compact-bar" id="tripCompactBar" aria-label="行動版查詢列">
+        <div class="trip-pill" id="tripPill" role="button" tabindex="0" aria-label="開啟行程設定">
+          <div class="trip-pill-left">
+            <button class="btn-ghost trip-open-btn" id="tripOpenBtn" type="button" title="設定查詢">⚙️</button>
+            <span class="trip-pill-label">行程</span>
+          </div>
+          <div class="trip-summary" id="tripSummaryText">出發 → 到達</div>
+        </div>
+        <button class="btn-primary trip-search-btn" id="tripCompactSearchBtn" type="button" title="查詢">🔍</button>
+      </div>
+      <div class="trip-sheet-backdrop" id="tripSheetBackdrop"></div>
+      <div class="trip-sheet" id="tripSheet" role="dialog" aria-modal="true" aria-label="查詢設定">
+        <div class="trip-sheet-hd">
+          <div class="trip-sheet-title">查詢設定</div>
+          <button class="btn-ghost" id="tripSheetClose" type="button" title="關閉">✕</button>
+        </div>
+        <div class="trip-sheet-body" id="tripSheetBody">
+          <div id="searchHistoryMobile" class="history-chips" aria-label="歷史行程"></div>
+        </div>
+      </div>
+
+      <div class="form-row" style="position:relative;">
+        <button class="btn-fav" id="favBtn" type="button">
+           <span class="fav-star">⭐</span> 常用行程
+        </button>
+        <div class="fav-popup" id="favPopup"></div>
+
+        <div class="input-group">
+          <label>出發</label>
+          <input list="stationList" id="startStation" placeholder="請輸入站名或站碼">
+        </div>
+
+        <button class="swap-btn" id="swapBtn" title="互換起訖站">⇄</button>
+
+        <div class="input-group">
+          <label>到達</label>
+          <input list="stationList" id="endStation" placeholder="請輸入站名或站碼">
+        </div>
+
+        <label class="chip-label" style="flex:0 0 auto;">
+          <input type="checkbox" id="onlyDirect">
+          <span>直達</span>
+        </label>
+        <button class="btn-primary" id="searchBtn">查詢</button>
+      </div>
+
+      <div class="table-wrapper">
+        <table id="scheduleTableByStation">
+          <thead>
+            <tr>
+              <th>車次</th>
+              <th class="col-range">區間</th>
+              <th class="sortable">出發 <span id="sortDepIcon">↕</span></th>
+              <th class="sortable">抵達 <span id="sortArrIcon">↕</span></th>
+              <th class="col-dur sortable">耗時 <span id="sortDurIcon">↕</span></th>
+              <th class="col-stops">停靠</th>
+              <th>狀態</th>
+              <th class="seat-col-header col-seat-std">標準</th> 
+              <th class="seat-col-header col-seat-biz">商務</th> 
+              <th class="col-ticket">訂票</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="panel-station" class="card query-panel hidden">
+      <div class="section-title">車站時刻表查詢</div>
+      <div class="form-row">
+        <div class="input-group">
+          <label>車站</label>
+          <input list="stationList" id="stationNameInput" placeholder="請輸入站名或站碼">
+        </div>
+        <div class="input-group" style="max-width: 220px;">
+          <label>方向</label>
+          <select id="directionSelect"><option value="south">南下</option><option value="north">北上</option></select>
+        </div>
+        <button class="btn-primary" id="stationSearchBtn">查詢</button>
+      </div>
+      <div class="table-wrapper">
+        <table id="scheduleTableByStationName">
+          <thead><tr><th>車次</th><th>區間</th><th>時間</th><th>狀態</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="panel-trainno" class="card query-panel hidden">
+      <div class="section-title">車次查詢</div>
+      <datalist id="trainNumberList"></datalist>
+      <div class="form-row">
+        <div class="input-group" style="flex: 1; min-width: 160px;">
+          <label>車次</label>
+          <input id="trainNumberInput" list="trainNumberList" placeholder="例：0700、700">
+        </div>
+        <button class="btn-primary" id="trainNumberBtn">查詢</button>
+      </div>
+      <div class="table-wrapper">
+        <table id="scheduleTableByNumber">
+          <thead><tr><th>車次</th><th>區間</th><th>狀態</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+  </div>
+</main>
+
+<div id="trainModal" class="modal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <div>
+        <div class="modal-title-main" id="modalTitleMain">列車資訊</div>
+        <div class="modal-title-sub" id="modalTitleSub">—</div>
+      </div>
+      <button class="close" id="modalClose">✕</button>
+    </div>
+    <div class="modal-body" id="modalBody"></div>
+  </div>
+</div>
+
+<script src="./thsr.real-schedule.js"></script>
+<script>
+  let nameToId = {};
+  let stationListSorted = [];
+  let currentQueryDateStr = '';
+  let baseSchedule = {};
+  let prevSchedule = {};
+  let lastStartEndQuery = null;
+  let lastStationQuery  = null;
+  let lastTrainQuery    = null;
+  let modalCtx = null;
+  let currentSeatMap = {}; 
+  let currentStartEndList = [];
+  let currentStationList = [];
+
+  function fmtDate(d){ return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
+  function addDays(dateStr, delta){ const [y,m,d] = dateStr.split('-').map(Number); const dt = new Date(y, m-1, d); dt.setDate(dt.getDate()+delta); return fmtDate(dt); }
+  function normTW(s){ return String(s||'').trim().replace(/台/g,'臺'); }
+  function sameStation(a,b){ return normTW(a) === normTW(b); }
+  const THSR_STATION_ORDER = ['南港','臺北','板橋','桃園','新竹','苗栗','臺中','彰化','雲林','嘉義','臺南','左營'];
+  function normTHSRStationName(s){ const n = normTW(s||''); if(n==='高雄' || n==='新左營') return '左營'; return n; }
+  function thsrStationIndex(name){ return THSR_STATION_ORDER.indexOf(normTHSRStationName(name)); }
+  function parseTime(t){ if(!t || !/\d{1,2}:\d{2}/.test(t)) return null; let [h,m]=t.split(':').map(x=>parseInt(x,10)); return h*60+m; }
+  function durationText(depMin, arrMin){ if(depMin===null || arrMin===null) return '--'; let d = arrMin - depMin; if(d < 0) d += 1440; const hh = Math.floor(d/60); const mm = d%60; return `${hh}h ${String(mm).padStart(2,'0')}m`; }
+  function isQueryToday(dateStr){ return dateStr === fmtDate(new Date()); }
+  function splitArrDep(stopRow){ const t1 = stopRow?.[1] || ''; const t2 = stopRow?.[2] || ''; if(!t2) return { arr: t1, dep: t1 }; if(!t1) return { arr: t2, dep: t2 }; const m1 = parseTime(t1); const m2 = parseTime(t2); if(m1===null || m2===null) return { arr: t1, dep: t2 }; if(m2 <= m1) return { arr: t2, dep: t1 }; return { arr: t1, dep: t2 }; }
+
+  function getStopsWithAdjustedDate(trainNo, originDateStr, scheduleMap) {
+    const t = scheduleMap[trainNo]; if (!t) return [];
+    const stops = t['車站時間'] || [];
+    let dayOffset = 0; let prevMin = -1;
+    return stops.map((stop) => {
+      const ad = splitArrDep(stop); const timeStr = ad.dep || ad.arr || ''; const currentMin = parseTime(timeStr);
+      if (prevMin !== -1 && currentMin !== null && currentMin < prevMin) dayOffset++;
+      if (currentMin !== null) prevMin = currentMin;
+      return { name: stop[0], time: timeStr, arr: ad.arr, actualDate: addDays(originDateStr, dayOffset), originDate: originDateStr };
+    });
+  }
+
+  function stopDisplayDate(originDateStr, stops, idx){
+    let dayOffset = 0; let prevMin = -1;
+    for(let i=0; i<=idx; i++){
+        const ad = splitArrDep(stops[i]); const m = parseTime(ad.dep || ad.arr || '');
+        if(prevMin !== -1 && m !== null && m < prevMin) dayOffset++;
+        if(m !== null) prevMin = m;
+    }
+    return addDays(originDateStr, dayOffset);
+  }
+
+  function getStatusLabel(originDateStr, depTimeStr, arrTimeStr, firstDepTimeStr, mode) {
+    const now = new Date(); const todayStr = fmtDate(now);
+    if (originDateStr > todayStr) return '未發車'; if (originDateStr < todayStr) return '已到終點';
+    const nowMin = now.getHours() * 60 + now.getMinutes();
+    const depMin = parseTime(depTimeStr || ''); const arrMin = parseTime(arrTimeStr || ''); const firstDepMin = parseTime(firstDepTimeStr || ''); 
+    if (depMin === null) return '未發車';
+    let adjustedArrMin = arrMin; if (arrMin !== null && arrMin < depMin) adjustedArrMin += 1440;
+    if (nowMin < depMin) { if (firstDepMin !== null && nowMin >= firstDepMin) { return '行駛中'; } return '未發車'; } 
+    else if (adjustedArrMin !== null && nowMin < adjustedArrMin) { return (mode === 'train') ? '行駛中' : '已過站'; } 
+    else { return '已到終點'; }
+  }
+
+  function statusBadge(label){ 
+    const s = String(label||''); 
+    const tip = '狀態依預定時刻與目前時間推估'; 
+    let bgColor = 'transparent';
+    if(s === '未發車') bgColor = 'rgba(148, 163, 184, 0.1)';
+    else if(s === '行駛中' || s === '準點') bgColor = 'rgba(34, 197, 94, 0.1)';
+    else if(s === '已過站' || s === '已到終點') bgColor = 'rgba(148, 163, 184, 0.08)';
+    return `<span class="status-badge est" style="background: ${bgColor}; display:inline-flex; align-items:center; gap:4px; white-space:nowrap; padding: 5px 10px; border-radius: 6px;"><span class="status-text-${s}">${s}</span><span class="est-tip" title="${tip}" style="opacity:0.55; cursor:help;">ⓘ</span></span>`; 
+  }
+
+  function bindStationInput(inputId){
+    const input = document.getElementById(inputId); if(!input) return;
+    input.addEventListener('focus', ()=> fillStationDatalist(input.value));
+    input.addEventListener('input', ()=> fillStationDatalist(input.value));
+    input.addEventListener('blur', ()=>{ const resolved = extractStationNameFromInput(input.value); if(resolved) input.value = resolved; });
+  }
+  function bindTrainInput(inputId){
+    const input = document.getElementById(inputId); if(!input) return;
+    input.addEventListener('focus', ()=> fillTrainDatalist(input.value));
+    input.addEventListener('input', ()=> fillTrainDatalist(input.value));
+    input.addEventListener('blur', ()=>{ const no = extractTrainNoFromInput(input.value); if(no) input.value = no; });
+  }
+  function extractStationNameFromInput(raw){ 
+    const v=String(raw||'').trim(); if(!v) return ''; 
+    const m=v.match(/^(\d{3,6})\s*-\s*(.+)$/); 
+    if(m&&window.stationMap&&window.stationMap[m[1]]) return window.stationMap[m[1]]; 
+    if(window.stationMap&&window.stationMap[v]) return window.stationMap[v]; 
+    const asTai=normTW(v); 
+    if(asTai==='高雄'||asTai==='新左營') return '左營'; 
+    if(nameToId[asTai]) return asTai; 
+    return normTW(v); 
+  }
+  function fillStationDatalist(k){ const dl=document.getElementById('stationList'); if(!dl) return; dl.innerHTML=stationListSorted.filter(s=>s.name.includes(normTW(k))||String(s.id).includes(k)).slice(0,30).map(s=>`<option value="${s.id}-${s.name}"></option>`).join(''); }
+  function fillTrainDatalist(k){ 
+    const dl=document.getElementById('trainNumberList'); if(!dl) return; 
+    const nums = Object.keys(baseSchedule).filter(n=>n.includes(k)).sort();
+    const limit = 50; let out = '';
+    for(let i=0; i<nums.length; i++){ if(i >= limit) break; const n = nums[i]; const t = baseSchedule[n]; const stops = t?.['車站時間']||[]; const first = stops[0]?.[0] || ''; const last = stops.slice(-1)[0]?.[0] || ''; const range = (first && last) ? `${first}➝${last}` : ''; out += `<option value="${n} - ${range}"></option>`; }
+    dl.innerHTML = out; 
+  }
+  function extractTrainNoFromInput(v){ let no=String(v||'').trim().split('-')[0].trim(); if(/^\d{3}$/.test(no)) no='0'+no; return no; }
+  function buildStationIndex(){ nameToId={}; stationListSorted=[]; if(!window.stationMap) return; Object.entries(window.stationMap).forEach(([id,n])=>{ const nn=normTW(n); nameToId[nn]=id; stationListSorted.push({id,name:nn}); }); stationListSorted.sort((a,b)=>String(a.id).localeCompare(String(b.id))); }
+
+  async function refreshData(dateStr){
+    currentQueryDateStr = dateStr || '';
+    document.getElementById('loading-overlay').style.display = 'flex';
+    document.getElementById('loading-text').textContent = `正在獲取 ${dateStr} 的列車資料...`;
+    await fetchRealData(dateStr);
+    baseSchedule = (typeof structuredClone==='function') ? structuredClone(window.trainSchedule) : JSON.parse(JSON.stringify(window.trainSchedule||{}));
+    const prevDateStr = addDays(dateStr, -1);
+    await fetchRealData(prevDateStr);
+    prevSchedule = (typeof structuredClone==='function') ? structuredClone(window.trainSchedule) : JSON.parse(JSON.stringify(window.trainSchedule||{}));
+    window.trainSchedule = structuredClone(baseSchedule);
+    buildStationIndex(); fillStationDatalist(''); fillTrainDatalist(''); renderHistory();
+    document.getElementById('loading-overlay').style.display = 'none';
+    rerenderVisibleResults();
+  }
+
+  async function runStartEndSearch() {
+    const dateInput = document.getElementById('mainQueryDate');
+    const queryDate = dateInput ? dateInput.value : fmtDate(new Date());
+    const todayStr = fmtDate(new Date());
+    const stInput = document.getElementById('startStation').value;
+    const edInput = document.getElementById('endStation').value;
+    const st = extractStationNameFromInput(stInput);
+    const ed = extractStationNameFromInput(edInput);
+    if (!st || !ed || !queryDate) return;
+    document.getElementById('startStation').value = st;
+    document.getElementById('endStation').value = ed;
+    
+    const isPastDate = queryDate < todayStr;
+    document.querySelectorAll('.seat-col-header').forEach(th => { th.style.display = isPastDate ? 'none' : ''; });
+    
+    lastStartEndQuery = { st, ed };
+    buildDirectList(st, ed);
+    renderStartEndTable();
+    if (queryDate >= todayStr) { await refreshSeatForCurrentOD(st, ed); } else { currentSeatMap = {}; renderStartEndTable(); }
+    const h = loadHistory().filter(x => !(x.s === st && x.e === ed));
+    h.unshift({ s: st, e: ed });
+    saveHistory(h); renderHistory();
+    if (window.innerWidth <= 720) { try{ closeTripSheet(); }catch(e){} }
+  }
+
+  function buildDirectList(st, ed) {
+    const list = [];
+    const queryDate = document.getElementById('mainQueryDate').value;
+    const onlyDirect = document.getElementById('onlyDirect')?.checked;
+    const sources = [{ map: baseSchedule, origin: queryDate }, { map: prevSchedule, origin: addDays(queryDate, -1) }];
+    sources.forEach(src => {
+      Object.keys(src.map || {}).forEach(trainNo => {
+        const adjStops = getStopsWithAdjustedDate(trainNo, src.origin, src.map);
+        const i1 = adjStops.findIndex(x => sameStation(x.name, st));
+        const i2 = adjStops.findIndex(x => sameStation(x.name, ed));
+        if (i1 < 0 || i2 < 0 || i2 <= i1) return;
+        const start = adjStops[i1]; const end = adjStops[i2];
+        if (src.origin !== queryDate) { const depMin = parseTime(start.time); if (depMin === null || depMin > 240) return; }
+        if (start.actualDate !== queryDate) return;
+        const dur = (parseTime(end.time) - parseTime(start.time) + 1440) % 1440;
+        if (onlyDirect && (i2 - i1 - 1) > 0) return;
+        const firstDep = adjStops[0].time; 
+        list.push({
+          trainNo, dep: start.time, arr: end.time, durMin: dur,
+          range: `${adjStops[0].name}➝${adjStops.slice(-1)[0].name}`,
+          stopBetween: i2 - i1 - 1,
+          status: getStatusLabel(start.originDate, start.time, end.time, firstDep, 'list'),
+          originDate: start.originDate, midStops: adjStops.slice(i1 + 1, i2),
+          startStation: st, endStation: ed
+        });
+      });
+    });
+    currentStartEndList = list.sort((a,b) => parseTime(a.dep) - parseTime(b.dep));
+  }
+
+  async function refreshSeatForCurrentOD(st, ed){
+    const dateStr = document.getElementById('mainQueryDate').value;
+    const todayStr = fmtDate(new Date());
+    const oId = nameToId[normTW(st)]; const dId = nameToId[normTW(ed)];
+    if(!dateStr || !oId || !dId) return;
+    currentSeatMap = {};
+    if (dateStr === todayStr) {
+        const mToday = await window.fetchSeatStatusOD(dateStr, oId, dId).catch(()=>({}));
+        Object.keys(mToday||{}).forEach(k=>{ currentSeatMap[`${String(k)}|${dateStr}`] = mToday[k]; });
+    } else {
+        const prevDateStr = addDays(dateStr, -1);
+        const [mToday, mPrev] = await Promise.all([ window.fetchSeatStatusOD(dateStr, oId, dId).catch(()=>({})), window.fetchSeatStatusOD(prevDateStr, oId, dId).catch(()=>({})) ]);
+        Object.keys(mPrev||{}).forEach(k=>{ currentSeatMap[`${String(k)}|${prevDateStr}`] = mPrev[k]; });
+        Object.keys(mToday||{}).forEach(k=>{ currentSeatMap[`${String(k)}|${dateStr}`] = mToday[k]; });
+    }
+    renderStartEndTable();
+  }
+
+  function getSeatIcon(trainNo, type, originDateStr) {
+    const key = `${String(trainNo)}|${originDateStr}`; const info = currentSeatMap?.[key]; const status = info ? info[type] : '--';
+    if(status==='O') return '<span class="seat-icon seat-o">○</span>'; if(status==='L') return '<span class="seat-icon seat-l">△</span>'; if(status==='X') return '<span class="seat-icon seat-x">✕</span>'; return '<span class="seat-icon seat-none">--</span>';
+  }
+
+  function percentile(sortedArr, p){
+    if(!sortedArr || !sortedArr.length) return 1;
+    const idx = (sortedArr.length - 1) * p;
+    const lo = Math.floor(idx), hi = Math.ceil(idx);
+    if(lo === hi) return sortedArr[lo];
+    const w = idx - lo;
+    return sortedArr[lo] * (1 - w) + sortedArr[hi] * w;
+  }
+  
+  function lerp(a,b,t){ return a + (b-a)*t; }
+  function lerpColor(c1,c2,t){
+    return {
+      r: Math.round(lerp(c1.r,c2.r,t)),
+      g: Math.round(lerp(c1.g,c2.g,t)),
+      b: Math.round(lerp(c1.b,c2.b,t))
+    };
+  }
+
+  function travelColor(norm01){
+    const t = Math.max(0, Math.min(1, norm01));
+    const stops = [
+      {t:0.00, c:{r:34,  g:197, b:94 }},
+      {t:0.25, c:{r:234, g:179, b:8  }},
+      {t:0.50, c:{r:249, g:115, b:22 }},
+      {t:0.75, c:{r:239, g:68,  b:68 }},
+      {t:1.00, c:{r:168, g:85,  b:247}}
+    ];
+    for(let i=0;i<stops.length-1;i++){
+      const a = stops[i], b = stops[i+1];
+      if(t >= a.t && t <= b.t){
+        const tt = (t - a.t) / (b.t - a.t || 1);
+        const c = lerpColor(a.c, b.c, tt);
+        return `rgb(${c.r},${c.g},${c.b})`;
+      }
+    }
+    const last = stops[stops.length-1].c;
+    return `rgb(${last.r},${last.g},${last.b})`;
+  }
+
+  function getTravelBarStyle(travelMin, minMin, capMin){
+    const t = Math.max(0, travelMin || 0);
+    const minV = Math.max(0, minMin || 0);
+    const capV = Math.max(minV + 1, capMin || (minV + 1));
+    const isExtreme = t >= capV;
+    const denom = Math.max(1, (capV - minV));
+    const norm = isExtreme ? 1 : Math.min(1, Math.max(0, (t - minV) / denom));
+    const widthPct = (t > 0) ? Math.max(5, Math.min(100, 5 + norm * 95)) : 0;
+    const fillBg = travelColor(norm);
+    return { widthPct, isExtreme, fillBg };
+  }
+
+  function renderStartEndTable() {
+    const tbody = document.querySelector('#scheduleTableByStation tbody'); if (!tbody) return;
+    tbody.innerHTML = '';
+    const queryDate = document.getElementById('mainQueryDate').value; const todayStr = fmtDate(new Date()); const isPastDate = queryDate < todayStr;
+    
+    if (!currentStartEndList.length) { tbody.innerHTML = `<tr><td colspan="10" style="text-align:center; padding: 32px;">查無符合條件的列車</td></tr>`; return; }
+    
+    const nowMin = new Date().getHours() * 60 + new Date().getMinutes(); 
+    const durSorted = currentStartEndList.map(x => x.durMin||0).filter(x=>x>0).sort((a,b)=>a-b);
+    const minDur = Math.max(1, (durSorted[0] || 1));
+    const capDur = Math.max(minDur + 1, percentile(durSorted, 0.95));
+
+    tbody.onclick = async (e) => {
+        const expandBtn = e.target.closest('.mobile-expand-btn');
+        if(expandBtn){
+            e.stopPropagation();
+            const tr = expandBtn.closest('tr');
+            const idx = Number(expandBtn.dataset.idx);
+            const r = currentStartEndList[idx];
+
+            if(tr.nextElementSibling && tr.nextElementSibling.classList.contains('mobile-detail-row')){
+                tr.nextElementSibling.remove();
+                expandBtn.textContent = '+';
+            } else {
+                const detailRow = document.createElement('tr');
+                detailRow.className = 'mobile-detail-row';
+                
+                let stopsHTML = '';
+                if(r.midStops && r.midStops.length > 0){
+                    const stopsSpans = r.midStops.map(s => `<span class="stop-item">${s.name}</span>`).join('');
+                    stopsHTML = `<div class="stops-grid">${stopsSpans}</div>`;
+                } else {
+                    stopsHTML = '<span style="color:var(--success); font-weight:700; display: inline-block; padding: 6px 12px; background: rgba(34,197,94,0.1); border-radius: 8px;">✓ 直達列車</span>';
+                }
+
+                const depMin = parseTime(r.dep);
+                const canBook = (r.originDate > todayStr) || (r.originDate === todayStr && depMin !== null && (depMin - nowMin) > 10);
+                let btnHTML = '';
+                if(canBook){
+                    btnHTML = `<button class="ticket-btn" onclick="event.stopPropagation();openTHSRBookingDeepLink('${r.trainNo}', '${r.originDate}', '${r.dep}')"><span>🎫</span> 立即訂票</button>`;
+                } else {
+                    btnHTML = `<button class="ticket-btn" disabled><span>⏹</span> 停止預訂</button>`;
+                }
+
+                const seatStd = getSeatIcon(r.trainNo, 'standard', r.originDate);
+                const seatBiz = getSeatIcon(r.trainNo, 'business', r.originDate);
+
+                detailRow.innerHTML = `
+                    <td colspan="10">
+                        <div class="detail-row-flex">
+                            <div style="display: flex; flex-direction: column; gap: 4px;">
+                              <div class="detail-range-info" style="font-size: 1.1rem;">🚆 ${r.range}</div>
+                              <div style="font-size: 0.85rem; color: var(--text-muted); font-weight: 600;">${r.orientationInfo || ''}</div>
+                            </div>
+                            <div>${btnHTML}</div>
+                        </div>
+                        <div class="detail-seats-row">
+                            <div><span style="color: var(--primary); font-weight: 700;">標準艙</span><br/>${seatStd}</div>
+                            <div><span style="color: var(--primary); font-weight: 700;">商務艙</span><br/>${seatBiz}</div>
+                        </div>
+                        <div class="detail-label">🚏 停靠站</div>
+                        ${stopsHTML}
+                    </td>
+                `;
+                tr.parentNode.insertBefore(detailRow, tr.nextSibling);
+                expandBtn.textContent = '-';
+            }
+            return;
+        }
+
+        const ticket = e.target.closest('.ticket-btn');
+        if(ticket && !ticket.disabled){
+            e.stopPropagation();
+            const tno = ticket.dataset.train;
+            const d   = ticket.dataset.date;
+            const tm  = ticket.dataset.time;
+            if(tno && d && tm){
+              openTHSRBookingDeepLink(tno, d, tm);
+            }
+            return;
+        }
+
+        const toggle = e.target.closest('.stop-toggle');
+        if(toggle){
+            e.stopPropagation();
+            const tr = toggle.closest('tr');
+            const idx = Number(tr.dataset.idx);
+            const r = currentStartEndList[idx];
+            
+            const cnt = toggle.dataset.count || '';
+            const next = tr.nextElementSibling;
+            if(next && next.classList.contains('stops-row')){
+                next.remove();
+                toggle.dataset.open = '0';
+                if(cnt) toggle.textContent = `🚏 ${cnt}站 ▼`;
+            } else {
+                const tr2 = document.createElement('tr');
+                tr2.className = 'stops-row';
+                const stopsStr = r.midStops.map(s => `${s.name}`).join(' • ');
+                tr2.innerHTML = `<td colspan="10" style="background: var(--bg-body);">沿途停靠：<strong style="color: var(--primary);">${stopsStr}</strong></td>`;
+                tr.parentNode.insertBefore(tr2, tr.nextSibling);
+                toggle.dataset.open = '1';
+                if(cnt) toggle.textContent = `🚏 ${cnt}站 ▲`;
+            }
+            return;
+        }
+
+        const tr = e.target.closest('tr');
+        if(!tr || tr.parentElement !== tbody || tr.classList.contains('mobile-detail-row') || tr.classList.contains('stops-row')) return;
+        const idx = Number(tr.dataset.idx);
+        const r = currentStartEndList[idx];
+        if(!r) return;
+        showTrainDetails(r.trainNo, r.originDate);
+    };
+
+    currentStartEndList.forEach((row, idx) => {
+        const tr = document.createElement('tr');
+        tr.dataset.idx = idx;
+        tr.className = "main-row";
+
+        const depMin = parseTime(row.dep);
+        const canBook = (row.originDate > todayStr) || (row.originDate === todayStr && depMin !== null && (depMin - nowMin) > 10);
+        const ticketBtn = canBook ? `<button class="ticket-btn" data-train="${row.trainNo}" data-date="${row.originDate}" data-time="${row.dep}"><span>🎫</span></button>` : `<span style="font-size:0.85rem; color:var(--text-light); font-weight: 600;">停止</span>`;
+        
+        let seatCells = `<td class="col-seat-std" style="text-align:center;">${getSeatIcon(row.trainNo, 'standard', row.originDate)}</td><td class="col-seat-biz" style="text-align:center;">${getSeatIcon(row.trainNo, 'business', row.originDate)}</td>`;
+        if(isPastDate) seatCells = `<td class="col-seat-std" style="text-align:center;">--</td><td class="col-seat-biz" style="text-align:center;">--</td>`;
+
+        const stopText = row.stopBetween <= 0
+          ? '<span style="color: var(--success); font-weight: 700;">直達</span>'
+          : `<span class="stop-toggle" data-open="0" data-count="${row.stopBetween}" style="cursor:pointer; color:var(--text-main); font-weight:700;">🚏 ${row.stopBetween}站 ▼</span>`;
+
+        const barStyle = getTravelBarStyle(row.durMin||0, minDur, capDur);
+
+        tr.innerHTML = `
+            <td>
+                <span class="mobile-expand-btn" data-idx="${idx}">+</span>
+                <span style="font-weight: 900; font-size: 1.05rem;">${row.trainNo}</span>
+            </td>
+            <td class="col-range"><span class="train-route">${row.range}</span></td>
+            <td style="font-weight: 700; font-size: 1rem;">${row.dep}</td>
+            <td style="font-weight: 700; font-size: 1rem;">${row.arr}</td>
+            <td class="col-dur">
+                <div style="display:flex;flex-direction:column;gap:6px;align-items: flex-start;">
+                    <div style="font-weight:800;font-size:0.95rem; color: var(--text-main);">${durationText(0, row.durMin).replace('0h ','')}</div>
+                    <div class="progress-bar" style="width:65px;">
+                        <div class="progress-fill" style="width:${Math.round(barStyle.widthPct)}%; background:${barStyle.fillBg};"></div>
+                    </div>
+                </div>
+            </td>
+            <td class="col-stops">${stopText}</td>
+            <td>${statusBadge(row.status)}</td>
+            ${seatCells}
+            <td class="col-ticket" style="text-align:center;">${ticketBtn}</td>`;
+        tbody.appendChild(tr);
+    });
+  }
+
+  function filterTrainScheduleByStationName(){
+    const st = extractStationNameFromInput(document.getElementById('stationNameInput').value); document.getElementById('stationNameInput').value = st;
+    const dir = document.getElementById('directionSelect').value; if(!st) return;
+    lastStationQuery = { station: st, dir }; const list = [];
+    const sources = [{ map: baseSchedule, origin: currentQueryDateStr }, { map: prevSchedule, origin: addDays(currentQueryDateStr, -1) }];
+    sources.forEach(src=>{
+      const sch = src.map || {}; const origin = src.origin;
+      Object.keys(sch||{}).forEach(trainNo=>{
+        const t = sch[trainNo]; const stops = t?.['車站時間']||[];
+        const idx = stops.findIndex(x=>sameStation(x[0], st)); if(idx<0) return;
+        const d = stopDisplayDate(origin, stops, idx); if(d !== currentQueryDateStr) return;
+        const first = stops[0]?.[0] || ''; const last  = stops.slice(-1)[0]?.[0] || '';
+        const fi = thsrStationIndex(first); const li = thsrStationIndex(last);
+        const isSouth = (fi>=0 && li>=0) ? (fi < li) : ((first && last) ? (first.localeCompare(last,'zh-Hant') < 0) : true);
+        if(dir==='south' && !isSouth) return; if(dir==='north' && isSouth) return;
+        const ad = splitArrDep(stops[idx]); const time = ad.dep || ad.arr || ''; const lastArr = (splitArrDep(stops[stops.length-1]||[]).arr || splitArrDep(stops[stops.length-1]||[]).dep || '');
+        const range = `${first}➝${last}`; const firstDep = splitArrDep(stops[0]).dep; const status = getStatusLabel(origin, time, lastArr, firstDep, 'list');
+        list.push({trainNo, range, time, status, originDate: origin});
+      });
+    });
+    list.sort((a,b)=>{
+      const aa = parseTime(a.time); const bb = parseTime(b.time);
+      if(aa===null && bb===null) return String(a.trainNo).localeCompare(String(b.trainNo),'en'); if(aa===null) return 1; if(bb===null) return -1; return aa-bb;
+    });
+    currentStationList = list; renderStationTable();
+  }
+
+  function renderStationTable(){
+    const tbody = document.querySelector('#scheduleTableByStationName tbody'); tbody.innerHTML = '';
+    currentStationList.forEach(row=>{
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td style="font-weight:900;font-size:1.05rem">${row.trainNo}</td><td><span class="train-route">${row.range}</span></td><td style="font-weight:700;font-size:1rem">${row.time || '--'}</td><td>${statusBadge(row.status)}</td>`;
+      tr.addEventListener('click', ()=>showTrainDetails(row.trainNo, row.originDate || currentQueryDateStr));
+      tbody.appendChild(tr);
+    });
+    if(!currentStationList.length){ tbody.innerHTML = `<tr style="text-align:center;"><td colspan="4" style="color:var(--text-muted); padding: 32px;">查無資料</td></tr>`; }
+  }
+
+  function filterTrainScheduleByNumber(){
+    const trainNo = extractTrainNoFromInput(document.getElementById('trainNumberInput').value); document.getElementById('trainNumberInput').value = trainNo;
+    if(!trainNo) return; lastTrainQuery = {trainNo};
+    const tbody = document.querySelector('#scheduleTableByNumber tbody'); tbody.innerHTML = '';
+    const t = baseSchedule[trainNo];
+    if(!t){ tbody.innerHTML = `<tr><td colspan="3" style="text-align:center; padding:32px;"><div style="color:var(--error); font-weight:900; font-size:1.05rem; margin-bottom: 8px;">❌ 查無${trainNo}車次</div><div style="color:var(--text-muted); font-size: 0.95rem;">請確認輸入車次或發車日期是否正確</div></td></tr>`; return; }
+    const stops = t['車站時間']||[]; const range = (stops.length>=2)?`${stops[0][0]}➝${stops.slice(-1)[0][0]}`:'';
+    const firstDep = splitArrDep(stops[0]||[]).dep || splitArrDep(stops[0]||[]).arr || '';
+    const lastStop = stops[stops.length - 1] || []; const lastArrTime = splitArrDep(lastStop).arr || '';
+    const status = getStatusLabel(currentQueryDateStr, firstDep, lastArrTime, firstDep, 'train');
+    const tr=document.createElement('tr');
+    tr.innerHTML = `<td style="font-weight:900;font-size:1.05rem">${trainNo}</td><td><span class="train-route">${range}</span></td><td>${statusBadge(status)}</td>`;
+    tr.addEventListener('click', ()=>showTrainDetails(trainNo, currentQueryDateStr));
+    tbody.appendChild(tr);
+  }
+
+  function loadHistory(){ try{ return JSON.parse(localStorage.getItem('thsr_search_history_v1')||'[]'); }catch{ return []; } }
+  function renderHistory(){
+    const list = loadHistory();
+    const desk = document.getElementById('searchHistory');
+    const mob = document.getElementById('searchHistoryMobile');
+    const make = (container, isMobile) => {
+      if(!container) return;
+      container.innerHTML = '';
+      list.forEach(item=>{
+        const chip = document.createElement('div');
+        chip.className = 'history-chip';
+        chip.innerHTML = `<span style="color: var(--primary); font-weight: 700;">◈</span> ${item.s}→${item.e}`;
+        chip.addEventListener('click', ()=>{
+          document.getElementById('startStation').value = item.s;
+          document.getElementById('endStation').value = item.e;
+          updateTripSummary && updateTripSummary();
+          if(!isMobile){
+            runStartEndSearch();
+          }
+        });
+        container.appendChild(chip);
+      });
+    };
+    make(desk, false);
+    make(mob, true);
+  }
+  function saveHistory(list){ localStorage.setItem('thsr_search_history_v1', JSON.stringify(list.slice(0,10))); }
+  
+  function initDatePickerWindow(){ const el=document.getElementById('mainQueryDate'); const t=new Date(); el.value=fmtDate(t); el.addEventListener('change',()=>refreshData(el.value)); }
+  function setupThemeToggle(){ document.getElementById('themeToggle').addEventListener('click',()=>{ document.body.classList.toggle('dark-mode'); rerenderVisibleResults(); }); }
+  function bindButtons(){ 
+    document.getElementById('searchBtn').addEventListener('click',runStartEndSearch); 
+    document.getElementById('swapBtn').addEventListener('click',()=>{ const a=document.getElementById('startStation'),b=document.getElementById('endStation'),t=a.value;a.value=b.value;b.value=t; updateTripSummary && updateTripSummary(); });
+    document.getElementById('stationSearchBtn').addEventListener('click', filterTrainScheduleByStationName);
+    document.getElementById('trainNumberBtn').addEventListener('click', filterTrainScheduleByNumber);
+    document.getElementById('refreshBtn').addEventListener('click', async ()=>{ await refreshData(document.getElementById('mainQueryDate')?.value); });
+  }
+  
+  function bindQueryTabs(){ document.querySelectorAll('.query-tab').forEach(btn=>{ btn.addEventListener('click',()=>switchQueryPanel(btn.dataset.target)); }); }
+  function switchQueryPanel(panelId){ document.querySelectorAll('.query-tab').forEach(b=>b.classList.remove('active')); document.querySelectorAll('.query-panel').forEach(p=>p.classList.add('hidden')); const tab = document.querySelector(`.query-tab[data-target="${panelId}"]`); const panel = document.getElementById(panelId); if(tab) tab.classList.add('active'); if(panel) panel.classList.remove('hidden'); }
+
+  const modal = document.getElementById('trainModal');
+  document.getElementById('modalClose').addEventListener('click', ()=> modal.style.display='none');
+  modal.addEventListener('click', (e)=>{ if(e.target===modal) modal.style.display='none'; });
+
+  function getScheduleMapByOrigin(originDateStr){
+    const prevDateStr = addDays(currentQueryDateStr, -1); if(originDateStr === currentQueryDateStr) return baseSchedule; if(originDateStr === prevDateStr) return prevSchedule; return baseSchedule;
+  }
+
+  function showTrainDetails(trainNo, originDateStr){
+    const sch = getScheduleMapByOrigin(originDateStr); const t = sch?.[trainNo]; if(!t) return;
+    const stops = t['車站時間']||[]; 
+    const first=stops[0][0], last=stops.slice(-1)[0][0];
+    const firstDep = splitArrDep(stops[0]).dep; 
+    const status = getStatusLabel(originDateStr, splitArrDep(stops[0]).dep, splitArrDep(stops.slice(-1)[0]).arr, firstDep, 'train');
+    const statusClass = `status-text-${status}`;
+    
+    document.getElementById('modalTitleMain').innerHTML = `🚄 ${trainNo}`;
+    document.getElementById('modalTitleSub').innerHTML = `
+      <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 4px;">
+        <span style="font-weight: 700; font-size: 1rem;">${first}</span>
+        <span style="color: var(--text-light);">→</span>
+        <span style="font-weight: 700; font-size: 1rem;">${last}</span>
+        <span style="background: ${status === '行駛中' ? 'rgba(34,197,94,0.15)' : 'rgba(148,163,184,0.1)'}; padding: 4px 10px; border-radius: 6px; font-size: 0.85rem;">
+          <span class="${statusClass}">${status}</span>
+        </span>
+      </div>
+      <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 6px; font-weight: 600;">📅 發車日期：${originDateStr}</div>
+    `;
+    
+    modalCtx={trainNo,originDate:originDateStr}; 
+    renderTimeline(stops, originDateStr); 
+    modal.style.display='flex';
+  }
+
+  function renderTimeline(stops, originDateStr){
+    const nowMin = new Date().getHours()*60 + new Date().getMinutes(); 
+    const today = isQueryToday(originDateStr);
+    let nextIdx = -1; 
+    if(today){ 
+      for(let i=0;i<stops.length;i++){ 
+        const ad = splitArrDep(stops[i]); 
+        if(parseTime(ad.dep||'') >= nowMin){ nextIdx=i; break; } 
+      } 
+    }
+    
+    const html = stops.map((s,i)=>{
+      const ad = splitArrDep(s); 
+      const tm = (i===stops.length-1)?ad.arr:ad.dep; 
+      let cls = ''; 
+      let badge = '';
+      if(today){ 
+        if(i < nextIdx) cls = 'passed'; 
+        else if(i === nextIdx) { cls = 'next'; badge = '<span class="badge-next">⚡ 下一站</span>'; } 
+      }
+      const arrInfo = (ad.arr && ad.arr !== tm) ? `<span class="st-arr">到 ${ad.arr}</span>` : '';
+      return `
+        <div class="timeline-item ${cls}">
+          <div class="tl-time">${tm || '--'}</div>
+          <div class="tl-marker">
+            <div class="tl-dot"></div>
+            <div class="tl-line"></div>
+          </div>
+          <div class="tl-content">
+            <div class="tl-station">
+              <span>${s[0]}</span> 
+              ${badge} 
+              ${arrInfo}
+            </div>
+          </div>
+        </div>
+      `;
+    }).join('');
+    
+    document.getElementById('modalBody').innerHTML = `<div class="timeline">${html}</div>`;
+  }
+  
+  function rerenderVisibleResults(){ 
+    if(lastStartEndQuery) runStartEndSearch(); 
+    if(lastStationQuery) filterTrainScheduleByStationName(); 
+    if(lastTrainQuery) filterTrainScheduleByNumber();
+  }
+
+  let sortState = { key:'dep', dir:1 };
+  function initStartEndSorting(){
+    document.getElementById('sortDepIcon').addEventListener('click', (e)=>{ e.stopPropagation(); toggleSort('dep'); });
+    document.getElementById('sortArrIcon').addEventListener('click', (e)=>{ e.stopPropagation(); toggleSort('arr'); });
+    document.getElementById('sortDurIcon').addEventListener('click', (e)=>{ e.stopPropagation(); toggleSort('dur'); });
+  }
+  function toggleSort(key){
+    if(sortState.key === key) sortState.dir *= -1; else sortState = { key, dir:1 };
+    currentStartEndList.sort((a,b)=>{
+      const dir = sortState.dir; if(key==='dur'){ return ((a.durMin||0)-(b.durMin||0))*dir; }
+      const ta = parseTime(key==='dep'?a.dep:a.arr); const tb = parseTime(key==='dep'?b.dep:b.arr); return (ta-tb)*dir;
+    });
+    renderStartEndTable();
+  }
+
+  async function openTHSRBookingDeepLink(trainNo, dateStr, timeStr){ 
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    if (!isMobile) { 
+      alert("限使用行動裝置並已下載高鐵T Express行動購票App使用"); 
+      return; 
+    }
+
+    try {
+      let st = extractStationNameFromInput(document.getElementById('startStation').value);
+      let ed = extractStationNameFromInput(document.getElementById('endStation').value);
+      if(!st || !ed){ 
+        alert("請先選擇起訖站"); 
+        return; 
+      }
+
+      st = st.replace(/臺/g, '台'); 
+      ed = ed.replace(/臺/g, '台');
+
+      if (typeof getAccessToken !== 'function') { 
+        alert("系統錯誤：無法取得授權函式"); 
+        return; 
+      }
+
+      const token = await getAccessToken(); 
+      if(!token) { 
+        alert("授權失敗，無法連接 TDX"); 
+        return; 
+      }
+
+      const apiUrl = `https://tdx.transportdata.tw/api/maas-thsr/booking/deeplink/direct/hsr?start_station=${encodeURIComponent(st)}&end_station=${encodeURIComponent(ed)}&train_date=${dateStr}&train_time=${encodeURIComponent(timeStr)}&train_number=${trainNo}`;
+      const res = await fetch(apiUrl, { 
+        method: 'GET', 
+        headers: { 
+          'Authorization': `Bearer ${token}`, 
+          'Accept': 'application/json' 
+        } 
+      });
+
+      if(!res.ok) { 
+        if(res.status === 401) alert("API 存取被拒 (401): Access key not found"); 
+        else alert(`訂票連結取得失敗: HTTP ${res.status}`); 
+        return; 
+      }
+
+      const result = await res.json();
+      const jumpUrl = result.url || (result.data && result.data.deeplink) || result.DeepLinkUrl;
+
+      if (jumpUrl) {
+        try {
+          if (window.top && window.top !== window) {
+            window.top.location.href = jumpUrl;
+          } else {
+            window.location.href = jumpUrl;
+          }
+        } catch (err) {
+          window.location.href = jumpUrl;
+        }
+      } else {
+        console.error("API 回傳結構異常:", result);
+        alert("無法取得 App 喚醒連結");
+      }
+
+    } catch (e) {
+      console.error("Deep Link Error:", e);
+      alert("系統發生錯誤，請稍後再試");
+    }
+  }
+
+  function handleUrlParams() {
+    const p = new URLSearchParams(window.location.search);
+    const pStart = p.get('start');
+    const pEnd = p.get('end');
+    const pStation = p.get('station');
+
+    if (pStart && pEnd) {
+        document.getElementById('startStation').value = pStart;
+        document.getElementById('endStation').value = pEnd;
+        setTimeout(runStartEndSearch, 600);
+    } else if (pStation) {
+        document.getElementById('startStation').value = pStation;
+        document.getElementById('stationNameInput').value = pStation;
+    }
+  }
+
+  function initFavButton() {
+    const btn = document.getElementById('favBtn');
+    const popup = document.getElementById('favPopup');
+    
+    btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        renderFavPopup();
+        popup.classList.toggle('show');
+    });
+
+    document.addEventListener('click', (e) => {
+        if (!popup.contains(e.target) && e.target !== btn) {
+            popup.classList.remove('show');
+        }
+    });
+  }
+
+  function renderFavPopup() {
+    const popup = document.getElementById('favPopup');
+    popup.innerHTML = '';
+    
+    let hasFav = false;
+    for(let i=1; i<=3; i++) {
+        const s = localStorage.getItem(`thsr_s${i}`);
+        const e = localStorage.getItem(`thsr_e${i}`);
+        if(s && e) {
+            hasFav = true;
+            const item = document.createElement('div');
+            item.className = 'fav-item';
+            item.innerHTML = `<span style="font-size: 1.1em;">📍</span><div><div style="font-weight: 700;">${s}</div><div style="font-size: 0.85rem; color: var(--text-muted); margin-top: 2px;">↓</div><div style="font-weight: 700;">${e}</div></div>`;
+            item.onclick = () => {
+                document.getElementById('startStation').value = s;
+                document.getElementById('endStation').value = e;
+                updateTripSummary && updateTripSummary();
+                popup.classList.remove('show');
+                runStartEndSearch();
+            };
+            popup.appendChild(item);
+        }
+    }
+
+    if (!hasFav) {
+        const empty = document.createElement('div');
+        empty.className = 'fav-empty';
+        empty.innerHTML = '<div style="font-weight: 700;">📌 尚無常用行程</div><div style="margin-top: 4px; font-size: 0.85rem;">請至首頁設定常用行程</div>';
+        popup.appendChild(empty);
+    }
+  }
+
+  window.addEventListener('load', async ()=>{
+    bindQueryTabs();
+    switchQueryPanel('panel-startend');
+    initDatePickerWindow();
+    setupThemeToggle();
+    bindButtons();
+    bindStationInput('startStation');
+    bindStationInput('endStation');
+    bindStationInput('stationNameInput');
+    bindTrainInput('trainNumberInput');
+    initStartEndSorting();
+    
+    initFavButton();
+    setupMobileTripSheet();
+
+    document.getElementById('startStation').addEventListener('focus',()=>fillStationDatalist(''));
+    document.getElementById('endStation').addEventListener('focus',()=>fillStationDatalist(''));
+
+    await refreshData(document.getElementById('mainQueryDate').value);
+
+    handleUrlParams();
+
+    setInterval(()=>{ if(document.getElementById('mainQueryDate').value === fmtDate(new Date())) rerenderVisibleResults(); }, 60000);
+  });
+  
+  window.fetchCollegeDiscount = async function(){ return {}; };
+
+  function isMobileUI(){ return window.matchMedia && window.matchMedia('(max-width: 720px)').matches; }
+
+  function updateTripSummary(){
+    const st = (document.getElementById('startStation')?.value||'').trim();
+    const ed = (document.getElementById('endStation')?.value||'').trim();
+    const onlyDirect = document.getElementById('onlyDirect')?.checked;
+    const t = document.getElementById('tripSummaryText');
+    if(!t) return;
+    if(!st && !ed){ t.textContent = '請設定出發與到達'; return; }
+    const seg = `${st||'—'} ➝ ${ed||'—'}`;
+    t.textContent = onlyDirect ? `${seg} ｜直達` : seg;
+  }
+
+  function openTripSheet(){
+    const b = document.getElementById('tripSheetBackdrop');
+    const s = document.getElementById('tripSheet');
+    if(!b || !s) return;
+    b.style.display='block';
+    s.style.display='block';
+    document.body.style.overflow='hidden';
+  }
+  
+  function closeTripSheet(){
+    const b = document.getElementById('tripSheetBackdrop');
+    const s = document.getElementById('tripSheet');
+    if(!b || !s) return;
+    b.style.display='none';
+    s.style.display='none';
+    document.body.style.overflow='';
+  }
+
+  function setupMobileTripSheet(){
+    if(!isMobileUI()) return;
+    const panel = document.getElementById('panel-startend');
+    const formRow = panel?.querySelector('.form-row');
+    const body = document.getElementById('tripSheetBody');
+    
+    if(formRow && body && !body.dataset.bound){
+      body.dataset.bound='1';
+      body.appendChild(formRow);
+      formRow.classList.add('in-sheet');
+      formRow.style.position='relative';
+      
+      const swap = document.getElementById('swapBtn');
+      if(swap){
+        swap.style.width='';
+        swap.style.height='';
+        swap.style.justifySelf='center';
+        swap.style.alignSelf='center';
+      }
+      const searchBtn = document.getElementById('searchBtn');
+      if(searchBtn){
+        searchBtn.style.width='100%';
+        searchBtn.style.height='44px';
+      }
+
+      document.getElementById('tripOpenBtn')?.addEventListener('click', (e)=>{
+          e.stopPropagation(); 
+          openTripSheet();
+      });
+      document.getElementById('tripSheetClose')?.addEventListener('click', closeTripSheet);
+      document.getElementById('tripSheetBackdrop')?.addEventListener('click', closeTripSheet);
+
+      document.getElementById('tripCompactSearchBtn')?.addEventListener('click', (e)=>{
+        e.stopPropagation();
+        closeTripSheet();
+        document.getElementById('searchBtn')?.click();
+      });
+
+      document.getElementById('tripCompactBar')?.addEventListener('click', (ev)=>{
+        if(ev.target && ev.target.closest && ev.target.closest('#tripCompactSearchBtn')) return;
+        openTripSheet();
+      });
+
+      document.getElementById('searchBtn')?.addEventListener('click', ()=>{ closeTripSheet(); });
+    }
+
+    ['startStation','endStation'].forEach(id=>{
+      const el=document.getElementById(id);
+      if(el){ el.addEventListener('input', updateTripSummary); el.addEventListener('change', updateTripSummary); }
+    });
+    document.getElementById('onlyDirect')?.addEventListener('change', updateTripSummary);
+
+    updateTripSummary();
+  }
+
+  window.addEventListener('resize', ()=>{
+    setupMobileTripSheet();
+    updateTripSummary();
+  });
+
+</script>
+
+<script>
+  (function(){
+    const btn = document.getElementById('homeBtn') || document.querySelector('.home-btn');
+    if(!btn) return;
+    btn.addEventListener('click', (e)=>{
+      const isEmbed = new URLSearchParams(location.search).get('embed') === '1';
+      if(isEmbed){
+        e.preventDefault();
+        try{ parent.postMessage('APP_CLOSE','*'); }catch(_){}
+        return;
+      }
+      location.href = '../home/index.html';
+    });
+  })();
+</script>
+
+</body>
+</html>

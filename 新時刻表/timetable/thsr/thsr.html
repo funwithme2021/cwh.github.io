@@ -606,6 +606,1078 @@
     .trip-sheet .fav-empty{padding: 8px 12px; color: var(--text-muted);}
   }
 
+  /* ===== 2026 Layout Refresh ===== */
+  .page-hero{
+    position: relative;
+    overflow: hidden;
+    display: grid;
+    grid-template-columns: minmax(0, 1.6fr) minmax(280px, .9fr);
+    gap: 18px;
+    padding: 28px;
+    border-radius: 32px;
+    background:
+      radial-gradient(circle at top left, rgba(251, 146, 60, 0.24), transparent 34%),
+      radial-gradient(circle at bottom right, rgba(37, 99, 235, 0.18), transparent 38%),
+      linear-gradient(140deg, rgba(255,255,255,0.96), rgba(255,255,255,0.84));
+    border: 1px solid rgba(255,255,255,0.72);
+    box-shadow:
+      0 28px 60px rgba(15, 23, 42, 0.08),
+      inset 0 1px 0 rgba(255,255,255,0.7);
+  }
+  body.dark-mode .page-hero{
+    background:
+      radial-gradient(circle at top left, rgba(251, 146, 60, 0.22), transparent 34%),
+      radial-gradient(circle at bottom right, rgba(56, 189, 248, 0.16), transparent 38%),
+      linear-gradient(140deg, rgba(15, 23, 42, 0.92), rgba(15, 23, 42, 0.82));
+    border-color: rgba(148,163,184,0.16);
+    box-shadow:
+      0 28px 60px rgba(2, 6, 23, 0.42),
+      inset 0 1px 0 rgba(255,255,255,0.04);
+  }
+  .page-hero::before{
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+      linear-gradient(90deg, rgba(255,255,255,0.22) 1px, transparent 1px),
+      linear-gradient(rgba(255,255,255,0.18) 1px, transparent 1px);
+    background-size: 24px 24px;
+    mask-image: linear-gradient(180deg, rgba(0,0,0,.75), transparent 88%);
+    pointer-events: none;
+    opacity: .35;
+  }
+  .hero-copy, .hero-side{ position: relative; z-index: 1; }
+  .hero-eyebrow{
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 12px;
+    border-radius: 999px;
+    background: rgba(15, 23, 42, 0.06);
+    color: var(--text-muted);
+    font-size: .76rem;
+    font-weight: 800;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+  }
+  body.dark-mode .hero-eyebrow{ background: rgba(148,163,184,0.12); }
+  .hero-copy h1{
+    margin: 16px 0 10px;
+    font-size: clamp(1.8rem, 4vw, 3rem);
+    line-height: 1.05;
+    letter-spacing: -.03em;
+  }
+  .hero-copy p{
+    margin: 0;
+    max-width: 44rem;
+    color: var(--text-muted);
+    font-size: 1rem;
+  }
+  .hero-tags{
+    margin-top: 18px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .hero-tag{
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    border-radius: 16px;
+    background: rgba(255,255,255,0.52);
+    border: 1px solid rgba(255,255,255,0.66);
+    color: var(--text-main);
+    font-weight: 700;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.55);
+  }
+  body.dark-mode .hero-tag{
+    background: rgba(15, 23, 42, 0.48);
+    border-color: rgba(148,163,184,0.16);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.03);
+  }
+  .hero-side{
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+    align-content: start;
+  }
+  .hero-stat{
+    padding: 18px;
+    border-radius: 22px;
+    background: rgba(255,255,255,0.62);
+    border: 1px solid rgba(255,255,255,0.66);
+    min-height: 112px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+  }
+  body.dark-mode .hero-stat{
+    background: rgba(15, 23, 42, 0.52);
+    border-color: rgba(148,163,184,0.16);
+  }
+  .hero-stat span{
+    color: var(--text-muted);
+    font-size: .78rem;
+    font-weight: 700;
+    letter-spacing: .04em;
+  }
+  .hero-stat strong{
+    font-size: 1.02rem;
+    line-height: 1.35;
+  }
+  .hero-stat.full{ grid-column: 1 / -1; }
+
+  .grid{
+    gap: 20px;
+  }
+  .card{
+    position: relative;
+    overflow: hidden;
+    border-radius: 28px;
+    padding: 28px;
+    border: 1px solid rgba(255,255,255,0.65);
+    background:
+      linear-gradient(180deg, rgba(255,255,255,0.95), rgba(255,255,255,0.9));
+    box-shadow:
+      0 24px 50px rgba(15, 23, 42, 0.06),
+      inset 0 1px 0 rgba(255,255,255,0.72);
+  }
+  body.dark-mode .card{
+    border-color: rgba(148,163,184,0.14);
+    background: linear-gradient(180deg, rgba(15, 23, 42, 0.94), rgba(15, 23, 42, 0.86));
+    box-shadow:
+      0 24px 50px rgba(2, 6, 23, 0.36),
+      inset 0 1px 0 rgba(255,255,255,0.03);
+  }
+  .card::before{
+    content: '';
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 120px;
+    background: linear-gradient(180deg, rgba(251, 146, 60, 0.08), transparent);
+    pointer-events: none;
+  }
+  body.dark-mode .card::before{
+    background: linear-gradient(180deg, rgba(251, 146, 60, 0.12), transparent);
+  }
+  .header{
+    background: rgba(255,255,255,0.76);
+    border-bottom: 1px solid rgba(255,255,255,0.62);
+    box-shadow: 0 16px 30px rgba(15,23,42,0.05);
+  }
+  body.dark-mode .header{
+    background: rgba(15, 23, 42, 0.76);
+    border-bottom-color: rgba(148,163,184,0.14);
+    box-shadow: 0 16px 30px rgba(2,6,23,0.28);
+  }
+  .logo{
+    font-size: 1.12rem;
+    letter-spacing: .08em;
+  }
+  .logo span{
+    font-size: .78rem;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+  }
+  .date-picker{
+    gap: 10px;
+    padding: 8px 10px;
+    border-radius: 18px;
+    background: rgba(255,255,255,0.6);
+    border: 1px solid rgba(255,255,255,0.62);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.55);
+  }
+  body.dark-mode .date-picker{
+    background: rgba(15, 23, 42, 0.46);
+    border-color: rgba(148,163,184,0.14);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.03);
+  }
+  .input-field, .input-group{
+    border-radius: 16px;
+  }
+  .input-group{
+    min-height: 58px;
+    padding: 8px 14px;
+    border-color: rgba(148,163,184,0.22);
+    background: rgba(248, 250, 252, 0.92);
+  }
+  body.dark-mode .input-group{
+    background: rgba(15, 23, 42, 0.72);
+    border-color: rgba(148,163,184,0.14);
+  }
+  .input-group label{
+    font-size: .78rem;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+  }
+  button.btn-primary, .btn-fav{
+    border-radius: 16px;
+    padding: 12px 18px;
+    font-weight: 800;
+    box-shadow: 0 12px 24px rgba(251, 146, 60, 0.22);
+  }
+  .btn-ghost{
+    border-radius: 14px;
+    font-weight: 800;
+  }
+  .swap-btn{
+    width: 42px;
+    height: 42px;
+    border-radius: 14px;
+    box-shadow: 0 10px 18px rgba(15,23,42,0.06);
+  }
+  .query-tabs{
+    gap: 12px;
+    padding: 8px;
+    border-radius: 24px;
+    background: rgba(255,255,255,0.58);
+    border: 1px solid rgba(255,255,255,0.64);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.56);
+    backdrop-filter: blur(14px);
+  }
+  body.dark-mode .query-tabs{
+    background: rgba(15,23,42,0.56);
+    border-color: rgba(148,163,184,0.14);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.03);
+  }
+  .query-tab{
+    border-radius: 18px;
+    padding: 12px 18px;
+    font-size: .96rem;
+    box-shadow: none;
+  }
+  .query-tab.active{
+    box-shadow: 0 16px 28px rgba(251, 146, 60, 0.28);
+  }
+  .section-title{
+    font-size: 1.28rem;
+    margin-bottom: 8px;
+  }
+  .section-title::before{
+    width: 10px;
+    height: 10px;
+    border-radius: 999px;
+    box-shadow: 0 0 0 6px rgba(251, 146, 60, 0.12);
+  }
+  .panel-lead{
+    margin: 0 0 18px;
+    color: var(--text-muted);
+    font-size: .95rem;
+  }
+  .history-chips{
+    gap: 10px;
+    margin-bottom: 18px;
+  }
+  .history-chip{
+    padding: 9px 14px;
+    border-radius: 999px;
+    background: rgba(255,255,255,0.62);
+    border-color: rgba(148,163,184,0.18);
+    font-weight: 700;
+  }
+  body.dark-mode .history-chip{
+    background: rgba(15,23,42,0.62);
+    border-color: rgba(148,163,184,0.14);
+  }
+  .table-wrapper{
+    position: relative;
+    overflow: hidden;
+    border-radius: 24px;
+    border: 1px solid rgba(148,163,184,0.18);
+    background: rgba(255,255,255,0.65);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.7);
+  }
+  body.dark-mode .table-wrapper{
+    background: rgba(15,23,42,0.65);
+    border-color: rgba(148,163,184,0.14);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.03);
+  }
+  table{
+    white-space: nowrap;
+  }
+  th{
+    padding: 16px 18px;
+    font-size: .8rem;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    background: rgba(248,250,252,0.88);
+  }
+  body.dark-mode th{
+    background: rgba(15,23,42,0.92);
+  }
+  td{
+    padding: 16px 18px;
+    vertical-align: middle;
+    border-bottom-color: rgba(148,163,184,0.14);
+  }
+  tbody tr{
+    transition: transform .18s ease, background .18s ease, box-shadow .18s ease;
+  }
+  tbody tr:hover{
+    background: rgba(251, 146, 60, 0.08);
+  }
+  tbody tr.main-row:hover{
+    transform: translateY(-1px);
+    box-shadow: inset 4px 0 0 var(--primary);
+  }
+  .ticket-btn{
+    min-width: 74px;
+    border-radius: 999px;
+    font-weight: 800;
+  }
+  .train-route{
+    margin-left: 0;
+    display: inline-flex;
+    align-items: center;
+    padding: 6px 10px;
+    border-radius: 999px;
+    background: rgba(251,146,60,0.1);
+    color: #c2410c;
+    font-weight: 700;
+  }
+  body.dark-mode .train-route{
+    background: rgba(251,146,60,0.14);
+    color: #fdba74;
+  }
+  .progress-bar{
+    height: 7px;
+    border-radius: 999px;
+    background: rgba(148,163,184,0.18);
+  }
+  .progress-fill{
+    border-radius: 999px;
+  }
+  .trip-compact-bar{
+    margin-bottom: 16px;
+    padding: 10px;
+    border-radius: 22px;
+    background: rgba(255,255,255,0.66);
+    border: 1px solid rgba(255,255,255,0.62);
+    box-shadow: 0 18px 30px rgba(15,23,42,0.08);
+  }
+  body.dark-mode .trip-compact-bar{
+    background: rgba(15,23,42,0.72);
+    border-color: rgba(148,163,184,0.14);
+    box-shadow: 0 18px 30px rgba(2,6,23,0.3);
+  }
+  .trip-pill{
+    border-radius: 18px;
+    min-height: 58px;
+  }
+  .trip-sheet{
+    border-top-left-radius: 28px;
+    border-top-right-radius: 28px;
+    border: 1px solid rgba(255,255,255,0.62);
+    box-shadow: 0 -24px 50px rgba(15,23,42,0.16);
+  }
+  .trip-sheet-hd{
+    padding: 14px 18px;
+  }
+  .trip-sheet-title{
+    font-size: 1rem;
+    letter-spacing: .04em;
+  }
+  .fav-popup{
+    border-radius: 20px;
+    padding: 10px;
+    border-color: rgba(148,163,184,0.18);
+    box-shadow: 0 20px 40px rgba(15,23,42,0.14);
+  }
+  .fav-item{
+    border-radius: 14px;
+    padding: 12px 14px;
+  }
+  .detail-row-flex, .detail-seats-row{
+    gap: 12px;
+  }
+  .mobile-detail-row td, .stops-row td{
+    background:
+      linear-gradient(180deg, rgba(251,146,60,0.08), rgba(251,146,60,0.02)) !important;
+  }
+  body.dark-mode .mobile-detail-row td, body.dark-mode .stops-row td{
+    background:
+      linear-gradient(180deg, rgba(251,146,60,0.14), rgba(251,146,60,0.04)) !important;
+  }
+  .detail-row-flex{
+    padding-bottom: 12px;
+    border-bottom-style: solid;
+    border-bottom-color: rgba(148,163,184,0.18);
+  }
+  .detail-range-info{
+    font-size: 1.02rem;
+  }
+  .detail-seats-row{
+    flex-wrap: wrap;
+    padding: 12px;
+    border-radius: 16px;
+    background: rgba(255,255,255,0.56);
+    border: 1px solid rgba(148,163,184,0.14);
+  }
+  body.dark-mode .detail-seats-row{
+    background: rgba(15,23,42,0.52);
+  }
+  .stops-grid{
+    gap: 10px;
+  }
+  .stop-item{
+    padding: 7px 10px;
+    border-radius: 999px;
+    background: rgba(255,255,255,0.72);
+    border: 1px solid rgba(148,163,184,0.14);
+  }
+  body.dark-mode .stop-item{
+    background: rgba(15,23,42,0.7);
+  }
+
+  .modal{
+    padding: 24px;
+    background: rgba(2, 6, 23, 0.56);
+    backdrop-filter: blur(12px);
+  }
+  .modal-content{
+    width: min(940px, 100%);
+    max-width: 940px;
+    max-height: min(88vh, 920px);
+    border-radius: 30px;
+    border: 1px solid rgba(255,255,255,0.56);
+    background:
+      linear-gradient(180deg, rgba(255,255,255,0.98), rgba(248,250,252,0.96));
+    box-shadow: 0 30px 80px rgba(2, 6, 23, 0.3);
+  }
+  body.dark-mode .modal-content{
+    border-color: rgba(148,163,184,0.14);
+    background: linear-gradient(180deg, rgba(15,23,42,0.98), rgba(15,23,42,0.94));
+  }
+  .modal-header{
+    padding: 24px 26px 20px;
+    background:
+      radial-gradient(circle at top left, rgba(251,146,60,0.18), transparent 30%),
+      linear-gradient(180deg, rgba(255,255,255,0.88), rgba(255,255,255,0.78));
+    align-items: flex-start;
+    gap: 16px;
+  }
+  body.dark-mode .modal-header{
+    background:
+      radial-gradient(circle at top left, rgba(251,146,60,0.18), transparent 30%),
+      linear-gradient(180deg, rgba(15,23,42,0.96), rgba(15,23,42,0.9));
+  }
+  .modal-title-block{
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+  .modal-title-main{
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    font-size: 1.4rem;
+    font-weight: 900;
+    letter-spacing: -.02em;
+  }
+  .modal-brand-tag{
+    display: inline-flex;
+    align-items: center;
+    padding: 7px 10px;
+    border-radius: 999px;
+    background: rgba(251,146,60,0.12);
+    color: #c2410c;
+    font-size: .75rem;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+  }
+  body.dark-mode .modal-brand-tag{
+    background: rgba(251,146,60,0.18);
+    color: #fdba74;
+  }
+  .modal-train-no{
+    font-size: clamp(1.35rem, 3vw, 2rem);
+  }
+  .modal-title-sub{
+    margin-top: 12px;
+  }
+  .modal-meta-pills{
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .modal-pill{
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 11px;
+    border-radius: 999px;
+    background: rgba(255,255,255,0.68);
+    border: 1px solid rgba(148,163,184,0.16);
+    color: var(--text-main);
+    font-size: .83rem;
+    font-weight: 700;
+  }
+  body.dark-mode .modal-pill{
+    background: rgba(15,23,42,0.68);
+    border-color: rgba(148,163,184,0.14);
+  }
+  .modal-note{
+    margin-top: 10px;
+    color: var(--text-muted);
+    font-size: .85rem;
+    line-height: 1.45;
+  }
+  .modal-body{
+    padding: 0 26px 26px;
+    background: transparent;
+  }
+  .modal-hero{
+    margin-top: 18px;
+    padding: 20px;
+    border-radius: 24px;
+    background:
+      linear-gradient(180deg, rgba(255,255,255,0.82), rgba(255,255,255,0.62));
+    border: 1px solid rgba(148,163,184,0.16);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.66);
+  }
+  body.dark-mode .modal-hero{
+    background: linear-gradient(180deg, rgba(15,23,42,0.82), rgba(15,23,42,0.64));
+    border-color: rgba(148,163,184,0.14);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.03);
+  }
+  .modal-route-strip{
+    display: grid;
+    grid-template-columns: auto auto 1fr auto auto;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 18px;
+  }
+  .modal-route-strip span{
+    font-size: .92rem;
+    font-weight: 800;
+  }
+  .modal-route-strip strong{
+    font-size: 1.08rem;
+    font-variant-numeric: tabular-nums;
+  }
+  .modal-route-line{
+    height: 2px;
+    border-radius: 999px;
+    background: linear-gradient(90deg, rgba(251,146,60,0.3), rgba(37,99,235,0.2));
+  }
+  .modal-stats{
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 12px;
+  }
+  .modal-stat{
+    min-width: 0;
+    padding: 14px 16px;
+    border-radius: 18px;
+    background: rgba(255,255,255,0.72);
+    border: 1px solid rgba(148,163,184,0.14);
+  }
+  body.dark-mode .modal-stat{
+    background: rgba(15,23,42,0.72);
+    border-color: rgba(148,163,184,0.14);
+  }
+  .modal-stat span{
+    display: block;
+    margin-bottom: 6px;
+    color: var(--text-muted);
+    font-size: .78rem;
+    font-weight: 700;
+  }
+  .modal-stat strong{
+    font-size: 1rem;
+    line-height: 1.35;
+  }
+  .modal-section{
+    margin-top: 18px;
+    padding: 18px 20px;
+    border-radius: 24px;
+    background: rgba(255,255,255,0.58);
+    border: 1px solid rgba(148,163,184,0.14);
+  }
+  body.dark-mode .modal-section{
+    background: rgba(15,23,42,0.56);
+    border-color: rgba(148,163,184,0.14);
+  }
+  .modal-section-title{
+    margin-bottom: 14px;
+    font-size: .98rem;
+    font-weight: 900;
+    letter-spacing: .04em;
+  }
+  .timeline{
+    padding: 0;
+  }
+  .timeline-item{
+    gap: 16px;
+    padding: 0 0 16px;
+  }
+  .tl-time{
+    width: 72px;
+    padding-right: 0;
+    font-size: .98rem;
+    font-weight: 800;
+  }
+  .tl-marker{
+    width: 24px;
+  }
+  .tl-line{
+    width: 3px;
+    border-radius: 999px;
+    background: linear-gradient(180deg, rgba(251,146,60,0.18), rgba(148,163,184,0.2));
+  }
+  .tl-dot{
+    width: 14px;
+    height: 14px;
+    background: rgba(251,146,60,0.22);
+    border: 3px solid rgba(255,255,255,0.96);
+  }
+  body.dark-mode .tl-dot{
+    border-color: rgba(15,23,42,0.96);
+  }
+  .tl-content{
+    padding: 14px 16px 18px;
+    border-radius: 18px;
+    background: rgba(255,255,255,0.72);
+    border: 1px solid rgba(148,163,184,0.14);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.55);
+  }
+  body.dark-mode .tl-content{
+    background: rgba(15,23,42,0.72);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.03);
+  }
+  .timeline-item:last-child .tl-content{
+    padding-bottom: 14px;
+  }
+  .tl-station{
+    gap: 8px;
+    justify-content: space-between;
+    flex-wrap: wrap;
+  }
+  .st-arr{
+    margin-left: 0;
+    padding: 4px 8px;
+    border-radius: 999px;
+    background: rgba(148,163,184,0.12);
+    font-size: .72rem;
+  }
+  .timeline-item.next .tl-dot{
+    box-shadow: 0 0 0 6px rgba(34, 197, 94, 0.16);
+  }
+  .badge-next{
+    border-radius: 999px;
+    padding: 4px 10px;
+    font-weight: 800;
+  }
+  @media (max-width: 900px){
+    .page-hero{
+      grid-template-columns: 1fr;
+    }
+    .hero-side{
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .modal-stats{
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+  @media (max-width: 720px){
+    .page-hero{
+      padding: 22px 18px;
+      border-radius: 26px;
+    }
+    .hero-side{
+      grid-template-columns: 1fr;
+    }
+    .query-tabs{
+      padding: 6px;
+      border-radius: 20px;
+      overflow-x: auto;
+      flex-wrap: nowrap;
+    }
+    .query-tab{
+      flex: 0 0 auto;
+      padding: 11px 14px;
+      font-size: .9rem;
+    }
+    .card{
+      padding: 20px 16px;
+      border-radius: 24px;
+    }
+    .panel-lead{
+      font-size: .9rem;
+    }
+    .modal{
+      padding: 12px;
+    }
+    .modal-content{
+      max-height: 92vh;
+      border-radius: 24px;
+    }
+    .modal-header{
+      padding: 20px 18px 16px;
+    }
+    .modal-body{
+      padding: 0 18px 18px;
+    }
+    .modal-route-strip{
+      grid-template-columns: 1fr auto;
+      gap: 8px;
+    }
+    .modal-route-line{
+      grid-column: 1 / -1;
+      order: 5;
+    }
+    .modal-stats{
+      grid-template-columns: 1fr 1fr;
+    }
+    .timeline-item{
+      gap: 12px;
+    }
+    .tl-time{
+      width: 56px;
+      font-size: .9rem;
+    }
+  }
+  @media (max-width: 520px){
+    .hero-copy h1{
+      font-size: 1.9rem;
+    }
+    .hero-tags{
+      gap: 8px;
+    }
+    .hero-tag{
+      width: 100%;
+      justify-content: center;
+    }
+    .date-picker{
+      padding: 0;
+      background: transparent;
+      border: 0;
+      box-shadow: none;
+    }
+    .input-group{
+      min-height: 54px;
+    }
+    .modal-stats{
+      grid-template-columns: 1fr;
+    }
+    .modal-section, .modal-hero{
+      padding: 16px;
+      border-radius: 20px;
+    }
+  }
+</style>
+<style>
+  /* ===== 2026 THSR cleanup to match TR ===== */
+  .bg-blobs{ display:none !important; }
+  .page-hero{ display:none !important; }
+  .container{ margin-top: 16px !important; }
+  .grid{ gap: 18px; }
+
+  .card{
+    border-radius: 22px;
+    box-shadow: 0 16px 34px rgba(15,23,42,0.05), inset 0 1px 0 rgba(255,255,255,0.7);
+  }
+  .card::before{
+    background: linear-gradient(180deg, rgba(251,146,60,0.1), transparent);
+  }
+  body.dark-mode .card{
+    box-shadow: 0 16px 34px rgba(2,6,23,0.28), inset 0 1px 0 rgba(255,255,255,0.03);
+  }
+  body.dark-mode .card::before{
+    background: linear-gradient(180deg, rgba(251,146,60,0.14), transparent);
+  }
+  .query-tabs{
+    border-radius: 18px;
+    background: rgba(255,255,255,0.28);
+  }
+  body.dark-mode .query-tabs{
+    background: rgba(15,23,42,0.36);
+  }
+  .query-tab,
+  .btn-primary,
+  .btn-ghost,
+  .ticket-btn,
+  .filter-btn,
+  .swap-btn,
+  .trip-compact-bar,
+  .trip-open-btn,
+  .train-route,
+  .toggle-arrow,
+  .modal-pill,
+  .modal-brand-tag{
+    border-radius: 12px;
+  }
+  .query-tab:hover{
+    background: rgba(251,146,60,0.08);
+  }
+  .query-tab.active{
+    background: linear-gradient(135deg, #ea580c, #fb923c);
+    box-shadow: 0 16px 32px rgba(234,88,12,0.24);
+  }
+  .btn-primary{
+    background: linear-gradient(135deg, #ea580c, #fb923c);
+    box-shadow: 0 18px 32px rgba(234,88,12,0.2);
+  }
+  .trip-open-btn,
+  .toggle-arrow{
+    background: rgba(251,146,60,0.08);
+    border-color: rgba(251,146,60,0.12);
+    color: #c2410c;
+  }
+  body.dark-mode .trip-open-btn,
+  body.dark-mode .toggle-arrow{
+    background: rgba(251,146,60,0.12);
+    border-color: rgba(251,146,60,0.18);
+    color: #fdba74;
+  }
+  .train-route{
+    padding: 3px 8px;
+    background: rgba(251,146,60,0.06);
+    border-color: rgba(251,146,60,0.12);
+  }
+  body.dark-mode .train-route{
+    background: rgba(251,146,60,0.12);
+    border-color: rgba(251,146,60,0.18);
+  }
+  .date-picker,
+  .input-group,
+  .input-field,
+  .table-wrapper,
+  .modal-content,
+  .modal-hero,
+  .modal-section,
+  .detail-header-row,
+  .detail-stops-container,
+  .mblk{
+    border-radius: 16px;
+  }
+  .table-wrapper{
+    border-radius: 22px;
+  }
+  .modal-content{
+    box-shadow: 0 20px 48px rgba(2,6,23,0.24);
+  }
+  .modal-header{
+    background:
+      radial-gradient(circle at top left, rgba(251,146,60,0.2), transparent 32%),
+      linear-gradient(180deg, rgba(255,255,255,0.9), rgba(255,255,255,0.8));
+  }
+  body.dark-mode .modal-header{
+    background:
+      radial-gradient(circle at top left, rgba(251,146,60,0.2), transparent 32%),
+      linear-gradient(180deg, rgba(15,23,42,0.96), rgba(15,23,42,0.9));
+  }
+  .modal-brand-tag{
+    padding: 0;
+    border-radius: 0;
+    background: transparent;
+    color: #c2410c;
+    letter-spacing: .12em;
+  }
+  body.dark-mode .modal-brand-tag{
+    color: #fdba74;
+  }
+  .modal-note{
+    display: none;
+  }
+  .modal-title-sub{
+    margin-top: 12px;
+  }
+  .modal-meta-line{
+    display:flex;
+    flex-wrap:wrap;
+    align-items:center;
+    gap:6px 10px;
+    color: var(--text-muted);
+    font-size:.86rem;
+    line-height:1.5;
+  }
+  .modal-meta-sep{
+    opacity:.45;
+    font-weight:700;
+  }
+  .modal-hero{
+    margin-top: 14px;
+    padding: 16px 18px;
+  }
+  .modal-route-line{
+    background: linear-gradient(90deg, rgba(251,146,60,0.28), rgba(249,115,22,0.12));
+  }
+  .modal-stats{
+    display:flex;
+    flex-wrap:wrap;
+    gap:8px 18px;
+  }
+  .modal-stat{
+    min-width:0;
+    display:inline-flex;
+    align-items:baseline;
+    gap:8px;
+    padding:0;
+    border-radius:0;
+    background:transparent;
+    border:0;
+  }
+  .modal-stat span{
+    display:inline;
+    margin-bottom:0;
+    color: var(--text-muted);
+    font-size:.84rem;
+    font-weight:700;
+    letter-spacing:.04em;
+  }
+  .modal-stat strong{
+    display:inline;
+    font-size:.95rem;
+    line-height:1.35;
+    word-break:break-word;
+  }
+  .modal-section-title{
+    margin-bottom: 10px;
+  }
+  .timeline-item{
+    gap: 10px;
+    padding: 0 0 8px;
+  }
+  .tl-time{
+    width: 60px;
+    font-size: .9rem;
+  }
+  .tl-marker{
+    width: 18px;
+  }
+  .tl-line{
+    width: 2px;
+    background: linear-gradient(180deg, rgba(251,146,60,0.18), rgba(148,163,184,0.18));
+  }
+  .tl-dot{
+    width: 11px;
+    height: 11px;
+    border-width: 2px;
+    background: rgba(251,146,60,0.22);
+  }
+  .tl-content{
+    padding: 8px 0 10px;
+    border-radius: 0;
+    background: transparent;
+    border: 0;
+    border-bottom: 1px dashed rgba(148,163,184,0.18);
+    box-shadow: none;
+  }
+  body.dark-mode .tl-content{
+    background: transparent;
+    border-bottom-color: rgba(148,163,184,0.14);
+    box-shadow: none;
+  }
+  .timeline-item:last-child .tl-content{
+    padding-bottom: 4px;
+    border-bottom: none;
+  }
+  .tl-station{
+    gap: 6px;
+    font-size: .94rem;
+  }
+  .st-arr{
+    padding: 2px 6px;
+    font-size: .68rem;
+  }
+  .tl-desc{
+    margin-top: 3px;
+    font-size: .73rem;
+  }
+  .timeline-item.next .tl-dot{
+    background:#22c55e;
+    box-shadow: 0 0 0 6px rgba(34,197,94,0.16);
+  }
+  .badge-next{
+    border-radius:999px;
+    padding: 3px 8px;
+    font-weight:800;
+  }
+  .stops-grid{
+    display:block;
+    gap:0;
+    font-size:.9rem;
+    line-height:1.75;
+  }
+  .stop-item{
+    display:inline;
+    padding:0;
+    border:0;
+    border-radius:0;
+    background:transparent;
+    margin-right:0;
+    color: var(--text-muted);
+    white-space:normal;
+  }
+  .stop-item::after{
+    content:'、';
+  }
+  .stop-item:last-child::after{
+    content:'';
+  }
+  @media (max-width: 760px){
+    .query-tabs{
+      overflow-x:auto;
+      flex-wrap:nowrap;
+    }
+    .query-tab{
+      flex:0 0 auto;
+      white-space:nowrap;
+    }
+    .card{
+      padding:20px 16px;
+      border-radius:24px;
+    }
+    .modal{
+      padding:12px;
+    }
+    .modal-content{
+      max-height:92vh;
+      border-radius:24px;
+    }
+    .modal-header{
+      padding:20px 18px 16px;
+    }
+    .modal-body{
+      padding:0 18px 18px;
+    }
+    .modal-stats{
+      display:flex;
+      flex-direction:column;
+      gap:6px;
+    }
+    .modal-stat{
+      display:flex;
+      align-items:flex-start;
+      justify-content:space-between;
+      gap:12px;
+    }
+    .modal-stat strong{
+      max-width:62%;
+      text-align:right;
+    }
+    .timeline-item{
+      gap: 8px;
+      padding: 0 0 6px;
+    }
+    .tl-time{
+      width: 54px;
+      font-size: .88rem;
+    }
+  }
+  @media (max-width: 520px){
+    .modal-meta-line{
+      gap:4px 8px;
+      font-size:.82rem;
+    }
+    .modal-section,
+    .modal-hero{
+      padding:16px;
+      border-radius:20px;
+    }
+  }
 </style>
 </head>
 <body class="light-mode">
@@ -646,6 +1718,7 @@
 
     <section id="panel-startend" class="card query-panel">
       <div class="section-title">起訖站查詢</div>
+      <p class="panel-lead">輸入起點與終點後即可查看班次、耗時、停靠站與座位狀態；行動版保留快速展開的列車摘要。</p>
 
       <datalist id="stationList"></datalist>
 
@@ -720,6 +1793,7 @@
 
     <section id="panel-station" class="card query-panel hidden">
       <div class="section-title">車站時刻表</div>
+      <p class="panel-lead">依站名與方向查看發車清單，點選任一列車可直接打開完整停靠資訊。</p>
       <div class="form-row">
         <div class="input-group">
           <label>車站</label>
@@ -741,6 +1815,7 @@
 
     <section id="panel-trainno" class="card query-panel hidden">
       <div class="section-title">車次查詢</div>
+      <p class="panel-lead">適合已知車次時快速確認行駛區間與目前狀態，並延伸查看完整時間軸。</p>
       <datalist id="trainNumberList"></datalist>
       <div class="form-row">
         <div class="input-group">
@@ -763,7 +1838,7 @@
 <div id="trainModal" class="modal">
   <div class="modal-content">
     <div class="modal-header">
-      <div>
+      <div class="modal-title-block">
         <div class="modal-title-main" id="modalTitleMain">列車資訊</div>
         <div class="modal-title-sub" id="modalTitleSub">—</div>
       </div>
@@ -1285,23 +2360,63 @@
   function showTrainDetails(trainNo, originDateStr){
     const sch = getScheduleMapByOrigin(originDateStr); const t = sch?.[trainNo]; if(!t) return;
     const stops = t['車站時間']||[]; const first=stops[0][0], last=stops.slice(-1)[0][0];
-    const firstDep = splitArrDep(stops[0]).dep; const status = getStatusLabel(originDateStr, splitArrDep(stops[0]).dep, splitArrDep(stops.slice(-1)[0]).arr, firstDep, 'train');
-    document.getElementById('modalTitleMain').innerHTML = `${trainNo} <span style="font-weight:400;color:var(--text-muted); margin:0 4px;">|</span> 高鐵`;
-    const statusClass = `status-text-${status}`;
-    document.getElementById('modalTitleSub').innerHTML = `${first} → ${last} <span style="margin:0 4px; color:var(--text-light);">|</span> 狀態：<span class="${statusClass}">${status}</span> <span style="margin:0 4px; color:var(--text-light);">|</span> <span style="color:var(--text-muted); font-weight:500;">發車日：${originDateStr}</span><div style="font-size:0.85rem; color:var(--text-muted); margin-top:4px;">狀態依預定時刻與目前時間推估，非即時列車動態</div>`;
+    const firstTimes = splitArrDep(stops[0]||[]); const lastTimes = splitArrDep(stops.slice(-1)[0]||[]);
+    const firstDep = firstTimes.dep; const lastArr = lastTimes.arr || lastTimes.dep || '--';
+    const status = getStatusLabel(originDateStr, splitArrDep(stops[0]).dep, splitArrDep(stops.slice(-1)[0]).arr, firstDep, 'train');
+    document.getElementById('modalTitleMain').innerHTML = `<span class="modal-brand-tag">THSR</span><span class="modal-train-no">${trainNo}</span>`;
+    document.getElementById('modalTitleSub').innerHTML = `
+      <div class="modal-meta-line">
+        <span>${first} → ${last}</span>
+        <span class="modal-meta-sep">·</span>
+        <span>發車日 ${originDateStr}</span>
+        <span class="modal-meta-sep">·</span>
+        <span>狀態 <span class="status-text-${status}">${status}</span></span>
+      </div>
+    `;
     modalCtx={trainNo,originDate:originDateStr}; renderTimeline(stops, originDateStr); modal.style.display='flex';
   }
 
   function renderTimeline(stops, originDateStr){
     const nowMin = new Date().getHours()*60 + new Date().getMinutes(); const today = isQueryToday(originDateStr);
+    const firstStop = stops[0] || [];
+    const lastStop = stops[stops.length - 1] || [];
+    const firstTimes = splitArrDep(firstStop);
+    const lastTimes = splitArrDep(lastStop);
+    const depTime = firstTimes.dep || firstTimes.arr || '--';
+    const arrTime = lastTimes.arr || lastTimes.dep || '--';
+    const depMin = parseTime(depTime);
+    let arrMin = parseTime(arrTime);
+    if(depMin !== null && arrMin !== null && arrMin < depMin) arrMin += 1440;
+    const travel = (depMin !== null && arrMin !== null) ? durationText(0, Math.max(0, arrMin - depMin)).replace('0h ', '') : '--';
     let nextIdx = -1; if(today){ for(let i=0;i<stops.length;i++){ const ad = splitArrDep(stops[i]); if(parseTime(ad.dep||'') >= nowMin){ nextIdx=i; break; } } }
+    const currentLocation = !today ? '依時刻表顯示' : (nextIdx >= 0 ? (stops[nextIdx]?.[0] || '--') : '已到終點');
     const html = stops.map((s,i)=>{
       const ad = splitArrDep(s); const tm = (i===stops.length-1)?ad.arr:ad.dep; let cls = ''; let badge = '';
       if(today){ if(i < nextIdx) cls = 'passed'; else if(i === nextIdx) { cls = 'next'; badge = '<span class="badge-next">下一站</span>'; } }
       const arrInfo = (ad.arr && ad.arr !== tm) ? `<span class="st-arr">到 ${ad.arr}</span>` : '';
-      return `<div class="timeline-item ${cls}"><div class="tl-time">${tm || '--'}</div><div class="tl-marker"><div class="tl-dot"></div><div class="tl-line"></div></div><div class="tl-content"><div class="tl-station">${s[0]} ${badge} ${arrInfo}</div></div></div>`;
+      const tag = (i===0) ? '起站' : (i===stops.length-1 ? '終點' : '');
+      return `<div class="timeline-item ${cls}"><div class="tl-time">${tm || '--'}</div><div class="tl-marker"><div class="tl-dot"></div><div class="tl-line"></div></div><div class="tl-content"><div class="tl-station"><span>${s[0]}</span>${arrInfo}${badge}</div>${tag ? `<div class="tl-desc">${tag}</div>` : ''}</div></div>`;
     }).join('');
-    document.getElementById('modalBody').innerHTML = `<div class="timeline">${html}</div>`;
+    document.getElementById('modalBody').innerHTML = `
+      <section class="modal-hero">
+        <div class="modal-route-strip">
+          <span>${firstStop[0] || '--'}</span>
+          <strong>${depTime}</strong>
+          <div class="modal-route-line"></div>
+          <strong>${arrTime}</strong>
+          <span>${lastStop[0] || '--'}</span>
+        </div>
+        <div class="modal-stats">
+          <div class="modal-stat"><span>車程</span><strong>${travel}</strong></div>
+          <div class="modal-stat"><span>中途</span><strong>${Math.max(0, stops.length - 2)} 站</strong></div>
+          <div class="modal-stat"><span>目前位置</span><strong>${currentLocation}</strong></div>
+          <div class="modal-stat"><span>資料型態</span><strong>${today ? '當日查詢' : '歷史 / 非今日查詢'}</strong></div>
+        </div>
+      </section>
+      <section class="modal-section">
+        <div class="modal-section-title">停靠時間軸</div>
+        <div class="timeline">${html}</div>
+      </section>`;
   }
   
   function rerenderVisibleResults(){ 
