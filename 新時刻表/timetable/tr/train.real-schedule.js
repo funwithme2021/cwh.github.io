@@ -78,7 +78,8 @@ async function fetchRealData(date) {
             const trainNo = info.TrainNo;
 
             // 處理車種名稱 (因為 API 會回傳長串如 "自強(3000)..."，我們簡化它)
-            let typeName = info.TrainTypeName.Zh_tw;
+            const originalTypeName = info.TrainTypeName.Zh_tw;
+            let typeName = originalTypeName;
             if (typeName.includes("自強(3000)")) typeName = "新自強";
             else if (typeName.includes("普悠瑪")) typeName = "普悠瑪";
             else if (typeName.includes("自強")) typeName = "自強號";
@@ -90,6 +91,8 @@ async function fetchRealData(date) {
 
             translated[trainNo] = {
                 '車種': typeName,
+                '原始車種': originalTypeName,
+                '行別': info.TripLine ?? item.TripLine ?? '',
                 '車站時間': item.StopTimes.map(stop => ([
   stop.StationName.Zh_tw,
   stop.DepartureTime, // ✅ 開車時間（station timetable 用這個）

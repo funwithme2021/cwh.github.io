@@ -1248,6 +1248,9 @@ select.setting-input[id*="pick"] {
             line-height: 1.7;
             font-size: .92rem;
         }
+        #heroOpsDetail{
+            white-space: pre-line;
+        }
         .home-toolbar-actions{
             display:flex;
             flex-wrap:wrap;
@@ -3122,6 +3125,81 @@ select.setting-input[id*="pick"] {
             });
             return out;
         }
+        function pickAlertText(value) {
+            if (value === null || value === undefined) return '';
+            if (typeof value === 'string' || typeof value === 'number') {
+                return String(value).replace(/\s+/g, ' ').trim();
+            }
+            if (Array.isArray(value)) {
+                return uniqueTexts(value.map(item => pickAlertText(item))).join(' ｜ ');
+            }
+            if (typeof value === 'object') {
+                return pickAlertText(
+                    value.Zh_tw ||
+                    value.ZhTw ||
+                    value.zh_tw ||
+                    value.zh ||
+                    value.Name ||
+                    value.Title ||
+                    value.Description ||
+                    value.Message ||
+                    value.Text ||
+                    value.Content
+                );
+            }
+            return '';
+        }
+        function buildAlertMessage(alert) {
+            if (!alert || typeof alert !== 'object') return pickAlertText(alert);
+            const type = pickAlertText(alert.AlertTypeDescription || alert.AlertType || alert.Level || alert.Category);
+            const title = pickAlertText(alert.Title || alert.Subject || alert.Name);
+            const description = pickAlertText(alert.Description || alert.Message || alert.Content || alert.Detail || alert.Summary);
+            const parts = [];
+            [type, title, description].forEach(part => {
+                if (!part) return;
+                if (parts.some(existing => existing.includes(part) || part.includes(existing))) return;
+                parts.push(part);
+            });
+            if (!parts.length) {
+                Object.keys(alert).forEach(key => {
+                    if (/id|url|time|date|update/i.test(key)) return;
+                    const text = pickAlertText(alert[key]);
+                    if (!text) return;
+                    if (parts.some(existing => existing.includes(text) || text.includes(existing))) return;
+                    parts.push(text);
+                });
+            }
+            if (!parts.length) return '';
+            if (parts.length === 1) return parts[0];
+            return `${parts[0]}：${parts.slice(1).join(' ｜ ')}`;
+        }
+        function normalizeAlertRecords(data) {
+            if (Array.isArray(data)) return data;
+            if (data && Array.isArray(data.Alerts)) return data.Alerts;
+            if (data && Array.isArray(data.AlertInfos)) return data.AlertInfos;
+            if (data && Array.isArray(data.AlertInfo)) return data.AlertInfo;
+            return null;
+        }
+        async function fetchAlertMessages(system, headers) {
+            const urls = system === 'tr'
+                ? ['https://tdx.transportdata.tw/api/basic/v3/Rail/TRA/Alert?%24format=JSON']
+                : [
+                    'https://tdx.transportdata.tw/api/basic/v2/Rail/THSR/Alert?$format=JSON',
+                    'https://tdx.transportdata.tw/api/basic/v3/Rail/THSR/Alert?%24format=JSON',
+                    'https://tdx.transportdata.tw/api/basic/v2/Rail/THSR/AlertInfo?$format=JSON'
+                ];
+            for (const url of urls) {
+                try {
+                    const res = await fetch(url, { headers });
+                    if (!res.ok) continue;
+                    const data = await res.json();
+                    const records = normalizeAlertRecords(data);
+                    if (!records) continue;
+                    return uniqueTexts(records.map(buildAlertMessage));
+                } catch (e) {}
+            }
+            return [];
+        }
         function summarizeMessages(messages, maxItems = 2) {
             const unique = uniqueTexts(messages);
             if (!unique.length) return '';
@@ -3565,12 +3643,10 @@ select.setting-input[id*="pick"] {
             if(!tdxToken) return;
             const headers = { 'Authorization': `Bearer ${tdxToken}` };
             try {
-                const trRes = await fetch('https://tdx.transportdata.tw/api/basic/v3/Rail/TRA/Alert?%24format=JSON', { headers });
-                const trData = await trRes.json();
                 const trText = document.getElementById('trStatusText');
                 const trWrap = document.getElementById('trStatusTextWrap');
                 const trDot = document.getElementById('trStatusDot');
-                const trMessages = uniqueTexts((trData.Alerts || []).map(alert => alert.Description || alert.Title));
+                const trMessages = await fetchAlertMessages('tr', headers);
                 systemAlertState.tr = setStatusTicker('臺鐵', trMessages, trText, trWrap, trDot);
             } catch(e) {
                 console.log(e);
@@ -3578,8 +3654,17 @@ select.setting-input[id*="pick"] {
                 setStatusTicker('臺鐵', [], document.getElementById('trStatusText'), document.getElementById('trStatusTextWrap'), document.getElementById('trStatusDot'));
             }
 
-            systemAlertState.thsr = [];
-            setStatusTicker('高鐵', [], document.getElementById('thsrStatusText'), document.getElementById('thsrStatusTextWrap'), document.getElementById('thsrStatusDot'));
+            try {
+                const thsrText = document.getElementById('thsrStatusText');
+                const thsrWrap = document.getElementById('thsrStatusTextWrap');
+                const thsrDot = document.getElementById('thsrStatusDot');
+                const thsrMessages = await fetchAlertMessages('thsr', headers);
+                systemAlertState.thsr = setStatusTicker('高鐵', thsrMessages, thsrText, thsrWrap, thsrDot);
+            } catch(e) {
+                console.log(e);
+                systemAlertState.thsr = [];
+                setStatusTicker('高鐵', [], document.getElementById('thsrStatusText'), document.getElementById('thsrStatusTextWrap'), document.getElementById('thsrStatusDot'));
+            }
             if(typeof window.refreshHomePanels === 'function') window.refreshHomePanels();
         }
 
@@ -4300,7 +4385,7 @@ function toggleSettings(show) {
                     ? `營運異常提示：${abnormalItems.length} 則`
                     : '目前無營運異常';
                 opsDetail = abnormalItems.length
-                    ? summarizeMessages(abnormalItems, 2)
+                    ? abnormalItems.join('\n')
                     : '目前沒有新的營運異常公告。';
             }
             setText('heroOpsSummary', opsSummary);
