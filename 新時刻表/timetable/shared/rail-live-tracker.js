@@ -19,7 +19,7 @@
     "莒光號專開列車": "#b45309",
     "復興號": "#0284c7",
     "區間快": "#16a34a",
-    "區間車": "#475569",
+    "區間車": "#000000",
     "普快車": "#0f766e",
     "柴快車": "#7c2d12",
     "柴油客車": "#92400e",
@@ -106,7 +106,7 @@
 
   function needsDarkModeNeutralSwap(color) {
     const value = String(color || "").trim().toLowerCase();
-    if (value === "#475569" || value === "#64748b" || value === "#334155" || value === "#000" || value === "#000000") return true;
+    if (value === "#475569" || value === "#64748b" ||value === "#000000" || value === "#334155" || value === "#000" || value === "#000000") return true;
     const channels = parseColorChannels(value);
     if (!channels) return false;
     const max = Math.max(...channels);
@@ -469,6 +469,71 @@
     };
   }
 
+  function isCircularSnapshot(snapshot) {
+    return Boolean(snapshot?.firstStation) && snapshot.firstStation === snapshot.lastStation;
+  }
+
+  function getSnapshotStatePriority(snapshot) {
+    switch (snapshot?.state) {
+      case "dwell":
+        return 4;
+      case "running":
+        return 3;
+      case "upcoming":
+        return 2;
+      case "arrived":
+        return 1;
+      default:
+        return 0;
+    }
+  }
+
+  function getSnapshotLegSpecificity(snapshot) {
+    return new Set([snapshot?.currentFrom, snapshot?.currentTo, snapshot?.nextStation].filter(Boolean)).size;
+  }
+
+  function getSnapshotTimeDistance(snapshot) {
+    if (!snapshot) return Number.POSITIVE_INFINITY;
+    if (snapshot.state === "upcoming") return Math.max(0, snapshot.firstMinute - snapshot.nowMinute);
+    if (snapshot.state === "arrived") return Math.max(0, snapshot.nowMinute - snapshot.lastMinute);
+    return 0;
+  }
+
+  function preferSnapshot(candidate, current) {
+    const candidatePriority = getSnapshotStatePriority(candidate);
+    const currentPriority = getSnapshotStatePriority(current);
+    if (candidatePriority !== currentPriority) return candidatePriority > currentPriority;
+
+    const candidateLegSpecificity = getSnapshotLegSpecificity(candidate);
+    const currentLegSpecificity = getSnapshotLegSpecificity(current);
+    if (candidateLegSpecificity !== currentLegSpecificity) return candidateLegSpecificity > currentLegSpecificity;
+
+    const candidateDistance = getSnapshotTimeDistance(candidate);
+    const currentDistance = getSnapshotTimeDistance(current);
+    if (candidateDistance !== currentDistance) return candidateDistance < currentDistance;
+
+    const candidateElapsed = Number(candidate?.elapsedMinutes) || 0;
+    const currentElapsed = Number(current?.elapsedMinutes) || 0;
+    if (candidateElapsed !== currentElapsed) return candidateElapsed > currentElapsed;
+
+    return String(candidate?.originDate || "").localeCompare(String(current?.originDate || ""), "en") > 0;
+  }
+
+  function dedupeCircularSnapshots(snapshots) {
+    const keptCircular = new Map();
+    const result = [];
+    (snapshots || []).forEach((snapshot) => {
+      if (!isCircularSnapshot(snapshot)) {
+        result.push(snapshot);
+        return;
+      }
+      const key = `${snapshot.trainNo}|${snapshot.queryDate || ""}|${snapshot.firstStation}`;
+      const current = keptCircular.get(key);
+      if (!current || preferSnapshot(snapshot, current)) keptCircular.set(key, snapshot);
+    });
+    return result.concat(Array.from(keptCircular.values()));
+  }
+
   function pushStationEvent(map, stationName, event) {
     if (!map.has(stationName)) map.set(stationName, []);
     const list = map.get(stationName);
@@ -763,10 +828,12 @@
         projectedEntries = routeEntries.filter((entry) => hasRouteStopCoverage(entry, segment.stations)).map((entry) => buildLooseRouteProjection(entry, segment.stations)).filter(Boolean);
       }
 
-      const snapshots = projectedEntries
+      const snapshots = dedupeCircularSnapshots(
+        projectedEntries
         .map((entry) => buildSnapshot(entry, state.system, getQueryDate()))
         .filter(Boolean)
-        .filter((snapshot) => !queryText || snapshot.trainNo.includes(queryText) || snapshot.type.includes(queryText) || snapshot.firstStation.includes(queryText) || snapshot.lastStation.includes(queryText));
+        .filter((snapshot) => !queryText || snapshot.trainNo.includes(queryText) || snapshot.type.includes(queryText) || snapshot.firstStation.includes(queryText) || snapshot.lastStation.includes(queryText))
+      );
 
       state.snapshots = snapshots;
       state.segment = segment;
