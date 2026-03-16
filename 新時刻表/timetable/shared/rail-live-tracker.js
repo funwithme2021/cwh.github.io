@@ -11,17 +11,20 @@
   const MAP_PADDING_Y = 36;
   const TRA_TYPE_COLORS = {
     "新自強": "#7c3aed",
-    "自強號": "#db2777",
-    "普悠瑪號": "#2563eb",
-    "莒光號": "#e11d48",
+    "普悠瑪": "#db2777",
+    "太魯閣": "#2563eb",
+    "自強號": "#e11d48",
+    "自強號(新)": "#b45309",
+    "莒光號": "#ea580c",
     "莒光號專開列車": "#b45309",
-    "復興號": "#ea580c",
-    "區間快車": "#0284c7",
-    "區間車": "#16a34a",
-    "區間車快": "#475569",
+    "復興號": "#0284c7",
+    "區間快": "#16a34a",
+    "區間車": "#475569",
     "普快車": "#0f766e",
     "柴快車": "#7c2d12",
-    "柴油車": "#92400e",
+    "柴油客車": "#92400e",
+    "普通車": "#1d4ed8",
+    "加班車": "#0ea5e9",
     "觀光列車": "#1d4ed8",
     "團體列車": "#0ea5e9",
   };
@@ -299,6 +302,29 @@
     };
   }
 
+  function hasRouteStopCoverage(entry, routeStations) {
+    const routeSet = new Set(routeStations || []);
+    let hitCount = 0;
+    for (const stop of entry.stops || []) {
+      if (!routeSet.has(stop.name)) continue;
+      hitCount += 1;
+      if (hitCount >= 2) return true;
+    }
+    return false;
+  }
+
+  function buildLooseRouteProjection(entry, routeStations) {
+    const routeIndexMap = new Map((routeStations || []).map((name, index) => [name, index]));
+    const routeStops = (entry.stops || []).map((stop) => ({ ...stop, routeIndex: routeIndexMap.get(stop.name) })).filter((stop) => Number.isFinite(stop.routeIndex));
+    if (routeStops.length < 2) return null;
+    return {
+      ...entry,
+      routeStations,
+      routeStops,
+      routeCoveredSet: new Set(routeStops.map((stop) => stop.name)),
+    };
+  }
+
   function buildTimedStops(routeStops, delayMinutes) {
     const timedStops = [];
     let previousKeyMinute = null;
@@ -549,80 +575,6 @@
     state.modal.setAttribute("aria-hidden", "true");
   }
 
-  function updateTraTypeFilter(state, entries) {
-    const host = state.typeBar;
-    if (!host) return;
-    const previousTypes = state.allTypes.slice();
-    const hadAllSelected =
-      previousTypes.length > 0 &&
-      state.selectedTypes.size === previousTypes.length &&
-      previousTypes.every((type) => state.selectedTypes.has(type));
-    const types = unique((entries || []).map((entry) => normalizeTraType(entry.type))).sort((a, b) => a.localeCompare(b, "zh-Hant"));
-    state.allTypes = types.slice();
-    const counts = new Map(types.map((type) => [type, 0]));
-    (entries || []).forEach((entry) => {
-      const type = normalizeTraType(entry.type);
-      if (counts.has(type)) counts.set(type, (counts.get(type) || 0) + 1);
-    });
-    const normalizedSelection = new Set(Array.from(state.selectedTypes).filter((type) => types.includes(type)));
-    if (!state.hasTypeSelection || hadAllSelected || (!normalizedSelection.size && !previousTypes.length)) {
-      types.forEach((type) => normalizedSelection.add(type));
-      state.hasTypeSelection = true;
-    }
-    state.selectedTypes = normalizedSelection;
-
-    if (!types.length) {
-      host.innerHTML = `<div class="rail-live-empty">目前沒有符合此路線的台鐵車種。</div>`;
-      return;
-    }
-
-    host.innerHTML = `
-      <div class="rail-live-type-head">
-        <strong>車種篩選</strong>
-        <div class="rail-live-type-actions">
-          <button type="button" class="btn-ghost rail-live-mini-btn" data-live-type-action="all">全選</button>
-          <button type="button" class="btn-ghost rail-live-mini-btn" data-live-type-action="none">清空</button>
-        </div>
-      </div>
-      <div class="rail-live-type-list">
-        ${types
-          .map(
-            (type) => `
-              <button
-                type="button"
-                class="rail-live-type-chip ${state.selectedTypes.has(type) ? "active" : ""}"
-                data-live-type="${escapeHtml(type)}"
-                style="--rail-live-type:${escapeHtml(getTraTypeColor(type))}"
-              >
-                <span class="rail-live-type-dot"></span>
-                <span>${escapeHtml(type)}</span>
-                <b>${counts.get(type) || 0}</b>
-              </button>
-            `
-          )
-          .join("")}
-      </div>
-    `;
-
-    host.querySelector('[data-live-type-action="all"]')?.addEventListener("click", () => {
-      state.selectedTypes = new Set(types);
-      renderTracker(state);
-    });
-    host.querySelector('[data-live-type-action="none"]')?.addEventListener("click", () => {
-      state.selectedTypes = new Set();
-      renderTracker(state);
-    });
-    host.querySelectorAll("[data-live-type]").forEach((button) => {
-      button.addEventListener("click", () => {
-        const type = button.getAttribute("data-live-type");
-        if (!type) return;
-        if (state.selectedTypes.has(type)) state.selectedTypes.delete(type);
-        else state.selectedTypes.add(type);
-        renderTracker(state);
-      });
-    });
-  }
-
   function getBoardY(index, denominator, mapHeight) {
     const usableHeight = Math.max(1, mapHeight - MAP_PADDING_Y * 2);
     return MAP_PADDING_Y + (index / denominator) * usableHeight;
@@ -773,82 +725,90 @@
   }
 
   async function renderTracker(state) {
-    const scheduleSources = await ensureScheduleReady(state.system);
-    if (!scheduleSources.length) {
-      if (state.typeBar) state.typeBar.innerHTML = "";
-      state.output.innerHTML = `<div class="rail-live-empty">${escapeHtml(state.system === "tr" ? "台鐵" : "高鐵")}真實班表尚未就緒，請先更新頁面資料後再試。</div>`;
-      return;
+    try {
+      const scheduleSources = await ensureScheduleReady(state.system);
+      if (!scheduleSources.length) {
+        state.output.innerHTML = `<div class="rail-live-empty">${escapeHtml(state.system === "tr" ? "台鐵" : "高鐵")}真實班表尚未就緒，請先更新頁面資料後再試。</div>`;
+        return;
+      }
+
+      const groups =
+        state.system === "tr"
+          ? getRailNetwork()?.getTraSegmentGroups?.() || []
+          : [{ id: "thsr", title: "高鐵全線", segments: [{ id: "thsr-main", title: "高鐵全線", subtitle: "南港 - 左營", stations: getRailNetwork()?.getThsrStationOrder?.() || [] }] }];
+      let segment = null;
+      groups.some((group) => (group.segments || []).some((candidate) => (candidate.id === state.routeSelect.value ? ((segment = { ...candidate, groupTitle: group.title }), true) : false)));
+      if (!segment) {
+        const fallbackGroup = groups[0];
+        const fallback = fallbackGroup?.segments?.[0];
+        segment = fallback ? { ...fallback, groupTitle: fallbackGroup.title } : null;
+      }
+      if (!segment?.stations?.length) {
+        state.output.innerHTML = `<div class="rail-live-empty">此路線站點資料尚未完成。</div>`;
+        return;
+      }
+
+      const queryText = String(state.searchInput.value || "").trim();
+      const directionValue = state.directionSelect.value || "all";
+      const directionalEntries = buildEntries(state.system, scheduleSources).filter((entry) => matchesDirection(state.system, entry.trainNo, directionValue));
+      let routeEntries = directionalEntries.filter((entry) =>
+        state.system !== "tr" ? true : getRailNetwork()?.matchesTraSegment ? getRailNetwork().matchesTraSegment(entry, segment) : true
+      );
+      if (state.system === "tr" && !routeEntries.length) {
+        routeEntries = directionalEntries.filter((entry) => hasRouteStopCoverage(entry, segment.stations));
+      }
+
+      let projectedEntries = routeEntries.map((entry) => buildRouteProjection(entry, segment.stations)).filter(Boolean);
+      if (state.system === "tr" && !projectedEntries.length) {
+        projectedEntries = routeEntries.filter((entry) => hasRouteStopCoverage(entry, segment.stations)).map((entry) => buildLooseRouteProjection(entry, segment.stations)).filter(Boolean);
+      }
+
+      const snapshots = projectedEntries
+        .map((entry) => buildSnapshot(entry, state.system, getQueryDate()))
+        .filter(Boolean)
+        .filter((snapshot) => !queryText || snapshot.trainNo.includes(queryText) || snapshot.type.includes(queryText) || snapshot.firstStation.includes(queryText) || snapshot.lastStation.includes(queryText));
+
+      state.snapshots = snapshots;
+      state.segment = segment;
+      state.stationEvents = buildStationEventMap(snapshots, segment.stations);
+      const visibleSnapshots = snapshots.filter((snapshot) => snapshot.state !== "arrived");
+
+      const note =
+        state.system === "tr" && getQueryDate() === todayDateStr()
+          ? "台鐵今日同步即時誤點；跨日列車會依發車日補入。"
+          : "依目前查詢日期的班表推估位置；跨日列車會依發車日補入。";
+      const boardHeight = getBoardHeight(segment.stations);
+      const feedHeight = Math.min(Math.max(420, boardHeight - 110), 760);
+
+      state.output.innerHTML = `
+        <div class="rail-live-summary">
+          <div class="rail-live-chip"><span>更新時間</span><strong>${new Date().toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</strong><small>${escapeHtml(note)}</small></div>
+          <div class="rail-live-chip"><span>路線範圍</span><strong>${escapeHtml(segment.title)}</strong><small>${escapeHtml(segment.subtitle || segment.groupTitle || "")}</small></div>
+          <div class="rail-live-chip"><span>行進中 / 停靠中 / 即將發車</span><strong>${snapshots.filter((snapshot) => snapshot.state === "running").length} / ${snapshots.filter((snapshot) => snapshot.state === "dwell").length} / ${snapshots.filter((snapshot) => snapshot.state === "upcoming").length}</strong><small>點選車站可查看 10 分鐘內的進出站列車</small></div>
+        </div>
+        <div class="rail-live-layout">
+          <section class="rail-live-board">
+            <div class="rail-live-board-head">
+              <div><h3>${escapeHtml(segment.title)}</h3><p>${escapeHtml(segment.subtitle || segment.groupTitle || "")}</p></div>
+              <div class="rail-live-board-note">${escapeHtml(state.system === "tr" ? "順行 / 逆行依車次方向顯示" : "北上 / 南下依車次方向顯示")}</div>
+            </div>
+            <div class="rail-live-map" style="height:${boardHeight}px; --rail-live-line-top:${MAP_PADDING_Y}px; --rail-live-line-bottom:${MAP_PADDING_Y}px;"><div class="rail-live-line"></div></div>
+          </section>
+          <section class="rail-live-feed">
+            <div class="rail-live-feed-head"><h3>行進中列車</h3><p>${escapeHtml("左側路線可直接點選車站查看 10 分鐘內的停靠提示；右側列表可快速定位列車並查看詳情。")}</p></div>
+            <div class="rail-live-feed-body" style="max-height:${feedHeight}px">
+              <div class="rail-live-feed-list">${visibleSnapshots.length ? visibleSnapshots.map((snapshot) => buildFeedCardHTML(state.system, snapshot)).join("") : `<div class="rail-live-empty">目前沒有符合條件、且仍在此路線上的列車。</div>`}</div>
+            </div>
+          </section>
+        </div>
+      `;
+
+      renderBoard(state, segment, snapshots);
+      bindRenderedOutput(state);
+    } catch (error) {
+      console.error("rail-live-tracker render failed", error);
+      state.output.innerHTML = `<div class="rail-live-empty">即時動態建立失敗，請稍後再試。</div>`;
     }
-
-    const groups =
-      state.system === "tr"
-        ? getRailNetwork()?.getTraSegmentGroups?.() || []
-        : [{ id: "thsr", title: "高鐵全線", segments: [{ id: "thsr-main", title: "高鐵全線", subtitle: "南港 - 左營", stations: getRailNetwork()?.getThsrStationOrder?.() || [] }] }];
-    let segment = null;
-    groups.some((group) => (group.segments || []).some((candidate) => (candidate.id === state.routeSelect.value ? ((segment = { ...candidate, groupTitle: group.title }), true) : false)));
-    if (!segment) {
-      const fallbackGroup = groups[0];
-      const fallback = fallbackGroup?.segments?.[0];
-      segment = fallback ? { ...fallback, groupTitle: fallbackGroup.title } : null;
-    }
-    if (!segment?.stations?.length) {
-      if (state.typeBar) state.typeBar.innerHTML = "";
-      state.output.innerHTML = `<div class="rail-live-empty">此路線站點資料尚未完成。</div>`;
-      return;
-    }
-
-    const queryText = String(state.searchInput.value || "").trim();
-    const directionValue = state.directionSelect.value || "all";
-    const routeEntries = buildEntries(state.system, scheduleSources)
-      .filter((entry) => matchesDirection(state.system, entry.trainNo, directionValue))
-      .filter((entry) => (state.system !== "tr" ? true : getRailNetwork()?.matchesTraSegment ? getRailNetwork().matchesTraSegment(entry, segment) : true));
-    if (state.system === "tr") updateTraTypeFilter(state, routeEntries);
-    else if (state.typeBar) state.typeBar.innerHTML = "";
-    const filteredEntries = routeEntries
-      .filter((entry) => (state.system !== "tr" ? true : state.selectedTypes.has(normalizeTraType(entry.type))))
-      .map((entry) => buildRouteProjection(entry, segment.stations))
-      .filter(Boolean)
-      .map((entry) => buildSnapshot(entry, state.system, getQueryDate()))
-      .filter(Boolean)
-      .filter((snapshot) => !queryText || snapshot.trainNo.includes(queryText) || snapshot.type.includes(queryText) || snapshot.firstStation.includes(queryText) || snapshot.lastStation.includes(queryText));
-    state.snapshots = filteredEntries;
-    state.segment = segment;
-    state.stationEvents = buildStationEventMap(filteredEntries, segment.stations);
-    const snapshots = filteredEntries;
-    const visibleSnapshots = snapshots.filter((snapshot) => snapshot.state !== "arrived");
-
-    const note =
-      state.system === "tr" && getQueryDate() === todayDateStr()
-        ? "台鐵今日同步即時誤點；跨日列車會依發車日補入。"
-        : "依目前查詢日期的班表推估位置；跨日列車會依發車日補入。";
-    const boardHeight = getBoardHeight(segment.stations);
-    const feedHeight = Math.min(Math.max(420, boardHeight - 110), 760);
-
-    state.output.innerHTML = `
-      <div class="rail-live-summary">
-        <div class="rail-live-chip"><span>更新時間</span><strong>${new Date().toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</strong><small>${escapeHtml(note)}</small></div>
-        <div class="rail-live-chip"><span>路線範圍</span><strong>${escapeHtml(segment.title)}</strong><small>${escapeHtml(segment.subtitle || segment.groupTitle || "")}</small></div>
-        <div class="rail-live-chip"><span>行進中 / 停靠中 / 即將發車</span><strong>${snapshots.filter((snapshot) => snapshot.state === "running").length} / ${snapshots.filter((snapshot) => snapshot.state === "dwell").length} / ${snapshots.filter((snapshot) => snapshot.state === "upcoming").length}</strong><small>點選車站可查看 10 分鐘內的進出站列車</small></div>
-      </div>
-      <div class="rail-live-layout">
-        <section class="rail-live-board">
-          <div class="rail-live-board-head">
-            <div><h3>${escapeHtml(segment.title)}</h3><p>${escapeHtml(segment.subtitle || segment.groupTitle || "")}</p></div>
-            <div class="rail-live-board-note">${escapeHtml(state.system === "tr" ? "順行 / 逆行依車次方向顯示" : "北上 / 南下依車次方向顯示")}</div>
-          </div>
-          <div class="rail-live-map" style="height:${boardHeight}px; --rail-live-line-top:${MAP_PADDING_Y}px; --rail-live-line-bottom:${MAP_PADDING_Y}px;"><div class="rail-live-line"></div></div>
-        </section>
-        <section class="rail-live-feed">
-          <div class="rail-live-feed-head"><h3>行進中列車</h3><p>${escapeHtml(state.system === "tr" ? "左側路線可直接點選車站查看 10 分鐘內的停靠提示；右側列表可快速定位列車並查看詳情。" : "左側路線可直接點選車站查看 10 分鐘內的停靠提示；右側列表可快速定位列車並查看詳情。")}</p></div>
-          <div class="rail-live-feed-body" style="max-height:${feedHeight}px">
-            <div class="rail-live-feed-list">${visibleSnapshots.length ? visibleSnapshots.map((snapshot) => buildFeedCardHTML(state.system, snapshot)).join("") : `<div class="rail-live-empty">目前沒有符合條件、且仍在此路線上的列車。</div>`}</div>
-          </div>
-        </section>
-      </div>
-    `;
-
-    renderBoard(state, segment, snapshots);
-    bindRenderedOutput(state);
   }
 
   function buildPanelHTML(system) {
@@ -875,7 +835,6 @@
         <div class="rail-live-control"><span>方向</span><select id="railLiveDirection" class="rail-live-select">${directionOptions}</select></div>
         <div class="rail-live-control rail-live-search"><input id="railLiveSearch" class="rail-live-input" type="text" placeholder="搜尋車次、車種或起迄站"><button id="railLiveRender" class="btn-primary" type="button">刷新動態</button></div>
       </div>
-      <div id="railLiveTypeBar" class="rail-live-typebar"></div>
       <div id="railLiveOutput" class="rail-live-output"><div class="rail-live-empty">可直接顯示目前路線的列車動態與車站進出站提示。</div></div>
       <div id="railLiveModal" class="rail-live-modal hidden" aria-hidden="true">
         <div class="rail-live-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="railLiveModalTitle">
@@ -902,17 +861,6 @@
       .rail-live-select,.rail-live-input{height:38px; border-radius:12px; border:1px solid var(--border); background:var(--bg-surface); color:var(--text-main); padding:0 12px; font:inherit;}
       .rail-live-search{flex:1 1 320px; justify-content:flex-end;}
       .rail-live-input{min-width:180px; flex:1 1 180px;}
-      .rail-live-typebar{display:flex; flex-direction:column; gap:10px; order:1; padding:14px; border-radius:18px; border:1px solid var(--border); background:var(--bg-body);}
-      .rail-live-typebar:empty{display:none;}
-      .rail-live-type-head{display:flex; align-items:center; justify-content:space-between; gap:12px;}
-      .rail-live-type-head strong{font-size:.95rem;}
-      .rail-live-type-actions{display:flex; gap:8px;}
-      .rail-live-type-list{display:flex; flex-wrap:wrap; gap:8px;}
-      .rail-live-type-chip{display:inline-flex; align-items:center; gap:8px; border-radius:999px; border:1px solid color-mix(in srgb, var(--rail-live-type) 42%, var(--border)); background:color-mix(in srgb, var(--rail-live-type) 10%, var(--bg-surface)); color:var(--text-main); padding:8px 12px; font:inherit; white-space:nowrap; cursor:pointer; opacity:.58; transition:transform .18s ease, border-color .18s ease, background .18s ease;}
-      .rail-live-type-chip:hover{transform:translateY(-1px);}
-      .rail-live-type-chip.active{opacity:1; border-color:var(--rail-live-type); box-shadow:0 10px 24px color-mix(in srgb, var(--rail-live-type) 18%, transparent);}
-      .rail-live-type-chip b{font-size:.82rem;}
-      .rail-live-type-dot{width:10px; height:10px; border-radius:50%; background:var(--rail-live-type); flex:0 0 auto;}
       .rail-live-output,.rail-live-feed{display:flex; flex-direction:column; gap:14px;}
       .rail-live-output{order:2;}
       .rail-live-summary{display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:10px;}
@@ -992,14 +940,10 @@
     return {
       system,
       panel,
-      allTypes: [],
-      hasTypeSelection: false,
-      selectedTypes: new Set(),
       routeSelect: panel.querySelector("#railLiveRoute"),
       directionSelect: panel.querySelector("#railLiveDirection"),
       searchInput: panel.querySelector("#railLiveSearch"),
       renderButton: panel.querySelector("#railLiveRender"),
-      typeBar: panel.querySelector("#railLiveTypeBar"),
       output: panel.querySelector("#railLiveOutput"),
       modal: panel.querySelector("#railLiveModal"),
       modalTitle: panel.querySelector("#railLiveModalTitle"),
@@ -1050,7 +994,7 @@
     const run = () => {
       const previousLabel = state.renderButton.textContent;
       state.renderButton.disabled = true;
-      state.renderButton.textContent = "?渡?銝?..";
+      state.renderButton.textContent = "更新中...";
       renderTracker(state).finally(() => {
         state.renderButton.disabled = false;
         state.renderButton.textContent = previousLabel;
