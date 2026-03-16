@@ -2,6 +2,8 @@
   const STYLE_ID = "rail-master-table-styles";
   const TAB_ID = "tab-master-table";
   const PANEL_ID = "panel-master-table";
+  const MAX_CAPTURE_CANVAS_DIMENSION = 8192;
+  const MAX_CAPTURE_CANVAS_AREA = 16000000;
   const SEA_LINE_STATIONS = new Set([
     "談文",
     "大山",
@@ -60,6 +62,10 @@
     }
   }
 
+  function getRailNetwork() {
+    return window.RailNetwork || null;
+  }
+
   function getSystem() {
     const path = String(location.pathname || "").toLowerCase();
     if (path.includes("/tr/")) return "tr";
@@ -110,13 +116,13 @@
       return [
         { value: "all", label: "全部" },
         { value: "even", label: "順行(偶數車次)" },
-        { value: "odd", label: "逆行(基數車次)" },
+        { value: "odd", label: "逆行(奇數車次)" },
       ];
     }
     return [
       { value: "all", label: "全部" },
       { value: "even", label: "北上(偶數車次)" },
-      { value: "odd", label: "南下(基數車次)" },
+      { value: "odd", label: "南下(奇數車次)" },
     ];
   }
 
@@ -135,11 +141,7 @@
 
   function getDisplayStationList(system, stations, direction) {
     if (!Array.isArray(stations)) return [];
-    const list = stations.slice();
-    if (direction === "even" && (system === "tr" || system === "thsr")) {
-      list.reverse();
-    }
-    return list;
+    return stations.slice();
   }
 
   function sanitizeFilename(name) {
@@ -154,6 +156,15 @@
     for (let i = 0; i < count; i += 1) {
       await new Promise((resolve) => requestAnimationFrame(() => resolve()));
     }
+  }
+
+  function getSafeCaptureScale(width, height, requestedScale) {
+    const safeWidth = Math.max(1, Number(width) || 1);
+    const safeHeight = Math.max(1, Number(height) || 1);
+    const requested = Math.max(0.35, Number(requestedScale || 1) || 1);
+    const byDimension = Math.min(MAX_CAPTURE_CANVAS_DIMENSION / safeWidth, MAX_CAPTURE_CANVAS_DIMENSION / safeHeight);
+    const byArea = Math.sqrt(MAX_CAPTURE_CANVAS_AREA / Math.max(1, safeWidth * safeHeight));
+    return Math.max(0.35, Math.min(2, requested, byDimension, byArea));
   }
 
   function inlineComputedStyles(source, target) {
@@ -212,15 +223,18 @@
     }
   }
 
-  async function captureElementToCanvas(element, options = {}) {
-    if (!element) throw new Error("找不到要匯出的內容。");
-    await waitFrames(2);
-    const rect = element.getBoundingClientRect();
-    const width = Math.max(1, Math.ceil(options.width || element.scrollWidth || rect.width || 1));
-    const height = Math.max(1, Math.ceil(options.height || element.scrollHeight || rect.height || 1));
-    const padding = Math.max(0, Number(options.padding || 0));
-    const scale = Math.max(1, Math.min(2, Number(options.scale || window.devicePixelRatio || 1)));
+  function createDetachedClone(element, options = {}) {
     const cloneHost = document.createElement("div");
+    cloneHost.style.position = "fixed";
+    cloneHost.style.left = "-200000px";
+    cloneHost.style.top = "0";
+    cloneHost.style.zIndex = "-1";
+    cloneHost.style.pointerEvents = "none";
+    cloneHost.style.opacity = "0";
+    cloneHost.style.visibility = "hidden";
+    cloneHost.style.width = "max-content";
+    cloneHost.style.height = "auto";
+    cloneHost.style.overflow = "visible";
     const clone = element.cloneNode(true);
     inlineComputedStyles(element, clone);
     if (typeof options.prepareClone === "function") options.prepareClone(clone);
@@ -229,10 +243,33 @@
     clone.style.transform = "none";
     clone.style.maxHeight = "none";
     clone.style.height = "auto";
-    const serialized = new XMLSerializer().serializeToString(cloneHost);
+    clone.style.overflow = "visible";
+    document.body.appendChild(cloneHost);
+    return { cloneHost, clone };
+  }
+
+  async function captureElementToCanvas(element, options = {}) {
+    if (!element) throw new Error("找不到要匯出的內容。");
+    await waitFrames(2);
+    const rect = element.getBoundingClientRect();
+    const padding = Math.max(0, Number(options.padding || 0));
+    const requestedScale = Number(options.scale || window.devicePixelRatio || 1);
+    let cloneHost = null;
+    const clonePack = createDetachedClone(element, options);
+    cloneHost = clonePack.cloneHost;
+    const clone = clonePack.clone;
+    await waitFrames(1);
+    const width = Math.max(1, Math.ceil(options.width || clone.scrollWidth || clone.getBoundingClientRect().width || element.scrollWidth || rect.width || 1));
+    const height = Math.max(1, Math.ceil(options.height || clone.scrollHeight || clone.getBoundingClientRect().height || element.scrollHeight || rect.height || 1));
+    clone.style.width = `${width}px`;
+    clone.style.maxWidth = "none";
+    clone.style.minWidth = `${width}px`;
+    await waitFrames(1);
+    const serialized = new XMLSerializer().serializeToString(clone);
     const bg = options.background || getComputedStyle(document.body).backgroundColor || "#ffffff";
     const totalWidth = width + padding * 2;
     const totalHeight = height + padding * 2;
+    const scale = getSafeCaptureScale(totalWidth, totalHeight, requestedScale);
     const svg = `
       <svg xmlns="http://www.w3.org/2000/svg" width="${totalWidth}" height="${totalHeight}" viewBox="0 0 ${totalWidth} ${totalHeight}">
         <foreignObject x="0" y="0" width="100%" height="100%">
@@ -244,15 +281,16 @@
     `;
     const image = await loadSvgImage(svg);
     const canvas = document.createElement("canvas");
-    canvas.width = Math.ceil(totalWidth * scale);
-    canvas.height = Math.ceil(totalHeight * scale);
+    canvas.width = Math.max(1, Math.ceil(totalWidth * scale));
+    canvas.height = Math.max(1, Math.ceil(totalHeight * scale));
     const ctx = canvas.getContext("2d");
     if (!ctx) throw new Error("畫布初始化失敗，請稍後再試。");
     ctx.scale(scale, scale);
     ctx.fillStyle = bg;
     ctx.fillRect(0, 0, totalWidth, totalHeight);
     ctx.drawImage(image, 0, 0, totalWidth, totalHeight);
-    return canvas;
+    cloneHost?.remove();
+    return { canvas, width: totalWidth, height: totalHeight, scale };
   }
 
   function canvasToBlob(canvas, type, quality) {
@@ -290,9 +328,9 @@
     return new TextEncoder().encode(text);
   }
 
-  function buildPdfFromJpeg(jpegBytes, widthPx, heightPx) {
-    const widthPt = Math.max(72, Math.round((widthPx * 72) / 96));
-    const heightPt = Math.max(72, Math.round((heightPx * 72) / 96));
+  function buildPdfFromJpeg(jpegBytes, imageWidthPx, imageHeightPx, pageWidthPx = imageWidthPx, pageHeightPx = imageHeightPx) {
+    const widthPt = Math.max(72, Math.round((pageWidthPx * 72) / 96));
+    const heightPt = Math.max(72, Math.round((pageHeightPx * 72) / 96));
     const content = `q\n${widthPt} 0 0 ${heightPt} 0 0 cm\n/Im0 Do\nQ\n`;
     const objects = [
       toBytes("1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"),
@@ -302,7 +340,7 @@
       ),
       concatUint8([
         toBytes(
-          `4 0 obj\n<< /Type /XObject /Subtype /Image /Width ${widthPx} /Height ${heightPx} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${jpegBytes.length} >>\nstream\n`
+          `4 0 obj\n<< /Type /XObject /Subtype /Image /Width ${imageWidthPx} /Height ${imageHeightPx} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${jpegBytes.length} >>\nstream\n`
         ),
         jpegBytes,
         toBytes("\nendstream\nendobj\n"),
@@ -337,21 +375,27 @@
   }
 
   async function downloadElementAsPdf(element, filename, options = {}) {
-    const canvas = await captureElementToCanvas(element, options);
-    const jpeg = await canvasToBlob(canvas, "image/jpeg", 0.92);
-    const pdf = buildPdfFromJpeg(new Uint8Array(await jpeg.arrayBuffer()), canvas.width, canvas.height);
+    const capture = await captureElementToCanvas(element, options);
+    const jpeg = await canvasToBlob(capture.canvas, "image/jpeg", 0.92);
+    const pdf = buildPdfFromJpeg(
+      new Uint8Array(await jpeg.arrayBuffer()),
+      capture.canvas.width,
+      capture.canvas.height,
+      capture.width,
+      capture.height
+    );
     triggerDownload(pdf, filename.endsWith(".pdf") ? filename : `${filename}.pdf`);
   }
 
   async function downloadElementAsImage(element, filename, options = {}) {
-    const canvas = await captureElementToCanvas(element, options);
-    const png = await canvasToBlob(canvas, "image/png");
+    const capture = await captureElementToCanvas(element, options);
+    const png = await canvasToBlob(capture.canvas, "image/png");
     triggerDownload(png, filename.endsWith(".png") ? filename : `${filename}.png`);
   }
 
   async function shareElementAsImage(element, filename, options = {}) {
-    const canvas = await captureElementToCanvas(element, options);
-    const png = await canvasToBlob(canvas, "image/png");
+    const capture = await captureElementToCanvas(element, options);
+    const png = await canvasToBlob(capture.canvas, "image/png");
     const file = new File([png], filename.endsWith(".png") ? filename : `${filename}.png`, { type: "image/png" });
     if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
       await navigator.share({
@@ -362,6 +406,39 @@
       return;
     }
     triggerDownload(png, file.name);
+  }
+
+  async function printElementAsPdf(element, title, options = {}) {
+    let cloneHost = null;
+    try {
+      const clonePack = createDetachedClone(element, options);
+      cloneHost = clonePack.cloneHost;
+      const clone = clonePack.clone;
+      clone.style.width = "max-content";
+      clone.style.maxWidth = "none";
+      const printWindow = window.open("", "_blank", "noopener,noreferrer,width=1400,height=900");
+      if (!printWindow) throw new Error("print-window-blocked");
+      printWindow.document.open();
+      printWindow.document.write(`<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>${escapeHtml(title)}</title>
+    <style>
+      :root{color-scheme:light;}
+      *{box-sizing:border-box;}
+      html,body{margin:0;padding:0;background:#ffffff;color:#0f172a;font-family:"Segoe UI","Noto Sans TC",sans-serif;}
+      body{padding:12mm;}
+      @page{margin:10mm; size:auto;}
+      @media print{body{padding:0;}}
+    </style>
+  </head>
+  <body>${clone.outerHTML}<script>window.addEventListener("load",function(){setTimeout(function(){window.focus();window.print();},120);});</script></body>
+</html>`);
+      printWindow.document.close();
+    } finally {
+      cloneHost?.remove();
+    }
   }
 
   function getTraTypeColor(type) {
@@ -375,6 +452,15 @@
   }
 
   function getStationOrder(system) {
+    const network = getRailNetwork();
+    if (system === "tr" && network?.getTraStationCatalog) {
+      const stations = network.getTraStationCatalog();
+      if (stations.length) return stations;
+    }
+    if (system === "thsr" && network?.getThsrStationOrder) {
+      const stations = network.getThsrStationOrder();
+      if (stations.length) return stations;
+    }
     if (system === "tr") {
       const list = readPageValue("stationListSorted") || [];
       const seen = new Set();
@@ -419,8 +505,8 @@
     return stations.slice(startIndex, endIndex + 1);
   }
 
-  function buildTraEntries(schedule, stationOrder) {
-    const stationIndex = new Map(stationOrder.map((name, idx) => [name, idx]));
+  function buildTraEntries(schedule) {
+    const network = getRailNetwork();
     return Object.keys(schedule || {})
       .sort((a, b) => String(a).localeCompare(String(b), "en"))
       .map((trainNo) => {
@@ -437,18 +523,15 @@
           }))
           .filter((stop) => stop.name);
         if (!stops.length) return null;
-        const indexes = stops.map((stop) => stationIndex.get(stop.name)).filter(Number.isFinite);
         const stopMap = new Map(stops.map((stop) => [stop.name, stop.time]));
-        const firstIdx = indexes.length ? indexes[0] : -1;
-        const lastIdx = indexes.length ? indexes[indexes.length - 1] : -1;
+        const stationSet = new Set(stops.map((stop) => stop.name));
         return {
           trainNo: String(trainNo),
           type,
           stops,
           stopMap,
-          firstIdx,
-          lastIdx,
-          dir: firstIdx >= 0 && lastIdx >= 0 && lastIdx < firstIdx ? -1 : 1,
+          stationSet,
+          fullPathStations: network?.expandTraStopPath ? network.expandTraStopPath(stops) : stops.map((stop) => stop.name),
           firstStation: stops[0].name,
           lastStation: stops[stops.length - 1].name,
           isReserved: !TRA_NON_RESERVED_TYPES.has(type),
@@ -458,8 +541,8 @@
       .filter(Boolean);
   }
 
-  function buildThsrEntries(schedule, stationOrder) {
-    const stationIndex = new Map(stationOrder.map((name, idx) => [name, idx]));
+  function buildThsrEntries(schedule) {
+    const network = getRailNetwork();
     return Object.keys(schedule || {})
       .sort((a, b) => String(a).localeCompare(String(b), "en"))
       .map((trainNo) => {
@@ -474,18 +557,14 @@
           }))
           .filter((stop) => stop.name);
         if (!stops.length) return null;
-        const indexes = stops.map((stop) => stationIndex.get(stop.name)).filter(Number.isFinite);
         const stopMap = new Map(stops.map((stop) => [stop.name, stop.time]));
-        const firstIdx = indexes.length ? indexes[0] : -1;
-        const lastIdx = indexes.length ? indexes[indexes.length - 1] : -1;
         return {
           trainNo: String(trainNo),
           type: "",
           stops,
           stopMap,
-          firstIdx,
-          lastIdx,
-          dir: firstIdx >= 0 && lastIdx >= 0 && lastIdx < firstIdx ? -1 : 1,
+          stationSet: new Set(stops.map((stop) => stop.name)),
+          fullPathStations: network?.expandThsrStopPath ? network.expandThsrStopPath(stops) : stops.map((stop) => stop.name),
           firstStation: stops[0].name,
           lastStation: stops[stops.length - 1].name,
           isReserved: true,
@@ -495,10 +574,41 @@
       .filter(Boolean);
   }
 
-  function passesStation(entry, stationName, stationIndexMap) {
-    const stationIdx = stationIndexMap.get(stationName);
-    if (!Number.isFinite(stationIdx) || !Number.isFinite(entry.firstIdx) || !Number.isFinite(entry.lastIdx)) return false;
-    return entry.dir === 1 ? stationIdx > entry.firstIdx && stationIdx < entry.lastIdx : stationIdx < entry.firstIdx && stationIdx > entry.lastIdx;
+  function buildRouteProjection(entry, routeStations) {
+    const routeIndexMap = new Map(routeStations.map((name, idx) => [name, idx]));
+    const fullPathIndexMap = new Map((entry.fullPathStations || []).map((name, idx) => [name, idx]));
+    const covered = routeStations
+      .map((station, routeIdx) => ({ station, routeIdx, pathIdx: fullPathIndexMap.get(station) }))
+      .filter((item) => Number.isFinite(item.pathIdx));
+    if (covered.length < 2) return null;
+
+    const minPathIdx = Math.min(...covered.map((item) => item.pathIdx));
+    const maxPathIdx = Math.max(...covered.map((item) => item.pathIdx));
+    const routeCoveredSet = new Set(
+      routeStations.filter((station) => {
+        const pathIdx = fullPathIndexMap.get(station);
+        return Number.isFinite(pathIdx) && pathIdx >= minPathIdx && pathIdx <= maxPathIdx;
+      })
+    );
+    if (routeCoveredSet.size < 2) return null;
+
+    const routeStopMap = new Map(
+      (entry.stops || [])
+        .filter((stop) => routeIndexMap.has(stop.name))
+        .map((stop) => [stop.name, stop.time])
+    );
+
+    return {
+      ...entry,
+      routeStations,
+      routeStopMap,
+      routeCoveredSet,
+      routeIndexMap,
+    };
+  }
+
+  function passesStation(entry, stationName) {
+    return !!entry.routeCoveredSet?.has(stationName) && !entry.routeStopMap?.has(stationName);
   }
 
   function firstTimeInRange(entry, rangeSet) {
@@ -627,8 +737,7 @@
     return duration ? `<div class="rail-master-train-duration">${escapeHtml(duration)}</div>` : "";
   }
 
-  function createMatrixBlock(system, title, entries, stationList, startStation, endStation, stationOrder) {
-    const stationIndexMap = new Map(stationOrder.map((name, idx) => [name, idx]));
+  function createMatrixBlock(system, title, entries, stationList, startStation, endStation) {
     const section = document.createElement("section");
     section.className = "rail-master-block";
     section.innerHTML = `<div class="rail-master-section-title">${escapeHtml(title)} <span>${entries.length} 班</span></div>`;
@@ -679,10 +788,10 @@
       nameCell.textContent = station;
       entries.forEach((entry) => {
         const cell = row.insertCell();
-        if (entry.stopMap.has(station)) {
+        if (entry.routeStopMap?.has(station)) {
           cell.className = "rail-master-time";
-          cell.textContent = entry.stopMap.get(station);
-        } else if (passesStation(entry, station, stationIndexMap)) {
+          cell.textContent = entry.routeStopMap.get(station);
+        } else if (passesStation(entry, station)) {
           cell.className = "rail-master-pass";
           cell.textContent = "↓";
         }
@@ -728,38 +837,45 @@
       renderEmpty(state, "台鐵站點索引尚未完成，請稍後再試一次。");
       return;
     }
-    const entries = buildTraEntries(schedule, state.stationOrder);
+    const entries = buildTraEntries(schedule);
     buildTraTypeControls(state, entries);
     const start = normalizeTraStation(state.startSelect.value);
     const end = normalizeTraStation(state.endSelect.value);
     const pivot = normalizeTraStation(state.pivotSelect.value);
-    const range = ensureRange(start, end, state.stationOrder);
-    if (!range.length) {
+    const range = getRailNetwork()?.findTraRoutePath
+      ? getRailNetwork().findTraRoutePath(start, end, pivot)
+      : ensureRange(start, end, state.stationOrder);
+    if (range.length < 2) {
       renderEmpty(state, "找不到這組起訖站範圍。");
       return;
     }
     const direction = state.directionSelect?.value || "all";
     const rangeSet = new Set(range);
     const query = String(state.searchInput.value || "").trim();
-    const filtered = entries.filter((entry) => {
-      if (state.selectedTypes.size && !state.selectedTypes.has(entry.type)) return false;
-      if (!matchesDirectionFilter(entry.trainNo, direction)) return false;
-      if (query && !entry.trainNo.includes(query)) return false;
-      if (pivot && !entry.stopMap.has(pivot)) return false;
-      return entry.stops.some((stop) => rangeSet.has(stop.name));
-    });
+    const filtered = entries
+      .map((entry) => buildRouteProjection(entry, range))
+      .filter((entry) => {
+        if (!entry) return false;
+        if (state.selectedTypes.size && !state.selectedTypes.has(entry.type)) return false;
+        if (!matchesDirectionFilter(entry.trainNo, direction)) return false;
+        if (query && !entry.trainNo.includes(query)) return false;
+        if (pivot && !entry.routeCoveredSet?.has(pivot)) return false;
+        return Array.from(entry.routeCoveredSet || []).some((station) => rangeSet.has(station));
+      });
     const reserved = sortEntries(filtered.filter((entry) => entry.isReserved), range, rangeSet, pivot);
     const nonReserved = sortEntries(filtered.filter((entry) => !entry.isReserved), range, rangeSet, pivot);
     const reservedStations = getDisplayStationList(
       "tr",
-      range.filter((station) => reserved.some((entry) => entry.stopMap.has(station))),
+      state.onlyStopCheckbox.checked
+        ? range.filter((station) => reserved.some((entry) => entry.routeStopMap?.has(station)))
+        : range,
       direction
     );
     const nonReservedStations = getDisplayStationList(
       "tr",
       state.onlyStopCheckbox.checked
-      ? range.filter((station) => nonReserved.some((entry) => entry.stopMap.has(station)))
-      : range,
+        ? range.filter((station) => nonReserved.some((entry) => entry.routeStopMap?.has(station)))
+        : range,
       direction
     );
     state.output.innerHTML = `
@@ -771,10 +887,10 @@
     renderSummary(state, "台鐵時刻總表", `${getQueryDate() || "未指定日期"}｜方向 ${directionLabel}｜對號 ${reserved.length} 班｜區間 ${nonReserved.length} 班`);
     const scope = state.output.querySelector(".rail-master-export-scope");
     if (reserved.length) {
-      scope.appendChild(createMatrixBlock("tr", "對號列車", reserved, reservedStations, start, end, state.stationOrder));
+      scope.appendChild(createMatrixBlock("tr", "對號列車", reserved, reservedStations, start, end));
     }
     if (nonReserved.length) {
-      scope.appendChild(createMatrixBlock("tr", "區間 / 區間快", nonReserved, nonReservedStations, start, end, state.stationOrder));
+      scope.appendChild(createMatrixBlock("tr", "區間 / 區間快", nonReserved, nonReservedStations, start, end));
     }
     if (!reserved.length && !nonReserved.length) {
       renderEmpty(state, "這個範圍沒有符合條件的台鐵班次。");
@@ -791,30 +907,35 @@
       renderEmpty(state, "高鐵站點索引尚未完成，請稍後再試一次。");
       return;
     }
-    const entries = buildThsrEntries(schedule, state.stationOrder);
+    const entries = buildThsrEntries(schedule);
     const start = normalizeThsrStation(state.startSelect.value);
     const end = normalizeThsrStation(state.endSelect.value);
     const pivot = normalizeThsrStation(state.pivotSelect.value);
-    const range = ensureRange(start, end, state.stationOrder);
-    if (!range.length) {
+    const range = getRailNetwork()?.findThsrRoutePath
+      ? getRailNetwork().findThsrRoutePath(start, end, pivot)
+      : ensureRange(start, end, state.stationOrder);
+    if (range.length < 2) {
       renderEmpty(state, "找不到這組起訖站範圍。");
       return;
     }
     const direction = state.directionSelect?.value || "all";
     const rangeSet = new Set(range);
     const query = String(state.searchInput.value || "").trim();
-    const filtered = entries.filter((entry) => {
-      if (!matchesDirectionFilter(entry.trainNo, direction)) return false;
-      if (query && !entry.trainNo.includes(query)) return false;
-      if (pivot && !entry.stopMap.has(pivot)) return false;
-      return entry.stops.some((stop) => rangeSet.has(stop.name));
-    });
+    const filtered = entries
+      .map((entry) => buildRouteProjection(entry, range))
+      .filter((entry) => {
+        if (!entry) return false;
+        if (!matchesDirectionFilter(entry.trainNo, direction)) return false;
+        if (query && !entry.trainNo.includes(query)) return false;
+        if (pivot && !entry.routeCoveredSet?.has(pivot)) return false;
+        return Array.from(entry.routeCoveredSet || []).some((station) => rangeSet.has(station));
+      });
     const sorted = sortEntries(filtered, range, rangeSet, pivot);
     const stationList = getDisplayStationList(
       "thsr",
       state.onlyStopCheckbox.checked
-      ? range.filter((station) => sorted.some((entry) => entry.stopMap.has(station)))
-      : range,
+        ? range.filter((station) => sorted.some((entry) => entry.routeStopMap?.has(station)))
+        : range,
       direction
     );
     state.output.innerHTML = `
@@ -826,7 +947,7 @@
     renderSummary(state, "高鐵時刻總表", `${getQueryDate() || "未指定日期"}｜方向 ${directionLabel}｜共 ${sorted.length} 班`);
     const scope = state.output.querySelector(".rail-master-export-scope");
     if (sorted.length) {
-      scope.appendChild(createMatrixBlock("thsr", "高鐵班次", sorted, stationList, start, end, state.stationOrder));
+      scope.appendChild(createMatrixBlock("thsr", "高鐵班次", sorted, stationList, start, end));
     } else {
       renderEmpty(state, "這個範圍沒有符合條件的高鐵班次。");
     }
@@ -870,9 +991,22 @@
   }
 
   function prepareExportClone(clone) {
+    clone.style.width = "max-content";
+    clone.style.maxWidth = "none";
+    clone.style.minWidth = "fit-content";
+    clone.style.overflow = "visible";
     clone.querySelectorAll(".rail-master-scroll").forEach((el) => {
       el.style.maxHeight = "none";
       el.style.overflow = "visible";
+    });
+    clone.querySelectorAll(".rail-master-table-shell").forEach((el) => {
+      el.style.overflow = "visible";
+      el.style.width = "max-content";
+      el.style.maxWidth = "none";
+    });
+    clone.querySelectorAll(".rail-master-table").forEach((el) => {
+      el.style.width = "max-content";
+      el.style.minWidth = "auto";
     });
     clone.querySelectorAll(".rail-master-corner, .rail-master-station").forEach((el) => {
       el.style.position = "static";
@@ -888,11 +1022,18 @@
     const target = state.output.querySelector(".rail-master-export-scope");
     if (!target) return;
     const dateStr = getQueryDate() || "today";
-    await downloadElementAsPdf(target, `${state.system}-master-table-${dateStr}.pdf`, {
-      padding: 14,
-      scale: 1.6,
-      prepareClone: prepareExportClone,
-    });
+    try {
+      await downloadElementAsPdf(target, `${state.system}-master-table-${dateStr}.pdf`, {
+        padding: 14,
+        scale: 1.6,
+        prepareClone: prepareExportClone,
+      });
+    } catch (error) {
+      console.error(error);
+      await printElementAsPdf(target, `${state.system}-master-table-${dateStr}`, {
+        prepareClone: prepareExportClone,
+      });
+    }
   }
 
   function buildPanelHTML(system) {
@@ -902,7 +1043,7 @@
       .join("");
     return `
       <div class="section-title">時刻總表</div>
-      <p class="rail-master-lead">${isTra ? "依目前查詢日期的真實台鐵資料，整理成完整矩陣總表；對號列車與區間車分開顯示。" : "依目前查詢日期的真實高鐵資料，整理成完整矩陣總表。"}</p>
+      <p class="rail-master-lead">${isTra ? "依目前查詢日期的真實台鐵資料，以主線 / 支線實際路徑整理矩陣總表；起迄站會優先取最小路徑，並保留列車實際運行方向。" : "依目前查詢日期的真實高鐵資料，以起迄站最小路徑整理完整矩陣總表。"}</p>
       <div class="rail-master-toolbar">
         <div class="rail-master-control">
           <span>起</span>
@@ -1154,6 +1295,13 @@
     clone.querySelectorAll(".close, #modalClose").forEach((el) => el.remove());
     clone.style.maxHeight = "none";
     clone.style.height = "auto";
+    clone.style.maxWidth = "none";
+    clone.style.overflow = "visible";
+    clone.querySelectorAll(".modal-body").forEach((el) => {
+      el.style.maxHeight = "none";
+      el.style.height = "auto";
+      el.style.overflow = "visible";
+    });
   }
 
   function initModalCapture(system) {

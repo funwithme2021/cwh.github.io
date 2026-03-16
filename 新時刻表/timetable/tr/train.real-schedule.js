@@ -10,6 +10,29 @@ let accessToken = "";
 let stationMap = {}; // ID 轉 中文名
 let liveDelayMap = {}; // 車次轉 誤點分鐘
 
+function normalizeTraTypeName(typeName) {
+    const text = String(typeName || '').trim();
+    if (!text) return '列車';
+    if (window.RailNetwork?.normalizeTraDisplayType) {
+        return window.RailNetwork.normalizeTraDisplayType(text);
+    }
+    if (/專開列車/.test(text)) return text;
+    if (/自強.*3000|3000|新自強|騰雲/.test(text)) return '新自強';
+    if (/普悠瑪/.test(text)) return '普悠瑪';
+    if (/太魯閣/.test(text)) return '太魯閣';
+    if (/莒光/.test(text)) return '莒光號';
+    if (/復興/.test(text)) return '復興號';
+    if (/區間快/.test(text)) return '區間快';
+    if (/區間/.test(text)) return '區間車';
+    if (/普快/.test(text)) return '普快車';
+    if (/柴快/.test(text)) return '柴快車';
+    if (/柴油客車|柴客/.test(text)) return '柴油客車';
+    if (/普通車|普車/.test(text)) return '普通車';
+    if (/加班/.test(text)) return '加班車';
+    if (/自強/.test(text)) return '自強號';
+    return text;
+}
+
 // 1. 取得 TDX 存取權杖 (Access Token)
 async function getAccessToken() {
     try {
@@ -79,15 +102,7 @@ async function fetchRealData(date) {
 
             // 處理車種名稱 (因為 API 會回傳長串如 "自強(3000)..."，我們簡化它)
             const originalTypeName = info.TrainTypeName.Zh_tw;
-            let typeName = originalTypeName;
-            if (typeName.includes("自強(3000)")) typeName = "新自強";
-            else if (typeName.includes("普悠瑪")) typeName = "普悠瑪";
-            else if (typeName.includes("自強")) typeName = "自強號";
-            else if (typeName.includes("區間快")) typeName = "區間快";
-            else if (typeName.includes("區間")) typeName = "區間車";
-            else if (typeName.includes("太魯閣(太魯閣)")) typeName = "太魯閣";
-            else if (typeName.includes("莒光(無身障座位)")) typeName = "莒光號";
-            else if (typeName.includes("莒光(有身障座位)")) typeName = "莒光號";
+            const typeName = normalizeTraTypeName(originalTypeName);
 
             translated[trainNo] = {
                 '車種': typeName,

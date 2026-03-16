@@ -160,18 +160,32 @@
   }
 
   function detectTraType(text) {
-    if (/自強(?:號)?3000|騰雲座艙|3000/i.test(text)) return "自強3000";
+    if (/自強(?:號)?3000|騰雲座艙|3000/i.test(text)) return "新自強";
     if (/普悠瑪/i.test(text)) return "普悠瑪";
     if (/太魯閣/i.test(text)) return "太魯閣";
-    if (/莒光/i.test(text)) return "莒光";
+    if (/莒光/i.test(text)) return "莒光號";
     if (/區間快/i.test(text)) return "區間快";
-    if (/區間(?:車)?/i.test(text)) return "區間";
-    if (/自強(?:號)?/i.test(text)) return "自強";
+    if (/區間(?:車)?/i.test(text)) return "區間車";
+    if (/自強(?:號)?/i.test(text)) return "自強號";
     return "";
   }
 
+  function normalizeTraTypeText(value) {
+    if (window.RailNetwork?.normalizeTraDisplayType) {
+      return window.RailNetwork.normalizeTraDisplayType(value);
+    }
+    return String(value || "").trim() || "列車";
+  }
+
+  function getTraTypeColor(value) {
+    if (window.RailNetwork?.getTraTypeColor) {
+      return window.RailNetwork.getTraTypeColor(value);
+    }
+    return "#64748b";
+  }
+
   function normalizeTypeName(value) {
-    return String(value || "").replace(/\s+/g, "").replace(/號/g, "").replace(/臺/g, "台");
+    return normalizeTraTypeText(value).replace(/\s+/g, "").replace(/號/g, "").replace(/臺/g, "台");
   }
 
   function typeMatches(source, target) {
@@ -179,6 +193,11 @@
     const a = normalizeTypeName(source);
     const b = normalizeTypeName(target);
     return a.includes(b) || b.includes(a);
+  }
+
+  function renderTraTypeInline(value) {
+    const type = normalizeTraTypeText(value);
+    return `<span style="color:${escapeHtml(getTraTypeColor(type))};font-weight:700">${escapeHtml(type)}</span>`;
   }
 
   function detectDirection(text, system) {
@@ -582,7 +601,7 @@
         return {
           trainNo: item.trainNo,
           originDate: item.originDate,
-          type: data["車種"] || "",
+          type: normalizeTraTypeText(data["車種"] || ""),
           range: `${arr[0]?.[0] || "--"}→${arr[arr.length - 1]?.[0] || "--"}`,
           depHTML: typeof window.renderTimeWithDelay === "function"
             ? window.renderTimeWithDelay(item.trainNo, dep, intent.dateStr, { suppressStrike: status === "已過站" })
@@ -689,7 +708,7 @@
             <article class="rail-ai-card">
               <div class="rail-ai-card-head">
                 <div class="rail-ai-card-main">
-                  <strong>${escapeHtml(item.num)} 次｜${escapeHtml(item.type)}</strong>
+                  <strong>${escapeHtml(item.num)} 次｜${renderTraTypeInline(item.type)}</strong>
                   <p class="rail-ai-line">${item.depHTML || escapeHtml(item.depSched)} ${escapeHtml(item.startStation)} 出發 → ${item.arrHTML || escapeHtml(item.arrSched)} ${escapeHtml(item.endStation)} 抵達</p>
                   <p class="rail-ai-subline">${escapeHtml(item.travel)} ｜ ${item.stopsCount > 0 ? `中途 ${item.stopsCount} 站` : "直達"} ｜ 目前狀態 ${escapeHtml(item.status)}</p>
                 </div>
@@ -713,7 +732,7 @@
                   <div class="rail-ai-card-main">
                     <strong>${escapeHtml(item.n1)} 次 → ${escapeHtml(item.n2)} 次</strong>
                     <p class="rail-ai-line">${item.depHTML || escapeHtml(item.depSched)} ${escapeHtml(item.startStation)} 出發 ｜ ${escapeHtml(item.transferStation)} 轉乘 ${item.waitMin} 分 ｜ ${item.arrHTML || escapeHtml(item.arrSched)} 抵達 ${escapeHtml(item.endStation)}</p>
-                    <p class="rail-ai-subline">總耗時 ${escapeHtml(item.travel)} ｜ 第 1 段 ${escapeHtml(item.type1)} ｜ 第 2 段 ${escapeHtml(item.type2)}</p>
+                    <p class="rail-ai-subline">總耗時 ${escapeHtml(item.travel)} ｜ 第 1 段 ${renderTraTypeInline(item.type1)} ｜ 第 2 段 ${renderTraTypeInline(item.type2)}</p>
                   </div>
                   <div class="rail-ai-actions">
                     <button class="rail-ai-btn" type="button" data-ai-action="${actionIndex}">查看轉乘詳細</button>
@@ -806,7 +825,7 @@
   function renderTraTrain(state, intent, result) {
     state.actions = [];
     const detailAction = addAction(state, { type: "tra-detail", trainNo: result.trainNo, originDate: result.originDate });
-    const meta = buildMetaPills([intent.dateLabel, result.typeText, result.crossDayText]);
+    const meta = buildMetaPills([intent.dateLabel, result.crossDayText]);
     state.answer.innerHTML = `
       <div class="rail-ai-title">
         <span class="rail-ai-badge">車次助手</span>
@@ -816,6 +835,7 @@
       <div class="rail-ai-grid">
         <div class="rail-ai-stat"><span>目前狀態</span><strong>${escapeHtml(result.statusText)}</strong></div>
         <div class="rail-ai-stat"><span>目前位置</span><strong>${escapeHtml(result.currentLocation)}</strong></div>
+        <div class="rail-ai-stat"><span>車種</span><strong>${renderTraTypeInline(result.typeText)}</strong></div>
         <div class="rail-ai-stat"><span>${result.targetStation ? "預估抵達" : "預估車程"}</span><strong>${escapeHtml(result.etaLine)}</strong></div>
         <div class="rail-ai-stat"><span>行駛區間</span><strong>${escapeHtml(result.routeText)}</strong></div>
       </div>
@@ -859,7 +879,7 @@
           return `
             <article class="rail-ai-card">
               <div class="rail-ai-card-main">
-                <strong>${escapeHtml(row.trainNo)} 次${row.type ? `｜${escapeHtml(row.type)}` : ""}</strong>
+                <strong>${escapeHtml(row.trainNo)} 次${row.type ? `｜${renderTraTypeInline(row.type)}` : ""}</strong>
                 <p class="rail-ai-line">${row.depHTML || escapeHtml(row.time || "--")}</p>
                 <p class="rail-ai-subline">${escapeHtml(row.range)} ｜ 目前狀態 ${escapeHtml(row.status)}</p>
               </div>
@@ -1021,7 +1041,7 @@
       originDate: match.originDate,
       statusText,
       currentLocation,
-      typeText: match.train["車種"] || "列車",
+      typeText: normalizeTraTypeText(match.train["車種"] || "列車"),
       crossDayText: crossDay.label || "當日車",
       targetStation: targetIndex >= 0 ? targetStation : "",
       etaLine,

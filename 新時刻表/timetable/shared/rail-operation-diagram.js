@@ -232,17 +232,52 @@
     return Array.from(new Set((list || []).filter(Boolean)));
   }
 
+  function parseColorChannels(color) {
+    const value = String(color || "").trim().toLowerCase();
+    const shortHex = value.match(/^#([0-9a-f]{3})$/i);
+    if (shortHex) {
+      return shortHex[1].split("").map((part) => parseInt(part + part, 16));
+    }
+    const fullHex = value.match(/^#([0-9a-f]{6})$/i);
+    if (fullHex) {
+      return [0, 2, 4].map((index) => parseInt(fullHex[1].slice(index, index + 2), 16));
+    }
+    const rgb = value.match(/^rgba?\(([^)]+)\)$/i);
+    if (rgb) {
+      const parts = rgb[1].split(",").map((part) => Number.parseFloat(part.trim()));
+      if (parts.length >= 3 && parts.slice(0, 3).every((part) => Number.isFinite(part))) {
+        return parts.slice(0, 3).map((part) => Math.max(0, Math.min(255, part)));
+      }
+    }
+    return null;
+  }
+
+  function needsDarkModeNeutralSwap(color) {
+    const value = String(color || "").trim().toLowerCase();
+    if (value === "#475569" || value === "#64748b" || value === "#334155" || value === "#000" || value === "#000000") return true;
+    const channels = parseColorChannels(value);
+    if (!channels) return false;
+    const max = Math.max(...channels);
+    const min = Math.min(...channels);
+    return max - min <= 18;
+  }
+
+  function getReadableRailColor(color) {
+    return document.body.classList.contains("dark-mode") && needsDarkModeNeutralSwap(color) ? "#f8fafc" : color;
+  }
+
   function getTraTypeColor(type) {
+    const normalized = window.RailNetwork?.normalizeTraDisplayType ? window.RailNetwork.normalizeTraDisplayType(type) : String(type || "").trim();
     let pageColor = "";
     if (typeof window.getTrainTypeColor === "function") {
       try {
-        pageColor = window.getTrainTypeColor(type) || "";
+        pageColor = window.getTrainTypeColor(normalized) || "";
       } catch (_) {
       }
     }
-    const text = String(type || "").trim();
-    if (!text) return "#64748b";
-    if (TRA_TYPE_COLORS[text]) return TRA_TYPE_COLORS[text];
+    const text = normalized;
+    if (!text) return getReadableRailColor("#64748b");
+    if (TRA_TYPE_COLORS[text]) return getReadableRailColor(TRA_TYPE_COLORS[text]);
     if (/自強.*3000|3000/.test(text)) return TRA_TYPE_COLORS["新自強"];
     if (/普悠瑪/.test(text)) return TRA_TYPE_COLORS["普悠瑪"];
     if (/太魯閣/.test(text)) return TRA_TYPE_COLORS["太魯閣"];
@@ -259,7 +294,7 @@
     if (/專列|郵輪式/.test(text)) return TRA_TYPE_COLORS["專列"];
     if (/加班/.test(text)) return TRA_TYPE_COLORS["加班車"];
     if (/自強/.test(text)) return TRA_TYPE_COLORS["自強號"];
-    return pageColor || "#64748b";
+    return getReadableRailColor(pageColor || "#64748b");
   }
 
   function getTrainNoParity(trainNo) {
@@ -297,7 +332,7 @@
   }
 
   function getEntryColor(system, entry) {
-    if (system === "tr") return getTraTypeColor(entry.type);
+    if (system === "tr") return getReadableRailColor(getTraTypeColor(entry.type));
     return THSR_DIRECTION_COLORS[getDirectionKey(system, entry.trainNo)] || "#64748b";
   }
 
@@ -346,7 +381,10 @@
         if (stops.length < 2) return null;
         return {
           trainNo: String(trainNo),
-          type: String(raw["原始車種"] || raw["車種"] || "列車").trim() || "列車",
+          rawType: String(raw["原始車種"] || raw["車種"] || "列車").trim() || "列車",
+          type: window.RailNetwork?.normalizeTraDisplayType
+            ? window.RailNetwork.normalizeTraDisplayType(raw["原始車種"] || raw["車種"] || "列車")
+            : String(raw["原始車種"] || raw["車種"] || "列車").trim() || "列車",
           tripLine: raw["行別"] ?? "",
           stationSet: new Set(stops.map((stop) => stop.name)),
           stops,
@@ -406,6 +444,47 @@
         stations: stationOrder.slice(),
       },
     ];
+  }
+
+  function buildRouteChoices(system, stationOrder) {
+    if (system === "tr") {
+      return buildTraSegmentGroups().flatMap((group) =>
+        group.segments.map((segment) => ({
+          value: `${group.id}::${segment.id}`,
+          label: `${group.title}｜${segment.title}`,
+          groups: [{ ...group, segments: [segment] }],
+        }))
+      );
+    }
+    return buildThsrSegments(stationOrder).map((segment) => ({
+      value: segment.id,
+      label: segment.title,
+      groups: [{ id: "thsr-main", title: segment.title, description: segment.subtitle || "", segments: [segment] }],
+    }));
+  }
+
+  function syncRouteChoices(state, stationOrder) {
+    const select = state.routeSelect;
+    if (!select) return [];
+    const previousValue = select.value;
+    const nextChoices = buildRouteChoices(state.system, stationOrder);
+    const changed =
+      nextChoices.length !== state.routeChoices.length ||
+      nextChoices.some((choice, index) => choice.value !== state.routeChoices[index]?.value || choice.label !== state.routeChoices[index]?.label);
+    state.routeChoices = nextChoices;
+    if (changed) {
+      select.innerHTML = `
+        <option value="">請選擇路線</option>
+        ${nextChoices.map((choice) => `<option value="${escapeAttr(choice.value)}">${escapeHtml(choice.label)}</option>`).join("")}
+      `;
+    }
+    select.value = nextChoices.some((choice) => choice.value === previousValue) ? previousValue : "";
+    return nextChoices;
+  }
+
+  function renderLegendHint(state, message) {
+    if (!state.legend) return;
+    state.legend.innerHTML = `<div class="rail-op-empty">${escapeHtml(message)}</div>`;
   }
 
   function matchesSegmentEntry(entry, segment) {
@@ -515,7 +594,7 @@
         .map(([type, count]) => ({
           label: type,
           count,
-          color: getTraTypeColor(type),
+          color: getReadableRailColor(getTraTypeColor(type)),
         }));
     }
     const counts = buildCountMap(entries, (entry) => getDirectionKey(system, entry.trainNo));
@@ -767,7 +846,7 @@
     state.allTypes = types.slice();
     const counts = buildCountMap(entries, (entry) => entry.type);
     const normalizedSelection = new Set(Array.from(state.selectedTypes).filter((type) => types.includes(type)));
-    if (!state.hasTypeSelection || hadAllSelected) {
+    if (!state.hasTypeSelection || hadAllSelected || (!normalizedSelection.size && !previousTypes.length)) {
       types.forEach((type) => normalizedSelection.add(type));
       state.hasTypeSelection = true;
     }
@@ -789,7 +868,7 @@
                 type="button"
                 class="rail-op-type-chip ${state.selectedTypes.has(type) ? "active" : ""}"
                 data-type="${escapeAttr(type)}"
-                style="--rail-op-chip:${escapeAttr(getTraTypeColor(type))}"
+                style="--rail-op-chip:${escapeAttr(getReadableRailColor(getTraTypeColor(type)))}"
               >
                 <span class="rail-op-type-dot"></span>
                 <span>${escapeHtml(type)}</span>
@@ -978,16 +1057,32 @@
         return;
       }
 
+      const routeChoices = syncRouteChoices(state, stationOrder);
+      if (!routeChoices.length) {
+        renderLegendHint(state, "目前沒有可選擇的路線。");
+        renderEmpty(state, "找不到可繪製的路線。");
+        return;
+      }
+      const selectedRoute = routeChoices.find((choice) => choice.value === (state.routeSelect?.value || "")) || null;
+      if (!selectedRoute) {
+        renderLegendHint(state, state.system === "tr" ? "請先選擇路線後再篩選車種。" : "請先選擇路線後再顯示全線運行圖。");
+        renderEmpty(state, "請先選擇路線後再顯示運行圖。");
+        return;
+      }
+
       const baseEntries = state.system === "tr" ? buildTraEntries(schedule) : buildThsrEntries(schedule);
       const directionValue = state.directionSelect.value || "all";
       const scopedEntries = baseEntries.filter((entry) => matchesDirectionFilter(state.system, entry.trainNo, directionValue));
+      const routeScopedEntries = scopedEntries.filter((entry) =>
+        selectedRoute.groups.some((group) => group.segments.some((segment) => matchesSegmentEntry(entry, segment)))
+      );
       if (state.system === "tr") {
-        updateTraLegend(state, scopedEntries);
+        updateTraLegend(state, routeScopedEntries);
       } else {
-        updateThsrLegend(state, scopedEntries);
+        updateThsrLegend(state, routeScopedEntries);
       }
 
-      const filteredEntries = scopedEntries.filter((entry) => {
+      const filteredEntries = routeScopedEntries.filter((entry) => {
         if (state.system !== "tr") return true;
         if (!state.selectedTypes.size) return false;
         return state.selectedTypes.has(entry.type);
@@ -997,10 +1092,8 @@
         return;
       }
 
-      const groups = state.system === "tr"
-        ? buildTraSegmentGroups()
-        : [{ id: "thsr-main", title: "高鐵全線", description: "單一路廊，不再拆段", segments: buildThsrSegments(stationOrder) }];
-      const segmentCount = groups.reduce((sum, group) => sum + group.segments.length, 0);
+      const activeGroups = selectedRoute.groups;
+      const segmentCount = activeGroups.reduce((sum, group) => sum + group.segments.length, 0);
       if (!segmentCount) {
         renderEmpty(state, "找不到可繪製的路線分段。");
         return;
@@ -1018,16 +1111,17 @@
       `;
 
       const directionLabel = getDirectionOptions(state.system).find((option) => option.value === directionValue)?.label || "全部";
-      const scopeLabel = state.system === "tr" ? `${groups.length} 組／${segmentCount} 段` : "高鐵全線";
+      const scopeLabel = selectedRoute.label;
       const highlightText = queryText ? `｜高亮 ${highlightedCount} 班` : "";
+      const routeLabel = selectedRoute.label;
       renderMeta(
         state,
         `${state.system === "tr" ? "台鐵" : "高鐵"}運行圖`,
-        `${getQueryDate() || "未指定日期"}｜${scopeLabel}｜方向 ${directionLabel}｜顯示 ${filteredEntries.length} 班${highlightText}`
+        `${getQueryDate() || "未指定日期"}｜${routeLabel}｜方向 ${directionLabel}｜顯示 ${filteredEntries.length} 班${highlightText}`
       );
 
       const sectionList = state.output.querySelector(".rail-op-section-list");
-      for (const group of groups) {
+      for (const group of activeGroups) {
         sectionList?.appendChild(createGroupBlock(state, group, effectiveQuery, filteredEntries));
         await nextFrame();
       }
@@ -1041,6 +1135,7 @@
   }
 
   function resetState(state) {
+    if (state.routeSelect) state.routeSelect.value = "";
     state.directionSelect.value = "all";
     state.scaleSelect.value = "standard";
     state.labelSelect.value = "smart";
@@ -1062,6 +1157,12 @@
           : "依目前查詢日期的真實高鐵班表繪出全線運行圖。高鐵改用北上 / 南下雙色，停靠站同樣會以到達 / 開車雙時分畫出停站段，方便一眼抓到班距與停站節奏。"
       }</p>
       <div class="rail-op-toolbar">
+        <div class="rail-op-control">
+          <span>路線</span>
+          <select id="railOpRoute" class="rail-op-select">
+            <option value="">請選擇路線</option>
+          </select>
+        </div>
         <div class="rail-op-control">
           <span>方向</span>
           <select id="railOpDirection" class="rail-op-select">${directionOptions}</select>
@@ -1179,7 +1280,9 @@
       panel,
       allTypes: [],
       hasTypeSelection: false,
+      routeChoices: [],
       selectedTypes: new Set(),
+      routeSelect: panel.querySelector("#railOpRoute"),
       directionSelect: panel.querySelector("#railOpDirection"),
       scaleSelect: panel.querySelector("#railOpScale"),
       labelSelect: panel.querySelector("#railOpLabelMode"),
@@ -1247,7 +1350,7 @@
     state.renderButton.addEventListener("click", render);
     state.resetButton.addEventListener("click", () => resetState(state));
 
-    [state.directionSelect, state.scaleSelect, state.labelSelect].forEach((element) => {
+    [state.routeSelect, state.directionSelect, state.scaleSelect, state.labelSelect].forEach((element) => {
       element?.addEventListener("change", render);
     });
 

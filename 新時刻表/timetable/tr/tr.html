@@ -3443,8 +3443,20 @@ function hexToRgb(hex){
 
 
 
+  function normalizeTraTypeDisplay(t){
+    if(window.RailNetwork?.normalizeTraDisplayType){
+      return window.RailNetwork.normalizeTraDisplayType(t);
+    }
+    return String(t || '').trim() || '列車';
+  }
+
   // ===== 車種顏色：太魯閣藍、莒光橘 =====
   function getTrainTypeColor(t){
+    const type = normalizeTraTypeDisplay(t);
+    if(window.RailNetwork?.getTraTypeColor){
+      const sharedColor = window.RailNetwork.getTraTypeColor(type);
+      if(sharedColor) return type === '區間車' && document.body.classList.contains('dark-mode') ? '#a3a3a3' : sharedColor;
+    }
     const map={
       太魯閣:'#2563eb',
       莒光號:'#ea580c',
@@ -3455,18 +3467,23 @@ function hexToRgb(hex){
       區間快:'#16a34a',
       復興號:'#0284c7',
       區間車:document.body.classList.contains('dark-mode')?'#a3a3a3':'#475569',
+      普快車:'#0f766e',
+      柴快車:'#7c2d12',
+      柴油客車:'#92400e',
+      普通車:'#1d4ed8',
       加班車:'#0ea5e9'
     };
-    return map[t]||'#64748b';
+    return map[type]||'#64748b';
   }
 
   function colorType(t){
-    const c = getTrainTypeColor(t);
-    return `<span style="color:${c};font-weight:700">${t}</span>`;
+    const type = normalizeTraTypeDisplay(t);
+    const c = getTrainTypeColor(type);
+    return `<span style="color:${c};font-weight:700">${type}</span>`;
   }
 
   function renderTrainTypeText(t){
-    const type = t || '列車';
+    const type = normalizeTraTypeDisplay(t);
     return `<span class="modal-train-type" style="color:${getTrainTypeColor(type)}">${type}</span>`;
   }
 
@@ -3566,7 +3583,7 @@ function renderHistory(){
     const box=document.getElementById(containerId);
     if(!box) return;
     box.innerHTML='';
-    const types=new Set(Object.keys(baseSchedule||{}).map(k=>baseSchedule[k]['車種']).filter(Boolean));
+    const types=new Set(Object.keys(baseSchedule||{}).map(k=>normalizeTraTypeDisplay(baseSchedule[k]['車種'])).filter(Boolean));
     Array.from(types).sort().forEach(type=>{
       
       let wrapper;
@@ -3576,13 +3593,13 @@ function renderHistory(){
           wrapper.className = 'filter-list-item';
           wrapper.innerHTML = `<label style="display:flex;align-items:center;width:100%;cursor:pointer;">
                                  <input type="checkbox" value="${type}">
-                                 <span>${type}</span>
+                                 <span>${colorType(type)}</span>
                                </label>`;
       } else {
           // 電腦版：Bubble Chips
           wrapper = document.createElement('label');
           wrapper.className = 'chip-label';
-          wrapper.innerHTML = `<input type="checkbox" value="${type}"><span>${type}</span>`;
+          wrapper.innerHTML = `<input type="checkbox" value="${type}"><span>${colorType(type)}</span>`;
       }
 
       const cb = wrapper.querySelector('input');
@@ -5848,8 +5865,10 @@ renderQuickFavs();
 </script>
 
 <script src="../shared/rail-page-assistant.js"></script>
+<script src="../shared/rail-network.js"></script>
 <script src="../shared/rail-master-table.js"></script>
 <script src="../shared/rail-operation-diagram.js"></script>
+<script src="../shared/rail-live-tracker.js"></script>
 <script>
 window.addEventListener('load', () => {
   window.initRailPageAssistant?.('tr');

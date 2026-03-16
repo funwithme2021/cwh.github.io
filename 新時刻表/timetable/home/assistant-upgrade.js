@@ -47,14 +47,42 @@
   function simplifyTypeName(typeName) {
     const name = String(typeName || "").trim();
     if (!name) return "台鐵";
-    if (name.includes("自強") && name.includes("3000")) return "自強號3000";
-    if (name.includes("自強")) return "自強號";
-    if (name.includes("普悠瑪")) return "普悠瑪";
-    if (name.includes("太魯閣")) return "太魯閣";
-    if (name.includes("區間快")) return "區間快";
-    if (name.includes("區間")) return "區間車";
-    if (name.includes("莒光")) return "莒光號";
+    if (window.RailNetwork?.normalizeTraDisplayType) {
+      return window.RailNetwork.normalizeTraDisplayType(name);
+    }
+    if (/專開列車/.test(name)) return name;
+    if (/自強.*3000|3000|新自強|騰雲/.test(name)) return "新自強";
+    if (/普悠瑪/.test(name)) return "普悠瑪";
+    if (/太魯閣/.test(name)) return "太魯閣";
+    if (/區間快/.test(name)) return "區間快";
+    if (/區間/.test(name)) return "區間車";
+    if (/莒光/.test(name)) return "莒光號";
+    if (/復興/.test(name)) return "復興號";
+    if (/自強/.test(name)) return "自強號";
     return name;
+  }
+
+  function getTraTypeColor(typeName) {
+    const type = simplifyTypeName(typeName);
+    if (window.RailNetwork?.getTraTypeColor) {
+      return window.RailNetwork.getTraTypeColor(type);
+    }
+    const map = {
+      新自強: "#7c3aed",
+      普悠瑪: "#db2777",
+      太魯閣: "#2563eb",
+      自強號: "#e11d48",
+      莒光號: "#ea580c",
+      復興號: "#0284c7",
+      區間快: "#16a34a",
+      區間車: "#475569",
+      普快車: "#0f766e",
+      柴快車: "#7c2d12",
+      柴油客車: "#92400e",
+      普通車: "#1d4ed8",
+      加班車: "#0ea5e9",
+    };
+    return map[type] || "#64748b";
   }
 
   function formatDateLabel(dateStr) {
@@ -209,7 +237,7 @@
   }
 
   function detectTraType(text) {
-    if (/自強.*3000|3000型自強/.test(text)) return "自強號3000";
+    if (/自強.*3000|3000型自強|騰雲/.test(text)) return "新自強";
     if (/自強/.test(text)) return "自強號";
     if (/普悠瑪/.test(text)) return "普悠瑪";
     if (/太魯閣/.test(text)) return "太魯閣";
@@ -224,6 +252,11 @@
     const a = simplifyTypeName(typeName).replace(/\s+/g, "");
     const b = simplifyTypeName(preference).replace(/\s+/g, "");
     return a.includes(b) || b.includes(a);
+  }
+
+  function renderTraTypeInline(typeName) {
+    const type = simplifyTypeName(typeName);
+    return `<span class="assistant-inline-tag" style="color:${escapeHtml(getTraTypeColor(type))};font-weight:700;">${escapeHtml(type)}</span>`;
   }
 
   function findMentionedStations(text, sys) {
@@ -972,7 +1005,7 @@
                   ${result.direct.matches.map((service) => `
                     <div class="assistant-service-row">
                       <div class="assistant-service-main">
-                        <strong>${escapeHtml(service.trainNo)} 次${result.sys === "tr" ? ` <span class="assistant-inline-tag">${escapeHtml(service.type)}</span>` : ""}</strong>
+                        <strong>${escapeHtml(service.trainNo)} 次${result.sys === "tr" ? ` ${renderTraTypeInline(service.type)}` : ""}</strong>
                         <small>${escapeHtml(service.depDisplay || service.dep)} ${escapeHtml(result.start)} 出發 → ${escapeHtml(service.arrDisplay || service.arr)} ${escapeHtml(result.end)} 抵達 ｜ ${escapeHtml(service.duration)}${service.stopCount > 0 ? ` ｜ 中途 ${service.stopCount} 站` : " ｜ 直達"}${service.liveStatusText ? ` ｜ ${escapeHtml(service.liveStatusText)}` : ""}${service.hasAdjustedTime ? ` ｜ 原定 ${escapeHtml(service.dep)}→${escapeHtml(service.arr)}` : ""}</small>
                       </div>
                       <div class="assistant-service-side">
@@ -991,7 +1024,7 @@
                   ${result.transfers.map((item) => `
                     <div class="assistant-service-row">
                       <div class="assistant-service-main">
-                        <strong>${escapeHtml(item.first.trainNo)} 次 <span class="assistant-inline-tag">${escapeHtml(item.first.type)}</span> → ${escapeHtml(item.second.trainNo)} 次 <span class="assistant-inline-tag">${escapeHtml(item.second.type)}</span></strong>
+                        <strong>${escapeHtml(item.first.trainNo)} 次 ${renderTraTypeInline(item.first.type)} → ${escapeHtml(item.second.trainNo)} 次 ${renderTraTypeInline(item.second.type)}</strong>
                         <small>${escapeHtml(item.first.dep)} ${escapeHtml(result.start)} 出發 ｜ ${escapeHtml(item.first.arr)} 於 ${escapeHtml(item.transfer)} 轉乘 ｜ 等待 ${item.waitMin} 分 ｜ ${escapeHtml(item.second.arr)} 抵達 ${escapeHtml(result.end)} ｜ 總耗時 ${escapeHtml(item.duration)}</small>
                       </div>
                     </div>
@@ -1033,7 +1066,7 @@
             <div class="assistant-train-grid">
               <div class="assistant-stat-card"><span>目前狀態</span><strong>${escapeHtml(result.statusText)}</strong></div>
               <div class="assistant-stat-card"><span>目前位置</span><strong>${escapeHtml(result.currentLocation)}</strong></div>
-              <div class="assistant-stat-card"><span>車種 / 跨日</span><strong>${escapeHtml(result.typeText)} ｜ ${escapeHtml(result.crossDayText)}</strong></div>
+              <div class="assistant-stat-card"><span>車種 / 跨日</span><strong>${result.sys === "tr" ? renderTraTypeInline(result.typeText) : escapeHtml(result.typeText)} ｜ ${escapeHtml(result.crossDayText)}</strong></div>
               <div class="assistant-stat-card"><span>${result.targetStation ? "預估抵達" : "預估車程"}</span><strong>${result.targetStation ? escapeHtml(etaText(result.etaClock || "--", result.remainText || "")) : escapeHtml(result.travelText)}</strong></div>
             </div>
             ${result.stopPreview.length ? `<div class="assistant-section-title">停靠摘要</div><div class="assistant-stop-strip">${result.stopPreview.map((item) => `<span class="assistant-stop-chip">${escapeHtml(item)}</span>`).join("")}</div>` : ""}
@@ -1072,7 +1105,7 @@
               ${result.services.matches.length ? result.services.matches.map((item) => `
                 <div class="assistant-service-row">
                   <div class="assistant-service-main">
-                    <strong>${escapeHtml(item.trainNo)} 次${result.sys === "tr" ? ` <span class="assistant-inline-tag">${escapeHtml(item.type)}</span>` : ""}</strong>
+                    <strong>${escapeHtml(item.trainNo)} 次${result.sys === "tr" ? ` ${renderTraTypeInline(item.type)}` : ""}</strong>
                     <small>${escapeHtml(item.time)} ｜ ${escapeHtml(item.range)}</small>
                   </div>
                 </div>
