@@ -183,12 +183,38 @@
 
   function getStatusAppearance(snapshot) {
     const text = String(snapshot?.statusText || "");
-    if (text === "準點") return { text, color: "#16a34a" };
-    if (/^晚\d+分$/.test(text)) return { text, color: "#dc2626" };
-    if (text === "即將發車") return { text, color: "#d97706" };
-    if (text === "停靠中") return { text, color: "#2563eb" };
     if (text === "已到終點") return { text, color: "#64748b" };
+    if (/晚\d+分/.test(text)) return { text, color: "#dc2626" };
+    if (text.includes("停靠中")) return { text, color: "#2563eb" };
+    if (text.includes("即將發車")) return { text, color: "#d97706" };
+    if (text.includes("準點") || text.includes("行進中")) return { text, color: "#16a34a" };
     return { text, color: "#475569" };
+  }
+
+  function getStatusSegmentColor(text) {
+    const value = String(text || "").trim();
+    if (!value) return "#475569";
+    if (value === "已到終點") return "#64748b";
+    if (value === "停靠中") return "#2563eb";
+    if (value === "即將發車") return "#d97706";
+    if (/^晚\d+分$/.test(value)) return "#dc2626";
+    if (value === "準點") return "#16a34a";
+    if (value === "行進中") return "#0f766e";
+    return getStatusAppearance({ statusText: value }).color;
+  }
+
+  function buildStatusHTML(snapshot) {
+    const parts = String(snapshot?.statusText || "")
+      .split("·")
+      .map((part) => part.trim())
+      .filter(Boolean);
+    if (!parts.length) return "";
+    return parts
+      .map(
+        (part, index) =>
+          `${index ? `<span class="rail-live-status-sep">·</span>` : ""}<span class="rail-live-status-part" style="color:${escapeHtml(getStatusSegmentColor(part))}">${escapeHtml(part)}</span>`
+      )
+      .join("");
   }
 
   function getDelayMinutes(system, trainNo, queryDate) {
@@ -199,6 +225,11 @@
     } catch (_) {
       return 0;
     }
+  }
+
+  function buildPunctualityText(system, queryDate, delayMinutes) {
+    if (system === "tr" && queryDate === todayDateStr() && Number(delayMinutes) > 0) return `晚${Number(delayMinutes)}分`;
+    return "準點";
   }
 
   function clamp(value, min, max) {
@@ -252,9 +283,118 @@
     return sources;
   }
 
+  function mergePathSegments(first, second) {
+    if (!first.length) return second.slice();
+    if (!second.length) return first.slice();
+    return first.concat(second.slice(1));
+  }
+
+  function expandEntryPathStations(system, stops) {
+    const names = (stops || []).map((stop) => stop.name).filter(Boolean);
+    if (names.length < 2) return names.slice();
+    const findPath = system === "tr" ? getRailNetwork()?.findTraRoutePath : getRailNetwork()?.findThsrRoutePath;
+    if (findPath) {
+      let expanded = [];
+      for (let index = 0; index < names.length - 1; index += 1) {
+        const pairPath = findPath(names[index], names[index + 1]);
+        expanded = mergePathSegments(expanded, Array.isArray(pairPath) && pairPath.length ? pairPath : [names[index], names[index + 1]]);
+      }
+      if (expanded.length) return expanded;
+    }
+    return names.slice();
+  }
+
+  function buildJourneyPathPoints(timedStops, fullPathStations) {
+    let searchStart = 0;
+    const resolvePathIndex = (stationName) => {
+      for (let index = searchStart; index < (fullPathStations || []).length; index += 1) {
+        if (fullPathStations[index] !== stationName) continue;
+        searchStart = index + 1;
+        return index;
+      }
+      return (fullPathStations || []).indexOf(stationName);
+    };
+    const anchors = (timedStops || [])
+      .map((stop) => ({ ...stop, pathIndex: resolvePathIndex(stop.name) }))
+      .filter((stop) => Number.isFinite(stop.pathIndex));
+    if (anchors.length < 2) return [];
+
+    const points = [];
+    let sequenceIndex = 0;
+    const pushPoint = (point) => {
+      if (!point || !Number.isFinite(point.pathIndex) || !Number.isFinite(point.minute) || !point.station) return;
+      const previous = points[points.length - 1];
+      if (
+        previous &&
+        previous.station === point.station &&
+        previous.pathIndex === point.pathIndex &&
+        previous.minute === point.minute &&
+        previous.kind === point.kind
+      ) {
+        return;
+      }
+      points.push({ ...point, sequenceIndex });
+      sequenceIndex += 1;
+    };
+
+    anchors.forEach((current, index) => {
+      if (current.isPassOnly) {
+        const passMinute = getStopEventMinute(current);
+        if (Number.isFinite(passMinute)) {
+          pushPoint({
+            station: current.name,
+            pathIndex: current.pathIndex,
+            minute: passMinute,
+            kind: "pass",
+            isStop: false,
+          });
+        }
+      } else if (Number.isFinite(current.arrivalMinute)) {
+        pushPoint({
+          station: current.name,
+          pathIndex: current.pathIndex,
+          minute: current.arrivalMinute,
+          kind: "arrival",
+          isStop: true,
+        });
+      }
+      if (!current.isPassOnly && Number.isFinite(current.departureMinute) && current.departureMinute !== current.arrivalMinute) {
+        pushPoint({
+          station: current.name,
+          pathIndex: current.pathIndex,
+          minute: current.departureMinute,
+          kind: "departure",
+          isStop: true,
+        });
+      }
+
+      const next = anchors[index + 1];
+      if (!next) return;
+      const travelStart = Number.isFinite(current.departureMinute) ? current.departureMinute : current.arrivalMinute;
+      const travelEnd = Number.isFinite(next.arrivalMinute) ? next.arrivalMinute : next.departureMinute;
+      const delta = next.pathIndex - current.pathIndex;
+      const steps = Math.abs(delta);
+      if (!Number.isFinite(travelStart) || !Number.isFinite(travelEnd) || steps <= 1) return;
+
+      for (let step = 1; step < steps; step += 1) {
+        const pathIndex = current.pathIndex + Math.sign(delta) * step;
+        const station = fullPathStations[pathIndex];
+        if (!station) continue;
+        pushPoint({
+          station,
+          pathIndex,
+          minute: Math.round(travelStart + ((travelEnd - travelStart) * step) / steps),
+          kind: "pass",
+          isStop: false,
+        });
+      }
+    });
+
+    return points;
+  }
+
   function buildEntries(system, scheduleSources) {
     const normalizeStation = system === "tr" ? normalizeTraStation : normalizeThsrStation;
-    const expandPath = system === "tr" ? getRailNetwork()?.expandTraStopPath : getRailNetwork()?.expandThsrStopPath;
     const sources = Array.isArray(scheduleSources) ? scheduleSources : [{ map: scheduleSources || {}, originDate: getQueryDate() }];
     return sources.flatMap((source) =>
       Object.keys(source.map || {})
@@ -271,6 +411,7 @@
             .filter((stop) => stop.name && (stop.arrival || stop.departure));
           if (stops.length < 2) return null;
           const rawType = system === "tr" ? String(raw["原始車種"] || raw["車種"] || "列車").trim() || "列車" : "高鐵";
+          const fullPathStations = expandEntryPathStations(system, stops);
           return {
             key: `${trainNo}@${source.originDate}`,
             originDate: source.originDate,
@@ -279,7 +420,8 @@
             type: system === "tr" ? normalizeTraType(rawType) : "高鐵",
             stops,
             stationSet: new Set(stops.map((stop) => stop.name)),
-            fullPathStations: expandPath ? expandPath(stops) : stops.map((stop) => stop.name),
+            fullPathStations,
+            fullPathSet: new Set(fullPathStations),
             firstStation: stops[0].name,
             lastStation: stops[stops.length - 1].name,
           };
@@ -288,146 +430,270 @@
     );
   }
 
-  function buildRouteProjection(entry, routeStations) {
-    const routeIndexMap = new Map(routeStations.map((name, index) => [name, index]));
-    const fullPathIndexMap = new Map((entry.fullPathStations || []).map((name, index) => [name, index]));
-    const coveredStations = routeStations.filter((station) => fullPathIndexMap.has(station));
-    const routeStops = (entry.stops || []).map((stop) => ({ ...stop, routeIndex: routeIndexMap.get(stop.name) })).filter((stop) => Number.isFinite(stop.routeIndex));
-    if (coveredStations.length < 2 || routeStops.length < 2) return null;
-    return {
-      ...entry,
-      routeStations,
-      routeStops,
-      routeCoveredSet: new Set(coveredStations),
-    };
-  }
-
-  function hasRouteStopCoverage(entry, routeStations) {
-    const routeSet = new Set(routeStations || []);
+  function matchesSegmentEntry(entry, segment) {
+    const stationSet = entry.fullPathSet || entry.stationSet || new Set((entry.stops || []).map((stop) => stop.name));
+    if (segment.includeAny?.length && !segment.includeAny.some((name) => stationSet.has(name))) return false;
+    if (segment.excludeAny?.length && segment.excludeAny.some((name) => stationSet.has(name))) return false;
     let hitCount = 0;
-    for (const stop of entry.stops || []) {
-      if (!routeSet.has(stop.name)) continue;
+    for (const station of segment.stations || []) {
+      if (!stationSet.has(station)) continue;
       hitCount += 1;
       if (hitCount >= 2) return true;
     }
     return false;
   }
 
-  function buildLooseRouteProjection(entry, routeStations) {
-    const routeIndexMap = new Map((routeStations || []).map((name, index) => [name, index]));
-    const routeStops = (entry.stops || []).map((stop) => ({ ...stop, routeIndex: routeIndexMap.get(stop.name) })).filter((stop) => Number.isFinite(stop.routeIndex));
-    if (routeStops.length < 2) return null;
-    return {
-      ...entry,
-      routeStations,
-      routeStops,
-      routeCoveredSet: new Set(routeStops.map((stop) => stop.name)),
-    };
-  }
-
   function buildTimedStops(routeStops, delayMinutes) {
     const timedStops = [];
-    let previousKeyMinute = null;
-    let dayOffset = 0;
-    routeStops.forEach((stop) => {
+    let previousAbsoluteMinute = null;
+    const stopCount = (routeStops || []).length;
+    const resolveAbsoluteMinute = (rawMinute) => {
+      if (rawMinute === null) return null;
+      let absoluteMinute = rawMinute;
+      while (previousAbsoluteMinute !== null && absoluteMinute < previousAbsoluteMinute) {
+        absoluteMinute += 1440;
+      }
+      previousAbsoluteMinute = absoluteMinute;
+      return absoluteMinute + delayMinutes;
+    };
+    routeStops.forEach((stop, index) => {
       const arrivalRaw = parseMinutes(stop.arrival);
       const departureRaw = parseMinutes(stop.departure);
-      const keyMinute = departureRaw !== null && arrivalRaw !== null
-        ? Math.max(departureRaw, arrivalRaw)
-        : (departureRaw !== null ? departureRaw : arrivalRaw);
-      if (previousKeyMinute !== null && keyMinute !== null && keyMinute < previousKeyMinute) dayOffset += 1440;
+      const hasArrival = arrivalRaw !== null;
+      const hasDeparture = departureRaw !== null;
       timedStops.push({
         ...stop,
-        arrivalMinute: arrivalRaw === null ? null : dayOffset + arrivalRaw + delayMinutes,
-        departureMinute: departureRaw === null ? null : dayOffset + departureRaw + delayMinutes,
+        hasArrival,
+        hasDeparture,
+        isPassOnly: index > 0 && index < stopCount - 1 && hasArrival !== hasDeparture,
+        arrivalMinute: resolveAbsoluteMinute(arrivalRaw),
+        departureMinute: resolveAbsoluteMinute(departureRaw),
       });
-      if (keyMinute !== null) previousKeyMinute = keyMinute;
     });
     return timedStops;
   }
 
-  function buildSnapshot(entry, system, queryDate) {
+  function getStopArrivalMinute(stop) {
+    return stop?.arrivalMinute ?? stop?.departureMinute;
+  }
+
+  function getStopDepartureMinute(stop) {
+    return stop?.departureMinute ?? stop?.arrivalMinute;
+  }
+
+  function getStopEventMinute(stop) {
+    return getStopDepartureMinute(stop) ?? getStopArrivalMinute(stop);
+  }
+
+  function buildRouteProjections(entry, routeStations, system, queryDate) {
+    const routeIndexMap = new Map((routeStations || []).map((name, index) => [name, index]));
     const delayMinutes = getDelayMinutes(system, entry.trainNo, queryDate);
-    const timedStops = buildTimedStops(entry.routeStops, delayMinutes);
     const fullTimedStops = buildTimedStops(entry.stops, delayMinutes);
+    const fullPathPoints = buildJourneyPathPoints(fullTimedStops, entry.fullPathStations);
+    const points = (fullPathPoints || [])
+      .filter((point) => routeIndexMap.has(point.station))
+      .map((point) => ({
+        ...point,
+        routeIndex: routeIndexMap.get(point.station),
+      }))
+      .filter((point) => Number.isFinite(point.routeIndex));
+    if (points.length < 2) return [];
+
+    const pointGroups = [];
+    let currentGroup = [];
+    points.forEach((point) => {
+      const previous = currentGroup[currentGroup.length - 1];
+      if (previous && point.sequenceIndex !== previous.sequenceIndex + 1) {
+        if (currentGroup.length >= 2) pointGroups.push(currentGroup);
+        currentGroup = [];
+      }
+      currentGroup.push(point);
+    });
+    if (currentGroup.length >= 2) pointGroups.push(currentGroup);
+    if (!pointGroups.length) return [];
+
+    const fullFirstMinute = getStopDepartureMinute(fullTimedStops[0]);
+    const fullLastMinute = getStopArrivalMinute(fullTimedStops[fullTimedStops.length - 1]);
+    const originDepartureMinute = getStopDepartureMinute(fullTimedStops[0]);
+
+    return pointGroups
+      .map((pointGroup, visitIndex) => {
+        const firstMinute = pointGroup[0].minute;
+        const lastMinute = pointGroup[pointGroup.length - 1].minute;
+        const stopDetails = (fullTimedStops || [])
+          .map((stop) => {
+            const routeIndex = routeIndexMap.get(stop.name);
+            const arrivalMinute = getStopArrivalMinute(stop);
+            const departureMinute = getStopDepartureMinute(stop);
+            if (stop.isPassOnly) return null;
+            if (!Number.isFinite(routeIndex) || !Number.isFinite(arrivalMinute) || !Number.isFinite(departureMinute)) return null;
+            if (departureMinute < firstMinute || arrivalMinute > lastMinute) return null;
+            return {
+              ...stop,
+              routeIndex,
+            };
+          })
+          .filter(Boolean);
+        const startsAtJourneyOrigin =
+          pointGroup[0]?.station === entry.firstStation &&
+          Number.isFinite(originDepartureMinute) &&
+          firstMinute <= originDepartureMinute &&
+          lastMinute >= originDepartureMinute;
+        return {
+          ...entry,
+          projectionKey: `${entry.key || entry.trainNo}|${visitIndex}`,
+          delayMinutes,
+          fullTimedStops,
+          fullPathPoints,
+          routeStations,
+          routeIndexMap,
+          points: pointGroup,
+          stopDetails,
+          firstMinute,
+          lastMinute,
+          journeyFirstMinute: fullFirstMinute,
+          journeyLastMinute: fullLastMinute,
+          originDepartureMinute,
+          startsAtJourneyOrigin,
+        };
+      })
+      .filter((projection) => Number.isFinite(projection.firstMinute) && Number.isFinite(projection.lastMinute));
+  }
+
+  function buildSnapshot(entry, system, queryDate) {
+    const points = entry.points || [];
+    const stopDetails = entry.stopDetails || [];
+    const fullTimedStops = entry.fullTimedStops || [];
     const nowMinute = getRelativeNowMinute(entry.originDate, queryDate);
-    const firstStop = timedStops[0];
-    const lastStop = timedStops[timedStops.length - 1];
-    const segmentFirstMinute = firstStop?.departureMinute ?? firstStop?.arrivalMinute;
-    const segmentLastMinute = lastStop?.arrivalMinute ?? lastStop?.departureMinute;
-    const fullFirstStop = fullTimedStops[0];
-    const fullLastStop = fullTimedStops[fullTimedStops.length - 1];
-    const fullFirstMinute = fullFirstStop?.departureMinute ?? fullFirstStop?.arrivalMinute;
-    const fullLastMinute = fullLastStop?.arrivalMinute ?? fullLastStop?.departureMinute;
+    const punctualityText = buildPunctualityText(system, queryDate, entry.delayMinutes);
+    const firstPoint = points[0];
+    const lastPoint = points[points.length - 1];
+    const segmentFirstMinute = entry.firstMinute ?? firstPoint?.minute;
+    const segmentLastMinute = entry.lastMinute ?? lastPoint?.minute;
+    const fullFirstMinute = entry.journeyFirstMinute;
+    const fullLastMinute = entry.journeyLastMinute;
     if (!Number.isFinite(segmentFirstMinute) || !Number.isFinite(segmentLastMinute) || !Number.isFinite(fullFirstMinute) || !Number.isFinite(fullLastMinute)) return null;
-    if (nowMinute < segmentFirstMinute && segmentFirstMinute - nowMinute > UPCOMING_WINDOW) return null;
+    if (nowMinute < segmentFirstMinute && (!entry.startsAtJourneyOrigin || segmentFirstMinute - nowMinute > UPCOMING_WINDOW)) return null;
     if (nowMinute > segmentLastMinute + 10) return null;
+
+    const getDirectionGlyphAtPointIndex = (pointIndex) => {
+      const currentPoint = points[pointIndex] || points[0] || null;
+      if (!currentPoint) return "▼";
+      for (let index = pointIndex + 1; index < points.length; index += 1) {
+        const nextPoint = points[index];
+        if (!Number.isFinite(nextPoint?.routeIndex) || nextPoint.routeIndex === currentPoint.routeIndex) continue;
+        return nextPoint.routeIndex < currentPoint.routeIndex ? "▲" : "▼";
+      }
+      for (let index = pointIndex - 1; index >= 0; index -= 1) {
+        const previousPoint = points[index];
+        if (!Number.isFinite(previousPoint?.routeIndex) || previousPoint.routeIndex === currentPoint.routeIndex) continue;
+        return currentPoint.routeIndex < previousPoint.routeIndex ? "▲" : "▼";
+      }
+      return "▼";
+    };
 
     let state = "arrived";
     let stateLabel = "已到終點";
-    let positionIndex = lastStop.routeIndex;
-    let currentFrom = lastStop.name;
-    let currentTo = lastStop.name;
-    let nextStation = lastStop.name;
+    let positionIndex = lastPoint?.routeIndex ?? 0;
+    let currentFrom = lastPoint?.station || entry.lastStation;
+    let currentTo = lastPoint?.station || entry.lastStation;
+    let nextStation = lastPoint?.station || entry.lastStation;
     let nextTime = formatMinute(segmentLastMinute);
     let statusText = "已到終點";
-    let directionGlyph = "▼";
-    let soonStation = lastStop.name;
+    let directionGlyph = getDirectionGlyphAtPointIndex(points.length - 1);
+    let soonStation = lastPoint?.station || entry.lastStation;
     let soonMinutes = Number.POSITIVE_INFINITY;
+    let soonKind = "";
+    let nextEventKind = "arrival";
+    let originEventMinute = entry.originDepartureMinute;
 
     if (nowMinute < segmentFirstMinute) {
+      const originStop = stopDetails.find((stop) => stop.name === entry.firstStation) || stopDetails[0] || null;
+      const anchorPointIndex = Math.max(
+        0,
+        points.findIndex((point) => point.station === (originStop?.name || firstPoint?.station))
+      );
+      const anchorPoint = points[anchorPointIndex] || firstPoint || lastPoint;
+      const departureMinute = getStopDepartureMinute(originStop) ?? segmentFirstMinute;
       state = "upcoming";
       stateLabel = "即將發車";
-      positionIndex = firstStop.routeIndex;
-      currentFrom = firstStop.name;
-      currentTo = firstStop.name;
-      nextStation = firstStop.name;
-      nextTime = formatMinute(segmentFirstMinute);
-      statusText = "即將發車";
-      soonStation = firstStop.name;
-      soonMinutes = segmentFirstMinute - nowMinute;
-      directionGlyph = (timedStops[1]?.routeIndex ?? firstStop.routeIndex) < firstStop.routeIndex ? "▲" : "▼";
+      positionIndex = anchorPoint?.routeIndex ?? firstPoint?.routeIndex ?? 0;
+      currentFrom = originStop?.name || anchorPoint?.station || entry.firstStation;
+      currentTo = currentFrom;
+      nextStation = currentFrom;
+      nextTime = formatMinute(departureMinute);
+      statusText = `即將發車·${punctualityText}`;
+      soonStation = currentFrom;
+      soonMinutes = departureMinute - nowMinute;
+      soonKind = "stop";
+      nextEventKind = "departure";
+      directionGlyph = getDirectionGlyphAtPointIndex(anchorPointIndex);
+      originEventMinute = departureMinute;
     } else {
-      for (let index = 0; index < timedStops.length; index += 1) {
-        const current = timedStops[index];
-        const arrivalMinute = current.arrivalMinute ?? current.departureMinute;
-        const departureMinute = current.departureMinute ?? current.arrivalMinute;
+      for (let index = 0; index < stopDetails.length; index += 1) {
+        const current = stopDetails[index];
+        const arrivalMinute = getStopArrivalMinute(current);
+        const departureMinute = getStopDepartureMinute(current);
         if (!Number.isFinite(arrivalMinute) || !Number.isFinite(departureMinute)) continue;
         if (nowMinute >= arrivalMinute && nowMinute <= departureMinute) {
           state = "dwell";
           stateLabel = "停靠中";
-          positionIndex = current.routeIndex;
+          positionIndex = current.routeIndex ?? lastPoint?.routeIndex ?? 0;
           currentFrom = current.name;
           currentTo = current.name;
-          nextStation = timedStops[index + 1]?.name || current.name;
-          nextTime = formatMinute(timedStops[index + 1]?.arrivalMinute ?? timedStops[index + 1]?.departureMinute ?? departureMinute);
-          statusText = "停靠中";
+          const nextStop = stopDetails
+            .slice(index + 1)
+            .find((stop) => Number.isFinite(getStopArrivalMinute(stop)) && getStopArrivalMinute(stop) > departureMinute);
+          const fallbackPoint = points.find((point) => Number.isFinite(point.minute) && point.minute > departureMinute);
+          nextStation = nextStop?.name || fallbackPoint?.station || current.name;
+          nextTime = formatMinute(getStopArrivalMinute(nextStop) ?? fallbackPoint?.minute ?? departureMinute);
+          statusText = `停靠中·${punctualityText}`;
           soonStation = current.name;
           soonMinutes = 0;
-          directionGlyph = ((timedStops[index + 1]?.routeIndex ?? current.routeIndex) - current.routeIndex) < 0 ? "▲" : "▼";
+          soonKind = "stop";
+          nextEventKind = nextStop ? "arrival" : fallbackPoint?.isStop ? "arrival" : "pass";
+          const pointIndex = Math.max(
+            0,
+            points.findIndex((point) => point.station === current.name && point.minute >= arrivalMinute)
+          );
+          directionGlyph = getDirectionGlyphAtPointIndex(pointIndex);
           break;
         }
-        const next = timedStops[index + 1];
-        const nextArrival = next ? next.arrivalMinute ?? next.departureMinute : null;
-        if (!next || !Number.isFinite(nextArrival) || nowMinute < departureMinute || nowMinute > nextArrival) continue;
-        state = "running";
-        stateLabel = "行進中";
-        positionIndex = current.routeIndex + (next.routeIndex - current.routeIndex) * ((nowMinute - departureMinute) / Math.max(1, nextArrival - departureMinute));
-        currentFrom = current.name;
-        currentTo = next.name;
-        nextStation = next.name;
-        nextTime = formatMinute(next.departureMinute ?? next.arrivalMinute ?? nextArrival);
-        statusText = system === "tr" && queryDate === todayDateStr() ? (delayMinutes > 0 ? `晚${delayMinutes}分` : "準點") : "準點";
-        soonStation = next.name;
-        soonMinutes = nextArrival - nowMinute;
-        directionGlyph = (next.routeIndex - current.routeIndex) < 0 ? "▲" : "▼";
-        break;
+      }
+
+      if (state !== "dwell") {
+        for (let index = 0; index < points.length - 1; index += 1) {
+          const current = points[index];
+          const next = points[index + 1];
+          if (!Number.isFinite(current?.minute) || !Number.isFinite(next?.minute) || nowMinute < current.minute || nowMinute > next.minute) continue;
+          state = "running";
+          stateLabel = "行進中";
+          positionIndex = current.routeIndex + (next.routeIndex - current.routeIndex) * (clamp((nowMinute - current.minute) / Math.max(1, next.minute - current.minute), 0, 1));
+          currentFrom = current.station;
+          currentTo = next.station;
+          const nextStop = stopDetails.find((stop) => Number.isFinite(getStopArrivalMinute(stop)) && getStopArrivalMinute(stop) >= nowMinute);
+          const nextPoint = points.find((point, pointIndex) => pointIndex > index && Number.isFinite(point.minute) && point.minute >= nowMinute);
+          nextStation = nextStop?.name || next.station;
+          nextTime = formatMinute(getStopArrivalMinute(nextStop) ?? nextPoint?.minute ?? next.minute);
+          statusText = `行進中·${punctualityText}`;
+          const soonTarget = nextStop
+            ? { station: nextStop.name, minute: getStopArrivalMinute(nextStop), isStop: true }
+            : nextPoint
+              ? { station: nextPoint.station, minute: nextPoint.minute, isStop: Boolean(nextPoint.isStop) }
+              : null;
+          soonStation = soonTarget?.station || next.station;
+          soonMinutes = Number.isFinite(soonTarget?.minute) ? Math.max(0, soonTarget.minute - nowMinute) : Number.POSITIVE_INFINITY;
+          soonKind = soonTarget?.isStop ? "stop" : soonTarget ? "pass" : "";
+          nextEventKind = nextStop ? "arrival" : nextPoint?.isStop ? "arrival" : "pass";
+          directionGlyph = getDirectionGlyphAtPointIndex(index);
+          break;
+        }
       }
     }
 
     if (state === "arrived") {
       statusText = "已到終點";
-      directionGlyph = ((lastStop.routeIndex ?? 0) - (timedStops[timedStops.length - 2]?.routeIndex ?? lastStop.routeIndex ?? 0)) < 0 ? "▲" : "▼";
+      directionGlyph = getDirectionGlyphAtPointIndex(points.length - 1);
     }
 
     const totalMinutes = Math.max(0, fullLastMinute - fullFirstMinute);
@@ -439,8 +705,7 @@
     return {
       ...entry,
       queryDate,
-      delayMinutes,
-      timedStops,
+      delayMinutes: entry.delayMinutes,
       fullTimedStops,
       nowMinute,
       firstMinute: segmentFirstMinute,
@@ -464,7 +729,10 @@
       directionGlyph,
       soonStation,
       soonMinutes,
-      isSoonStop: Number.isFinite(soonMinutes) && soonMinutes <= STATION_SOON_WINDOW,
+      soonKind,
+      nextEventKind,
+      originEventMinute,
+      isSoonStop: soonKind === "stop" && Number.isFinite(soonMinutes) && soonMinutes <= STATION_SOON_WINDOW,
       locationText: state === "running" ? `${currentFrom} ➝ ${currentTo}` : state === "dwell" ? `${currentFrom} 停靠中` : state === "upcoming" ? `即將由 ${currentFrom} 發車` : `已到 ${currentTo}`,
     };
   }
@@ -545,13 +813,28 @@
   function buildStationEventMap(snapshots, segmentStations) {
     const map = new Map(segmentStations.map((station) => [station, []]));
     snapshots.forEach((snapshot) => {
-      const timedStops = snapshot.timedStops || [];
-      if (snapshot.state === "upcoming" && snapshot.firstMinute - snapshot.nowMinute <= STATION_ALERT_WINDOW) {
-        pushStationEvent(map, timedStops[0].name, { trainNo: snapshot.trainNo, originDate: snapshot.originDate, type: snapshot.type, kind: "即將發車", station: timedStops[0].name, timeMinute: snapshot.firstMinute, timeText: formatMinute(snapshot.firstMinute), minutesAway: Math.max(0, snapshot.firstMinute - snapshot.nowMinute), snapshot });
+      const stopDetails = snapshot.stopDetails || [];
+      if (
+        snapshot.state === "upcoming" &&
+        snapshot.startsAtJourneyOrigin &&
+        Number.isFinite(snapshot.originEventMinute) &&
+        snapshot.originEventMinute - snapshot.nowMinute <= STATION_ALERT_WINDOW
+      ) {
+        pushStationEvent(map, snapshot.currentFrom, {
+          trainNo: snapshot.trainNo,
+          originDate: snapshot.originDate,
+          type: snapshot.type,
+          kind: "即將發車",
+          station: snapshot.currentFrom,
+          timeMinute: snapshot.originEventMinute,
+          timeText: formatMinute(snapshot.originEventMinute),
+          minutesAway: Math.max(0, snapshot.originEventMinute - snapshot.nowMinute),
+          snapshot,
+        });
       }
-      timedStops.forEach((stop) => {
-        const arrivalMinute = stop.arrivalMinute ?? stop.departureMinute;
-        const departureMinute = stop.departureMinute ?? stop.arrivalMinute;
+      stopDetails.forEach((stop) => {
+        const arrivalMinute = getStopArrivalMinute(stop);
+        const departureMinute = getStopDepartureMinute(stop);
         if (!Number.isFinite(arrivalMinute) || !Number.isFinite(departureMinute)) return;
         if (snapshot.nowMinute >= arrivalMinute && snapshot.nowMinute <= departureMinute) {
           pushStationEvent(map, stop.name, { trainNo: snapshot.trainNo, originDate: snapshot.originDate, type: snapshot.type, kind: "停靠中", station: stop.name, timeMinute: departureMinute, timeText: formatMinute(departureMinute), minutesAway: 0, snapshot });
@@ -559,22 +842,21 @@
           pushStationEvent(map, stop.name, { trainNo: snapshot.trainNo, originDate: snapshot.originDate, type: snapshot.type, kind: "即將進站", station: stop.name, timeMinute: arrivalMinute, timeText: formatMinute(arrivalMinute), minutesAway: Math.max(0, arrivalMinute - snapshot.nowMinute), snapshot });
         }
       });
-      for (let index = 0; index < timedStops.length - 1; index += 1) {
-        const current = timedStops[index];
-        const next = timedStops[index + 1];
-        const departureMinute = current.departureMinute ?? current.arrivalMinute;
-        const nextArrival = next.arrivalMinute ?? next.departureMinute;
-        const delta = next.routeIndex - current.routeIndex;
-        const steps = Math.abs(delta);
-        if (!Number.isFinite(departureMinute) || !Number.isFinite(nextArrival) || steps <= 1 || nextArrival < snapshot.nowMinute) continue;
-        for (let step = 1; step < steps; step += 1) {
-          const routeIndex = current.routeIndex + Math.sign(delta) * step;
-          const stationName = segmentStations[routeIndex];
-          const passMinute = Math.round(departureMinute + ((nextArrival - departureMinute) * step) / steps);
-          if (!stationName || passMinute < snapshot.nowMinute || passMinute - snapshot.nowMinute > STATION_ALERT_WINDOW) continue;
-          pushStationEvent(map, stationName, { trainNo: snapshot.trainNo, originDate: snapshot.originDate, type: snapshot.type, kind: "即將通過", station: stationName, timeMinute: passMinute, timeText: formatMinute(passMinute), minutesAway: Math.max(0, passMinute - snapshot.nowMinute), snapshot });
-        }
-      }
+      (snapshot.points || [])
+        .filter((point) => !point.isStop && Number.isFinite(point.minute) && point.minute >= snapshot.nowMinute && point.minute - snapshot.nowMinute <= STATION_ALERT_WINDOW)
+        .forEach((point) => {
+          pushStationEvent(map, point.station, {
+            trainNo: snapshot.trainNo,
+            originDate: snapshot.originDate,
+            type: snapshot.type,
+            kind: "即將通過",
+            station: point.station,
+            timeMinute: point.minute,
+            timeText: formatMinute(point.minute),
+            minutesAway: Math.max(0, point.minute - snapshot.nowMinute),
+            snapshot,
+          });
+        });
     });
     map.forEach((list) => list.sort((a, b) => a.timeMinute - b.timeMinute || a.trainNo.localeCompare(b.trainNo, "en")));
     return map;
@@ -608,6 +890,7 @@
   function buildSnapshotNextLine(snapshot) {
     if (snapshot.state === "arrived") return `終點站：${snapshot.currentTo}`;
     if (snapshot.state === "upcoming") return `預計 ${snapshot.nextTime} 由 ${snapshot.currentFrom} 發車`;
+    if (snapshot.nextEventKind === "pass") return `即將通過：${snapshot.nextStation}（${snapshot.nextTime}）`;
     return `下一站：${snapshot.nextStation}（${snapshot.nextTime}）`;
   }
 
@@ -699,12 +982,11 @@
 
   function buildFeedCardHTML(system, snapshot) {
     const title = buildTrainTitleHTML(system, snapshot, false);
-    const status = getStatusAppearance(snapshot);
     return `
       <article class="rail-live-card" style="--rail-live-color:${escapeHtml(getEntryColor(system, snapshot))}" data-train-key="${escapeHtml(makeTrainKey(snapshot.trainNo, snapshot.originDate))}">
         <div class="rail-live-card-head">
           <div class="rail-live-card-title">${title}</div>
-          <span class="rail-live-card-status" style="--rail-live-status:${escapeHtml(status.color)}">${escapeHtml(status.text)}</span>
+          <span class="rail-live-card-status">${buildStatusHTML(snapshot)}</span>
         </div>
         <div class="rail-live-card-route">${escapeHtml(snapshot.displayRoute)}</div>
         <div class="rail-live-card-list">
@@ -816,17 +1098,8 @@
       const queryText = String(state.searchInput.value || "").trim();
       const directionValue = state.directionSelect.value || "all";
       const directionalEntries = buildEntries(state.system, scheduleSources).filter((entry) => matchesDirection(state.system, entry.trainNo, directionValue));
-      let routeEntries = directionalEntries.filter((entry) =>
-        state.system !== "tr" ? true : getRailNetwork()?.matchesTraSegment ? getRailNetwork().matchesTraSegment(entry, segment) : true
-      );
-      if (state.system === "tr" && !routeEntries.length) {
-        routeEntries = directionalEntries.filter((entry) => hasRouteStopCoverage(entry, segment.stations));
-      }
-
-      let projectedEntries = routeEntries.map((entry) => buildRouteProjection(entry, segment.stations)).filter(Boolean);
-      if (state.system === "tr" && !projectedEntries.length) {
-        projectedEntries = routeEntries.filter((entry) => hasRouteStopCoverage(entry, segment.stations)).map((entry) => buildLooseRouteProjection(entry, segment.stations)).filter(Boolean);
-      }
+      const routeEntries = directionalEntries.filter((entry) => matchesSegmentEntry(entry, segment));
+      const projectedEntries = routeEntries.flatMap((entry) => buildRouteProjections(entry, segment.stations, state.system, getQueryDate()));
 
       const snapshots = dedupeCircularSnapshots(
         projectedEntries
@@ -973,7 +1246,9 @@
       .rail-live-card{cursor:pointer; background:linear-gradient(145deg, color-mix(in srgb, var(--rail-live-color) 7%, var(--bg-surface)), var(--bg-body));}
       .rail-live-card-head{display:flex; align-items:center; justify-content:space-between; gap:12px;}
       .rail-live-card-title{font-size:1rem; font-weight:800; color:var(--text-main);}
-      .rail-live-card-status{font-size:.76rem; font-weight:800; color:var(--rail-live-status, var(--rail-live-color)); white-space:nowrap;}
+      .rail-live-card-status{display:inline-flex; align-items:center; gap:2px; flex-wrap:wrap; font-size:.76rem; font-weight:800; white-space:nowrap;}
+      .rail-live-status-part{display:inline-block;}
+      .rail-live-status-sep{color:var(--text-muted);}
       .rail-live-card-route{margin-top:6px; color:var(--text-muted); font-size:.84rem;}
       .rail-live-card-list{display:flex; flex-direction:column; gap:4px; margin-top:8px; font-size:.8rem; line-height:1.55; color:var(--text-main);}
       .rail-live-card-actions,.rail-live-detail-actions{display:flex; flex-wrap:wrap; gap:8px; margin-top:12px;}
@@ -1112,4 +1387,3 @@
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init, { once: true });
   else init();
 })();
-

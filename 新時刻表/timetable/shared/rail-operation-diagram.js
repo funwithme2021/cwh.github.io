@@ -30,6 +30,8 @@
     compact: { label: "緊湊", pxPerHour: 132, rowHeight: 34, axisHeight: 40 },
     standard: { label: "標準", pxPerHour: 168, rowHeight: 38, axisHeight: 44 },
     wide: { label: "寬版", pxPerHour: 212, rowHeight: 42, axisHeight: 48 },
+    xwide: { label: "特寬", pxPerHour: 268, rowHeight: 48, axisHeight: 52 },
+    ultra: { label: "超寬", pxPerHour: 332, rowHeight: 54, axisHeight: 58 },
   };
 
   const LABEL_OPTIONS = [
@@ -117,8 +119,8 @@
           id: "south-link",
           title: "南迴線",
           subtitle: "臺東 - 枋寮",
-          stations: ["臺東", "康樂", "知本", "太麻里", "金崙", "瀧溪", "大武", "古莊", "枋山", "加祿", "內獅", "枋寮"],
-          includeAny: ["康樂", "知本", "太麻里", "金崙", "瀧溪", "大武", "古莊", "枋山", "加祿", "內獅"],
+          stations: ["臺東", "康樂", "知本", "太麻里", "金崙", "瀧溪", "大武", "古莊", "枋山", "內獅", "加祿", "枋寮"],
+          includeAny: ["康樂", "知本", "太麻里", "金崙", "瀧溪", "大武", "古莊", "枋山", "內獅", "加祿"],
         },
       ],
     },
@@ -204,6 +206,19 @@
 
   function getQueryDate() {
     return document.getElementById("mainQueryDate")?.value || readPageValue("currentQueryDateStr") || "";
+  }
+
+  function addDays(dateStr, delta) {
+    const base = dateStr ? new Date(`${dateStr}T00:00:00`) : new Date();
+    base.setDate(base.getDate() + delta);
+    return `${base.getFullYear()}-${String(base.getMonth() + 1).padStart(2, "0")}-${String(base.getDate()).padStart(2, "0")}`;
+  }
+
+  function diffDateDays(fromDate, toDate) {
+    if (!fromDate || !toDate) return 0;
+    const from = new Date(`${fromDate}T00:00:00`);
+    const to = new Date(`${toDate}T00:00:00`);
+    return Math.round((to - from) / 86400000);
   }
 
   function normalizeTraStation(name) {
@@ -357,64 +372,226 @@
 
   async function ensureScheduleReady() {
     const dateStr = getQueryDate();
-    let schedule = readPageValue("baseSchedule") || window.trainSchedule || {};
-    if ((!schedule || !Object.keys(schedule).length) && typeof window.refreshData === "function" && dateStr) {
+    let baseSchedule = readPageValue("baseSchedule") || window.trainSchedule || {};
+    let prevSchedule = readPageValue("prevSchedule") || {};
+    if ((!baseSchedule || !Object.keys(baseSchedule).length) && typeof window.refreshData === "function" && dateStr) {
       await maybePromise(window.refreshData(dateStr));
-      schedule = readPageValue("baseSchedule") || window.trainSchedule || {};
+      baseSchedule = readPageValue("baseSchedule") || window.trainSchedule || {};
+      prevSchedule = readPageValue("prevSchedule") || {};
     }
-    return schedule || {};
+    const sources = [];
+    if (baseSchedule && Object.keys(baseSchedule).length) {
+      sources.push({ map: baseSchedule, originDate: dateStr });
+    }
+    if (prevSchedule && Object.keys(prevSchedule).length) {
+      sources.push({ map: prevSchedule, originDate: addDays(dateStr, -1) });
+    }
+    return sources;
   }
 
-  function buildTraEntries(schedule) {
-    return Object.keys(schedule || {})
-      .sort((a, b) => String(a).localeCompare(String(b), "en"))
-      .map((trainNo) => {
-        const raw = schedule?.[trainNo];
-        if (!raw) return null;
-        const stops = (raw["車站時間"] || [])
-          .map((stop) => ({
-            name: normalizeTraStation(stop?.[0] || ""),
-            arrival: String(stop?.[2] || "").trim(),
-            departure: String(stop?.[1] || "").trim(),
-          }))
-          .filter((stop) => stop.name && (stop.arrival || stop.departure));
-        if (stops.length < 2) return null;
-        return {
-          trainNo: String(trainNo),
-          rawType: String(raw["原始車種"] || raw["車種"] || "列車").trim() || "列車",
-          type: window.RailNetwork?.normalizeTraDisplayType
-            ? window.RailNetwork.normalizeTraDisplayType(raw["原始車種"] || raw["車種"] || "列車")
-            : String(raw["原始車種"] || raw["車種"] || "列車").trim() || "列車",
-          tripLine: raw["行別"] ?? "",
-          stationSet: new Set(stops.map((stop) => stop.name)),
-          stops,
-        };
-      })
-      .filter(Boolean);
+  function buildTimedStops(stops) {
+    const timedStops = [];
+    let previousAbsoluteMinute = null;
+
+    const resolveAbsoluteMinute = (rawMinute) => {
+      if (rawMinute === null) return null;
+      let absoluteMinute = rawMinute;
+      while (previousAbsoluteMinute !== null && absoluteMinute < previousAbsoluteMinute) {
+        absoluteMinute += 1440;
+      }
+      previousAbsoluteMinute = absoluteMinute;
+      return absoluteMinute;
+    };
+
+    (stops || []).forEach((stop) => {
+      const arrivalMinuteRaw = parseMinutes(stop.arrival);
+      const departureMinuteRaw = parseMinutes(stop.departure);
+      timedStops.push({
+        ...stop,
+        arrivalMinute: resolveAbsoluteMinute(arrivalMinuteRaw),
+        departureMinute: resolveAbsoluteMinute(departureMinuteRaw),
+      });
+    });
+
+    return timedStops;
   }
 
-  function buildThsrEntries(schedule) {
-    return Object.keys(schedule || {})
-      .sort((a, b) => String(a).localeCompare(String(b), "en"))
-      .map((trainNo) => {
-        const raw = schedule?.[trainNo];
-        if (!raw) return null;
-        const stops = (raw["車站時間"] || [])
-          .map((stop) => ({
-            name: normalizeThsrStation(stop?.[0] || ""),
-            arrival: String(stop?.[2] || "").trim(),
-            departure: String(stop?.[1] || "").trim(),
-          }))
-          .filter((stop) => stop.name && (stop.arrival || stop.departure));
-        if (stops.length < 2) return null;
-        return {
-          trainNo: String(trainNo),
-          type: "THSR",
-          stationSet: new Set(stops.map((stop) => stop.name)),
-          stops,
-        };
-      })
-      .filter(Boolean);
+  function mergePathSegments(first, second) {
+    if (!first.length) return second.slice();
+    if (!second.length) return first.slice();
+    return first.concat(second.slice(1));
+  }
+
+  function expandEntryPathStations(system, stops) {
+    const names = (stops || []).map((stop) => stop.name).filter(Boolean);
+    if (names.length < 2) return names.slice();
+    const findPath =
+      system === "tr"
+        ? window.RailNetwork?.findTraRoutePath
+        : window.RailNetwork?.findThsrRoutePath;
+    if (findPath) {
+      let expanded = [];
+      for (let index = 0; index < names.length - 1; index += 1) {
+        const pairPath = findPath(names[index], names[index + 1]);
+        expanded = mergePathSegments(expanded, Array.isArray(pairPath) && pairPath.length ? pairPath : [names[index], names[index + 1]]);
+      }
+      if (expanded.length) return expanded;
+    }
+    return names.slice();
+  }
+
+  function buildJourneyPathPoints(timedStops, fullPathStations) {
+    let searchStart = 0;
+    const resolvePathIndex = (stationName) => {
+      for (let index = searchStart; index < (fullPathStations || []).length; index += 1) {
+        if (fullPathStations[index] !== stationName) continue;
+        searchStart = index + 1;
+        return index;
+      }
+      return (fullPathStations || []).indexOf(stationName);
+    };
+    const anchors = (timedStops || [])
+      .map((stop) => ({ ...stop, pathIndex: resolvePathIndex(stop.name) }))
+      .filter((stop) => Number.isFinite(stop.pathIndex));
+    if (anchors.length < 2) return [];
+
+    const points = [];
+    let sequenceIndex = 0;
+    const pushPoint = (point) => {
+      if (!point || !Number.isFinite(point.pathIndex) || !Number.isFinite(point.minute) || !point.station) return;
+      const previous = points[points.length - 1];
+      if (
+        previous &&
+        previous.station === point.station &&
+        previous.pathIndex === point.pathIndex &&
+        previous.minute === point.minute &&
+        previous.kind === point.kind
+      ) {
+        return;
+      }
+      points.push({ ...point, sequenceIndex });
+      sequenceIndex += 1;
+    };
+
+    anchors.forEach((current, index) => {
+      if (Number.isFinite(current.arrivalMinute)) {
+        pushPoint({
+          station: current.name,
+          pathIndex: current.pathIndex,
+          minute: current.arrivalMinute,
+          kind: "arrival",
+          isStop: true,
+        });
+      }
+      if (Number.isFinite(current.departureMinute) && current.departureMinute !== current.arrivalMinute) {
+        pushPoint({
+          station: current.name,
+          pathIndex: current.pathIndex,
+          minute: current.departureMinute,
+          kind: "departure",
+          isStop: true,
+        });
+      }
+
+      const next = anchors[index + 1];
+      if (!next) return;
+      const travelStart = Number.isFinite(current.departureMinute) ? current.departureMinute : current.arrivalMinute;
+      const travelEnd = Number.isFinite(next.arrivalMinute) ? next.arrivalMinute : next.departureMinute;
+      const delta = next.pathIndex - current.pathIndex;
+      const steps = Math.abs(delta);
+      if (!Number.isFinite(travelStart) || !Number.isFinite(travelEnd) || steps <= 1) return;
+
+      for (let step = 1; step < steps; step += 1) {
+        const pathIndex = current.pathIndex + Math.sign(delta) * step;
+        const station = fullPathStations[pathIndex];
+        if (!station) continue;
+        pushPoint({
+          station,
+          pathIndex,
+          minute: Math.round(travelStart + ((travelEnd - travelStart) * step) / steps),
+          kind: "pass",
+          isStop: false,
+        });
+      }
+    });
+
+    return points;
+  }
+
+  function enrichEntryWithPath(entry, system) {
+    const timedStops = buildTimedStops(entry.stops);
+    const fullPathStations = expandEntryPathStations(system, entry.stops);
+    return {
+      ...entry,
+      timedStops,
+      fullPathStations,
+      fullPathSet: new Set(fullPathStations),
+      fullPathPoints: buildJourneyPathPoints(timedStops, fullPathStations),
+    };
+  }
+
+  function buildTraEntries(scheduleSources) {
+    const sources = Array.isArray(scheduleSources) ? scheduleSources : [{ map: scheduleSources || {}, originDate: getQueryDate() }];
+    return sources.flatMap((source) =>
+      Object.keys(source.map || {})
+        .sort((a, b) => String(a).localeCompare(String(b), "en"))
+        .map((trainNo) => {
+          const raw = source.map?.[trainNo];
+          if (!raw) return null;
+          const stops = (raw["車站時間"] || [])
+            .map((stop) => ({
+              name: normalizeTraStation(stop?.[0] || ""),
+              arrival: String(stop?.[2] || "").trim(),
+              departure: String(stop?.[1] || "").trim(),
+            }))
+            .filter((stop) => stop.name && (stop.arrival || stop.departure));
+          if (stops.length < 2) return null;
+          return {
+            key: `${trainNo}@${source.originDate || ""}`,
+            originDate: source.originDate || getQueryDate(),
+            trainNo: String(trainNo),
+            rawType: String(raw["原始車種"] || raw["車種"] || "列車").trim() || "列車",
+            type: window.RailNetwork?.normalizeTraDisplayType
+              ? window.RailNetwork.normalizeTraDisplayType(raw["原始車種"] || raw["車種"] || "列車")
+              : String(raw["原始車種"] || raw["車種"] || "列車").trim() || "列車",
+            tripLine: raw["行別"] ?? "",
+            stationSet: new Set(stops.map((stop) => stop.name)),
+            stops,
+          };
+        })
+        .map((entry) => (entry ? enrichEntryWithPath(entry, "tr") : null))
+        .filter(Boolean)
+    );
+  }
+
+  function buildThsrEntries(scheduleSources) {
+    const sources = Array.isArray(scheduleSources) ? scheduleSources : [{ map: scheduleSources || {}, originDate: getQueryDate() }];
+    return sources.flatMap((source) =>
+      Object.keys(source.map || {})
+        .sort((a, b) => String(a).localeCompare(String(b), "en"))
+        .map((trainNo) => {
+          const raw = source.map?.[trainNo];
+          if (!raw) return null;
+          const stops = (raw["車站時間"] || [])
+            .map((stop) => ({
+              name: normalizeThsrStation(stop?.[0] || ""),
+              arrival: String(stop?.[2] || "").trim(),
+              departure: String(stop?.[1] || "").trim(),
+            }))
+            .filter((stop) => stop.name && (stop.arrival || stop.departure));
+          if (stops.length < 2) return null;
+          return {
+            key: `${trainNo}@${source.originDate || ""}`,
+            originDate: source.originDate || getQueryDate(),
+            trainNo: String(trainNo),
+            type: "THSR",
+            stationSet: new Set(stops.map((stop) => stop.name)),
+            stops,
+          };
+        })
+        .map((entry) => (entry ? enrichEntryWithPath(entry, "thsr") : null))
+        .filter(Boolean)
+    );
   }
 
   function normalizeSegment(segment, system) {
@@ -428,6 +605,9 @@
   }
 
   function buildTraSegmentGroups() {
+    if (window.RailNetwork?.getTraSegmentGroups) {
+      return window.RailNetwork.getTraSegmentGroups();
+    }
     return TRA_SEGMENT_GROUPS.map((group) => ({
       ...group,
       segments: group.segments.map((segment) => normalizeSegment(segment, "tr")),
@@ -488,70 +668,110 @@
   }
 
   function matchesSegmentEntry(entry, segment) {
-    const stationSet = entry.stationSet || new Set(entry.stops.map((stop) => stop.name));
+    const stationSet = entry.fullPathSet || entry.stationSet || new Set(entry.stops.map((stop) => stop.name));
     if (segment.includeAny?.length && !segment.includeAny.some((name) => stationSet.has(name))) return false;
     if (segment.excludeAny?.length && segment.excludeAny.some((name) => stationSet.has(name))) return false;
     let hitCount = 0;
     for (const station of segment.stations) {
-      if (stationSet.has(station)) hitCount += 1;
+      if (!stationSet.has(station)) continue;
+      hitCount += 1;
       if (hitCount >= 2) return true;
     }
     return false;
   }
 
-  function buildSegmentSeries(entry, segmentStations) {
-    const stationIndexMap = new Map(segmentStations.map((name, index) => [name, index]));
-    const points = [];
-    const stopDetails = [];
-    let previousRawMinute = null;
-    let dayOffset = 0;
+  function buildSegmentRuns(entry, segmentStations, queryDate) {
+    const routeIndexMap = new Map((segmentStations || []).map((name, index) => [name, index]));
+    const points = (entry.fullPathPoints || [])
+      .filter((point) => routeIndexMap.has(point.station))
+      .map((point) => ({
+        ...point,
+        stationIndex: routeIndexMap.get(point.station),
+      }))
+      .filter((point) => Number.isFinite(point.stationIndex));
+    if (points.length < 2) return [];
 
-    entry.stops.forEach((stop) => {
-      const stationIndex = stationIndexMap.get(stop.name);
-      if (!Number.isFinite(stationIndex)) return;
-
-      const pushPoint = (text, kind) => {
-        const rawMinute = parseMinutes(text);
-        if (rawMinute === null) return null;
-        if (previousRawMinute !== null && rawMinute < previousRawMinute - 180) {
-          dayOffset += 1440;
-        }
-        previousRawMinute = rawMinute;
-        const point = {
-          station: stop.name,
-          stationIndex,
-          rawMinute,
-          minute: rawMinute + dayOffset,
-          kind,
-        };
-        points.push(point);
-        return point.minute;
-      };
-
-      const arrivalMinute = stop.arrival ? pushPoint(stop.arrival, "arrival") : null;
-      const departureMinute = stop.departure ? pushPoint(stop.departure, "departure") : null;
-      if (arrivalMinute === null && departureMinute === null) return;
-      if (arrivalMinute !== null && departureMinute !== null && arrivalMinute === departureMinute && points.length >= 2) {
-        points.splice(points.length - 1, 1);
+    const pointGroups = [];
+    let currentGroup = [];
+    points.forEach((point) => {
+      const previous = currentGroup[currentGroup.length - 1];
+      if (previous && point.sequenceIndex !== previous.sequenceIndex + 1) {
+        if (currentGroup.length >= 2) pointGroups.push(currentGroup);
+        currentGroup = [];
       }
-      stopDetails.push({
-        station: stop.name,
-        stationIndex,
-        arrival: stop.arrival,
-        departure: stop.departure,
-        arrivalMinute,
-        departureMinute,
-      });
+      currentGroup.push(point);
     });
+    if (currentGroup.length >= 2) pointGroups.push(currentGroup);
+    if (!pointGroups.length) return [];
 
-    if (points.length < 2) return null;
-    return {
-      ...entry,
-      points,
-      stopDetails,
-      firstMinute: points[0].minute,
-      lastMinute: points[points.length - 1].minute,
-    };
+    return pointGroups
+      .map((pointGroup, visitIndex) => {
+        const firstMinuteRaw = pointGroup[0].minute;
+        const lastMinuteRaw = pointGroup[pointGroup.length - 1].minute;
+        const actualDate = addDays(entry.originDate || queryDate, Math.floor(firstMinuteRaw / 1440));
+        if (queryDate && actualDate !== queryDate) return null;
+
+        const offsetMinutes = diffDateDays(entry.originDate || queryDate, queryDate || entry.originDate || getQueryDate()) * 1440;
+        const stopDetails = (entry.timedStops || [])
+          .map((stop) => {
+            const stationIndex = routeIndexMap.get(stop.name);
+            const referenceMinute = stop.departureMinute ?? stop.arrivalMinute;
+            if (!Number.isFinite(stationIndex)) return null;
+            if (!Number.isFinite(referenceMinute) || referenceMinute < firstMinuteRaw || referenceMinute > lastMinuteRaw) return null;
+            return {
+              station: stop.name,
+              stationIndex,
+              arrival: stop.arrival,
+              departure: stop.departure,
+              arrivalMinute: Number.isFinite(stop.arrivalMinute) ? stop.arrivalMinute - offsetMinutes : stop.arrivalMinute,
+              departureMinute: Number.isFinite(stop.departureMinute) ? stop.departureMinute - offsetMinutes : stop.departureMinute,
+            };
+          })
+          .filter(Boolean);
+        const annotationDetails = [];
+        const seenAnnotationKeys = new Set();
+        const pushAnnotation = (detail) => {
+          if (!detail) return;
+          const minuteValue = detail.timeMinute ?? detail.departureMinute ?? detail.arrivalMinute ?? detail.minute;
+          const key = `${detail.kind || "stop"}|${detail.station}|${minuteValue}`;
+          if (seenAnnotationKeys.has(key)) return;
+          seenAnnotationKeys.add(key);
+          annotationDetails.push(detail);
+        };
+        stopDetails.forEach((detail) => {
+          pushAnnotation({
+            ...detail,
+            kind: "stop",
+            timeMinute: detail.departureMinute ?? detail.arrivalMinute,
+          });
+        });
+        pointGroup.forEach((point) => {
+          if (point.isStop) return;
+          pushAnnotation({
+            station: point.station,
+            stationIndex: point.stationIndex,
+            kind: "pass",
+            minute: point.minute - offsetMinutes,
+            timeMinute: point.minute - offsetMinutes,
+          });
+        });
+        annotationDetails.sort((a, b) => (a.timeMinute ?? 0) - (b.timeMinute ?? 0) || a.stationIndex - b.stationIndex);
+
+        return {
+          ...entry,
+          segmentVisitKey: `${entry.key || entry.trainNo}|${visitIndex}`,
+          actualDate,
+          points: pointGroup.map((point) => ({
+            ...point,
+            minute: point.minute - offsetMinutes,
+          })),
+          annotationDetails,
+          stopDetails,
+          firstMinute: firstMinuteRaw - offsetMinutes,
+          lastMinute: lastMinuteRaw - offsetMinutes,
+        };
+      })
+      .filter(Boolean);
   }
 
   function formatHourLabel(hour) {
@@ -667,15 +887,52 @@
     return index % step === 0;
   }
 
-  function drawTrainLabel(ctx, text, x, y, color, palette) {
+  function drawTrainLabel(ctx, text, x, y, color, palette, occupiedRects, canvasWidth, canvasHeight) {
     const paddingX = 7;
     ctx.font = "700 11px Inter, Noto Sans TC, sans-serif";
     const textWidth = ctx.measureText(text).width;
     const width = textWidth + paddingX * 2;
     const height = 22;
-    const safeX = Math.max(12, x - width / 2);
-    const safeY = Math.max(8, y - height - 6);
-    roundRectPath(ctx, safeX, safeY, width, height, 10);
+    const clampValue = (value, min, max) => Math.min(max, Math.max(min, value));
+    const intersectsRect = (first, second, padding = 5) =>
+      !(
+        first.x + first.width + padding <= second.x ||
+        second.x + second.width + padding <= first.x ||
+        first.y + first.height + padding <= second.y ||
+        second.y + second.height + padding <= first.y
+      );
+    const baseX = clampValue(x - width / 2, 12, Math.max(12, canvasWidth - width - 12));
+    const baseY = y - height - 6;
+    const offsets = [0, -26, 26, -52, 52, -78, 78, -104, 104];
+    let chosenRect = null;
+    let bestRect = null;
+    let bestScore = Number.POSITIVE_INFINITY;
+
+    offsets.forEach((offset) => {
+      const rect = {
+        x: baseX,
+        y: clampValue(baseY + offset, 8, Math.max(8, canvasHeight - height - 8)),
+        width,
+        height,
+      };
+      const overlapCount = (occupiedRects || []).reduce((count, occupied) => count + (intersectsRect(rect, occupied) ? 1 : 0), 0);
+      const score = overlapCount * 1000 + Math.abs(offset);
+      if (!chosenRect && overlapCount === 0) chosenRect = rect;
+      if (score < bestScore) {
+        bestScore = score;
+        bestRect = rect;
+      }
+    });
+
+    const finalRect = chosenRect || bestRect || {
+      x: baseX,
+      y: clampValue(baseY, 8, Math.max(8, canvasHeight - height - 8)),
+      width,
+      height,
+    };
+    if (occupiedRects) occupiedRects.push(finalRect);
+
+    roundRectPath(ctx, finalRect.x, finalRect.y, width, height, 10);
     ctx.fillStyle = palette.labelBg;
     ctx.fill();
     ctx.strokeStyle = color;
@@ -683,14 +940,24 @@
     ctx.stroke();
     ctx.fillStyle = color || palette.labelText;
     ctx.textBaseline = "middle";
-    ctx.fillText(text, safeX + paddingX, safeY + height / 2 + 0.5);
+    ctx.fillText(text, finalRect.x + paddingX, finalRect.y + height / 2 + 0.5);
+  }
+
+  function formatAnnotationText(detail) {
+    if (detail?.kind === "pass") {
+      const passText = Number.isFinite(detail.timeMinute) ? formatMinuteLabel(detail.timeMinute) : (Number.isFinite(detail.minute) ? formatMinuteLabel(detail.minute) : "");
+      return passText ? `通 ${passText}` : "";
+    }
+    const arrivalText = Number.isFinite(detail.arrivalMinute) ? formatMinuteLabel(detail.arrivalMinute) : (detail.arrival || "");
+    const departureText = Number.isFinite(detail.departureMinute) ? formatMinuteLabel(detail.departureMinute) : (detail.departure || "");
+    if (arrivalText && departureText) {
+      return arrivalText === departureText ? `到${arrivalText}` : `到${arrivalText}/開${departureText}`;
+    }
+    return departureText ? `開${departureText}` : (arrivalText ? `到${arrivalText}` : "");
   }
 
   function formatStopDetail(detail) {
-    if (detail.arrival && detail.departure) {
-      return `${detail.arrival} / ${detail.departure}`;
-    }
-    return detail.departure || detail.arrival || "";
+    return formatAnnotationText(detail);
   }
 
   function drawSegmentCanvas(canvas, system, segment, seriesList, scaleKey, labelMode, query) {
@@ -719,7 +986,8 @@
     const graphWidth = width - leftPad - rightPad;
     const totalMinutes = hourCount * 60;
     const matchedSeries = queryText ? seriesList.filter((series) => series.trainNo.includes(queryText)) : [];
-    const showStopAnnotations = matchedSeries.length > 0 && matchedSeries.length <= 3;
+    const showStopAnnotations = matchedSeries.length > 0;
+    const occupiedLabelRects = [];
 
     const xForMinute = (minute) => leftPad + (minute / totalMinutes) * graphWidth;
     const yForStation = (index) => axisHeight + scale.rowHeight * index + scale.rowHeight / 2;
@@ -803,18 +1071,18 @@
       if (queryText && !matchesQuery) return;
 
       const midPoint = series.points[Math.floor(series.points.length / 2)];
-      drawTrainLabel(ctx, series.trainNo, xForMinute(midPoint.minute), yForStation(midPoint.stationIndex), color, palette);
+      drawTrainLabel(ctx, series.trainNo, xForMinute(midPoint.minute), yForStation(midPoint.stationIndex), color, palette, occupiedLabelRects, width, height);
 
       if (!showStopAnnotations || !matchesQuery) return;
       ctx.save();
       ctx.fillStyle = palette.axisText;
       ctx.font = "600 10px Inter, Noto Sans TC, sans-serif";
-      series.stopDetails.forEach((detail) => {
-        const timeText = formatStopDetail(detail);
-        const minuteValue = detail.departureMinute ?? detail.arrivalMinute;
+      (series.annotationDetails || series.stopDetails || []).forEach((detail) => {
+        const timeText = formatAnnotationText(detail);
+        const minuteValue = detail.timeMinute ?? detail.departureMinute ?? detail.arrivalMinute ?? detail.minute;
         if (!timeText || !Number.isFinite(minuteValue)) return;
         const x = xForMinute(minuteValue) + 4;
-        const y = yForStation(detail.stationIndex) - 9;
+        const y = yForStation(detail.stationIndex) + (detail.kind === "pass" ? 12 : -9);
         ctx.fillText(timeText, x, y);
       });
       ctx.restore();
@@ -922,6 +1190,13 @@
     `;
   }
 
+  function buildSegmentEntryList(entries, segment, queryDate) {
+    return (entries || [])
+      .filter((entry) => matchesSegmentEntry(entry, segment))
+      .flatMap((entry) => buildSegmentRuns(entry, segment.stations, queryDate))
+      .sort((a, b) => a.firstMinute - b.firstMinute || a.lastMinute - b.lastMinute || a.trainNo.localeCompare(b.trainNo, "en"));
+  }
+
   function createSegmentBlock(state, segment, segmentEntries, queryText) {
     const scale = SCALE_OPTIONS[state.scaleSelect.value] || SCALE_OPTIONS.standard;
     const metrics = { axisHeight: scale.axisHeight, rowHeight: scale.rowHeight };
@@ -943,6 +1218,7 @@
           <span>${segmentEntries.length} 班</span>
           <span>${getTimeSpanText(segmentEntries)}</span>
           ${queryText ? `<span>高亮 ${matchedCount} 班</span>` : ""}
+          ${queryText ? `<span>高亮可顯示通過/停靠時間</span>` : ""}
         </div>
       </div>
       <div class="rail-op-chip-row">
@@ -977,18 +1253,12 @@
                         <span style="color:${escapeAttr(getEntryColor(state.system, entry))}">${escapeHtml(state.system === "tr" ? entry.type : getDirectionKey("thsr", entry.trainNo) === "north" ? "北上" : "南下")}</span>
                       </div>
                       <div class="rail-op-detail-stops">
-                        ${entry.stopDetails
+                        ${(entry.annotationDetails || entry.stopDetails || [])
                           .map(
                             (detail) => `
                               <span class="rail-op-detail-stop">
                                 <b>${escapeHtml(detail.station)}</b>
-                                <small>${escapeHtml(
-                                  detail.arrival && detail.departure
-                                    ? `到 ${detail.arrival}／開 ${detail.departure}`
-                                    : detail.departure
-                                      ? `開 ${detail.departure}`
-                                      : `到 ${detail.arrival}`
-                                )}</small>
+                                <small>${escapeHtml(formatStopDetail(detail))}</small>
                               </span>
                             `
                           )
@@ -1009,14 +1279,15 @@
       return card;
     }
 
+    const scroll = card.querySelector(".rail-op-canvas-scroll");
     const canvas = document.createElement("canvas");
     canvas.className = "rail-op-canvas";
-    card.querySelector(".rail-op-canvas-scroll")?.appendChild(canvas);
+    scroll?.appendChild(canvas);
     drawSegmentCanvas(canvas, state.system, segment, segmentEntries, state.scaleSelect.value, state.labelSelect.value, queryText);
     return card;
   }
 
-  function createGroupBlock(state, group, queryText, filteredEntries) {
+  function createGroupBlock(state, group, queryText) {
     const wrapper = document.createElement("section");
     wrapper.className = "rail-op-group";
     wrapper.innerHTML = `
@@ -1027,13 +1298,8 @@
       <div class="rail-op-group-list"></div>
     `;
     const list = wrapper.querySelector(".rail-op-group-list");
-    group.segments.forEach((segment) => {
-      const segmentEntries = filteredEntries
-        .filter((entry) => matchesSegmentEntry(entry, segment))
-        .map((entry) => buildSegmentSeries(entry, segment.stations))
-        .filter(Boolean)
-        .sort((a, b) => a.firstMinute - b.firstMinute || a.lastMinute - b.lastMinute || a.trainNo.localeCompare(b.trainNo, "en"));
-      list?.appendChild(createSegmentBlock(state, segment, segmentEntries, queryText));
+    (group.segmentData || []).forEach(({ segment, entries }) => {
+      list?.appendChild(createSegmentBlock(state, segment, entries, queryText));
     });
     return wrapper;
   }
@@ -1045,8 +1311,8 @@
     button.textContent = "繪製中...";
 
     try {
-      const schedule = await ensureScheduleReady();
-      if (!Object.keys(schedule).length) {
+      const scheduleSources = await ensureScheduleReady();
+      if (!scheduleSources.length) {
         renderEmpty(state, `${state.system === "tr" ? "台鐵" : "高鐵"}真實班表尚未就緒，請先更新頁面資料後再試。`);
         return;
       }
@@ -1070,28 +1336,13 @@
         return;
       }
 
-      const baseEntries = state.system === "tr" ? buildTraEntries(schedule) : buildThsrEntries(schedule);
+      const queryDate = getQueryDate();
+      const baseEntries = state.system === "tr" ? buildTraEntries(scheduleSources) : buildThsrEntries(scheduleSources);
       const directionValue = state.directionSelect.value || "all";
       const scopedEntries = baseEntries.filter((entry) => matchesDirectionFilter(state.system, entry.trainNo, directionValue));
       const routeScopedEntries = scopedEntries.filter((entry) =>
         selectedRoute.groups.some((group) => group.segments.some((segment) => matchesSegmentEntry(entry, segment)))
       );
-      if (state.system === "tr") {
-        updateTraLegend(state, routeScopedEntries);
-      } else {
-        updateThsrLegend(state, routeScopedEntries);
-      }
-
-      const filteredEntries = routeScopedEntries.filter((entry) => {
-        if (state.system !== "tr") return true;
-        if (!state.selectedTypes.size) return false;
-        return state.selectedTypes.has(entry.type);
-      });
-      if (!filteredEntries.length) {
-        renderEmpty(state, state.system === "tr" ? "目前沒有符合方向 / 車種條件的台鐵班次。" : "目前沒有符合方向條件的高鐵班次。");
-        return;
-      }
-
       const activeGroups = selectedRoute.groups;
       const segmentCount = activeGroups.reduce((sum, group) => sum + group.segments.length, 0);
       if (!segmentCount) {
@@ -1099,8 +1350,37 @@
         return;
       }
 
+      const availableGroups = activeGroups.map((group) => ({
+        ...group,
+        segmentData: group.segments.map((segment) => ({
+          segment,
+          entries: buildSegmentEntryList(routeScopedEntries, segment, queryDate),
+        })),
+      }));
+      const availableRuns = availableGroups.flatMap((group) => group.segmentData.flatMap((item) => item.entries));
+      if (state.system === "tr") {
+        updateTraLegend(state, availableRuns);
+      } else {
+        updateThsrLegend(state, availableRuns);
+      }
+
+      const displayedGroups = activeGroups.map((group) => ({
+        ...group,
+        segmentData: group.segments.map((segment) => {
+          const entries = buildSegmentEntryList(routeScopedEntries, segment, queryDate).filter((entry) =>
+            state.system !== "tr" ? true : state.selectedTypes.has(entry.type)
+          );
+          return { segment, entries };
+        }),
+      }));
+      const displayedRuns = displayedGroups.flatMap((group) => group.segmentData.flatMap((item) => item.entries));
+      if (!displayedRuns.length) {
+        renderEmpty(state, state.system === "tr" ? "目前沒有符合方向 / 車種條件的台鐵班次。" : "目前沒有符合方向條件的高鐵班次。");
+        return;
+      }
+
       const queryText = String(state.searchInput.value || "").trim();
-      const highlightedCount = queryText ? filteredEntries.filter((entry) => entry.trainNo.includes(queryText)).length : filteredEntries.length;
+      const highlightedCount = queryText ? displayedRuns.filter((entry) => entry.trainNo.includes(queryText)).length : displayedRuns.length;
       const effectiveQuery = queryText && highlightedCount ? queryText : "";
 
       state.output.innerHTML = `
@@ -1117,12 +1397,12 @@
       renderMeta(
         state,
         `${state.system === "tr" ? "台鐵" : "高鐵"}運行圖`,
-        `${getQueryDate() || "未指定日期"}｜${routeLabel}｜方向 ${directionLabel}｜顯示 ${filteredEntries.length} 班${highlightText}`
+        `${getQueryDate() || "未指定日期"}｜${routeLabel}｜方向 ${directionLabel}｜顯示 ${displayedRuns.length} 班${highlightText}`
       );
 
       const sectionList = state.output.querySelector(".rail-op-section-list");
-      for (const group of activeGroups) {
-        sectionList?.appendChild(createGroupBlock(state, group, effectiveQuery, filteredEntries));
+      for (const group of displayedGroups) {
+        sectionList?.appendChild(createGroupBlock(state, group, effectiveQuery));
         await nextFrame();
       }
     } catch (error) {
@@ -1242,7 +1522,7 @@
       .rail-op-station-item{display:flex; align-items:center; justify-content:flex-end; padding:0 14px; border-bottom:1px solid color-mix(in srgb, var(--border) 75%, transparent);}
       .rail-op-station-item span{font-size:.82rem; font-weight:700; color:var(--text-main);}
       .rail-op-station-item:last-child{border-bottom:none;}
-      .rail-op-canvas-scroll{overflow-x:auto; overflow-y:hidden; background:var(--bg-surface);}
+      .rail-op-canvas-scroll{position:relative; overflow:auto; background:var(--bg-surface);}
       .rail-op-canvas{display:block;}
       .rail-op-detail-list{display:flex; flex-direction:column; gap:10px;}
       .rail-op-detail-card{padding:12px 14px; border-radius:16px; border:1px solid var(--border); background:var(--bg-body);}
