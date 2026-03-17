@@ -55,7 +55,7 @@
           id: "west-north",
           title: "西部幹線北段",
           subtitle: "基隆 - 竹南",
-          stations: ["基隆", "三坑", "八堵", "七堵", "百福", "汐止", "汐科", "南港", "松山", "臺北", "萬華", "板橋", "浮洲", "樹林", "山佳", "鶯歌", "鳳鳴", "桃園", "內壢", "中壢", "埔心", "楊梅", "富岡", "北湖", "湖口", "新豐", "竹北", "新竹", "香山", "崎頂", "竹南"],
+          stations: ["基隆", "三坑", "八堵", "七堵", "百福", "五堵", "汐止", "汐科", "南港", "松山", "臺北", "萬華", "板橋", "浮洲", "樹林", "南樹林", "山佳", "鶯歌", "鳳鳴", "桃園", "內壢", "中壢", "埔心", "楊梅", "富岡", "新富", "北湖", "湖口", "新豐", "竹北", "新竹", "三姓橋", "香山", "崎頂", "竹南"],
           excludeAny: ["八斗子", "海科館", "大華", "十分", "望古", "嶺腳", "平溪", "菁桐", "六家", "竹中", "上員", "榮華", "竹東", "橫山", "九讚頭", "合興", "富貴", "內灣"],
         },
         {
@@ -112,8 +112,8 @@
           id: "taitung",
           title: "台東線",
           subtitle: "花蓮 - 臺東",
-          stations: ["花蓮", "吉安", "志學", "平和", "壽豐", "豐田", "林榮新光", "南平", "鳳林", "萬榮", "光復", "富源", "瑞穗", "三民", "玉里", "東里", "東竹", "富里", "池上", "海端", "關山", "瑞和", "瑞源", "鹿野", "山里", "臺東"],
-          includeAny: ["吉安", "志學", "平和", "壽豐", "豐田", "林榮新光", "南平", "鳳林", "萬榮", "光復", "富源", "瑞穗", "三民", "玉里", "東里", "東竹", "富里", "池上", "海端", "關山", "瑞和", "瑞源", "鹿野", "山里"],
+          stations: ["花蓮", "吉安", "志學", "平和", "壽豐", "豐田", "林榮新光", "南平", "鳳林", "萬榮", "光復", "大富", "富源", "瑞穗", "三民", "玉里", "東里", "東竹", "富里", "池上", "海端", "關山", "瑞和", "瑞源", "鹿野", "山里", "臺東"],
+          includeAny: ["吉安", "志學", "平和", "壽豐", "豐田", "林榮新光", "南平", "鳳林", "萬榮", "光復", "大富", "富源", "瑞穗", "三民", "玉里", "東里", "東竹", "富里", "池上", "海端", "關山", "瑞和", "瑞源", "鹿野", "山里"],
         },
         {
           id: "south-link",
@@ -389,9 +389,32 @@
     return sources;
   }
 
+  function splitStopTimes(stopRow) {
+    const primary = String(stopRow?.[1] || "").trim();
+    const secondary = String(stopRow?.[2] || "").trim();
+    if (!primary || !secondary) {
+      return {
+        arrival: secondary,
+        departure: primary,
+      };
+    }
+    const primaryMinute = parseMinutes(primary);
+    const secondaryMinute = parseMinutes(secondary);
+    if (!Number.isFinite(primaryMinute) || !Number.isFinite(secondaryMinute)) {
+      return {
+        arrival: secondary,
+        departure: primary,
+      };
+    }
+    return secondaryMinute <= primaryMinute
+      ? { arrival: secondary, departure: primary }
+      : { arrival: primary, departure: secondary };
+  }
+
   function buildTimedStops(stops) {
     const timedStops = [];
     let previousAbsoluteMinute = null;
+    const stopCount = (stops || []).length;
 
     const resolveAbsoluteMinute = (rawMinute) => {
       if (rawMinute === null) return null;
@@ -403,11 +426,16 @@
       return absoluteMinute;
     };
 
-    (stops || []).forEach((stop) => {
+    (stops || []).forEach((stop, index) => {
       const arrivalMinuteRaw = parseMinutes(stop.arrival);
       const departureMinuteRaw = parseMinutes(stop.departure);
+      const hasArrival = arrivalMinuteRaw !== null;
+      const hasDeparture = departureMinuteRaw !== null;
       timedStops.push({
         ...stop,
+        hasArrival,
+        hasDeparture,
+        isPassOnly: index > 0 && index < stopCount - 1 && hasArrival !== hasDeparture,
         arrivalMinute: resolveAbsoluteMinute(arrivalMinuteRaw),
         departureMinute: resolveAbsoluteMinute(departureMinuteRaw),
       });
@@ -474,7 +502,18 @@
     };
 
     anchors.forEach((current, index) => {
-      if (Number.isFinite(current.arrivalMinute)) {
+      if (current.isPassOnly) {
+        const passMinute = Number.isFinite(current.departureMinute) ? current.departureMinute : current.arrivalMinute;
+        if (Number.isFinite(passMinute)) {
+          pushPoint({
+            station: current.name,
+            pathIndex: current.pathIndex,
+            minute: passMinute,
+            kind: "pass",
+            isStop: false,
+          });
+        }
+      } else if (Number.isFinite(current.arrivalMinute)) {
         pushPoint({
           station: current.name,
           pathIndex: current.pathIndex,
@@ -483,7 +522,7 @@
           isStop: true,
         });
       }
-      if (Number.isFinite(current.departureMinute) && current.departureMinute !== current.arrivalMinute) {
+      if (!current.isPassOnly && Number.isFinite(current.departureMinute) && current.departureMinute !== current.arrivalMinute) {
         pushPoint({
           station: current.name,
           pathIndex: current.pathIndex,
@@ -539,11 +578,14 @@
           const raw = source.map?.[trainNo];
           if (!raw) return null;
           const stops = (raw["車站時間"] || [])
-            .map((stop) => ({
-              name: normalizeTraStation(stop?.[0] || ""),
-              arrival: String(stop?.[2] || "").trim(),
-              departure: String(stop?.[1] || "").trim(),
-            }))
+            .map((stop) => {
+              const times = splitStopTimes(stop);
+              return {
+                name: normalizeTraStation(stop?.[0] || ""),
+                arrival: times.arrival,
+                departure: times.departure,
+              };
+            })
             .filter((stop) => stop.name && (stop.arrival || stop.departure));
           if (stops.length < 2) return null;
           return {
@@ -573,11 +615,14 @@
           const raw = source.map?.[trainNo];
           if (!raw) return null;
           const stops = (raw["車站時間"] || [])
-            .map((stop) => ({
-              name: normalizeThsrStation(stop?.[0] || ""),
-              arrival: String(stop?.[2] || "").trim(),
-              departure: String(stop?.[1] || "").trim(),
-            }))
+            .map((stop) => {
+              const times = splitStopTimes(stop);
+              return {
+                name: normalizeThsrStation(stop?.[0] || ""),
+                arrival: times.arrival,
+                departure: times.departure,
+              };
+            })
             .filter((stop) => stop.name && (stop.arrival || stop.departure));
           if (stops.length < 2) return null;
           return {
@@ -717,14 +762,15 @@
             const stationIndex = routeIndexMap.get(stop.name);
             const referenceMinute = stop.departureMinute ?? stop.arrivalMinute;
             if (!Number.isFinite(stationIndex)) return null;
+            if (stop.isPassOnly) return null;
             if (!Number.isFinite(referenceMinute) || referenceMinute < firstMinuteRaw || referenceMinute > lastMinuteRaw) return null;
             return {
+              ...stop,
               station: stop.name,
               stationIndex,
-              arrival: stop.arrival,
-              departure: stop.departure,
               arrivalMinute: Number.isFinite(stop.arrivalMinute) ? stop.arrivalMinute - offsetMinutes : stop.arrivalMinute,
               departureMinute: Number.isFinite(stop.departureMinute) ? stop.departureMinute - offsetMinutes : stop.departureMinute,
+              isEndpoint: stop.name === entry.firstStation || stop.name === entry.lastStation,
             };
           })
           .filter(Boolean);
@@ -948,11 +994,12 @@
       const passText = Number.isFinite(detail.timeMinute) ? formatMinuteLabel(detail.timeMinute) : (Number.isFinite(detail.minute) ? formatMinuteLabel(detail.minute) : "");
       return passText ? `通 ${passText}` : "";
     }
-    const arrivalText = Number.isFinite(detail.arrivalMinute) ? formatMinuteLabel(detail.arrivalMinute) : (detail.arrival || "");
-    const departureText = Number.isFinite(detail.departureMinute) ? formatMinuteLabel(detail.departureMinute) : (detail.departure || "");
-    if (arrivalText && departureText) {
-      return arrivalText === departureText ? `到${arrivalText}` : `到${arrivalText}/開${departureText}`;
-    }
+    let arrivalText = Number.isFinite(detail.arrivalMinute) ? formatMinuteLabel(detail.arrivalMinute) : (detail.arrival || "");
+    let departureText = Number.isFinite(detail.departureMinute) ? formatMinuteLabel(detail.departureMinute) : (detail.departure || "");
+
+    if (!arrivalText && departureText && detail?.isEndpoint) arrivalText = departureText;
+    if (!departureText && arrivalText && detail?.isEndpoint) departureText = arrivalText;
+    if (arrivalText && departureText) return `到${arrivalText}/開${departureText}`;
     return departureText ? `開${departureText}` : (arrivalText ? `到${arrivalText}` : "");
   }
 

@@ -217,8 +217,13 @@
       .join("");
   }
 
+  function isLiveRealtimeWindow(queryDate) {
+    const today = todayDateStr();
+    return queryDate === today || addDays(queryDate, 1) === today;
+  }
+
   function getDelayMinutes(system, trainNo, queryDate) {
-    if (system !== "tr" || queryDate !== todayDateStr() || typeof window.getDelayMinutes !== "function") return 0;
+    if (system !== "tr" || !isLiveRealtimeWindow(queryDate) || typeof window.getDelayMinutes !== "function") return 0;
     try {
       const delay = Number(window.getDelayMinutes(String(trainNo)) || 0);
       return Number.isFinite(delay) ? delay : 0;
@@ -228,7 +233,7 @@
   }
 
   function buildPunctualityText(system, queryDate, delayMinutes) {
-    if (system === "tr" && queryDate === todayDateStr() && Number(delayMinutes) > 0) return `晚${Number(delayMinutes)}分`;
+    if (system === "tr" && isLiveRealtimeWindow(queryDate) && Number(delayMinutes) > 0) return `晚${Number(delayMinutes)}分`;
     return "準點";
   }
 
@@ -249,7 +254,7 @@
   }
 
   function getRelativeNowMinute(originDate, queryDate) {
-    if (typeof window.getNowAbsFromOrigin === "function" && queryDate === todayDateStr()) {
+    if (typeof window.getNowAbsFromOrigin === "function") {
       try {
         const value = window.getNowAbsFromOrigin(originDate);
         if (Number.isFinite(value)) return value;
@@ -257,7 +262,8 @@
       }
     }
     const now = new Date();
-    const offsetDays = diffDateDays(originDate || queryDate, queryDate || todayDateStr());
+    const today = todayDateStr();
+    const offsetDays = diffDateDays(originDate || today, today);
     return offsetDays * 1440 + now.getHours() * 60 + now.getMinutes();
   }
 
@@ -393,6 +399,28 @@
     return points;
   }
 
+  function splitStopTimes(stopRow) {
+    const primary = String(stopRow?.[1] || "").trim();
+    const secondary = String(stopRow?.[2] || "").trim();
+    if (!primary || !secondary) {
+      return {
+        arrival: secondary,
+        departure: primary,
+      };
+    }
+    const primaryMinute = parseMinutes(primary);
+    const secondaryMinute = parseMinutes(secondary);
+    if (!Number.isFinite(primaryMinute) || !Number.isFinite(secondaryMinute)) {
+      return {
+        arrival: secondary,
+        departure: primary,
+      };
+    }
+    return secondaryMinute <= primaryMinute
+      ? { arrival: secondary, departure: primary }
+      : { arrival: primary, departure: secondary };
+  }
+
   function buildEntries(system, scheduleSources) {
     const normalizeStation = system === "tr" ? normalizeTraStation : normalizeThsrStation;
     const sources = Array.isArray(scheduleSources) ? scheduleSources : [{ map: scheduleSources || {}, originDate: getQueryDate() }];
@@ -403,11 +431,14 @@
           const raw = source.map?.[trainNo];
           if (!raw) return null;
           const stops = (raw["車站時間"] || [])
-            .map((stop) => ({
-              name: normalizeStation(stop?.[0] || ""),
-              arrival: String(stop?.[2] || "").trim(),
-              departure: String(stop?.[1] || "").trim(),
-            }))
+            .map((stop) => {
+              const times = splitStopTimes(stop);
+              return {
+                name: normalizeStation(stop?.[0] || ""),
+                arrival: times.arrival,
+                departure: times.departure,
+              };
+            })
             .filter((stop) => stop.name && (stop.arrival || stop.departure));
           if (stops.length < 2) return null;
           const rawType = system === "tr" ? String(raw["原始車種"] || raw["車種"] || "列車").trim() || "列車" : "高鐵";
@@ -605,6 +636,8 @@
     let soonMinutes = Number.POSITIVE_INFINITY;
     let soonKind = "";
     let nextEventKind = "arrival";
+    let nextStopStation = "";
+    let nextStopTime = "";
     let originEventMinute = entry.originDepartureMinute;
 
     if (nowMinute < segmentFirstMinute) {
@@ -627,6 +660,8 @@
       soonMinutes = departureMinute - nowMinute;
       soonKind = "stop";
       nextEventKind = "departure";
+      nextStopStation = currentFrom;
+      nextStopTime = nextTime;
       directionGlyph = getDirectionGlyphAtPointIndex(anchorPointIndex);
       originEventMinute = departureMinute;
     } else {
@@ -652,6 +687,8 @@
           soonMinutes = 0;
           soonKind = "stop";
           nextEventKind = nextStop ? "arrival" : fallbackPoint?.isStop ? "arrival" : "pass";
+          nextStopStation = nextStop?.name || "";
+          nextStopTime = nextStop ? formatMinute(getStopArrivalMinute(nextStop)) : "";
           const pointIndex = Math.max(
             0,
             points.findIndex((point) => point.station === current.name && point.minute >= arrivalMinute)
@@ -685,6 +722,12 @@
           soonMinutes = Number.isFinite(soonTarget?.minute) ? Math.max(0, soonTarget.minute - nowMinute) : Number.POSITIVE_INFINITY;
           soonKind = soonTarget?.isStop ? "stop" : soonTarget ? "pass" : "";
           nextEventKind = nextStop ? "arrival" : nextPoint?.isStop ? "arrival" : "pass";
+          nextStopStation = nextStop?.name || (nextPoint?.isStop ? nextPoint.station : "");
+          nextStopTime = nextStop
+            ? formatMinute(getStopArrivalMinute(nextStop))
+            : nextPoint?.isStop
+              ? formatMinute(nextPoint.minute)
+              : "";
           directionGlyph = getDirectionGlyphAtPointIndex(index);
           break;
         }
@@ -731,6 +774,8 @@
       soonMinutes,
       soonKind,
       nextEventKind,
+      nextStopStation,
+      nextStopTime,
       originEventMinute,
       isSoonStop: soonKind === "stop" && Number.isFinite(soonMinutes) && soonMinutes <= STATION_SOON_WINDOW,
       locationText: state === "running" ? `${currentFrom} ➝ ${currentTo}` : state === "dwell" ? `${currentFrom} 停靠中` : state === "upcoming" ? `即將由 ${currentFrom} 發車` : `已到 ${currentTo}`,
@@ -890,7 +935,12 @@
   function buildSnapshotNextLine(snapshot) {
     if (snapshot.state === "arrived") return `終點站：${snapshot.currentTo}`;
     if (snapshot.state === "upcoming") return `預計 ${snapshot.nextTime} 由 ${snapshot.currentFrom} 發車`;
-    if (snapshot.nextEventKind === "pass") return `即將通過：${snapshot.nextStation}（${snapshot.nextTime}）`;
+    if (snapshot.nextEventKind === "pass") {
+      if (snapshot.nextStopStation && snapshot.nextStopTime) {
+        return `即將通過：${snapshot.nextStation}（${snapshot.nextTime}）｜下一停靠：${snapshot.nextStopStation}（${snapshot.nextStopTime}）`;
+      }
+      return `即將通過：${snapshot.nextStation}（${snapshot.nextTime}）`;
+    }
     return `下一站：${snapshot.nextStation}（${snapshot.nextTime}）`;
   }
 

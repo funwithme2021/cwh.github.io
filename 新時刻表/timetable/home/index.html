@@ -2472,6 +2472,10 @@ select.setting-input[id*="pick"] {
         <span>常用車站</span>
         <input type="text" id="tr_home" class="setting-input" list="traStationList" placeholder="如：臺北" style="width: 150px; border-color: rgba(59, 130, 246, 0.3);">
     </div>
+    <div class="setting-row">
+        <span>台鐵訂票身分證</span>
+        <input type="text" id="tra_booking_pid" class="setting-input" placeholder="如：A123456789" maxlength="10" style="width: 180px; border-color: rgba(59, 130, 246, 0.3); text-transform: uppercase;">
+    </div>
     
     <div class="fav-section">
         <div class="fav-item-card" style="border-left: 3px solid var(--tr-color);">
@@ -3105,6 +3109,7 @@ select.setting-input[id*="pick"] {
         let lastNotificationStates = {};
         let cachedTrainList = { tra: null, thsr: null }; 
         let systemAlertState = { tr: null, thsr: null };
+        const rotatingTextTimers = {};
         let assistantRouteCache = { date: '', tra: null, thsr: null };
         let assistantSeatCache = {};
         let assistantTrainLiveCache = {};
@@ -3124,6 +3129,26 @@ select.setting-input[id*="pick"] {
                 out.push(text);
             });
             return out;
+        }
+        function clearRotatingText(key) {
+            if (!key || !rotatingTextTimers[key]) return;
+            clearInterval(rotatingTextTimers[key]);
+            delete rotatingTextTimers[key];
+        }
+        function rotateTextMessages(key, messages, apply, intervalMs = 6000) {
+            const items = uniqueTexts(messages);
+            clearRotatingText(key);
+            if (!items.length) return [];
+            let index = 0;
+            const render = () => apply(items[index], index, items);
+            render();
+            if (items.length > 1) {
+                rotatingTextTimers[key] = setInterval(() => {
+                    index = (index + 1) % items.length;
+                    render();
+                }, intervalMs);
+            }
+            return items;
         }
         function pickAlertText(value) {
             if (value === null || value === undefined) return '';
@@ -3173,6 +3198,35 @@ select.setting-input[id*="pick"] {
             if (parts.length === 1) return parts[0];
             return `${parts[0]}：${parts.slice(1).join(' ｜ ')}`;
         }
+        function collectAlertMessages(source, depth = 0) {
+            if (depth > 4 || source === null || source === undefined) return [];
+            if (Array.isArray(source)) {
+                return uniqueTexts(source.flatMap(item => collectAlertMessages(item, depth + 1)));
+            }
+            if (typeof source === 'object') {
+                const messages = [];
+                const direct = buildAlertMessage(source);
+                if (direct) messages.push(direct);
+                Object.keys(source).forEach(key => {
+                    if (/^(AlertTypeDescription|AlertType|Level|Category|Title|Subject|Name|Description|Message|Content|Detail|Summary|Text|Zh_tw|ZhTw|zh_tw|zh)$/i.test(key)) return;
+                    if (/(^_|Id$|ID$|Url$|URI$|Time$|Date$|Update|Version|Position|Lat$|Lon$|Latitude|Longitude|Geometry|Coordinate)/i.test(key)) return;
+                    messages.push(...collectAlertMessages(source[key], depth + 1));
+                });
+                return uniqueTexts(messages);
+            }
+            const text = pickAlertText(source);
+            return text ? [text] : [];
+        }
+        function isNormalStatusMessage(message) {
+            const text = String(message || '').replace(/\s+/g, ' ').trim();
+            if (!text) return false;
+            const hasNormal = /(全線)?正常|正常營運|營運正常|服務正常|行車正常|全線順暢/.test(text);
+            const hasAbnormal = /延誤|停駛|取消|異常|受阻|中斷|改點|故障|事故|慢行|管制|施工|豪雨|颱風|影響|停電|障礙|災害|告警|積水|坍方|維修|緊急/.test(text);
+            return hasNormal && !hasAbnormal;
+        }
+        function filterAbnormalMessages(messages) {
+            return uniqueTexts(messages).filter(message => !isNormalStatusMessage(message));
+        }
         function normalizeAlertRecords(data) {
             if (Array.isArray(data)) return data;
             if (data && Array.isArray(data.Alerts)) return data.Alerts;
@@ -3182,12 +3236,17 @@ select.setting-input[id*="pick"] {
         }
         async function fetchAlertMessages(system, headers) {
             const urls = system === 'tr'
-                ? ['https://tdx.transportdata.tw/api/basic/v3/Rail/TRA/Alert?%24format=JSON']
+                ? [
+                    'https://tdx.transportdata.tw/api/basic/v2/Rail/TRA/Alert?$format=JSON',
+                    'https://tdx.transportdata.tw/api/basic/v3/Rail/TRA/Alert?%24format=JSON',
+                    'https://tdx.transportdata.tw/api/basic/v2/Rail/TRA/AlertInfo?$format=JSON'
+                ]
                 : [
                     'https://tdx.transportdata.tw/api/basic/v2/Rail/THSR/Alert?$format=JSON',
                     'https://tdx.transportdata.tw/api/basic/v3/Rail/THSR/Alert?%24format=JSON',
                     'https://tdx.transportdata.tw/api/basic/v2/Rail/THSR/AlertInfo?$format=JSON'
                 ];
+            const collected = [];
             for (const url of urls) {
                 try {
                     const res = await fetch(url, { headers });
@@ -3195,10 +3254,10 @@ select.setting-input[id*="pick"] {
                     const data = await res.json();
                     const records = normalizeAlertRecords(data);
                     if (!records) continue;
-                    return uniqueTexts(records.map(buildAlertMessage));
+                    collected.push(...records.map(buildAlertMessage));
                 } catch (e) {}
             }
-            return [];
+            return uniqueTexts(collected);
         }
         function summarizeMessages(messages, maxItems = 2) {
             const unique = uniqueTexts(messages);
@@ -3207,6 +3266,27 @@ select.setting-input[id*="pick"] {
             return `${unique.slice(0, maxItems).join(' ｜ ')} 等 ${unique.length} 則`;
         }
         function setStatusTicker(prefix, messages, textEl, wrapEl, dotEl) {
+            const abnormal = filterAbnormalMessages(messages);
+            const displayItems = abnormal.length
+                ? abnormal.map(message => `${prefix}: ${message}`)
+                : [`${prefix}: 全線正常`];
+            const titleText = displayItems.join('\n');
+            rotateTextMessages(textEl?.id || prefix, displayItems, (current, index, items) => {
+                if (textEl) {
+                    textEl.innerText = current;
+                    textEl.title = titleText;
+                    textEl.style.color = abnormal.length ? '#fbbf24' : '';
+                }
+                if (wrapEl) {
+                    wrapEl.classList.toggle('alert-scroll', current.length > 28 || items.length > 1);
+                    wrapEl.title = titleText;
+                }
+            });
+            if (dotEl) {
+                dotEl.className = abnormal.length ? 'status-dot warn' : 'status-dot ok';
+            }
+            return abnormal;
+
             const unique = uniqueTexts(messages);
             const hasAlerts = unique.length > 0;
             const finalText = hasAlerts ? `${prefix}: ${unique.join(' ｜ ')}` : `${prefix}: 全線正常`;
@@ -4061,7 +4141,7 @@ function toggleSettings(show) {
         setTimeout(() => modal.classList.add('show'), 10);
         initTrainLists();
 
-        const textKeys = ['tr_home','thsr_home','tr_s1','tr_e1','tr_s2','tr_e2','tr_s3','tr_e3','thsr_s1','thsr_e1','thsr_s2','thsr_e2','thsr_s3','thsr_e3'];
+        const textKeys = ['tr_home','thsr_home','tr_s1','tr_e1','tr_s2','tr_e2','tr_s3','tr_e3','thsr_s1','thsr_e1','thsr_s2','thsr_e2','thsr_s3','thsr_e3','tra_booking_pid'];
         textKeys.forEach(k => { 
             const el = document.getElementById(k); 
             if(el) el.value = localStorage.getItem(k) || ''; 
@@ -4164,10 +4244,12 @@ function toggleSettings(show) {
               mon_tr2_train: (document.getElementById('mon_tr2_train_final')?.value || '').trim(),
               mon_thsr_train: (document.getElementById('mon_thsr_train_final')?.value || '').trim()
             };
+            const normalizeBookingPid = (value) => String(value || '').trim().toUpperCase().replace(/\s+/g, '');
 
             const keys = [
                 'tr_home','thsr_home','tr_s1','tr_e1','tr_s2','tr_e2','tr_s3','tr_e3',
                 'thsr_s1','thsr_e1','thsr_s2','thsr_e2','thsr_s3','thsr_e3',
+                'tra_booking_pid',
                 'mon_tr1_train','mon_tr1_station','mon_tr2_train','mon_tr2_station',
                 'mon_thsr_train','mon_thsr_station'
             ];
@@ -4182,7 +4264,9 @@ function toggleSettings(show) {
                       val = forcedTrainMap[k]; // 沒點選就是空字串
                     }
 
-                    if (k.includes('thsr') || k.includes('THSR')) {
+                    if (k === 'tra_booking_pid') {
+                        val = normalizeBookingPid(val);
+                    } else if (k.includes('thsr') || k.includes('THSR')) {
                         val = normalizeTHSR(val);
                     } else {
                         val = normalizeTRA(val);
@@ -4371,6 +4455,42 @@ function toggleSettings(show) {
             setText('heroMonitorState', monitorState);
             setText('heroMonitorHint', monitorHint);
             renderMonitorBoard(monitorOn, pushOn, monitorTargets, monitorText);
+
+            {
+                const trAlerts = Array.isArray(systemAlertState.tr) ? systemAlertState.tr : null;
+                const thsrAlerts = Array.isArray(systemAlertState.thsr) ? systemAlertState.thsr : null;
+                let opsSummary = '讀取營運訊息中';
+                let opsDetail = '正在同步臺鐵與高鐵的最新營運狀態。';
+                let opsMessages = [];
+                if (trAlerts && thsrAlerts) {
+                    const abnormalItems = uniqueTexts([
+                        ...trAlerts.map(msg => `臺鐵 ${msg}`),
+                        ...thsrAlerts.map(msg => `高鐵 ${msg}`)
+                    ]);
+                    opsSummary = abnormalItems.length
+                        ? `營運異常提示：${abnormalItems.length} 則`
+                        : '目前無營運異常';
+                    opsDetail = abnormalItems.length
+                        ? abnormalItems[0]
+                        : '目前沒有新的營運異常公告。';
+                    opsMessages = abnormalItems;
+                }
+                setText('heroOpsSummary', opsSummary);
+                const heroOpsDetailEl = document.getElementById('heroOpsDetail');
+                if (heroOpsDetailEl && opsMessages.length) {
+                    rotateTextMessages('heroOpsDetail', opsMessages, (current, index, items) => {
+                        heroOpsDetailEl.textContent = current;
+                        heroOpsDetailEl.title = items.join('\n');
+                    });
+                } else {
+                    clearRotatingText('heroOpsDetail');
+                    setText('heroOpsDetail', opsDetail);
+                    if (heroOpsDetailEl) heroOpsDetailEl.title = opsDetail;
+                }
+
+                renderRecentLaunches();
+                return;
+            }
 
             const trAlerts = Array.isArray(systemAlertState.tr) ? systemAlertState.tr : null;
             const thsrAlerts = Array.isArray(systemAlertState.thsr) ? systemAlertState.thsr : null;

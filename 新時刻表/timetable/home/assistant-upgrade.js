@@ -1120,7 +1120,371 @@
     `;
   }
 
+  function assistantIsDesktopDevice() {
+    const ua = navigator.userAgent || "";
+    const isTouchMac = navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1;
+    return !isTouchMac && !/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua);
+  }
+
+  function assistantAskTraBookingChoice() {
+    const answer = window.prompt("台鐵訂票方式：請輸入 app 或 web", "app");
+    if (answer === null) return "cancel";
+    const value = String(answer || "").trim().toLowerCase();
+    if (!value || value === "app" || value === "a") return "app";
+    if (value === "web" || value === "w") return "web";
+    alert("請輸入 app 或 web。");
+    return assistantAskTraBookingChoice();
+  }
+
+  function assistantAskTraSeatQuantity(defaultQty = 1) {
+    const answer = window.prompt("請輸入一般座票數（1-6 張）", String(defaultQty));
+    if (answer === null) return null;
+    const qty = parseInt(String(answer).trim(), 10);
+    if (qty >= 1 && qty <= 6) return qty;
+    alert("票數請輸入 1 到 6。");
+    return assistantAskTraSeatQuantity(defaultQty);
+  }
+
+  function assistantFormatTraBookingStationValue(stationName) {
+    const raw = String(stationName || "").trim();
+    if (!raw) return "";
+    const resolvedName = resolveLocalStationName(raw, "tr") || raw.replace(/台/g, "臺");
+    const station = (stationDB.tr || []).find((item) => normalizeLoose(item.name) === normalizeLoose(resolvedName));
+    const displayName = String((station && station.name) || resolvedName).replace(/台/g, "臺");
+    return station && station.id ? `${station.id}-${displayName}` : displayName;
+  }
+
+  function assistantOpenTraBookingWeb(trainNo, startStationName, endStationName, dateStr, seatQty = 1) {
+    const startStation = assistantFormatTraBookingStationValue(startStationName);
+    const endStation = assistantFormatTraBookingStationValue(endStationName);
+    const rideDate = String(dateStr || "").trim().replace(/-/g, "/");
+    const trainNoText = String(trainNo || "").trim();
+    const pid = String(localStorage.getItem("tra_booking_pid") || "").trim().toUpperCase().replace(/\s+/g, "");
+    const normalQty = Math.max(1, Math.min(6, parseInt(seatQty, 10) || 1));
+    const form = document.createElement("form");
+    form.method = "POST";
+    form.action = "https://www.railway.gov.tw/tra-tip-web/tip/tip001/tip121/bookingTicket";
+    form.target = "_blank";
+    form.style.display = "none";
+
+    const fields = [
+      ["custIdTypeEnum", "PERSON_ID"],
+      ["pid", pid],
+      ["startStation", startStation],
+      ["endStation", endStation],
+      ["tripType", "ONEWAY"],
+      ["orderType", "BY_TRAIN_NO"],
+      ["normalQty", String(normalQty)],
+      ["wheelChairQty", "0"],
+      ["parentChildQty", "0"],
+      ["ticketOrderParamList[0].tripNo", "TRIP1"],
+      ["ticketOrderParamList[0].rideDate", rideDate],
+      ["ticketOrderParamList[0].startStation", startStation],
+      ["ticketOrderParamList[0].endStation", endStation],
+      ["ticketOrderParamList[0].trainNo", trainNoText],
+      ["ticketOrderParamList[0].trainNoList[0]", trainNoText],
+      ["rideDate1", rideDate],
+      ["trainNo", trainNoText],
+      ["trainNoList1", trainNoText],
+      ["trainNoList2", ""],
+      ["trainNoList3", ""],
+    ];
+
+    fields.forEach(([name, value]) => {
+      if (value === null || value === undefined) return;
+      const input = document.createElement("input");
+      input.type = "hidden";
+      input.name = name;
+      input.value = value;
+      form.appendChild(input);
+    });
+
+    document.body.appendChild(form);
+    form.submit();
+    form.remove();
+  }
+
+  function ensureAssistantTraBookingModals() {
+    if (!document.getElementById("assistantTraBookingModalStyle")) {
+      const style = document.createElement("style");
+      style.id = "assistantTraBookingModalStyle";
+      style.textContent = `
+        .assistant-booking-modal {
+          position: fixed;
+          inset: 0;
+          z-index: 5000;
+          display: none;
+          align-items: center;
+          justify-content: center;
+          padding: 16px;
+          background: rgba(2, 6, 23, 0.56);
+          backdrop-filter: blur(10px);
+        }
+        .assistant-booking-modal-content {
+          width: min(420px, calc(100vw - 32px));
+          border-radius: 24px;
+          background: linear-gradient(180deg, rgba(15, 23, 42, 0.96), rgba(15, 23, 42, 0.9));
+          border: 1px solid rgba(148, 163, 184, 0.18);
+          box-shadow: 0 32px 72px rgba(2, 6, 23, 0.42);
+          color: #e2e8f0;
+          overflow: hidden;
+        }
+        body.light-mode .assistant-booking-modal-content {
+          background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 252, 0.96));
+          color: #0f172a;
+          border-color: rgba(148, 163, 184, 0.22);
+          box-shadow: 0 28px 68px rgba(15, 23, 42, 0.16);
+        }
+        .assistant-booking-modal-header {
+          display: flex;
+          align-items: flex-start;
+          justify-content: space-between;
+          gap: 14px;
+          padding: 22px 24px 0;
+        }
+        .assistant-booking-modal-title-main {
+          font-size: 1.1rem;
+          font-weight: 800;
+          line-height: 1.3;
+        }
+        .assistant-booking-modal-title-sub {
+          margin-top: 4px;
+          color: rgba(226, 232, 240, 0.78);
+          font-size: 0.92rem;
+          line-height: 1.5;
+        }
+        body.light-mode .assistant-booking-modal-title-sub {
+          color: rgba(51, 65, 85, 0.8);
+        }
+        .assistant-booking-close {
+          width: 38px;
+          height: 38px;
+          border: none;
+          border-radius: 999px;
+          background: rgba(148, 163, 184, 0.14);
+          color: inherit;
+          cursor: pointer;
+          font-size: 1rem;
+          line-height: 1;
+        }
+        .assistant-booking-modal-body {
+          padding: 20px 24px 24px;
+        }
+        .assistant-booking-modal-grid {
+          display: grid;
+          gap: 12px;
+        }
+        .assistant-booking-btn-primary,
+        .assistant-booking-btn-ghost {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          width: 100%;
+          border-radius: 14px;
+          padding: 12px 16px;
+          font-size: 0.96rem;
+          font-weight: 700;
+          cursor: pointer;
+          transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+        }
+        .assistant-booking-btn-primary {
+          border: 1px solid rgba(56, 189, 248, 0.24);
+          background: linear-gradient(135deg, #0ea5e9, #2563eb);
+          color: #fff;
+          box-shadow: 0 16px 34px rgba(37, 99, 235, 0.28);
+        }
+        .assistant-booking-btn-ghost {
+          border: 1px solid rgba(148, 163, 184, 0.22);
+          background: rgba(15, 23, 42, 0.18);
+          color: inherit;
+        }
+        body.light-mode .assistant-booking-btn-ghost {
+          background: rgba(255, 255, 255, 0.92);
+        }
+        .assistant-booking-btn-primary:hover,
+        .assistant-booking-btn-ghost:hover {
+          transform: translateY(-1px);
+        }
+        .assistant-booking-field {
+          display: grid;
+          gap: 8px;
+        }
+        .assistant-booking-field span {
+          font-weight: 700;
+        }
+        .assistant-booking-select {
+          width: 100%;
+          border-radius: 12px;
+          border: 1px solid rgba(148, 163, 184, 0.24);
+          background: rgba(15, 23, 42, 0.28);
+          color: inherit;
+          padding: 10px 14px;
+          font-size: 0.95rem;
+          outline: none;
+        }
+        body.light-mode .assistant-booking-select {
+          background: #fff;
+          border-color: rgba(148, 163, 184, 0.28);
+        }
+      `;
+      document.head.appendChild(style);
+    }
+
+    if (!document.getElementById("assistantBookingChoiceModal")) {
+      const modal = document.createElement("div");
+      modal.id = "assistantBookingChoiceModal";
+      modal.className = "assistant-booking-modal";
+      modal.setAttribute("role", "dialog");
+      modal.setAttribute("aria-modal", "true");
+      modal.setAttribute("aria-label", "選擇台鐵訂票方式");
+      modal.innerHTML = `
+        <div class="assistant-booking-modal-content">
+          <div class="assistant-booking-modal-header">
+            <div>
+              <div class="assistant-booking-modal-title-main">選擇訂票方式</div>
+              <div class="assistant-booking-modal-title-sub">可使用台鐵 e 訂通 App 或台鐵官網。</div>
+            </div>
+            <button class="assistant-booking-close" id="assistantBookingChoiceClose" type="button" aria-label="關閉">✕</button>
+          </div>
+          <div class="assistant-booking-modal-body">
+            <div class="assistant-booking-modal-grid">
+              <button class="assistant-booking-btn-primary" id="assistantBookingChoiceApp" type="button">使用台鐵 e 訂通 App</button>
+              <button class="assistant-booking-btn-ghost" id="assistantBookingChoiceWeb" type="button">使用台鐵官網訂票</button>
+            </div>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(modal);
+    }
+
+    if (!document.getElementById("assistantBookingSeatModal")) {
+      const modal = document.createElement("div");
+      modal.id = "assistantBookingSeatModal";
+      modal.className = "assistant-booking-modal";
+      modal.setAttribute("role", "dialog");
+      modal.setAttribute("aria-modal", "true");
+      modal.setAttribute("aria-label", "選擇一般座票數");
+      modal.innerHTML = `
+        <div class="assistant-booking-modal-content">
+          <div class="assistant-booking-modal-header">
+            <div>
+              <div class="assistant-booking-modal-title-main">選擇一般座票數</div>
+              <div class="assistant-booking-modal-title-sub">可選 1 到 6 張，送出後會直接帶入台鐵官網。</div>
+            </div>
+            <button class="assistant-booking-close" id="assistantBookingSeatClose" type="button" aria-label="關閉">✕</button>
+          </div>
+          <div class="assistant-booking-modal-body">
+            <div class="assistant-booking-modal-grid">
+              <label class="assistant-booking-field">
+                <span>一般座票數</span>
+                <select id="assistantBookingSeatQtySelect" class="assistant-booking-select">
+                  <option value="1">1 張</option>
+                  <option value="2">2 張</option>
+                  <option value="3">3 張</option>
+                  <option value="4">4 張</option>
+                  <option value="5">5 張</option>
+                  <option value="6">6 張</option>
+                </select>
+              </label>
+              <button class="assistant-booking-btn-primary" id="assistantBookingSeatConfirm" type="button">確定並前往官網</button>
+            </div>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(modal);
+    }
+  }
+
+  function assistantAskTraBookingChoice() {
+    ensureAssistantTraBookingModals();
+    const modal = document.getElementById("assistantBookingChoiceModal");
+    const appBtn = document.getElementById("assistantBookingChoiceApp");
+    const webBtn = document.getElementById("assistantBookingChoiceWeb");
+    const closeBtn = document.getElementById("assistantBookingChoiceClose");
+    if (!modal || !appBtn || !webBtn || !closeBtn) return Promise.resolve("app");
+
+    return new Promise((resolve) => {
+      let settled = false;
+      const finish = (choice) => {
+        if (settled) return;
+        settled = true;
+        modal.style.display = "none";
+        appBtn.removeEventListener("click", onApp);
+        webBtn.removeEventListener("click", onWeb);
+        closeBtn.removeEventListener("click", onCancel);
+        modal.removeEventListener("click", onBackdrop);
+        document.removeEventListener("keydown", onKeydown);
+        resolve(choice);
+      };
+      const onApp = () => finish("app");
+      const onWeb = () => finish("web");
+      const onCancel = () => finish("cancel");
+      const onBackdrop = (event) => { if (event.target === modal) finish("cancel"); };
+      const onKeydown = (event) => { if (event.key === "Escape") finish("cancel"); };
+
+      appBtn.addEventListener("click", onApp);
+      webBtn.addEventListener("click", onWeb);
+      closeBtn.addEventListener("click", onCancel);
+      modal.addEventListener("click", onBackdrop);
+      document.addEventListener("keydown", onKeydown);
+      modal.style.display = "flex";
+    });
+  }
+
+  function assistantAskTraSeatQuantity(defaultQty = 1) {
+    ensureAssistantTraBookingModals();
+    const modal = document.getElementById("assistantBookingSeatModal");
+    const select = document.getElementById("assistantBookingSeatQtySelect");
+    const confirmBtn = document.getElementById("assistantBookingSeatConfirm");
+    const closeBtn = document.getElementById("assistantBookingSeatClose");
+    if (!modal || !select || !confirmBtn || !closeBtn) {
+      return Promise.resolve(Math.max(1, Math.min(6, parseInt(defaultQty, 10) || 1)));
+    }
+
+    select.value = String(Math.max(1, Math.min(6, parseInt(defaultQty, 10) || 1)));
+    return new Promise((resolve) => {
+      let settled = false;
+      const finish = (qty) => {
+        if (settled) return;
+        settled = true;
+        modal.style.display = "none";
+        confirmBtn.removeEventListener("click", onConfirm);
+        closeBtn.removeEventListener("click", onCancel);
+        modal.removeEventListener("click", onBackdrop);
+        document.removeEventListener("keydown", onKeydown);
+        resolve(qty);
+      };
+      const onConfirm = () => finish(Math.max(1, Math.min(6, parseInt(select.value, 10) || 1)));
+      const onCancel = () => finish(null);
+      const onBackdrop = (event) => { if (event.target === modal) finish(null); };
+      const onKeydown = (event) => { if (event.key === "Escape") finish(null); };
+
+      confirmBtn.addEventListener("click", onConfirm);
+      closeBtn.addEventListener("click", onCancel);
+      modal.addEventListener("click", onBackdrop);
+      document.addEventListener("keydown", onKeydown);
+      modal.style.display = "flex";
+      setTimeout(() => { try { select.focus(); } catch (_) {} }, 0);
+    });
+  }
+
   async function assistantOpenTraBooking(trainNo, startStationName, endStationName, dateStr) {
+    if (assistantIsDesktopDevice()) {
+      const seatQty = await assistantAskTraSeatQuantity(1);
+      if (!seatQty) return;
+      assistantOpenTraBookingWeb(trainNo, startStationName, endStationName, dateStr, seatQty);
+      return;
+    }
+
+    const bookingChoice = await assistantAskTraBookingChoice();
+    if (bookingChoice === "cancel") return;
+    if (bookingChoice === "web") {
+      const seatQty = await assistantAskTraSeatQuantity(1);
+      if (!seatQty) return;
+      assistantOpenTraBookingWeb(trainNo, startStationName, endStationName, dateStr, seatQty);
+      return;
+    }
+
     try {
       const token = await ensureToken();
       if (!token) {
@@ -1147,6 +1511,11 @@
   }
 
   async function assistantOpenTHSRBooking(trainNo, startStationName, endStationName, dateStr, timeStr) {
+    if (assistantIsDesktopDevice()) {
+      window.open("https://irs.thsrc.com.tw/IMINT/?locale=tw", "_blank", "noopener");
+      return;
+    }
+
     try {
       const token = typeof getAccessToken === "function" ? await getAccessToken() : await ensureToken();
       if (!token) {

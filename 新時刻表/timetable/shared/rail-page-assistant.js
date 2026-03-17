@@ -502,6 +502,59 @@
     return html ? `<div class="rail-ai-meta-row">${html}</div>` : "";
   }
 
+  function pageIsDesktopDevice() {
+    if (typeof window.isDesktopDevice === "function") {
+      try {
+        return !!window.isDesktopDevice();
+      } catch (_) {}
+    }
+    const ua = navigator.userAgent || "";
+    const isTouchMac = navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1;
+    return !isTouchMac && !/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua);
+  }
+
+  async function handleTraBookingAction(action) {
+    if (pageIsDesktopDevice()) {
+      const seatQty = typeof window.showTraSeatQuantityDialog === "function"
+        ? await maybePromise(window.showTraSeatQuantityDialog(1))
+        : 1;
+      if (!seatQty) return;
+      if (typeof window.openTraBookingWeb === "function") {
+        window.openTraBookingWeb(action.trainNo, action.start, action.end, action.date, seatQty);
+        return;
+      }
+    }
+
+    const bookingChoice = typeof window.showTraBookingChoiceDialog === "function"
+      ? await maybePromise(window.showTraBookingChoiceDialog())
+      : "app";
+    if (bookingChoice === "cancel") return;
+    if (bookingChoice === "web") {
+      const seatQty = typeof window.showTraSeatQuantityDialog === "function"
+        ? await maybePromise(window.showTraSeatQuantityDialog(1))
+        : 1;
+      if (!seatQty) return;
+      if (typeof window.openTraBookingWeb === "function") {
+        window.openTraBookingWeb(action.trainNo, action.start, action.end, action.date, seatQty);
+        return;
+      }
+    }
+
+    await maybePromise(window.openTraBookingDeepLink?.(action.trainNo, action.start, action.end, action.date));
+  }
+
+  async function handleTHSRBookingAction(action) {
+    if (typeof window.handleTHSRBookingRequest === "function") {
+      await maybePromise(window.handleTHSRBookingRequest(action.trainNo, action.date, action.time, action.start, action.end));
+      return;
+    }
+    if (pageIsDesktopDevice()) {
+      window.open("https://irs.thsrc.com.tw/IMINT/?locale=tw", "_blank", "noopener");
+      return;
+    }
+    await maybePromise(window.openTHSRBookingDeepLink?.(action.trainNo, action.date, action.time, action.start, action.end));
+  }
+
   function bindActionButtons(state) {
     state.answer.querySelectorAll("[data-ai-action]").forEach((button) => {
       button.addEventListener("click", async () => {
@@ -511,17 +564,13 @@
         if (action.type === "tra-detail") {
           window.showTrainDetails?.(action.trainNo, action.originDate);
         } else if (action.type === "tra-book") {
-          await maybePromise(window.openTraBookingDeepLink?.(action.trainNo, action.start, action.end, action.date));
+          await handleTraBookingAction(action);
         } else if (action.type === "tra-transfer") {
           window.showTransferDetails?.(action.plan);
         } else if (action.type === "thsr-detail") {
           window.showTrainDetails?.(action.trainNo, action.originDate);
         } else if (action.type === "thsr-book") {
-          const startInput = document.getElementById("startStation");
-          const endInput = document.getElementById("endStation");
-          if (startInput) startInput.value = action.start;
-          if (endInput) endInput.value = action.end;
-          await maybePromise(window.openTHSRBookingDeepLink?.(action.trainNo, action.date, action.time));
+          await handleTHSRBookingAction(action);
         } else if (action.type === "switch") {
           location.href = action.href;
         }

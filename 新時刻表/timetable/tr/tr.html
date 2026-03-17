@@ -1894,6 +1894,7 @@ td{ border-bottom: 1px solid rgba(255,255,255,0.06); }
       color:#7dd3fc;
     }
     .badge-next,
+    .badge-follow,
     .badge-xfer{
       display:inline-flex;
       align-items:center;
@@ -1905,6 +1906,10 @@ td{ border-bottom: 1px solid rgba(255,255,255,0.06); }
       animation:none;
     }
     .badge-next{
+      background:#22c55e;
+      color:#fff;
+    }
+    .badge-follow{
       background:#22c55e;
       color:#fff;
     }
@@ -2714,6 +2719,52 @@ td{ border-bottom: 1px solid rgba(255,255,255,0.06); }
   </div>
 </div>
 
+<div id="bookingChoiceModal" class="modal" role="dialog" aria-modal="true" aria-label="選擇台鐵訂票方式">
+  <div class="modal-content" style="max-width: 420px;">
+    <div class="modal-header">
+      <div class="modal-title-block">
+        <div class="modal-title-main">選擇訂票方式</div>
+        <div class="modal-title-sub">可使用台鐵 e 訂通 App 或台鐵官網。</div>
+      </div>
+      <button class="close" id="bookingChoiceClose" type="button" aria-label="關閉">✕</button>
+    </div>
+    <div class="modal-body" style="padding: 20px 24px 24px;">
+      <div style="display:grid; gap:12px;">
+        <button class="btn-primary" id="bookingChoiceApp" type="button" style="width:100%; justify-content:center;">使用台鐵 e 訂通 App</button>
+        <button class="btn-ghost" id="bookingChoiceWeb" type="button" style="width:100%; justify-content:center;">使用台鐵官網訂票</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="bookingSeatModal" class="modal" role="dialog" aria-modal="true" aria-label="選擇一般座票數">
+  <div class="modal-content" style="max-width: 420px;">
+    <div class="modal-header">
+      <div class="modal-title-block">
+        <div class="modal-title-main">選擇一般座票數</div>
+        <div class="modal-title-sub">可選 1 到 6 張，送出後會直接帶入台鐵官網。</div>
+      </div>
+      <button class="close" id="bookingSeatClose" type="button" aria-label="關閉">✕</button>
+    </div>
+    <div class="modal-body" style="padding: 20px 24px 24px;">
+      <div style="display:grid; gap:14px;">
+        <label style="display:grid; gap:8px;">
+          <span style="font-weight:700; color:var(--text-main);">一般座票數</span>
+          <select id="bookingSeatQtySelect" class="setting-input" style="width:100%;">
+            <option value="1">1 張</option>
+            <option value="2">2 張</option>
+            <option value="3">3 張</option>
+            <option value="4">4 張</option>
+            <option value="5">5 張</option>
+            <option value="6">6 張</option>
+          </select>
+        </label>
+        <button class="btn-primary" id="bookingSeatConfirm" type="button" style="width:100%; justify-content:center;">確定並前往官網</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script src="./train.real-schedule.js"></script>
 <script>
   // ===== 全域 =====
@@ -3116,8 +3167,6 @@ function splitArrDep(stopRow){
       let descriptor = '';
       if(entry.kind === 'origin') descriptor = '起站';
       else if(entry.kind === 'terminal') descriptor = '終點';
-      else if(entry.kind === 'pass') descriptor = '通過站';
-      else if(showPassStops) descriptor = '停靠站';
 
       return {
         station: entry.station,
@@ -3477,6 +3526,159 @@ async function getTDXAccessToken(force = false) {
     console.error("TDX Auth Error:", err);
     return "";
   }
+}
+
+function openTraBookingWeb(trainNo, startStationName, endStationName, dateStr, seatQty = 1) {
+  const formatTraBookingStationValue = (stationName) => {
+    const raw = String(stationName || '').trim();
+    if(!raw) return '';
+    const resolvedName = extractStationNameFromInput(raw) || normTW(raw);
+    const stationId = nameToId[resolvedName] || '';
+    const displayName = stationId && window.stationMap?.[stationId]
+      ? normTW(window.stationMap[stationId])
+      : resolvedName;
+    return stationId ? `${stationId}-${displayName}` : displayName;
+  };
+  const sName = formatTraBookingStationValue(startStationName);
+  const eName = formatTraBookingStationValue(endStationName);
+  const rideDate = String(dateStr || '').trim().replace(/-/g, '/');
+  const trainNoText = String(trainNo || '').trim();
+  const pid = String(localStorage.getItem('tra_booking_pid') || '').trim().toUpperCase().replace(/\s+/g, '');
+  const normalQty = Math.max(1, Math.min(6, parseInt(seatQty, 10) || 1));
+  const actionUrl = 'https://www.railway.gov.tw/tra-tip-web/tip/tip001/tip121/bookingTicket';
+  const form = document.createElement('form');
+  form.method = 'POST';
+  form.action = actionUrl;
+  form.target = '_blank';
+  form.style.display = 'none';
+
+  const fields = [
+    ['custIdTypeEnum', 'PERSON_ID'],
+    ['pid', pid],
+    ['startStation', sName],
+    ['endStation', eName],
+    ['tripType', 'ONEWAY'],
+    ['orderType', 'BY_TRAIN_NO'],
+    ['normalQty', String(normalQty)],
+    ['wheelChairQty', '0'],
+    ['parentChildQty', '0'],
+    ['ticketOrderParamList[0].tripNo', 'TRIP1'],
+    ['ticketOrderParamList[0].rideDate', rideDate],
+    ['ticketOrderParamList[0].startStation', sName],
+    ['ticketOrderParamList[0].endStation', eName],
+    ['ticketOrderParamList[0].trainNo', trainNoText],
+    ['ticketOrderParamList[0].trainNoList[0]', trainNoText],
+    ['rideDate1', rideDate],
+    ['trainNo', trainNoText],
+    ['trainNoList1', trainNoText],
+    ['trainNoList2', ''],
+    ['trainNoList3', ''],
+  ];
+
+  fields.forEach(([name, value]) => {
+    if(value === null || value === undefined) return;
+    const input = document.createElement('input');
+    input.type = 'hidden';
+    input.name = name;
+    input.value = value;
+    form.appendChild(input);
+  });
+
+  document.body.appendChild(form);
+  form.submit();
+  form.remove();
+}
+
+function showTraSeatQuantityDialog(defaultQty = 1) {
+  const modal = document.getElementById('bookingSeatModal');
+  const select = document.getElementById('bookingSeatQtySelect');
+  const confirmBtn = document.getElementById('bookingSeatConfirm');
+  const closeBtn = document.getElementById('bookingSeatClose');
+  if(!modal || !select || !confirmBtn || !closeBtn){
+    return Promise.resolve(Math.max(1, Math.min(6, parseInt(defaultQty, 10) || 1)));
+  }
+
+  const initialQty = Math.max(1, Math.min(6, parseInt(defaultQty, 10) || 1));
+  select.value = String(initialQty);
+
+  return new Promise((resolve) => {
+    let settled = false;
+
+    const finish = (qty) => {
+      if(settled) return;
+      settled = true;
+      modal.style.display = 'none';
+      confirmBtn.removeEventListener('click', onConfirm);
+      closeBtn.removeEventListener('click', onCancel);
+      modal.removeEventListener('click', onBackdrop);
+      document.removeEventListener('keydown', onKeydown);
+      resolve(qty);
+    };
+
+    const onConfirm = () => {
+      const qty = Math.max(1, Math.min(6, parseInt(select.value, 10) || 1));
+      finish(qty);
+    };
+    const onCancel = () => finish(null);
+    const onBackdrop = (event) => {
+      if(event.target === modal) finish(null);
+    };
+    const onKeydown = (event) => {
+      if(event.key === 'Escape') finish(null);
+    };
+
+    confirmBtn.addEventListener('click', onConfirm);
+    closeBtn.addEventListener('click', onCancel);
+    modal.addEventListener('click', onBackdrop);
+    document.addEventListener('keydown', onKeydown);
+    modal.style.display = 'flex';
+    setTimeout(() => {
+      try{ select.focus(); }catch(e){}
+    }, 0);
+  });
+}
+
+function showTraBookingChoiceDialog() {
+  const modal = document.getElementById('bookingChoiceModal');
+  const appBtn = document.getElementById('bookingChoiceApp');
+  const webBtn = document.getElementById('bookingChoiceWeb');
+  const closeBtn = document.getElementById('bookingChoiceClose');
+  if(!modal || !appBtn || !webBtn || !closeBtn){
+    return Promise.resolve('app');
+  }
+
+  return new Promise((resolve) => {
+    let settled = false;
+
+    const finish = (choice) => {
+      if(settled) return;
+      settled = true;
+      modal.style.display = 'none';
+      appBtn.removeEventListener('click', onApp);
+      webBtn.removeEventListener('click', onWeb);
+      closeBtn.removeEventListener('click', onCancel);
+      modal.removeEventListener('click', onBackdrop);
+      document.removeEventListener('keydown', onKeydown);
+      resolve(choice);
+    };
+
+    const onApp = () => finish('app');
+    const onWeb = () => finish('web');
+    const onCancel = () => finish('cancel');
+    const onBackdrop = (event) => {
+      if(event.target === modal) finish('cancel');
+    };
+    const onKeydown = (event) => {
+      if(event.key === 'Escape') finish('cancel');
+    };
+
+    appBtn.addEventListener('click', onApp);
+    webBtn.addEventListener('click', onWeb);
+    closeBtn.addEventListener('click', onCancel);
+    modal.addEventListener('click', onBackdrop);
+    document.addEventListener('keydown', onKeydown);
+    modal.style.display = 'flex';
+  });
 }
 
 // 修改跳轉函式：直接導向 API URL 觸發瀏覽器跳轉
@@ -4484,13 +4686,7 @@ function renderTimeWithDelay(trainNo, schedHHMM, queryDateStr, opts, baseAbsMin=
         const r = currentStartEndList[idx];
         if(!r) return;
 
-        
-        // 桌機：提示需使用行動裝置與已安裝 App
-        if(isDesktopDevice()){
-          alert('限使用行動裝置並已下載 臺鐵e訂通 App使用。');
-          return;
-        }
-// disabled：顯示原因
+        // disabled：顯示原因
         if(ticket.dataset.disabled === '1' || ticket.disabled){
           // 已經在按鈕文字上顯示了，但以防萬一
           // const reason = ticket.textContent || '此班次目前不可訂票';
@@ -4502,6 +4698,22 @@ function renderTimeWithDelay(trainNo, schedHHMM, queryDateStr, opts, baseAbsMin=
         const elig = getBookingEligibilityByRow(r);
         if(!elig.ok){
           alert(elig.reason || '此班次目前不可訂票');
+          return;
+        }
+
+        if(isDesktopDevice()){
+          const seatQty = await showTraSeatQuantityDialog(1);
+          if(!seatQty) return;
+          openTraBookingWeb(r.num, r.startStation, r.endStation, currentQueryDateStr, seatQty);
+          return;
+        }
+
+        const bookingChoice = await showTraBookingChoiceDialog();
+        if(bookingChoice === 'cancel') return;
+        if(bookingChoice === 'web'){
+          const seatQty = await showTraSeatQuantityDialog(1);
+          if(!seatQty) return;
+          openTraBookingWeb(r.num, r.startStation, r.endStation, currentQueryDateStr, seatQty);
           return;
         }
 
@@ -5455,6 +5667,10 @@ function filterTrainScheduleByNumber(){
       }
       if(nextTimelineIndex===-1 && timelineRows.length) nextTimelineIndex = timelineRows.length - 1;
     }
+    const nextStopTimelineIndex =
+      nextTimelineIndex >= 0 && timelineRows[nextTimelineIndex]?.kind === 'pass'
+        ? timelineRows.findIndex((row, index)=>index > nextTimelineIndex && row.kind !== 'pass')
+        : -1;
 
     document.getElementById('modalTitleMain').innerHTML = `
       <span class="modal-brand-tag">TR</span>
@@ -5515,6 +5731,7 @@ function filterTrainScheduleByNumber(){
       const arrHTML = renderTimelineSecondaryTimeHtml(trainNo, row.secondaryPrefix, row.secondaryText, row.secondaryAbs, originDateStr, passedHere);
       const badgeLabel = row.kind === 'pass' ? '即將通過' : '下一站';
       const badgeNext = isNext ? ` <span class="badge-next">${badgeLabel}</span>` : '';
+      const badgeFollow = nextStopTimelineIndex === i ? ` <span class="badge-follow">下一停靠</span>` : '';
       const tag = row.descriptor || '';
 
       item.innerHTML=`
@@ -5524,7 +5741,7 @@ function filterTrainScheduleByNumber(){
           <div class="tl-line"></div>
         </div>
         <div class="tl-content">
-          <div class="tl-station"><span>${row.station}</span>${arrHTML?`<span class="st-arr ${row.kind === 'pass' ? 'pass' : 'stop'}">${arrHTML}</span>`:""}${badgeNext}</div>
+          <div class="tl-station"><span>${row.station}</span>${arrHTML?`<span class="st-arr ${row.kind === 'pass' ? 'pass' : 'stop'}">${arrHTML}</span>`:""}${badgeNext}${badgeFollow}</div>
           ${tag ? `<div class="tl-desc">${tag}</div>` : ''}
         </div>
       `;
