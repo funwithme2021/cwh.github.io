@@ -1305,6 +1305,7 @@
   }
 
   function initModalCapture(system) {
+    return;
     const modal = document.getElementById("trainModal");
     const header = modal?.querySelector(".modal-header");
     const content = modal?.querySelector(".modal-content");

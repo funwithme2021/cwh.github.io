@@ -1749,6 +1749,42 @@ td{ border-bottom: 1px solid rgba(255,255,255,0.06); }
       font-weight:900;
       letter-spacing:.04em;
     }
+    .modal-section-head{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+      margin-bottom:14px;
+      flex-wrap:wrap;
+    }
+    .modal-section-head .modal-section-title{
+      margin-bottom:0;
+    }
+    .modal-toggle-btn{
+      appearance:none;
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      border:1px solid rgba(59,130,246,0.18);
+      background: rgba(59,130,246,0.1);
+      color:#1d4ed8;
+      border-radius:999px;
+      padding:8px 14px;
+      font-size:.82rem;
+      font-weight:800;
+      cursor:pointer;
+      transition:transform .15s ease, background .15s ease, border-color .15s ease;
+    }
+    .modal-toggle-btn:hover{
+      transform:translateY(-1px);
+      background: rgba(59,130,246,0.16);
+      border-color: rgba(59,130,246,0.26);
+    }
+    body.dark-mode .modal-toggle-btn{
+      background: rgba(96,165,250,0.14);
+      border-color: rgba(96,165,250,0.22);
+      color:#bfdbfe;
+    }
     .timeline{
       padding:0;
     }
@@ -1807,6 +1843,21 @@ td{ border-bottom: 1px solid rgba(255,255,255,0.06); }
       font-size:.72rem;
       font-weight:700;
     }
+    .st-arr.pass{
+      background: rgba(14,165,233,0.12);
+      color:#0369a1;
+    }
+    body.dark-mode .st-arr.pass{
+      color:#7dd3fc;
+    }
+    .st-arr-prefix{
+      margin-right:2px;
+      font-weight:900;
+    }
+    .tl-time-empty{
+      color:transparent;
+      user-select:none;
+    }
     .tl-desc{
       margin-top:8px;
       color: var(--text-muted);
@@ -1828,6 +1879,19 @@ td{ border-bottom: 1px solid rgba(255,255,255,0.06); }
     }
     .timeline-item.transfer .tl-station{
       color:#b45309;
+    }
+    .timeline-item.pass .tl-dot{
+      background: rgba(14,165,233,0.2);
+      box-shadow:none;
+    }
+    .timeline-item.pass .tl-content{
+      border-style:dashed;
+    }
+    .timeline-item.pass .tl-station{
+      color:#0369a1;
+    }
+    body.dark-mode .timeline-item.pass .tl-station{
+      color:#7dd3fc;
     }
     .badge-next,
     .badge-xfer{
@@ -2249,6 +2313,13 @@ td{ border-bottom: 1px solid rgba(255,255,255,0.06); }
     .modal-section-title{
       margin-bottom: 10px;
     }
+    .modal-section-head{
+      margin-bottom: 10px;
+    }
+    .modal-toggle-btn{
+      padding: 6px 12px;
+      font-size: .76rem;
+    }
     .timeline-item{
       gap: 10px;
       padding: 0 0 8px;
@@ -2288,11 +2359,27 @@ td{ border-bottom: 1px solid rgba(255,255,255,0.06); }
       padding: 2px 6px;
       font-size: .68rem;
     }
+    .st-arr-prefix{
+      margin-right: 1px;
+    }
     .tl-desc{
       margin-top: 3px;
       font-size: .73rem;
     }
+    .timeline-item.pass .tl-station{
+      color:#0369a1;
+    }
+    body.dark-mode .timeline-item.pass .tl-station{
+      color:#7dd3fc;
+    }
     @media (max-width: 760px){
+      .modal-section-head{
+        align-items:flex-start;
+      }
+      .modal-toggle-btn{
+        width:100%;
+        justify-content:center;
+      }
       .timeline-item{
         gap: 8px;
         padding: 0 0 6px;
@@ -2900,35 +2987,151 @@ function splitArrDep(stopRow){
     const absDep = [];
     const dayArr = [];
     let day = 0;
-    let prevKey = null;
+    let prevMin = null;
+
+    const toAbs = (timeStr) => {
+      const minute = parseTime(timeStr);
+      if(minute === null) return null;
+      if(prevMin !== null && minute < prevMin) day += 1;
+      prevMin = minute;
+      return day * 1440 + minute;
+    };
 
     for(let i=0;i<stops.length;i++){
-      const arrStr = stops[i][1] || '';
-      const depStr = stops[i][2] || '';
+      const ad = splitArrDep(stops[i]);
+      let arrAbs = null;
+      let depAbs = null;
 
-      const arrMin = parseTime(arrStr);
-      const depMin = parseTime(depStr);
-
-      // 用「較晚者」當作跨日判斷 key（避免同站到/開差 1-2 分造成誤判）
-      let keyMin = null;
-      if(depMin !== null && arrMin !== null) keyMin = Math.max(depMin, arrMin);
-      else keyMin = (depMin !== null) ? depMin : ((arrMin !== null) ? arrMin : null);
-
-      if(keyMin === null){
-        absArr.push(null); absDep.push(null); dayArr.push(day);
-        continue;
+      if(ad.arr && ad.dep && ad.arr === ad.dep){
+        const abs = toAbs(ad.dep || ad.arr);
+        arrAbs = abs;
+        depAbs = abs;
+      }else{
+        if(ad.arr) arrAbs = toAbs(ad.arr);
+        if(ad.dep) depAbs = toAbs(ad.dep);
       }
 
-      if(prevKey !== null && keyMin < prevKey) day += 1; // 跨日
-      const base = day*1440;
-
-      absArr.push(arrMin === null ? null : base + arrMin);
-      absDep.push(depMin === null ? null : base + depMin);
+      absArr.push(arrAbs);
+      absDep.push(depAbs);
       dayArr.push(day);
-      prevKey = keyMin;
     }
 
     return { absArr, absDep, day: dayArr };
+  }
+
+  function formatAbsTime(absMin){
+    if(absMin === null || absMin === undefined || !Number.isFinite(absMin)) return '';
+    const minute = ((Math.round(absMin) % 1440) + 1440) % 1440;
+    const hh = Math.floor(minute / 60);
+    const mm = minute % 60;
+    return `${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}`;
+  }
+
+  function getTraRouteStationsBetween(startStation, endStation){
+    if(!startStation || !endStation) return [startStation, endStation].filter(Boolean);
+    if(startStation === endStation) return [startStation];
+    const finder = window.RailNetwork?.findTraRoutePath;
+    const path = (typeof finder === 'function') ? finder(startStation, endStation) : [];
+    if(Array.isArray(path) && path.length) return path.slice();
+    return [startStation, endStation];
+  }
+
+  function buildTraTimelineRows(stops, showPassStops){
+    const rows = stops || [];
+    const absAD = buildAbsArrDep(rows);
+    const actualEntries = [];
+
+    for(let i=0;i<rows.length;i++){
+      const row = rows[i] || [];
+      const station = row[0] || '';
+      if(!station) continue;
+
+      const raw1 = row[1] || '';
+      const raw2 = row[2] || '';
+      const hasSingleTime = !!((raw1 || raw2) && !(raw1 && raw2));
+      const isEdge = i === 0 || i === rows.length - 1;
+      const isPassOnly = !isEdge && hasSingleTime;
+      const ad = splitArrDep(row);
+      const kind = isPassOnly ? 'pass' : (i === 0 ? 'origin' : (i === rows.length - 1 ? 'terminal' : 'stop'));
+
+      actualEntries.push({
+        station,
+        kind,
+        source: 'schedule',
+        arrText: ad.arr || '',
+        depText: ad.dep || '',
+        arrAbs: absAD.absArr[i],
+        depAbs: absAD.absDep[i],
+        eventAbs: (i === rows.length - 1) ? (absAD.absArr[i] ?? absAD.absDep[i]) : (absAD.absDep[i] ?? absAD.absArr[i]),
+        hasSeparateArrival: !!(raw1 && raw2),
+      });
+    }
+
+    const expanded = [];
+    if(showPassStops && actualEntries.length){
+      expanded.push(actualEntries[0]);
+      for(let i=0;i<actualEntries.length-1;i++){
+        const current = actualEntries[i];
+        const next = actualEntries[i+1];
+        const path = getTraRouteStationsBetween(current.station, next.station);
+        if(path.length <= 1){
+          expanded.push(next);
+          continue;
+        }
+
+        const startAbs = current.depAbs ?? current.arrAbs ?? current.eventAbs;
+        const endAbs = next.arrAbs ?? next.depAbs ?? next.eventAbs;
+        const segmentCount = Math.max(1, path.length - 1);
+        const duration = (Number.isFinite(startAbs) && Number.isFinite(endAbs)) ? Math.max(0, endAbs - startAbs) : null;
+
+        for(let step=1; step<path.length; step++){
+          if(step === path.length - 1){
+            expanded.push(next);
+            continue;
+          }
+          const passAbs = (duration === null) ? null : Math.round(startAbs + (duration * step / segmentCount));
+          expanded.push({
+            station: path[step],
+            kind: 'pass',
+            source: 'estimated',
+            arrText: '',
+            depText: '',
+            arrAbs: null,
+            depAbs: null,
+            eventAbs: passAbs,
+            passText: formatAbsTime(passAbs),
+            hasSeparateArrival: false,
+          });
+        }
+      }
+    }
+
+    const visible = showPassStops ? expanded : actualEntries.filter((entry)=>entry.kind !== 'pass');
+    return visible.map((entry)=>{
+      const isPass = entry.kind === 'pass';
+      const primaryText = isPass ? '' : ((entry.kind === 'terminal') ? (entry.arrText || entry.depText || '') : (entry.depText || entry.arrText || ''));
+      const primaryAbs = isPass ? null : ((entry.kind === 'terminal') ? (entry.arrAbs ?? entry.depAbs ?? entry.eventAbs) : (entry.depAbs ?? entry.arrAbs ?? entry.eventAbs));
+      const secondaryText = isPass ? (entry.passText || entry.depText || entry.arrText || '') : ((entry.hasSeparateArrival || entry.arrText !== primaryText) ? (entry.arrText || '') : '');
+      const secondaryPrefix = isPass ? '通' : (secondaryText ? '到' : '');
+      let descriptor = '';
+      if(entry.kind === 'origin') descriptor = '起站';
+      else if(entry.kind === 'terminal') descriptor = '終點';
+      else if(entry.kind === 'pass') descriptor = '通過站';
+      else if(showPassStops) descriptor = '停靠站';
+
+      return {
+        station: entry.station,
+        kind: entry.kind,
+        source: entry.source,
+        primaryText,
+        primaryAbs,
+        secondaryText,
+        secondaryPrefix,
+        secondaryAbs: isPass ? entry.eventAbs : (entry.arrAbs ?? entry.eventAbs),
+        eventAbs: entry.eventAbs,
+        descriptor,
+      };
+    });
   }
 
 
@@ -3768,7 +3971,7 @@ function renderHistory(){
   // 如果 Modal 正在開著，也更新它的標題狀態（不顯示已過站）
   if(modalCtx && modal && modal.style.display === 'flex'){
     // 重新渲染一次詳細資訊（它會用同一車次與 originDate）
-    showTrainDetails(modalCtx.trainNo, modalCtx.originDate);
+    showTrainDetails(modalCtx.trainNo, modalCtx.originDate, { showPassStops: !!modalCtx.showPassStops });
   }
 }
 
@@ -5161,8 +5364,21 @@ function filterTrainScheduleByNumber(){
   if(modal){ modal.addEventListener('click',(e)=>{ if(e.target===modal) closeModal(); }); }
   document.addEventListener('keydown',(e)=>{ if(e.key==='Escape' && modal && modal.style.display==='flex') closeModal(); });
 
-  function showTrainDetails(trainNo, originDateStr){
-    modalCtx = { trainNo, originDate: originDateStr };
+  function renderTimelinePrimaryTimeHtml(trainNo, timeText, absMin, originDateStr, passedHere){
+    if(!timeText) return `<span class="tl-time-empty">--</span>`;
+    if(passedHere) return `<span style="color:var(--text-muted);">${timeText}</span>`;
+    return renderTimeWithDelay(trainNo, timeText, currentQueryDateStr, null, absMin, originDateStr);
+  }
+
+  function renderTimelineSecondaryTimeHtml(trainNo, prefix, timeText, absMin, originDateStr, passedHere){
+    if(!prefix || !timeText) return '';
+    if(passedHere) return `<span style="color:var(--text-muted);">${prefix}${timeText}</span>`;
+    return `<span class="st-arr-prefix">${prefix}</span>${renderTimeWithDelay(trainNo, timeText, currentQueryDateStr, null, absMin, originDateStr)}`;
+  }
+
+  function showTrainDetails(trainNo, originDateStr, options){
+    const showPassStops = !!(options && options.showPassStops);
+    modalCtx = { trainNo, originDate: originDateStr, showPassStops };
 
     const t = (originDateStr === currentQueryDateStr) ? baseSchedule[trainNo] : (prevSchedule[trainNo] || baseSchedule[trainNo]);
     if(!t) return;
@@ -5185,6 +5401,9 @@ function filterTrainScheduleByNumber(){
 
     const body=document.getElementById('modalBody');
     const abs = buildAbsMinutes(arr);
+    const absAD = buildAbsArrDep(arr);
+    const firstHeroAbs = absAD.absDep[0] ?? absAD.absArr[0] ?? abs?.[0]?.abs ?? null;
+    const lastHeroAbs = absAD.absArr[arr.length - 1] ?? absAD.absDep[arr.length - 1] ?? abs?.[arr.length - 1]?.abs ?? null;
 
     const todayStr = fmtDate(new Date());
     const yestStr  = addDays(todayStr, -1);
@@ -5223,6 +5442,19 @@ function filterTrainScheduleByNumber(){
 
     const crossDayInfo = getCrossDayInfo(arr);
     const currentLocation = getCurrentLocationText(arr, nextIndex, status, canNext);
+    const timelineRows = buildTraTimelineRows(arr, showPassStops);
+
+    let nextTimelineIndex = -1;
+    if(canNext){
+      for(let i=0;i<timelineRows.length;i++){
+        const a = timelineRows[i]?.eventAbs;
+        if(a!==null && a!==undefined && Number.isFinite(a) && Number.isFinite(nowAbs) && (a + Math.max(0,delayMin)) >= nowAbs){
+          nextTimelineIndex = i;
+          break;
+        }
+      }
+      if(nextTimelineIndex===-1 && timelineRows.length) nextTimelineIndex = timelineRows.length - 1;
+    }
 
     document.getElementById('modalTitleMain').innerHTML = `
       <span class="modal-brand-tag">TR</span>
@@ -5243,9 +5475,9 @@ function filterTrainScheduleByNumber(){
       <section class="modal-hero">
         <div class="modal-route-strip">
           <span>${firstStation}</span>
-          <strong>${renderTimeWithDelay(trainNo, firstDep, currentQueryDateStr, null, abs?.[0]?.abs, originDateStr)}</strong>
+          <strong>${renderTimeWithDelay(trainNo, firstDep, currentQueryDateStr, null, firstHeroAbs, originDateStr)}</strong>
           <div class="modal-route-line"></div>
-          <strong>${renderTimeWithDelay(trainNo, lastArr, currentQueryDateStr, null, abs?.[arr.length - 1]?.abs, originDateStr)}</strong>
+          <strong>${renderTimeWithDelay(trainNo, lastArr, currentQueryDateStr, null, lastHeroAbs, originDateStr)}</strong>
           <span>${lastStation}</span>
         </div>
         <div class="modal-stats">
@@ -5256,7 +5488,10 @@ function filterTrainScheduleByNumber(){
         </div>
       </section>
       <section class="modal-section">
-        <div class="modal-section-title">停靠時間軸</div>
+        <div class="modal-section-head">
+          <div class="modal-section-title">停靠時間軸</div>
+          <button type="button" class="modal-toggle-btn" id="modalPassToggle">${showPassStops ? '隱藏通過站' : '查看通過站'}</button>
+        </div>
         <div id="modalTimelineMount"></div>
       </section>
     `;
@@ -5264,30 +5499,23 @@ function filterTrainScheduleByNumber(){
     const timeline=document.createElement('div');
     timeline.className='timeline';
 
-    arr.forEach((s, i)=>{
+    timelineRows.forEach((row, i)=>{
       const item=document.createElement('div');
       item.className='timeline-item';
+      if(row.kind === 'pass') item.classList.add('pass');
 
-      // 左側：開車時間（沒有就用到達）
-      const ad = splitArrDep(s);
-      // 左側：開車時間（沒有就用到達）
-      const depTime = ad.dep || ad.arr || '--';
-      // 右側：到達時間（可能為空；起站通常沒有到達）
-      const arrTime = ad.arr || '';
-      const passedHere = canNext && (nextIndex===-1 ? true : i < nextIndex);
-
-
-      let depHTML, arrHTML;
-      if(passedHere){
-        depHTML = `<span style="color:var(--text-muted);">${depTime}</span>`;
-        arrHTML = arrTime ? `<span style="color:var(--text-muted);">${arrTime}</span>` : '';
-      }else{
-        depHTML = renderTimeWithDelay(trainNo, depTime, currentQueryDateStr, null, abs?.[i]?.abs, originDateStr);
-        arrHTML = arrTime ? renderTimeWithDelay(trainNo, arrTime, currentQueryDateStr, null, abs?.[i]?.abs, originDateStr) : '';
-      }
-
-      const badgeNext = (canNext && i===nextIndex) ? ` <span class="badge-next">下一站</span>` : '';
-      const tag = (i===0) ? '起站' : (i===arr.length-1 ? '終點' : '');
+      const eventAbs = row.eventAbs;
+      const passedHere =
+        canNext &&
+        Number.isFinite(nowAbs) &&
+        Number.isFinite(eventAbs) &&
+        (eventAbs + Math.max(0,delayMin)) < nowAbs;
+      const isNext = canNext && i === nextTimelineIndex;
+      const depHTML = renderTimelinePrimaryTimeHtml(trainNo, row.primaryText, row.primaryAbs, originDateStr, passedHere);
+      const arrHTML = renderTimelineSecondaryTimeHtml(trainNo, row.secondaryPrefix, row.secondaryText, row.secondaryAbs, originDateStr, passedHere);
+      const badgeLabel = row.kind === 'pass' ? '即將通過' : '下一站';
+      const badgeNext = isNext ? ` <span class="badge-next">${badgeLabel}</span>` : '';
+      const tag = row.descriptor || '';
 
       item.innerHTML=`
         <div class="tl-time">${depHTML}</div>
@@ -5296,20 +5524,22 @@ function filterTrainScheduleByNumber(){
           <div class="tl-line"></div>
         </div>
         <div class="tl-content">
-          <div class="tl-station"><span>${s[0]}</span>${arrHTML?`<span class="st-arr">${arrHTML}</span>`:""}${badgeNext}</div>
+          <div class="tl-station"><span>${row.station}</span>${arrHTML?`<span class="st-arr ${row.kind === 'pass' ? 'pass' : 'stop'}">${arrHTML}</span>`:""}${badgeNext}</div>
           ${tag ? `<div class="tl-desc">${tag}</div>` : ''}
         </div>
       `;
 
-      if(canNext){
-        if(i<nextIndex) item.classList.add('passed');
-        if(i===nextIndex) item.classList.add('next');
-      }
+      if(passedHere) item.classList.add('passed');
+      if(isNext) item.classList.add('next');
 
       timeline.appendChild(item);
     });
 
     body.querySelector('#modalTimelineMount')?.appendChild(timeline);
+    body.querySelector('#modalPassToggle')?.addEventListener('click', ()=>{
+      if(!modalCtx) return;
+      showTrainDetails(modalCtx.trainNo, modalCtx.originDate, { showPassStops: !modalCtx.showPassStops });
+    });
     modal.style.display='flex';
   }
 
