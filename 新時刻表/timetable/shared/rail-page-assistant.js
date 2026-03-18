@@ -38,6 +38,9 @@
   }
 
   function parseDate(rawText) {
+    if (window.RailAssistantCommon?.parseFlexibleDate) {
+      return window.RailAssistantCommon.parseFlexibleDate(rawText, todayDateStr);
+    }
     let text = String(rawText || "").trim();
     let dateStr = todayDateStr();
     let dateLabel = "今天";
@@ -81,6 +84,9 @@
   }
 
   function parseTimeWindow(rawText) {
+    if (window.RailAssistantCommon?.parseFlexibleTimeWindow) {
+      return window.RailAssistantCommon.parseFlexibleTimeWindow(rawText);
+    }
     let text = String(rawText || "").trim();
     let timeStartMin = null;
     let timeEndMin = null;
@@ -188,6 +194,18 @@
     return normalizeTraTypeText(value).replace(/\s+/g, "").replace(/號/g, "").replace(/臺/g, "台");
   }
 
+  function getAssistantLang() {
+    return window.RailAssistantCommon?.getLang?.() || localStorage.getItem("lang") || "zh";
+  }
+
+  function translateStationLabel(name, system) {
+    return window.RailAssistantCommon?.translateStationName?.(name, system, getAssistantLang()) || String(name || "");
+  }
+
+  function renderStationLabel(name, system) {
+    return `<span class="notranslate" translate="no">${escapeHtml(translateStationLabel(name, system))}</span>`;
+  }
+
   function typeMatches(source, target) {
     if (!target) return true;
     const a = normalizeTypeName(source);
@@ -197,7 +215,8 @@
 
   function renderTraTypeInline(value) {
     const type = normalizeTraTypeText(value);
-    return `<span style="color:${escapeHtml(getTraTypeColor(type))};font-weight:700">${escapeHtml(type)}</span>`;
+    const label = window.RailAssistantCommon?.translateTraType?.(type, getAssistantLang()) || type;
+    return `<span class="notranslate" translate="no" style="color:${escapeHtml(getTraTypeColor(type))};font-weight:700">${escapeHtml(label)}</span>`;
   }
 
   function detectDirection(text, system) {
@@ -362,11 +381,13 @@
     const style = document.createElement("style");
     style.id = STYLE_ID;
     style.textContent = `
-      .rail-ai-panel{margin-top:16px; display:flex; flex-direction:column; gap:14px; border:1px solid var(--border); background:linear-gradient(180deg, color-mix(in srgb, var(--bg-surface) 92%, #dbeafe 8%), var(--bg-surface));}
+      .rail-ai-panel{margin-top:16px; display:flex; flex-direction:column; gap:14px; border:1px solid color-mix(in srgb, var(--primary) 16%, var(--border)); background:
+        radial-gradient(circle at top right, color-mix(in srgb, var(--primary) 14%, transparent), transparent 34%),
+        linear-gradient(180deg, color-mix(in srgb, var(--bg-surface) 92%, #dbeafe 8%), var(--bg-surface)); box-shadow:0 24px 48px rgba(15,23,42,0.08);}
       .rail-ai-head{display:flex; align-items:flex-start; justify-content:space-between; gap:14px;}
       .rail-ai-head p{margin:4px 0 0; color:var(--text-muted); line-height:1.65; font-size:.94rem;}
       .rail-ai-badges{display:flex; flex-wrap:wrap; gap:8px; justify-content:flex-end;}
-      .rail-ai-badge{display:inline-flex; align-items:center; gap:6px; padding:6px 10px; border:1px solid var(--border); border-radius:999px; font-size:.78rem; letter-spacing:.08em; font-weight:700; color:var(--primary); background:color-mix(in srgb, var(--bg-body) 70%, transparent);}
+      .rail-ai-badge{display:inline-flex; align-items:center; gap:6px; padding:6px 10px; border:1px solid color-mix(in srgb, var(--primary) 26%, var(--border)); border-radius:999px; font-size:.78rem; letter-spacing:.08em; font-weight:800; color:var(--primary); background:color-mix(in srgb, var(--primary) 9%, var(--bg-body));}
       .rail-ai-bar{display:grid; grid-template-columns:minmax(0,1fr) auto; gap:10px; align-items:center;}
       .rail-ai-input{width:100%; min-height:48px; border-radius:16px; border:1px solid var(--border); background:var(--bg-body); color:var(--text-main); padding:0 16px; font:inherit;}
       .rail-ai-input:focus{outline:none; border-color:var(--primary); box-shadow:0 0 0 3px color-mix(in srgb, var(--primary) 16%, transparent);}
@@ -378,16 +399,16 @@
       .rail-ai-empty,.rail-ai-error{padding:14px 16px; border-radius:16px; border:1px dashed var(--border); color:var(--text-muted); background:color-mix(in srgb, var(--bg-body) 84%, transparent); line-height:1.7;}
       .rail-ai-error{color:#b91c1c; border-style:solid; border-color:color-mix(in srgb, #ef4444 35%, var(--border)); background:color-mix(in srgb, #fee2e2 65%, var(--bg-body));}
       .rail-ai-title{display:flex; flex-wrap:wrap; align-items:center; gap:10px;}
-      .rail-ai-title strong{font-size:1.08rem;}
+      .rail-ai-title strong{font-size:1.08rem; display:flex; flex-wrap:wrap; align-items:center; gap:8px;}
       .rail-ai-meta-row{display:flex; flex-wrap:wrap; gap:8px;}
       .rail-ai-meta-pill{display:inline-flex; align-items:center; gap:6px; padding:6px 10px; border-radius:999px; border:1px solid var(--border); background:var(--bg-body); color:var(--text-main); font-size:.82rem; font-weight:600;}
       .rail-ai-note{margin:0; color:var(--text-muted); line-height:1.7; font-size:.92rem;}
       .rail-ai-section{display:flex; flex-direction:column; gap:10px;}
-      .rail-ai-section-head{display:flex; align-items:center; justify-content:space-between; gap:10px;}
+      .rail-ai-section-head{display:flex; align-items:center; justify-content:space-between; gap:10px; padding:2px 2px 0;}
       .rail-ai-section-head strong{font-size:.96rem;}
       .rail-ai-section-head span{font-size:.82rem; color:var(--text-muted);}
       .rail-ai-list{display:grid; gap:10px; grid-template-columns:repeat(auto-fit,minmax(280px,1fr));}
-      .rail-ai-card{border:1px solid var(--border); border-radius:18px; background:var(--bg-body); padding:14px 16px; display:flex; flex-direction:column; gap:10px;}
+      .rail-ai-card{border:1px solid color-mix(in srgb, var(--primary) 10%, var(--border)); border-radius:18px; background:linear-gradient(180deg, color-mix(in srgb, var(--primary) 4%, var(--bg-body)), var(--bg-body)); padding:14px 16px; display:flex; flex-direction:column; gap:10px; box-shadow:0 16px 32px rgba(15,23,42,0.06);}
       .rail-ai-card-head{display:flex; align-items:flex-start; justify-content:space-between; gap:12px;}
       .rail-ai-card-head strong{font-size:1rem;}
       .rail-ai-card-main{display:flex; flex-direction:column; gap:6px;}
@@ -435,20 +456,20 @@
       ? "可直接輸入日期、時間、時段、起訖站、車種、轉乘、車次或車站，助手會幫你套用到頁面查詢並整理重點。"
       : "可直接輸入日期、時間、時段、起訖站、直達條件、車次或車站，助手會幫你套用到頁面查詢並整理重點。";
     const placeholder = isTra
-      ? "例如：今天 08:00 台北到台中 自強號 / 明天 花蓮到台南 可轉乘 / 271次 台中幾點到 / 板橋 08:10-12:00"
-      : "例如：今天 08:00 台北到左營 直達 / 4/5 08:10-12:00 台中站有什麼車 / 125次 台南幾點到";
+      ? "例如：今天 7點半 台北到台中 自強號 / 明天上午 花蓮往台南 可轉乘 / 271次 台中幾點到 / 7.13 板橋站有什麼車"
+      : "例如：今天 7點半 台北到左營 直達 / 下午七點 台中站有什麼車 / 125次 台南幾點到 / 7月13日 板橋往左營";
     const chips = (isTra
       ? [
-          "今天 08:00 台北到台中 自強號",
-          "明天 花蓮到台南 可轉乘",
+          "今天 7點半 台北到台中 自強號",
+          "明天上午 花蓮往台南 可轉乘",
           "271次 台中幾點到",
-          "4/5板橋 08:10",
+          "7.13 板橋站有什麼車",
         ]
       : [
-          "今天 08:00 台北到左營 直達",
-          "4/5 08:10-12:00 台中站有什麼車",
+          "今天 7點半 台北到左營 直達",
+          "下午七點 台中站有什麼車",
           "125次 台南幾點到",
-          "明天 板橋到左營 有票嗎",
+          "7月13日 板橋往左營",
         ])
       .map((item) => `<button class="rail-ai-chip" type="button" data-ai-prompt="${escapeHtml(item)}">${escapeHtml(item)}</button>`)
       .join("");
@@ -757,8 +778,8 @@
             <article class="rail-ai-card">
               <div class="rail-ai-card-head">
                 <div class="rail-ai-card-main">
-                  <strong>${escapeHtml(item.num)} 次｜${renderTraTypeInline(item.type)}</strong>
-                  <p class="rail-ai-line">${item.depHTML || escapeHtml(item.depSched)} ${escapeHtml(item.startStation)} 出發 → ${item.arrHTML || escapeHtml(item.arrSched)} ${escapeHtml(item.endStation)} 抵達</p>
+                  <strong>${escapeHtml(item.num)} 次 ${renderTraTypeInline(item.type)}</strong>
+                  <p class="rail-ai-line">${item.depHTML || escapeHtml(item.depSched)} ${renderStationLabel(item.startStation, "tr")} 出發 → ${item.arrHTML || escapeHtml(item.arrSched)} ${renderStationLabel(item.endStation, "tr")} 抵達</p>
                   <p class="rail-ai-subline">${escapeHtml(item.travel)} ｜ ${item.stopsCount > 0 ? `中途 ${item.stopsCount} 站` : "直達"} ｜ 目前狀態 ${escapeHtml(item.status)}</p>
                 </div>
               </div>
@@ -780,7 +801,7 @@
                 <article class="rail-ai-card">
                   <div class="rail-ai-card-main">
                     <strong>${escapeHtml(item.n1)} 次 → ${escapeHtml(item.n2)} 次</strong>
-                    <p class="rail-ai-line">${item.depHTML || escapeHtml(item.depSched)} ${escapeHtml(item.startStation)} 出發 ｜ ${escapeHtml(item.transferStation)} 轉乘 ${item.waitMin} 分 ｜ ${item.arrHTML || escapeHtml(item.arrSched)} 抵達 ${escapeHtml(item.endStation)}</p>
+                    <p class="rail-ai-line">${item.depHTML || escapeHtml(item.depSched)} ${renderStationLabel(item.startStation, "tr")} 出發 ｜ ${renderStationLabel(item.transferStation, "tr")} 轉乘 ${item.waitMin} 分 ｜ ${item.arrHTML || escapeHtml(item.arrSched)} 抵達 ${renderStationLabel(item.endStation, "tr")}</p>
                     <p class="rail-ai-subline">總耗時 ${escapeHtml(item.travel)} ｜ 第 1 段 ${renderTraTypeInline(item.type1)} ｜ 第 2 段 ${renderTraTypeInline(item.type2)}</p>
                   </div>
                   <div class="rail-ai-actions">
@@ -795,7 +816,7 @@
     state.answer.innerHTML = `
       <div class="rail-ai-title">
         <span class="rail-ai-badge">旅程建議</span>
-        <strong>${escapeHtml(intent.startRaw)} → ${escapeHtml(intent.endRaw)}</strong>
+        <strong>${renderStationLabel(intent.startRaw, "tr")} → ${renderStationLabel(intent.endRaw, "tr")}</strong>
       </div>
       ${meta}
       <p class="rail-ai-note">已同步套用到頁面查詢；下方是依日期與時間條件整理出的快速建議。</p>
@@ -844,7 +865,7 @@
             <article class="rail-ai-card">
               <div class="rail-ai-card-main">
                 <strong>${escapeHtml(item.trainNo)} 次</strong>
-                <p class="rail-ai-line">${escapeHtml(item.dep)} ${escapeHtml(intent.startRaw)} 出發 → ${escapeHtml(item.arr)} ${escapeHtml(intent.endRaw)} 抵達</p>
+                <p class="rail-ai-line">${escapeHtml(item.dep)} ${renderStationLabel(intent.startRaw, "thsr")} 出發 → ${escapeHtml(item.arr)} ${renderStationLabel(intent.endRaw, "thsr")} 抵達</p>
                 <p class="rail-ai-subline">${escapeHtml(formatDurationMinutes(item.durMin))} ｜ ${item.stopBetween > 0 ? `中途 ${item.stopBetween} 站` : "直達"} ｜ 目前狀態 ${escapeHtml(item.status)}${seatLine}</p>
               </div>
               <div class="rail-ai-actions">
@@ -859,7 +880,7 @@
     state.answer.innerHTML = `
       <div class="rail-ai-title">
         <span class="rail-ai-badge">旅程建議</span>
-        <strong>${escapeHtml(intent.startRaw)} → ${escapeHtml(intent.endRaw)}</strong>
+        <strong>${renderStationLabel(intent.startRaw, "thsr")} → ${renderStationLabel(intent.endRaw, "thsr")}</strong>
       </div>
       ${meta}
       <p class="rail-ai-note">已同步套用到頁面查詢；如果你有指定時間或票況，這裡會先整理最接近的班次。</p>
@@ -878,15 +899,14 @@
     state.answer.innerHTML = `
       <div class="rail-ai-title">
         <span class="rail-ai-badge">車次助手</span>
-        <strong>${escapeHtml(result.trainNo)} 次</strong>
+        <strong>${escapeHtml(result.trainNo)} 次 ${renderTraTypeInline(result.typeText)}</strong>
       </div>
       ${meta}
       <div class="rail-ai-grid">
         <div class="rail-ai-stat"><span>目前狀態</span><strong>${escapeHtml(result.statusText)}</strong></div>
         <div class="rail-ai-stat"><span>目前位置</span><strong>${escapeHtml(result.currentLocation)}</strong></div>
-        <div class="rail-ai-stat"><span>車種</span><strong>${renderTraTypeInline(result.typeText)}</strong></div>
         <div class="rail-ai-stat"><span>${result.targetStation ? "預估抵達" : "預估車程"}</span><strong>${escapeHtml(result.etaLine)}</strong></div>
-        <div class="rail-ai-stat"><span>行駛區間</span><strong>${escapeHtml(result.routeText)}</strong></div>
+        <div class="rail-ai-stat"><span>行駛區間</span><strong>${renderStationLabel(result.firstStation, "tr")} → ${renderStationLabel(result.lastStation, "tr")}</strong></div>
       </div>
       <p class="rail-ai-note">${escapeHtml(result.stopSummary)}</p>
       <div class="rail-ai-actions">
@@ -909,7 +929,7 @@
         <div class="rail-ai-stat"><span>目前狀態</span><strong>${escapeHtml(result.statusText)}</strong></div>
         <div class="rail-ai-stat"><span>目前位置</span><strong>${escapeHtml(result.currentLocation)}</strong></div>
         <div class="rail-ai-stat"><span>${result.targetStation ? "預估抵達" : "預估車程"}</span><strong>${escapeHtml(result.etaLine)}</strong></div>
-        <div class="rail-ai-stat"><span>行駛區間</span><strong>${escapeHtml(result.routeText)}</strong></div>
+        <div class="rail-ai-stat"><span>行駛區間</span><strong>${renderStationLabel(result.firstStation, "thsr")} → ${renderStationLabel(result.lastStation, "thsr")}</strong></div>
       </div>
       <p class="rail-ai-note">${escapeHtml(result.stopSummary)}</p>
       <div class="rail-ai-actions">
@@ -928,7 +948,7 @@
           return `
             <article class="rail-ai-card">
               <div class="rail-ai-card-main">
-                <strong>${escapeHtml(row.trainNo)} 次${row.type ? `｜${renderTraTypeInline(row.type)}` : ""}</strong>
+                <strong>${escapeHtml(row.trainNo)} 次${row.type ? ` ${renderTraTypeInline(row.type)}` : ""}</strong>
                 <p class="rail-ai-line">${row.depHTML || escapeHtml(row.time || "--")}</p>
                 <p class="rail-ai-subline">${escapeHtml(row.range)} ｜ 目前狀態 ${escapeHtml(row.status)}</p>
               </div>
@@ -946,7 +966,7 @@
     state.answer.innerHTML = `
       <div class="rail-ai-title">
         <span class="rail-ai-badge">車站班次</span>
-        <strong>${escapeHtml(intent.stationRaw)}</strong>
+        <strong>${renderStationLabel(intent.stationRaw, system)}</strong>
       </div>
       ${buildMetaPills([intent.dateLabel, intent.timeLabel, directionText, intent.typePreference])}
       <p class="rail-ai-note">已同步帶入車站查詢；這裡先整理最接近的班次摘要。</p>
@@ -1094,6 +1114,8 @@
       crossDayText: crossDay.label || "當日車",
       targetStation: targetIndex >= 0 ? targetStation : "",
       etaLine,
+      firstStation: stops[0]?.[0] || "--",
+      lastStation: stops[stops.length - 1]?.[0] || "--",
       routeText: `${stops[0]?.[0] || "--"} → ${stops[stops.length - 1]?.[0] || "--"}`,
       stopSummary,
     });
@@ -1161,6 +1183,8 @@
       crossDayText,
       targetStation: targetIndex >= 0 ? targetStation : "",
       etaLine,
+      firstStation: normalizeStationName(stops[0]?.[0] || "", "thsr") || "--",
+      lastStation: normalizeStationName(stops[stops.length - 1]?.[0] || "", "thsr") || "--",
       routeText: `${normalizeStationName(stops[0]?.[0] || "", "thsr")} → ${normalizeStationName(stops[stops.length - 1]?.[0] || "", "thsr")}`,
       stopSummary,
     });
@@ -1234,7 +1258,9 @@
       renderEmpty(state);
       return;
     }
+    state.lastPrompt = raw;
     state.input.value = raw;
+    await window.RailAssistantCommon?.ensureStationLocaleData?.();
     const intent = parseIntent(raw, state.system);
     if (!intent) {
       renderError(state, "我還沒看懂這句，建議直接輸入起訖站、車次或車站，例如：今天 08:00 台北到台中。");
@@ -1294,6 +1320,7 @@
       runButton: panel.querySelector("#railAssistantRun"),
       answer: panel.querySelector("#railAssistantAnswer"),
       actions: [],
+      lastPrompt: "",
     };
 
     state.runButton.addEventListener("click", () => runAssistant(state));
@@ -1304,6 +1331,12 @@
     });
     panel.querySelectorAll("[data-ai-prompt]").forEach((button) => {
       button.addEventListener("click", () => runAssistant(state, button.dataset.aiPrompt));
+    });
+
+    window.addEventListener("rail:languagechange", () => {
+      const prompt = String(state.lastPrompt || state.input.value || "").trim();
+      if (!prompt) return;
+      runAssistant(state, prompt);
     });
 
     renderEmpty(state);

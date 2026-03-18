@@ -1884,14 +1884,25 @@ td{ border-bottom: 1px solid rgba(255,255,255,0.06); }
       background: rgba(14,165,233,0.2);
       box-shadow:none;
     }
+    .timeline-item.pass.next .tl-dot{
+      background:#22c55e;
+      box-shadow: 0 0 0 6px rgba(34,197,94,0.16);
+    }
     .timeline-item.pass .tl-content{
       border-style:dashed;
     }
     .timeline-item.pass .tl-station{
       color:#0369a1;
     }
+    .timeline-item.pass.next .tl-station{
+      color:#15803d;
+      font-weight:700;
+    }
     body.dark-mode .timeline-item.pass .tl-station{
       color:#7dd3fc;
+    }
+    body.dark-mode .timeline-item.pass.next .tl-station{
+      color:#4ade80;
     }
     .badge-next,
     .badge-follow,
@@ -2374,8 +2385,15 @@ td{ border-bottom: 1px solid rgba(255,255,255,0.06); }
     .timeline-item.pass .tl-station{
       color:#0369a1;
     }
+    .timeline-item.pass.next .tl-station{
+      color:#15803d;
+      font-weight:700;
+    }
     body.dark-mode .timeline-item.pass .tl-station{
       color:#7dd3fc;
+    }
+    body.dark-mode .timeline-item.pass.next .tl-station{
+      color:#4ade80;
     }
     @media (max-width: 760px){
       .modal-section-head{
@@ -5625,21 +5643,25 @@ function filterTrainScheduleByNumber(){
     const crosses = (lastAbs !== null && Number.isFinite(lastAbs) && lastAbs >= 1440);
 
     const nowAbs = getNowAbsFromOrigin(originDateStr || todayStr);
-    const isActiveWindow =
+    const scheduledActiveWindow =
       (originDateStr === todayStr) ||
       (originDateStr === yestStr && crosses && Number.isFinite(lastAbs) && nowAbs <= (lastAbs + 360));
+
+    // 取得即時誤點（分鐘）。只在仍可能運行的窗口抓取，避免過度請求與誤判。
+    let delayMin = 0;
+    if(scheduledActiveWindow){
+      try{ if(typeof getDelayMinutes==='function') delayMin = Number(getDelayMinutes(String(trainNo)) || 0); }catch(e){ delayMin = 0; }
+    }
+    if(!Number.isFinite(delayMin)) delayMin = 0;
+    const delayedLastAbs = Number.isFinite(lastAbs) ? (lastAbs + Math.max(0, delayMin)) : lastAbs;
+    const isActiveWindow =
+      (originDateStr === todayStr) ||
+      (originDateStr === yestStr && crosses && Number.isFinite(delayedLastAbs) && nowAbs <= (delayedLastAbs + 360));
 
     // 下一站：到終點超過 5 分後不再標示
     const canNext =
       isActiveWindow &&
-      (!Number.isFinite(lastAbs) || !Number.isFinite(nowAbs) || nowAbs <= (lastAbs + 5));
-
-    // 取得即時誤點（分鐘）。只在仍可能運行的窗口抓取，避免過度請求與誤判。
-    let delayMin = 0;
-    if(isActiveWindow){
-      try{ if(typeof getDelayMinutes==='function') delayMin = Number(getDelayMinutes(String(trainNo)) || 0); }catch(e){ delayMin = 0; }
-    }
-    if(!Number.isFinite(delayMin)) delayMin = 0;
+      (!Number.isFinite(delayedLastAbs) || !Number.isFinite(nowAbs) || nowAbs <= (delayedLastAbs + 5));
 
     let nextIndex=-1;
     if(canNext){
@@ -6311,6 +6333,7 @@ renderQuickFavs();
 })();
 </script>
 
+<script src="../shared/rail-assistant-common.js"></script>
 <script src="../shared/rail-page-assistant.js"></script>
 <script src="../shared/rail-network.js"></script>
 <script src="../shared/rail-master-table.js"></script>

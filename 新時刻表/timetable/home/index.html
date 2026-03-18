@@ -2176,7 +2176,7 @@ select.setting-input[id*="pick"] {
         <div class="nav-actions">
             <button class="nav-shortcut" type="button" onclick="toggleSettings(true)">快速設定</button>
             <button class="nav-shortcut" type="button" onclick="toggleTools()">實用工具</button>
-            <select class="lang-switch" id="langSelect" onchange="changeLanguage(this.value)" style="background:var(--glass-bg); color:var(--text-main); border:1px solid var(--glass-border); outline:none; cursor:pointer;">
+            <select class="lang-switch" id="langSelect" style="background:var(--glass-bg); color:var(--text-main); border:1px solid var(--glass-border); outline:none; cursor:pointer;">
                 <option value="zh">繁體中文</option>
                 <option value="en">English</option>
                 <option value="jp">日本語</option>
@@ -2300,26 +2300,26 @@ select.setting-input[id*="pick"] {
                 <div class="summary-card-head">
                     <span class="summary-eyebrow">AI Rail Console</span>
                     <h3>智慧旅程助手</h3>
-                    <p>保留旅程、車次、車站三種核心問法，只顯示必要資訊與操作入口。</p>
+                    <p>支援更口語的日期、時間、車次、車站與票況問法，結果改成卡片式整理，保留顏色標註與必要操作。</p>
                 </div>
                 <div class="assistant-layout">
                     <div class="assistant-form">
                         <div class="assistant-input-wrap">
-                            <input id="routeAssistantInput" class="assistant-input" type="text" placeholder="例如：今天 08:00 台北到台中、412次台中幾點到、板橋站有什麼車">
+                            <input id="routeAssistantInput" class="assistant-input" type="text" placeholder="例如：今天 7點半 台北到台中、215車次台北到花蓮、板橋站晚上七點有什麼車">
                             <button id="routeAssistantBtn" class="assistant-submit" type="button">開始詢問</button>
                         </div>
                         <div class="assistant-chip-row">
-                            <button class="assistant-chip" type="button" data-query="明天台北到台中自強號">明天台北到台中</button>
-                            <button class="assistant-chip" type="button" data-query="高鐵台北到左營有沒有票">高鐵票況</button>
+                            <button class="assistant-chip" type="button" data-query="今天 7點半 台北到台中">今天 7點半 台北到台中</button>
+                            <button class="assistant-chip" type="button" data-query="7.13 高鐵台北到左營有沒有票">高鐵票況</button>
                             <button class="assistant-chip" type="button" data-query="412次台中幾點到">車次 ETA</button>
                             <button class="assistant-chip" type="button" data-query="板橋站有什麼車">車站班次</button>
                         </div>
-                        <div class="assistant-note">支援日期、時間、車種、車次狀態與高鐵票況，結果會附上查詢或訂票入口。</div>
+                        <div class="assistant-note">支援 07:30、7點、七點半、上午下午晚上、7/13、7-13、7.13、七月13日等自然輸入，也會附上查詢或訂票入口。</div>
                     </div>
                     <div class="assistant-answer" id="assistantAnswer">
                         <div class="assistant-placeholder">
                             <strong>輸入一句話就能開始查。</strong>
-                            <div>我會直接整理班次、目前狀態、預估抵達與票況，不再堆太多說明文字。</div>
+                            <div>我會直接整理班次、目前狀態、預估抵達與票況，也能用按鈕展開更多班次，不一次塞滿整頁。</div>
                         </div>
                     </div>
                 </div>
@@ -3174,24 +3174,49 @@ select.setting-input[id*="pick"] {
             }
             return '';
         }
+        function pushUniqueAlertPart(parts, text) {
+            const value = pickAlertText(text);
+            if (!value) return;
+            if (parts.some(existing => existing.includes(value) || value.includes(existing))) return;
+            parts.push(value);
+        }
+        function collectAlertFragments(source, depth = 0) {
+            if (depth > 4 || source === null || source === undefined) return [];
+            if (typeof source === 'string' || typeof source === 'number') {
+                const text = pickAlertText(source);
+                return text ? [text] : [];
+            }
+            if (Array.isArray(source)) {
+                return uniqueTexts(source.flatMap(item => collectAlertFragments(item, depth + 1)));
+            }
+            if (typeof source === 'object') {
+                const fragments = [];
+                Object.keys(source).forEach(key => {
+                    if (/^(AlertTypeDescription|AlertType|Level|Category|Title|Subject|Name|Description|Message|Content|Detail|Summary|Text|Zh_tw|ZhTw|zh_tw|zh)$/i.test(key)) return;
+                    if (/(^_|Id$|ID$|Url$|URI$|Time$|Date$|Update|Version|Position|Lat$|Lon$|Latitude|Longitude|Geometry|Coordinate)/i.test(key)) return;
+                    fragments.push(...collectAlertFragments(source[key], depth + 1));
+                });
+                return uniqueTexts(fragments);
+            }
+            return [];
+        }
         function buildAlertMessage(alert) {
             if (!alert || typeof alert !== 'object') return pickAlertText(alert);
             const type = pickAlertText(alert.AlertTypeDescription || alert.AlertType || alert.Level || alert.Category);
             const title = pickAlertText(alert.Title || alert.Subject || alert.Name);
             const description = pickAlertText(alert.Description || alert.Message || alert.Content || alert.Detail || alert.Summary);
             const parts = [];
-            [type, title, description].forEach(part => {
-                if (!part) return;
-                if (parts.some(existing => existing.includes(part) || part.includes(existing))) return;
-                parts.push(part);
-            });
+            [type, title, description].forEach(part => pushUniqueAlertPart(parts, part));
+            if (parts.length < 2 || !description) {
+                collectAlertFragments(alert).forEach(fragment => {
+                    if (parts.length >= 3) return;
+                    pushUniqueAlertPart(parts, fragment);
+                });
+            }
             if (!parts.length) {
                 Object.keys(alert).forEach(key => {
                     if (/id|url|time|date|update/i.test(key)) return;
-                    const text = pickAlertText(alert[key]);
-                    if (!text) return;
-                    if (parts.some(existing => existing.includes(text) || text.includes(existing))) return;
-                    parts.push(text);
+                    pushUniqueAlertPart(parts, alert[key]);
                 });
             }
             if (!parts.length) return '';
@@ -4596,6 +4621,9 @@ function toggleSettings(show) {
             jp: { title: "時刻表 Pro", subtitle: "リアルタイム運行", tra: "台鉄", thsr: "高鉄", settings: "設定", done: "保存" }
         };
         function changeLanguage(lang) {
+            if (window.RailAssistantCommon?.changeLanguage) {
+                window.RailAssistantCommon.changeLanguage(lang);
+            }
             document.querySelectorAll('[data-i18n]').forEach(el => {
                 const k = el.getAttribute('data-i18n');
                 if(translations[lang][k]) el.innerText = translations[lang][k];
@@ -4718,6 +4746,7 @@ function toggleSettings(show) {
 };
     </script>
     <script src="../shared/rail-network.js"></script>
+    <script src="../shared/rail-assistant-common.js"></script>
     <script src="./assistant-upgrade.js"></script>
      <script src="../monitor.js"></script>
 </body>

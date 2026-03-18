@@ -339,6 +339,7 @@ async function runAssistantQuery(query) {
   `);
   try {
     window.assistantRenderTarget = replyBlock ? replyBlock.querySelector(".assistant-message-bubble") : null;
+    window.assistantLastRenderTarget = window.assistantRenderTarget;
     await window.handleAssistantQuery?.(finalQuery);
   } catch (error) {
     if (window.assistantRenderTarget) {
@@ -354,6 +355,9 @@ async function runAssistantQuery(query) {
 function clearAssistantThread() {
   const thread = getThreadContainer();
   if (!thread) return;
+  window.assistantRenderTarget = null;
+  window.assistantLastRenderTarget = null;
+  window.clearAssistantRenderState?.();
   thread.innerHTML = `
     <div class="assistant-placeholder assistant-thread-empty" data-thread-empty="1">
       <strong>輸入一句話，我幫你整理最適合的結果。</strong>

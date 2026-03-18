@@ -696,7 +696,7 @@
         <div class="ai-brand-mark">AI</div>
         <div class="ai-brand-copy">
           <strong>Rail AI 助手</strong>
-          <span>只保留旅程、車次、車站與票況的核心查詢。</span>
+          <span>旅程、車次、車站、票況與自然語言時間都能直接問。</span>
         </div>
       </div>
       <div class="ai-nav">
@@ -710,12 +710,12 @@
     <section class="ai-intro">
       <div class="ai-intro-copy">
         <h1>用一句話問旅程、車次、車站或票況。</h1>
-        <p>支援日期、單一時間、時間區間、車種、車次目前位置、預估抵達與高鐵票況。頁面只保留必要說明與對話結果。</p>
+        <p>支援 07:30、7點、七點半、上午下午晚上、7/13、7-13、7.13、七月13日這類自然說法，也能直接問起訖站、車次位置與高鐵票況。</p>
         <div class="ai-intro-points">
-          <span>今天 08:00 台北到台中</span>
+          <span>今天 7點半 台北到台中</span>
           <span>412次 台中幾點到</span>
           <span>板橋站有什麼車</span>
-          <span>高鐵台北到左營有沒有票</span>
+          <span>7.13 高鐵台北到左營有沒有票</span>
         </div>
       </div>
     </section>
@@ -730,23 +730,24 @@
 
       <div class="assistant-composer">
         <div class="assistant-input-wrap">
-          <input id="routeAssistantInput" class="assistant-input" type="text" placeholder="例如：今天 08:00 台北到台中、412次台中幾點到、板橋站有什麼車">
+          <input id="routeAssistantInput" class="assistant-input" type="text" placeholder="例如：今天 7點半 台北到台中、215車次台北到花蓮、板橋站晚上七點有什麼車">
           <button id="routeAssistantBtn" class="assistant-submit" type="button">開始詢問</button>
         </div>
         <div class="assistant-toolbar-row">
-          <div class="assistant-note">支援旅程、車次、車站三種核心問法，結果會附上對應的查詢與訂票入口。</div>
+          <div class="assistant-note">支援旅程、車次、車站三種核心問法，也能辨識更口語的日期與時間表達，並用按鈕展開更多班次。</div>
           <button id="assistantClearBtn" class="assistant-secondary-btn" type="button">清除對話</button>
         </div>
         <div class="assistant-chip-row">
-          <button class="assistant-chip" type="button" data-query="今天 08:00 台北到台中">今天 08:00 台北到台中</button>
+          <button class="assistant-chip" type="button" data-query="今天 7點半 台北到台中">今天 7點半 台北到台中</button>
           <button class="assistant-chip" type="button" data-query="412次 台中幾點到">車次 ETA</button>
           <button class="assistant-chip" type="button" data-query="板橋站有什麼車">車站班次</button>
-          <button class="assistant-chip" type="button" data-query="高鐵台北到左營有沒有票">高鐵票況</button>
+          <button class="assistant-chip" type="button" data-query="7.13 高鐵台北到左營有沒有票">高鐵票況</button>
         </div>
       </div>
     </section>
   </main>
 
+  <script src="../shared/rail-assistant-common.js"></script>
   <script src="./ai-hub.js"></script>
   <script src="../shared/rail-network.js"></script>
   <script src="./assistant-upgrade.js"></script>
