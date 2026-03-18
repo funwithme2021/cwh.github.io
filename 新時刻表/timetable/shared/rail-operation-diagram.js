@@ -406,9 +406,11 @@
         departure: primary,
       };
     }
-    return secondaryMinute <= primaryMinute
-      ? { arrival: secondary, departure: primary }
-      : { arrival: primary, departure: secondary };
+    const primaryToSecondary = (secondaryMinute - primaryMinute + 1440) % 1440;
+    const secondaryToPrimary = (primaryMinute - secondaryMinute + 1440) % 1440;
+    return primaryToSecondary <= secondaryToPrimary
+      ? { arrival: primary, departure: secondary }
+      : { arrival: secondary, departure: primary };
   }
 
   function buildTimedStops(stops) {
