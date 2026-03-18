@@ -23,6 +23,50 @@
     "追分",
     "臺中港",
   ]);
+  const WEST_BRANCH_START = "竹南";
+  const WEST_BRANCH_END = "彰化";
+  const WEST_MOUNTAIN_UNIQUE_STATIONS = [
+    "造橋",
+    "豐富",
+    "苗栗",
+    "南勢",
+    "銅鑼",
+    "三義",
+    "泰安",
+    "后里",
+    "豐原",
+    "栗林",
+    "潭子",
+    "頭家厝",
+    "松竹",
+    "太原",
+    "精武",
+    "臺中",
+    "五權",
+    "大慶",
+    "烏日",
+    "新烏日",
+    "成功",
+  ];
+  const WEST_SEA_UNIQUE_STATIONS = [
+    "談文",
+    "大山",
+    "後龍",
+    "龍港",
+    "白沙屯",
+    "新埔",
+    "通霄",
+    "苑裡",
+    "日南",
+    "大甲",
+    "臺中港",
+    "清水",
+    "沙鹿",
+    "龍井",
+    "大肚",
+    "追分",
+  ];
+  const WEST_MOUNTAIN_STATIONS = new Set(WEST_MOUNTAIN_UNIQUE_STATIONS);
   const TRA_NON_RESERVED_TYPES = new Set(["區間快", "區間車"]);
   const TRA_TYPE_COLORS = {
     新自強: "#7c3aed",
@@ -75,6 +119,19 @@
 
   function getQueryDate() {
     return document.getElementById("mainQueryDate")?.value || readPageValue("currentQueryDateStr") || "";
+  }
+
+  function addDays(dateStr, delta) {
+    const base = dateStr ? new Date(`${dateStr}T00:00:00`) : new Date();
+    base.setDate(base.getDate() + delta);
+    return `${base.getFullYear()}-${String(base.getMonth() + 1).padStart(2, "0")}-${String(base.getDate()).padStart(2, "0")}`;
+  }
+
+  function diffDateDays(fromDate, toDate) {
+    if (!fromDate || !toDate) return 0;
+    const from = new Date(`${fromDate}T00:00:00`);
+    const to = new Date(`${toDate}T00:00:00`);
+    return Math.round((to - from) / 86400000);
   }
 
   function normalizeTraStation(name) {
@@ -139,9 +196,21 @@
     return getTrainNoParity(trainNo) === filterValue;
   }
 
-  function getDisplayStationList(system, stations, direction) {
+  function getDisplayStationOrderSign(direction, entries) {
+    if (!direction || direction === "all") return 1;
+    let score = 0;
+    (entries || []).forEach((entry) => {
+      const sign = Number(entry?.routeDirection) || 0;
+      if (sign > 0) score += 1;
+      else if (sign < 0) score -= 1;
+    });
+    return score < 0 ? -1 : 1;
+  }
+
+  function getDisplayStationList(system, stations, direction, entries) {
     if (!Array.isArray(stations)) return [];
-    return stations.slice();
+    const list = stations.slice();
+    return getDisplayStationOrderSign(direction, entries) < 0 ? list.reverse() : list;
   }
 
   function sanitizeFilename(name) {
@@ -505,6 +574,492 @@
     return stations.slice(startIndex, endIndex + 1);
   }
 
+  function canonicalizeRangeOrder(range, stationOrder) {
+    if (!Array.isArray(range)) return [];
+    if (!Array.isArray(stationOrder) || !stationOrder.length || range.length < 2) return range.slice();
+    const firstIndex = stationOrder.indexOf(range[0]);
+    const lastIndex = stationOrder.indexOf(range[range.length - 1]);
+    if (firstIndex >= 0 && lastIndex >= 0 && firstIndex > lastIndex) {
+      return range.slice().reverse();
+    }
+    return range.slice();
+  }
+
+  function mergePathSegments(first, second) {
+    if (!first.length) return second.slice();
+    if (!second.length) return first.slice();
+    return first.concat(second.slice(1));
+  }
+
+  function getTraBranchByTripLine(tripLine) {
+    const value = String(tripLine || "").trim();
+    if (!value) return "";
+    if (/[海]/.test(value) || /^2$/.test(value) || /sea/i.test(value)) return "sea";
+    if (/[山]/.test(value) || /^1$/.test(value) || /mountain/i.test(value)) return "mountain";
+    return "";
+  }
+
+  function getTraBranchByStation(stationName) {
+    if (WEST_MOUNTAIN_STATIONS.has(stationName)) return "mountain";
+    if (SEA_LINE_STATIONS.has(stationName)) return "sea";
+    return "";
+  }
+
+  function buildWestBranchStations(mode, isReverse = false) {
+    const forward = mode === "sea"
+      ? [WEST_BRANCH_START, ...WEST_SEA_UNIQUE_STATIONS, WEST_BRANCH_END]
+      : mode === "mountain"
+        ? [WEST_BRANCH_START, ...WEST_MOUNTAIN_UNIQUE_STATIONS, WEST_BRANCH_END]
+        : [WEST_BRANCH_START, ...WEST_MOUNTAIN_UNIQUE_STATIONS, ...WEST_SEA_UNIQUE_STATIONS, WEST_BRANCH_END];
+    return isReverse ? forward.slice().reverse() : forward;
+  }
+
+  function expandWestBranchPath(path, mode) {
+    const source = Array.isArray(path) ? path : [];
+    if (!source.length || !mode) return source.slice();
+    const branchStartIndex = source.indexOf(WEST_BRANCH_START);
+    const branchEndIndex = source.indexOf(WEST_BRANCH_END);
+    if (branchStartIndex < 0 || branchEndIndex < 0 || branchStartIndex === branchEndIndex) return source.slice();
+    const firstIndex = Math.min(branchStartIndex, branchEndIndex);
+    const lastIndex = Math.max(branchStartIndex, branchEndIndex);
+    const prefix = source.slice(0, firstIndex + 1);
+    const suffix = source.slice(lastIndex);
+    const branchStations = buildWestBranchStations(mode, branchStartIndex > branchEndIndex);
+    return mergePathSegments(mergePathSegments(prefix, branchStations), suffix);
+  }
+
+  function inferTraBranchHint(stops, tripLine, trainNo, path) {
+    const names = (stops || []).map((stop) => normalizeTraStation(stop?.name || stop?.[0] || "")).filter(Boolean);
+    if (names.some((name) => SEA_LINE_STATIONS.has(name))) return "sea";
+    if (names.some((name) => WEST_MOUNTAIN_STATIONS.has(name))) return "mountain";
+    const tripLineBranch = getTraBranchByTripLine(tripLine);
+    if (tripLineBranch) return tripLineBranch;
+    if (/A/i.test(String(trainNo || "").trim())) return "sea";
+    if (Array.isArray(path) && path.includes(WEST_BRANCH_START) && path.includes(WEST_BRANCH_END)) return "mountain";
+    return "";
+  }
+
+  function buildTraMasterRange(start, end, pivot, stationOrder) {
+    const rawRange = getRailNetwork()?.findTraRoutePath
+      ? getRailNetwork().findTraRoutePath(start, end, pivot)
+      : ensureRange(start, end, stationOrder);
+    if (!rawRange.length || pivot) return rawRange;
+    if (getTraBranchByStation(start) || getTraBranchByStation(end)) return rawRange;
+    return expandWestBranchPath(rawRange, "both");
+  }
+
+  function expandEntryPathStations(system, stops, options = {}) {
+    const names = (stops || []).map((stop) => stop.name).filter(Boolean);
+    if (names.length < 2) return names.slice();
+    const findPath = system === "tr" ? getRailNetwork()?.findTraRoutePath : getRailNetwork()?.findThsrRoutePath;
+    if (findPath) {
+      const basePath = system === "tr" ? findPath(names[0], names[names.length - 1]) : [];
+      const branchHint = system === "tr"
+        ? inferTraBranchHint(stops, options.tripLine, options.trainNo, basePath)
+        : "";
+      let expanded = [];
+      for (let index = 0; index < names.length - 1; index += 1) {
+        let pairPath = findPath(names[index], names[index + 1]);
+        if (system === "tr") pairPath = expandWestBranchPath(pairPath, branchHint);
+        expanded = mergePathSegments(expanded, Array.isArray(pairPath) && pairPath.length ? pairPath : [names[index], names[index + 1]]);
+      }
+      if (expanded.length) return expanded;
+    }
+    return names.slice();
+  }
+
+  function splitStopTimes(stopRow) {
+    const primary = String(stopRow?.[1] || "").trim();
+    const secondary = String(stopRow?.[2] || "").trim();
+    if (!primary || !secondary) {
+      return {
+        arrival: secondary,
+        departure: primary,
+      };
+    }
+    const primaryMinute = parseMinutes(primary);
+    const secondaryMinute = parseMinutes(secondary);
+    if (!Number.isFinite(primaryMinute) || !Number.isFinite(secondaryMinute)) {
+      return {
+        arrival: secondary,
+        departure: primary,
+      };
+    }
+    const primaryToSecondary = (secondaryMinute - primaryMinute + 1440) % 1440;
+    const secondaryToPrimary = (primaryMinute - secondaryMinute + 1440) % 1440;
+    return primaryToSecondary <= secondaryToPrimary
+      ? { arrival: primary, departure: secondary }
+      : { arrival: secondary, departure: primary };
+  }
+
+  function normalizeTraTypeForSingleTimeStop(type) {
+    const raw = String(type || "").trim();
+    return getRailNetwork()?.normalizeTraDisplayType?.(raw) || raw;
+  }
+
+  function normalizeSingleTimeTraStop(stop, index, stopCount, type) {
+    if (index <= 0 || index >= stopCount - 1) return stop;
+    const arrival = String(stop?.arrival || "").trim();
+    const departure = String(stop?.departure || "").trim();
+    if ((arrival && departure) || (!arrival && !departure)) return stop;
+    const normalizedType = normalizeTraTypeForSingleTimeStop(type);
+    if (!new Set(["區間車", "普通車", "柴油客車"]).has(normalizedType)) return stop;
+    const singleTime = arrival || departure;
+    return {
+      ...stop,
+      arrival: singleTime,
+      departure: singleTime,
+      inferredStop: true,
+    };
+  }
+
+  function buildTimedStops(routeStops) {
+    const timedStops = [];
+    let previousAbsoluteMinute = null;
+    const stopCount = (routeStops || []).length;
+    const resolveAbsoluteMinute = (rawMinute) => {
+      if (rawMinute === null) return null;
+      let absoluteMinute = rawMinute;
+      while (previousAbsoluteMinute !== null && absoluteMinute < previousAbsoluteMinute) {
+        absoluteMinute += 1440;
+      }
+      previousAbsoluteMinute = absoluteMinute;
+      return absoluteMinute;
+    };
+    routeStops.forEach((stop, index) => {
+      const arrivalRaw = parseMinutes(stop.arrival);
+      const departureRaw = parseMinutes(stop.departure);
+      const hasArrival = arrivalRaw !== null;
+      const hasDeparture = departureRaw !== null;
+      timedStops.push({
+        ...stop,
+        hasArrival,
+        hasDeparture,
+        isPassOnly: index > 0 && index < stopCount - 1 && hasArrival !== hasDeparture,
+        arrivalMinute: resolveAbsoluteMinute(arrivalRaw),
+        departureMinute: resolveAbsoluteMinute(departureRaw),
+      });
+    });
+    return timedStops;
+  }
+
+  function getStopArrivalMinute(stop) {
+    return stop?.arrivalMinute ?? stop?.departureMinute;
+  }
+
+  function getStopDepartureMinute(stop) {
+    return stop?.departureMinute ?? stop?.arrivalMinute;
+  }
+
+  function getStopEventMinute(stop) {
+    return getStopDepartureMinute(stop) ?? getStopArrivalMinute(stop);
+  }
+
+  function buildJourneyPathPoints(timedStops, fullPathStations) {
+    let searchStart = 0;
+    const resolvePathIndex = (stationName) => {
+      for (let index = searchStart; index < (fullPathStations || []).length; index += 1) {
+        if (fullPathStations[index] !== stationName) continue;
+        searchStart = index + 1;
+        return index;
+      }
+      return (fullPathStations || []).indexOf(stationName);
+    };
+    const anchors = (timedStops || [])
+      .map((stop) => ({ ...stop, pathIndex: resolvePathIndex(stop.name) }))
+      .filter((stop) => Number.isFinite(stop.pathIndex));
+    if (anchors.length < 2) return [];
+
+    const points = [];
+    let sequenceIndex = 0;
+    const pushPoint = (point) => {
+      if (!point || !Number.isFinite(point.pathIndex) || !Number.isFinite(point.minute) || !point.station) return;
+      const previous = points[points.length - 1];
+      if (
+        previous &&
+        previous.station === point.station &&
+        previous.pathIndex === point.pathIndex &&
+        previous.minute === point.minute &&
+        previous.kind === point.kind
+      ) {
+        return;
+      }
+      points.push({ ...point, sequenceIndex });
+      sequenceIndex += 1;
+    };
+
+    anchors.forEach((current, index) => {
+      if (current.isPassOnly) {
+        const passMinute = getStopEventMinute(current);
+        if (Number.isFinite(passMinute)) {
+          pushPoint({
+            station: current.name,
+            pathIndex: current.pathIndex,
+            minute: passMinute,
+            kind: "pass",
+            isStop: false,
+          });
+        }
+      } else if (Number.isFinite(current.arrivalMinute)) {
+        pushPoint({
+          station: current.name,
+          pathIndex: current.pathIndex,
+          minute: current.arrivalMinute,
+          kind: "arrival",
+          isStop: true,
+        });
+      }
+      if (!current.isPassOnly && Number.isFinite(current.departureMinute) && current.departureMinute !== current.arrivalMinute) {
+        pushPoint({
+          station: current.name,
+          pathIndex: current.pathIndex,
+          minute: current.departureMinute,
+          kind: "departure",
+          isStop: true,
+        });
+      }
+
+      const next = anchors[index + 1];
+      if (!next) return;
+      const travelStart = Number.isFinite(current.departureMinute) ? current.departureMinute : current.arrivalMinute;
+      const travelEnd = Number.isFinite(next.arrivalMinute) ? next.arrivalMinute : next.departureMinute;
+      const delta = next.pathIndex - current.pathIndex;
+      const steps = Math.abs(delta);
+      if (!Number.isFinite(travelStart) || !Number.isFinite(travelEnd) || steps <= 1) return;
+
+      for (let step = 1; step < steps; step += 1) {
+        const pathIndex = current.pathIndex + Math.sign(delta) * step;
+        const station = fullPathStations[pathIndex];
+        if (!station) continue;
+        pushPoint({
+          station,
+          pathIndex,
+          minute: Math.round(travelStart + ((travelEnd - travelStart) * step) / steps),
+          kind: "pass",
+          isStop: false,
+        });
+      }
+    });
+
+    return points;
+  }
+
+  function getDateByOriginMinute(originDate, minute) {
+    if (!originDate || !Number.isFinite(minute)) return "";
+    return addDays(originDate, Math.floor(minute / 1440));
+  }
+
+  function getQueryRelativeMinute(originDate, minute, queryDate) {
+    if (!Number.isFinite(minute)) return null;
+    return minute - diffDateDays(originDate || queryDate, queryDate) * 1440;
+  }
+
+  function getProjectionMinute(entry, stationName) {
+    if (!stationName) return null;
+    const minute = entry?.routeMinuteMap?.get(stationName);
+    return Number.isFinite(minute) ? minute : null;
+  }
+
+  function buildMasterEntries(system, scheduleSources) {
+    const normalizeStation = system === "tr" ? normalizeTraStation : normalizeThsrStation;
+    const sources = Array.isArray(scheduleSources) ? scheduleSources : [{ map: scheduleSources || {}, originDate: getQueryDate() }];
+    return sources.flatMap((source) =>
+      Object.keys(source.map || {})
+        .sort((a, b) => String(a).localeCompare(String(b), "en"))
+        .map((trainNo) => {
+          const raw = source.map?.[trainNo];
+          if (!raw) return null;
+          const type = system === "tr" ? String(raw["車種"] || "").trim() : "";
+          if (system === "tr" && !type) return null;
+          const stops = (raw["車站時間"] || [])
+            .map((stop) => {
+              const times = splitStopTimes(stop);
+              return {
+                name: normalizeStation(stop?.[0] || ""),
+                time: displayStopTime(stop),
+                arrival: times.arrival,
+                departure: times.departure,
+              };
+            })
+            .filter((stop) => stop.name && (stop.time || stop.arrival || stop.departure));
+          if (!stops.length) return null;
+          const stopMap = new Map(stops.map((stop) => [stop.name, stop.time]));
+          return {
+            key: `${trainNo}@${source.originDate || ""}`,
+            originDate: source.originDate || "",
+            trainNo: String(trainNo),
+            type,
+            stops,
+            stopMap,
+            stationSet: new Set(stops.map((stop) => stop.name)),
+            fullPathStations: expandEntryPathStations(system, stops),
+            firstStation: stops[0].name,
+            lastStation: stops[stops.length - 1].name,
+            isReserved: system === "tr" ? !TRA_NON_RESERVED_TYPES.has(type) : true,
+            isSea: system === "tr" ? stops.some((stop) => SEA_LINE_STATIONS.has(stop.name)) : false,
+          };
+        })
+        .filter(Boolean)
+    );
+  }
+
+  function buildMasterEntries(system, scheduleSources) {
+    const normalizeStation = system === "tr" ? normalizeTraStation : normalizeThsrStation;
+    const sources = Array.isArray(scheduleSources) ? scheduleSources : [{ map: scheduleSources || {}, originDate: getQueryDate() }];
+    return sources.flatMap((source) =>
+      Object.keys(source.map || {})
+        .sort((a, b) => String(a).localeCompare(String(b), "en"))
+        .map((trainNo) => {
+          const raw = source.map?.[trainNo];
+          if (!raw) return null;
+          const type = system === "tr" ? String(raw["車種"] || "").trim() : "";
+          if (system === "tr" && !type) return null;
+          const stopRows = raw["車站時間"] || [];
+          const stops = stopRows
+            .map((stop, index) => {
+              const times = splitStopTimes(stop);
+              const baseStop = {
+                name: normalizeStation(stop?.[0] || ""),
+                time: displayStopTime(stop),
+                arrival: times.arrival,
+                departure: times.departure,
+              };
+              return system === "tr"
+                ? normalizeSingleTimeTraStop(baseStop, index, stopRows.length, type)
+                : baseStop;
+            })
+            .filter((stop) => stop.name && (stop.time || stop.arrival || stop.departure));
+          if (!stops.length) return null;
+          const tripLine = system === "tr" ? (raw["行別"] ?? raw["路線"] ?? raw["TripLine"] ?? raw["銵"] ?? "") : "";
+          const basePath = system === "tr" && getRailNetwork()?.findTraRoutePath
+            ? getRailNetwork().findTraRoutePath(stops[0].name, stops[stops.length - 1].name)
+            : [];
+          const branchHint = system === "tr" ? inferTraBranchHint(stops, tripLine, trainNo, basePath) : "";
+          const stopMap = new Map(stops.map((stop) => [stop.name, stop.time]));
+          return {
+            key: `${trainNo}@${source.originDate || ""}`,
+            originDate: source.originDate || "",
+            trainNo: String(trainNo),
+            type,
+            tripLine,
+            branchHint,
+            stops,
+            stopMap,
+            stationSet: new Set(stops.map((stop) => stop.name)),
+            fullPathStations: expandEntryPathStations(system, stops, { tripLine, trainNo, branchHint }),
+            firstStation: stops[0].name,
+            lastStation: stops[stops.length - 1].name,
+            isReserved: system === "tr" ? !TRA_NON_RESERVED_TYPES.has(type) : true,
+            isSea: system === "tr" ? branchHint === "sea" : false,
+          };
+        })
+        .filter(Boolean)
+    );
+  }
+
+  function buildMasterProjections(entry, routeStations, queryDate) {
+    const routeIndexMap = new Map((routeStations || []).map((name, index) => [name, index]));
+    const fullTimedStops = buildTimedStops(entry.stops || []);
+    const fullPathPoints = buildJourneyPathPoints(fullTimedStops, entry.fullPathStations || []);
+    const points = (fullPathPoints || [])
+      .filter((point) => routeIndexMap.has(point.station))
+      .map((point) => ({
+        ...point,
+        routeIndex: routeIndexMap.get(point.station),
+      }))
+      .filter((point) => Number.isFinite(point.routeIndex));
+    if (points.length < 2) return [];
+
+    const pointGroups = [];
+    let currentGroup = [];
+    points.forEach((point) => {
+      const previous = currentGroup[currentGroup.length - 1];
+      if (previous && point.sequenceIndex !== previous.sequenceIndex + 1) {
+        if (currentGroup.length >= 2) pointGroups.push(currentGroup);
+        currentGroup = [];
+      }
+      currentGroup.push(point);
+    });
+    if (currentGroup.length >= 2) pointGroups.push(currentGroup);
+    if (!pointGroups.length) return [];
+
+    return pointGroups
+      .map((pointGroup, visitIndex) => {
+        const firstPoint = pointGroup[0];
+        const lastPoint = pointGroup[pointGroup.length - 1];
+        const routeCoveredSet = new Set(pointGroup.map((point) => point.station));
+        if (routeCoveredSet.size < 2) return null;
+
+        let routeDirection = 0;
+        for (let index = 1; index < pointGroup.length; index += 1) {
+          const delta = pointGroup[index].routeIndex - pointGroup[index - 1].routeIndex;
+          if (!delta) continue;
+          routeDirection = delta > 0 ? 1 : -1;
+          break;
+        }
+        if (!routeDirection) routeDirection = 1;
+
+        const routeMinuteMap = new Map();
+        pointGroup.forEach((point) => {
+          if (!routeMinuteMap.has(point.station)) routeMinuteMap.set(point.station, point.minute);
+        });
+
+        const routeStopMap = new Map();
+        (fullTimedStops || []).forEach((stop) => {
+          if (!routeIndexMap.has(stop.name)) return;
+          if (stop.isPassOnly) return;
+          const arrivalMinute = getStopArrivalMinute(stop);
+          const departureMinute = getStopDepartureMinute(stop);
+          const eventStart = Number.isFinite(arrivalMinute) ? arrivalMinute : departureMinute;
+          const eventEnd = Number.isFinite(departureMinute) ? departureMinute : arrivalMinute;
+          if (!Number.isFinite(eventStart) || !Number.isFinite(eventEnd)) return;
+          if (eventEnd < firstPoint.minute || eventStart > lastPoint.minute) return;
+          if (!stop.time) return;
+          routeStopMap.set(stop.name, stop.time);
+        });
+
+        const boundaryStop = (fullTimedStops || []).find((stop) => stop.name === firstPoint.station) || null;
+        const boundaryMinute = Number.isFinite(getStopDepartureMinute(boundaryStop))
+          ? getStopDepartureMinute(boundaryStop)
+          : firstPoint.minute;
+
+        return {
+          ...entry,
+          projectionKey: `${entry.key || entry.trainNo}|${visitIndex}`,
+          routeStations,
+          routeIndexMap,
+          routeStopMap,
+          routeCoveredSet,
+          routeMinuteMap,
+          routeDirection,
+          rangeFirstMinute: firstPoint.minute,
+          rangeLastMinute: lastPoint.minute,
+          rangeBoundaryMinute: boundaryMinute,
+          rangeDisplayDate: getDateByOriginMinute(entry.originDate, boundaryMinute),
+          rangeFirstQueryMinute: getQueryRelativeMinute(entry.originDate, boundaryMinute, queryDate),
+        };
+      })
+      .filter(Boolean);
+  }
+
+  function sortProjectedEntries(entries, range, pivotStation, queryDate) {
+    const getStationMinute = (entry, station) => getQueryRelativeMinute(entry.originDate, getProjectionMinute(entry, station), queryDate);
+    return (entries || []).slice().sort((a, b) => {
+      if (pivotStation) {
+        const aPivot = getStationMinute(a, pivotStation);
+        const bPivot = getStationMinute(b, pivotStation);
+        if ((aPivot ?? 999999) !== (bPivot ?? 999999)) return (aPivot ?? 999999) - (bPivot ?? 999999);
+      }
+      for (const station of range || []) {
+        const aTime = getStationMinute(a, station);
+        const bTime = getStationMinute(b, station);
+        if (aTime === null || bTime === null) continue;
+        if (aTime !== bTime) return aTime - bTime;
+      }
+      return (a.rangeFirstQueryMinute ?? 999999) - (b.rangeFirstQueryMinute ?? 999999);
+    });
+  }
+
   function buildTraEntries(schedule) {
     const network = getRailNetwork();
     return Object.keys(schedule || {})
@@ -737,7 +1292,7 @@
     return duration ? `<div class="rail-master-train-duration">${escapeHtml(duration)}</div>` : "";
   }
 
-  function createMatrixBlock(system, title, entries, stationList, startStation, endStation) {
+  function createMatrixBlock(system, title, entries, stationList, startStation, endStation, stationOrderSign) {
     const section = document.createElement("section");
     section.className = "rail-master-block";
     section.innerHTML = `<div class="rail-master-section-title">${escapeHtml(title)} <span>${entries.length} 班</span></div>`;
@@ -794,6 +1349,75 @@
         } else if (passesStation(entry, station)) {
           cell.className = "rail-master-pass";
           cell.textContent = "↓";
+        }
+      });
+    });
+
+    scroll.appendChild(table);
+    shell.appendChild(scroll);
+    section.appendChild(shell);
+    return section;
+  }
+
+  function createMatrixBlock(system, title, entries, stationList, startStation, endStation, stationOrderSign) {
+    const section = document.createElement("section");
+    section.className = "rail-master-block";
+    section.innerHTML = `<div class="rail-master-section-title">${escapeHtml(title)} <span>${entries.length} 班</span></div>`;
+
+    const shell = document.createElement("div");
+    shell.className = "rail-master-table-shell";
+    const scroll = document.createElement("div");
+    scroll.className = "rail-master-scroll";
+    const table = document.createElement("table");
+    table.className = "rail-master-table";
+
+    const thead = table.createTHead();
+    const headerRow = thead.insertRow();
+    const corner = document.createElement("th");
+    corner.className = "rail-master-corner";
+    corner.textContent = "車站";
+    headerRow.appendChild(corner);
+
+    entries.forEach((entry) => {
+      const th = document.createElement("th");
+      th.className = "rail-master-train-header";
+      const color = system === "tr" ? getTraTypeColor(entry.type) : "var(--primary)";
+      const seaTag = system === "tr" && entry.isSea ? `<span class="rail-master-inline-badge sea">海</span>` : "";
+      th.innerHTML = `
+        <div class="rail-master-train-stack">
+          <div>
+            <span class="rail-master-train-no" style="color:${color}">${escapeHtml(entry.trainNo)}</span>
+            ${
+              system === "tr"
+                ? `<span class="rail-master-train-type" style="color:${color}">${escapeHtml(entry.type)}${seaTag}</span>`
+                : `<span class="rail-master-train-type rail-master-thsr-tag">THSR</span>`
+            }
+          </div>
+          <div class="rail-master-route-stack">
+            <span class="rail-master-route">${escapeHtml(entry.firstStation)}<br>↓<br>${escapeHtml(entry.lastStation)}</span>
+            ${getDurationTag(entry, startStation, endStation)}
+          </div>
+        </div>
+      `;
+      headerRow.appendChild(th);
+    });
+
+    const tbody = table.createTBody();
+    stationList.forEach((station) => {
+      const row = tbody.insertRow();
+      const nameCell = row.insertCell();
+      nameCell.className = "rail-master-station";
+      nameCell.textContent = station;
+      entries.forEach((entry) => {
+        const cell = row.insertCell();
+        if (entry.routeStopMap?.has(station)) {
+          cell.className = "rail-master-time";
+          cell.textContent = entry.routeStopMap.get(station);
+          return;
+        }
+        if (passesStation(entry, station)) {
+          cell.className = "rail-master-pass";
+          cell.textContent = Number(entry.routeDirection || 1) * Number(stationOrderSign || 1) < 0 ? "↑" : "↓";
         }
       });
     });
@@ -950,6 +1574,181 @@
       scope.appendChild(createMatrixBlock("thsr", "高鐵班次", sorted, stationList, start, end));
     } else {
       renderEmpty(state, "這個範圍沒有符合條件的高鐵班次。");
+    }
+  }
+
+  async function ensureScheduleReady(state) {
+    const dateStr = getQueryDate();
+    let baseSchedule = readPageValue("baseSchedule") || window.trainSchedule || {};
+    let prevSchedule = readPageValue("prevSchedule") || {};
+    if ((!baseSchedule || !Object.keys(baseSchedule).length) && typeof window.refreshData === "function" && dateStr) {
+      await maybePromise(window.refreshData(dateStr));
+      baseSchedule = readPageValue("baseSchedule") || window.trainSchedule || {};
+      prevSchedule = readPageValue("prevSchedule") || {};
+    }
+    const sources = [];
+    if (baseSchedule && Object.keys(baseSchedule).length) {
+      sources.push({ map: baseSchedule, originDate: dateStr });
+    }
+    if (prevSchedule && Object.keys(prevSchedule).length) {
+      sources.push({ map: prevSchedule, originDate: addDays(dateStr, -1) });
+    }
+    return sources;
+  }
+
+  async function renderTraTable(state) {
+    const queryDate = getQueryDate();
+    const schedules = await ensureScheduleReady(state);
+    if (!schedules.length) {
+      renderEmpty(state, "目前沒有可顯示的台鐵時刻總表資料。");
+      return;
+    }
+    if (!syncStationControls(state)) {
+      renderEmpty(state, "目前無法取得台鐵站序，請稍後再試。");
+      return;
+    }
+
+    const entries = buildMasterEntries("tr", schedules);
+    buildTraTypeControls(state, entries);
+
+    const start = normalizeTraStation(state.startSelect.value);
+    const end = normalizeTraStation(state.endSelect.value);
+    const pivot = normalizeTraStation(state.pivotSelect.value);
+    const rawRange = buildTraMasterRange(start, end, pivot, state.stationOrder);
+    const range = canonicalizeRangeOrder(rawRange, state.stationOrder);
+    if (range.length < 2) {
+      renderEmpty(state, "目前無法建立這個區間的顯示範圍。");
+      return;
+    }
+
+    const direction = state.directionSelect?.value || "all";
+    const query = String(state.searchInput.value || "").trim();
+    const filtered = entries
+      .flatMap((entry) => buildMasterProjections(entry, range, queryDate))
+      .filter((entry) => {
+        if (!entry) return false;
+        if (entry.rangeDisplayDate !== queryDate) return false;
+        if (state.selectedTypes.size && !state.selectedTypes.has(entry.type)) return false;
+        if (!matchesDirectionFilter(entry.trainNo, direction)) return false;
+        if (query && !entry.trainNo.includes(query)) return false;
+        if (pivot && !entry.routeCoveredSet?.has(pivot)) return false;
+        return true;
+      });
+
+    const reserved = sortProjectedEntries(
+      filtered.filter((entry) => entry.isReserved),
+      range,
+      pivot,
+      queryDate
+    );
+    const nonReserved = sortProjectedEntries(
+      filtered.filter((entry) => !entry.isReserved),
+      range,
+      pivot,
+      queryDate
+    );
+    const stationOrderSign = getDisplayStationOrderSign(direction, filtered);
+    const reservedStations = getDisplayStationList(
+      "tr",
+      state.onlyStopCheckbox.checked
+        ? range.filter((station) => reserved.some((entry) => entry.routeStopMap?.has(station)))
+        : range,
+      direction,
+      filtered
+    );
+    const nonReservedStations = getDisplayStationList(
+      "tr",
+      state.onlyStopCheckbox.checked
+        ? range.filter((station) => nonReserved.some((entry) => entry.routeStopMap?.has(station)))
+        : range,
+      direction,
+      filtered
+    );
+
+    state.output.innerHTML = `
+      <div class="rail-master-export-scope">
+        <div class="rail-master-meta-line"></div>
+      </div>
+    `;
+    const directionLabel = getTrainDirectionOptions("tr").find((item) => item.value === direction)?.label || "全部";
+    renderSummary(
+      state,
+      "台鐵時刻總表",
+      `${queryDate || "--"}｜${directionLabel}｜對號 ${reserved.length} 班｜非對號 ${nonReserved.length} 班`
+    );
+    const scope = state.output.querySelector(".rail-master-export-scope");
+    if (reserved.length) {
+      scope.appendChild(createMatrixBlock("tr", "對號列車", reserved, reservedStations, start, end, stationOrderSign));
+    }
+    if (nonReserved.length) {
+      scope.appendChild(createMatrixBlock("tr", "非對號列車", nonReserved, nonReservedStations, start, end, stationOrderSign));
+    }
+    if (!reserved.length && !nonReserved.length) {
+      renderEmpty(state, "這個日期與區間目前沒有符合條件的台鐵列車。");
+    }
+  }
+
+  async function renderThsrTable(state) {
+    const queryDate = getQueryDate();
+    const schedules = await ensureScheduleReady(state);
+    if (!schedules.length) {
+      renderEmpty(state, "目前沒有可顯示的高鐵時刻總表資料。");
+      return;
+    }
+    if (!syncStationControls(state)) {
+      renderEmpty(state, "目前無法取得高鐵站序，請稍後再試。");
+      return;
+    }
+
+    const entries = buildMasterEntries("thsr", schedules);
+    const start = normalizeThsrStation(state.startSelect.value);
+    const end = normalizeThsrStation(state.endSelect.value);
+    const pivot = normalizeThsrStation(state.pivotSelect.value);
+    const rawRange = getRailNetwork()?.findThsrRoutePath
+      ? getRailNetwork().findThsrRoutePath(start, end, pivot)
+      : ensureRange(start, end, state.stationOrder);
+    const range = canonicalizeRangeOrder(rawRange, state.stationOrder);
+    if (range.length < 2) {
+      renderEmpty(state, "目前無法建立這個區間的顯示範圍。");
+      return;
+    }
+
+    const direction = state.directionSelect?.value || "all";
+    const query = String(state.searchInput.value || "").trim();
+    const filtered = entries
+      .flatMap((entry) => buildMasterProjections(entry, range, queryDate))
+      .filter((entry) => {
+        if (!entry) return false;
+        if (entry.rangeDisplayDate !== queryDate) return false;
+        if (!matchesDirectionFilter(entry.trainNo, direction)) return false;
+        if (query && !entry.trainNo.includes(query)) return false;
+        if (pivot && !entry.routeCoveredSet?.has(pivot)) return false;
+        return true;
+      });
+
+    const sorted = sortProjectedEntries(filtered, range, pivot, queryDate);
+    const stationOrderSign = getDisplayStationOrderSign(direction, sorted);
+    const stationList = getDisplayStationList(
+      "thsr",
+      state.onlyStopCheckbox.checked
+        ? range.filter((station) => sorted.some((entry) => entry.routeStopMap?.has(station)))
+        : range,
+      direction,
+      sorted
+    );
+
+    state.output.innerHTML = `
+      <div class="rail-master-export-scope">
+        <div class="rail-master-meta-line"></div>
+      </div>
+    `;
+    const directionLabel = getTrainDirectionOptions("thsr").find((item) => item.value === direction)?.label || "全部";
+    renderSummary(state, "高鐵時刻總表", `${queryDate || "--"}｜${directionLabel}｜${sorted.length} 班`);
+    const scope = state.output.querySelector(".rail-master-export-scope");
+    if (sorted.length) {
+      scope.appendChild(createMatrixBlock("thsr", "高鐵列車", sorted, stationList, start, end, stationOrderSign));
+    } else {
+      renderEmpty(state, "這個日期與區間目前沒有符合條件的高鐵列車。");
     }
   }
 

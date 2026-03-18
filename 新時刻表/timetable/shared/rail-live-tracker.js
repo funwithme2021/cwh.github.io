@@ -28,7 +28,7 @@
     "觀光列車": "#1d4ed8",
     "團體列車": "#0ea5e9",
   };
-  const THSR_DIRECTION_COLORS = { north: "#2563eb", south: "#ea580c" };
+  const THSR_DIRECTION_COLORS = { north: "#11f6a6", south: "#ff41dc" };
 
   function escapeHtml(value) {
     return String(value || "")
@@ -423,6 +423,27 @@
       : { arrival: secondary, departure: primary };
   }
 
+  function normalizeTraTypeForSingleTimeStop(type) {
+    const raw = String(type || "").trim();
+    return getRailNetwork()?.normalizeTraDisplayType?.(raw) || raw;
+  }
+
+  function normalizeSingleTimeTraStop(stop, index, stopCount, type) {
+    if (index <= 0 || index >= stopCount - 1) return stop;
+    const arrival = String(stop?.arrival || "").trim();
+    const departure = String(stop?.departure || "").trim();
+    if ((arrival && departure) || (!arrival && !departure)) return stop;
+    const normalizedType = normalizeTraTypeForSingleTimeStop(type);
+    if (!new Set(["區間車", "普通車", "柴油客車"]).has(normalizedType)) return stop;
+    const singleTime = arrival || departure;
+    return {
+      ...stop,
+      arrival: singleTime,
+      departure: singleTime,
+      inferredStop: true,
+    };
+  }
+
   function buildEntries(system, scheduleSources) {
     const normalizeStation = system === "tr" ? normalizeTraStation : normalizeThsrStation;
     const sources = Array.isArray(scheduleSources) ? scheduleSources : [{ map: scheduleSources || {}, originDate: getQueryDate() }];
@@ -432,18 +453,34 @@
         .map((trainNo) => {
           const raw = source.map?.[trainNo];
           if (!raw) return null;
-          const stops = (raw["車站時間"] || [])
-            .map((stop) => {
+          const rawType = system === "tr" ? String(raw["原始車種"] || raw["車種"] || "列車").trim() || "列車" : "高鐵";
+          const stopRows = raw["車站時間"] || [];
+          const stops = stopRows
+            .map((stop, index) => {
               const times = splitStopTimes(stop);
+              const normalizedStop = system === "tr"
+                ? normalizeSingleTimeTraStop(
+                    {
+                      name: normalizeStation(stop?.[0] || ""),
+                      arrival: times.arrival,
+                      departure: times.departure,
+                    },
+                    index,
+                    stopRows.length,
+                    rawType
+                  )
+                : {
+                    name: normalizeStation(stop?.[0] || ""),
+                    arrival: times.arrival,
+                    departure: times.departure,
+                  };
               return {
+                ...normalizedStop,
                 name: normalizeStation(stop?.[0] || ""),
-                arrival: times.arrival,
-                departure: times.departure,
               };
             })
             .filter((stop) => stop.name && (stop.arrival || stop.departure));
           if (stops.length < 2) return null;
-          const rawType = system === "tr" ? String(raw["原始車種"] || raw["車種"] || "列車").trim() || "列車" : "高鐵";
           const fullPathStations = expandEntryPathStations(system, stops);
           return {
             key: `${trainNo}@${source.originDate}`,

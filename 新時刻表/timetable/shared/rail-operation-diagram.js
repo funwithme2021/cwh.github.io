@@ -55,7 +55,7 @@
           id: "west-north",
           title: "西部幹線北段",
           subtitle: "基隆 - 竹南",
-          stations: ["基隆", "三坑", "八堵", "七堵", "百福", "五堵", "汐止", "汐科", "南港", "松山", "臺北", "萬華", "板橋", "浮洲", "樹林", "南樹林", "山佳", "鶯歌", "鳳鳴", "桃園", "內壢", "中壢", "埔心", "楊梅", "富岡", "新富", "北湖", "湖口", "新豐", "竹北", "新竹", "三姓橋", "香山", "崎頂", "竹南"],
+          stations: ["基隆", "三坑", "八堵", "七堵", "百福", "五堵", "汐止", "汐科", "南港", "松山", "臺北", "萬華", "板橋", "浮洲", "樹林", "南樹林", "山佳", "鶯歌", "鳳鳴", "桃園", "內壢", "中壢", "埔心", "楊梅", "富岡", "新富", "北湖", "湖口", "新豐", "竹北", "北新竹", "新竹", "三姓橋", "香山", "崎頂", "竹南"],
           excludeAny: ["八斗子", "海科館", "大華", "十分", "望古", "嶺腳", "平溪", "菁桐", "六家", "竹中", "上員", "榮華", "竹東", "橫山", "九讚頭", "合興", "富貴", "內灣"],
         },
         {
@@ -413,6 +413,27 @@
       : { arrival: secondary, departure: primary };
   }
 
+  function normalizeTraTypeForSingleTimeStop(type) {
+    const raw = String(type || "").trim();
+    return window.RailNetwork?.normalizeTraDisplayType?.(raw) || raw;
+  }
+
+  function normalizeSingleTimeTraStop(stop, index, stopCount, type) {
+    if (index <= 0 || index >= stopCount - 1) return stop;
+    const arrival = String(stop?.arrival || "").trim();
+    const departure = String(stop?.departure || "").trim();
+    if ((arrival && departure) || (!arrival && !departure)) return stop;
+    const normalizedType = normalizeTraTypeForSingleTimeStop(type);
+    if (!new Set(["區間車", "普通車", "柴油客車"]).has(normalizedType)) return stop;
+    const singleTime = arrival || departure;
+    return {
+      ...stop,
+      arrival: singleTime,
+      departure: singleTime,
+      inferredStop: true,
+    };
+  }
+
   function buildTimedStops(stops) {
     const timedStops = [];
     let previousAbsoluteMinute = null;
@@ -637,6 +658,54 @@
           };
         })
         .map((entry) => (entry ? enrichEntryWithPath(entry, "thsr") : null))
+        .filter(Boolean)
+    );
+  }
+
+  function buildTraEntries(scheduleSources) {
+    const sources = Array.isArray(scheduleSources) ? scheduleSources : [{ map: scheduleSources || {}, originDate: getQueryDate() }];
+    return sources.flatMap((source) =>
+      Object.keys(source.map || {})
+        .sort((a, b) => String(a).localeCompare(String(b), "en"))
+        .map((trainNo) => {
+          const raw = source.map?.[trainNo];
+          if (!raw) return null;
+          const rawType = String(raw["原始車種"] || raw["車種"] || "列車").trim() || "列車";
+          const stopRows = raw["車站時間"] || [];
+          const stops = stopRows
+            .map((stop, index) => {
+              const times = splitStopTimes(stop);
+              const normalizedStop = normalizeSingleTimeTraStop(
+                {
+                  name: normalizeTraStation(stop?.[0] || ""),
+                  arrival: times.arrival,
+                  departure: times.departure,
+                },
+                index,
+                stopRows.length,
+                rawType
+              );
+              return {
+                ...normalizedStop,
+                name: normalizeTraStation(stop?.[0] || ""),
+              };
+            })
+            .filter((stop) => stop.name && (stop.arrival || stop.departure));
+          if (stops.length < 2) return null;
+          return {
+            key: `${trainNo}@${source.originDate || ""}`,
+            originDate: source.originDate || getQueryDate(),
+            trainNo: String(trainNo),
+            rawType,
+            type: window.RailNetwork?.normalizeTraDisplayType
+              ? window.RailNetwork.normalizeTraDisplayType(rawType)
+              : rawType,
+            tripLine: raw["路線"] ?? raw["TripLine"] ?? raw["銵"] ?? "",
+            stationSet: new Set(stops.map((stop) => stop.name)),
+            stops,
+          };
+        })
+        .map((entry) => (entry ? enrichEntryWithPath(entry, "tr") : null))
         .filter(Boolean)
     );
   }
