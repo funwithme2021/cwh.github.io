@@ -1,4 +1,4 @@
-(function () {
+﻿(function () {
   if (typeof window.stationDB === "undefined") window.stationDB = { tr: [], thsr: [] };
   if (typeof window.assistantRouteCache === "undefined") window.assistantRouteCache = { date: "", tra: null, thsr: null };
   if (typeof window.assistantSeatCache === "undefined") window.assistantSeatCache = {};
@@ -27,70 +27,324 @@
         flex-direction:column;
         gap:14px;
       }
-      .assistant-route-title strong{
+      .assistant-message-bubble.assistant-message-bubble-structured{
+        width:min(920px, 100%);
+        padding:0;
+        border:none;
+        background:transparent;
+        box-shadow:none;
+      }
+      .rail-ai-collection{
+        display:flex;
+        flex-direction:column;
+        gap:14px;
+      }
+      .rail-ai-title{
+        display:flex;
+        flex-wrap:wrap;
+        align-items:center;
+        gap:10px;
+      }
+      .rail-ai-title strong{
+        font-size:1.06rem;
         display:flex;
         flex-wrap:wrap;
         align-items:center;
         gap:8px;
+        color:var(--text-main, var(--text, #e2e8f0));
       }
-      .assistant-note-panel{
+      .rail-ai-badge{
+        display:inline-flex;
+        align-items:center;
+        gap:6px;
+        padding:6px 10px;
+        border-radius:999px;
+        border:1px solid rgba(37,99,235,0.26);
+        background:rgba(37,99,235,0.12);
+        color:#60a5fa;
+        font-size:.78rem;
+        letter-spacing:.08em;
+        font-weight:800;
+      }
+      body.light-mode .rail-ai-badge{
+        color:#1d4ed8;
+      }
+      .rail-ai-meta-row{
+        display:flex;
+        flex-wrap:wrap;
+        gap:8px;
+      }
+      .rail-ai-meta-pill{
+        display:inline-flex;
+        align-items:center;
+        gap:6px;
+        padding:6px 10px;
+        border-radius:999px;
+        border:1px solid rgba(148,163,184,0.16);
+        background:rgba(255,255,255,0.05);
+        color:var(--text-main, var(--text, #e2e8f0));
+        font-size:.8rem;
+        font-weight:700;
+      }
+      body.light-mode .rail-ai-meta-pill{
+        background:rgba(255,255,255,0.92);
+        border-color:rgba(15,23,42,0.08);
+      }
+      .rail-ai-note-panel{
         padding:14px 16px;
         border:1px solid rgba(96,165,250,0.18);
         border-radius:18px;
         background:linear-gradient(135deg, rgba(37,99,235,0.10), rgba(15,23,42,0.02));
       }
-      body.light-mode .assistant-note-panel{
+      body.light-mode .rail-ai-note-panel{
         background:linear-gradient(135deg, rgba(37,99,235,0.08), rgba(255,255,255,0.92));
         border-color:rgba(37,99,235,0.12);
       }
-      .assistant-note-panel .assistant-note{
+      .rail-ai-note{
         margin:0;
+        color:var(--text-muted, var(--muted, #94a3b8));
+        line-height:1.7;
+        font-size:.92rem;
       }
-      .assistant-system-summary{
+      .rail-ai-summary-row{
         display:flex;
         flex-wrap:wrap;
         gap:8px;
         margin-top:10px;
       }
-      .assistant-summary-pill{
+      .rail-ai-summary-pill{
         display:inline-flex;
         align-items:center;
         padding:6px 10px;
         border-radius:999px;
         background:rgba(148,163,184,0.12);
         border:1px solid rgba(148,163,184,0.16);
-        color:var(--text);
+        color:var(--text-main, var(--text, #e2e8f0));
         font-size:.78rem;
         font-weight:800;
       }
-      .assistant-pagination{
-        margin-top:12px;
+      .rail-ai-section{
+        display:flex;
+        flex-direction:column;
+        gap:10px;
+      }
+      .rail-ai-system-block{
+        padding:14px 16px;
+        border-radius:18px;
+        border:1px solid rgba(148,163,184,0.16);
+        background:linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02));
+      }
+      body.light-mode .rail-ai-system-block{
+        background:linear-gradient(180deg, rgba(255,255,255,0.96), rgba(248,250,252,0.92));
+        border-color:rgba(15,23,42,0.08);
+      }
+      .rail-ai-section-head{
         display:flex;
         align-items:center;
         justify-content:space-between;
         gap:10px;
         flex-wrap:wrap;
       }
-      .assistant-pagination-note{
-        color:var(--muted);
-        font-size:.84rem;
+      .rail-ai-section-head strong{
+        display:flex;
+        align-items:center;
+        gap:8px;
+        font-size:.96rem;
+        color:var(--text-main, var(--text, #e2e8f0));
+      }
+      .rail-ai-section-head span{
+        color:var(--text-muted, var(--muted, #94a3b8));
+        font-size:.82rem;
+      }
+      .rail-ai-system-pill{
+        display:inline-flex;
+        align-items:center;
+        padding:5px 10px;
+        border-radius:999px;
+        font-size:.74rem;
+        font-weight:900;
+        letter-spacing:.08em;
+        text-transform:uppercase;
+      }
+      .rail-ai-system-pill.tr{
+        background:rgba(59,130,246,0.14);
+        color:#93c5fd;
+      }
+      .rail-ai-system-pill.thsr{
+        background:rgba(251,146,60,0.16);
+        color:#fdba74;
+      }
+      body.light-mode .rail-ai-system-pill.tr{
+        color:#1d4ed8;
+      }
+      body.light-mode .rail-ai-system-pill.thsr{
+        color:#c2410c;
+      }
+      .rail-ai-list{
+        display:grid;
+        gap:10px;
+        grid-template-columns:repeat(auto-fit, minmax(260px, 1fr));
+      }
+      .rail-ai-card{
+        border:1px solid rgba(148,163,184,0.14);
+        border-radius:18px;
+        background:linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.03));
+        padding:13px 14px;
+        display:flex;
+        flex-direction:column;
+        gap:10px;
+      }
+      body.light-mode .rail-ai-card{
+        background:linear-gradient(180deg, rgba(255,255,255,0.98), rgba(248,250,252,0.94));
+        border-color:rgba(15,23,42,0.07);
+      }
+      .rail-ai-card-main{
+        display:flex;
+        flex-direction:column;
+        gap:6px;
+      }
+      .rail-ai-card-main strong{
+        display:flex;
+        flex-wrap:wrap;
+        gap:8px;
+        align-items:center;
+        font-size:1rem;
+        color:var(--text-main, var(--text, #e2e8f0));
+      }
+      .rail-ai-line{
+        margin:0;
+        color:var(--text-main, var(--text, #e2e8f0));
         line-height:1.6;
       }
-      .assistant-pagination-actions{
+      .rail-ai-subline{
+        margin:0;
+        color:var(--text-muted, var(--muted, #94a3b8));
+        line-height:1.6;
+        font-size:.9rem;
+      }
+      .rail-ai-actions{
         display:flex;
         flex-wrap:wrap;
         gap:8px;
       }
-      .assistant-stop-chip{
+      .rail-ai-btn{
+        border:1px solid rgba(148,163,184,0.18);
+        background:rgba(255,255,255,0.05);
+        color:var(--text-main, var(--text, #e2e8f0));
+        border-radius:12px;
+        padding:9px 12px;
+        font:inherit;
+        font-size:.88rem;
+        font-weight:700;
+        cursor:pointer;
+      }
+      body.light-mode .rail-ai-btn{
+        background:rgba(255,255,255,0.94);
+        border-color:rgba(15,23,42,0.08);
+      }
+      .rail-ai-btn.primary{
+        background:linear-gradient(135deg, #2563eb, #0ea5e9);
+        border-color:transparent;
+        color:#fff;
+      }
+      .rail-ai-grid{
+        display:grid;
+        gap:10px;
+        grid-template-columns:repeat(2, minmax(0, 1fr));
+      }
+      .rail-ai-stat{
+        border:1px solid rgba(148,163,184,0.14);
+        border-radius:16px;
+        background:rgba(255,255,255,0.04);
+        padding:12px 14px;
+        display:flex;
+        flex-direction:column;
+        gap:6px;
+      }
+      body.light-mode .rail-ai-stat{
+        background:rgba(248,250,252,0.94);
+        border-color:rgba(15,23,42,0.07);
+      }
+      .rail-ai-stat span{
+        font-size:.8rem;
+        color:var(--text-muted, var(--muted, #94a3b8));
+      }
+      .rail-ai-stat strong{
+        font-size:1rem;
+        line-height:1.45;
+        color:var(--text-main, var(--text, #e2e8f0));
+      }
+      .rail-ai-stop-strip{
+        display:flex;
+        flex-wrap:wrap;
         gap:8px;
       }
-      .assistant-stop-chip-time{
-        color:var(--dim);
+      .rail-ai-stop-chip{
+        display:inline-flex;
+        align-items:center;
+        gap:8px;
+        padding:7px 10px;
+        border-radius:999px;
+        background:rgba(148,163,184,0.12);
+        border:1px solid rgba(148,163,184,0.14);
+        color:var(--text-main, var(--text, #e2e8f0));
+        font-size:.84rem;
+      }
+      .rail-ai-stop-chip-time{
+        color:var(--text-muted, var(--muted, #94a3b8));
         font-size:.76rem;
         font-weight:700;
       }
+      .rail-ai-empty{
+        padding:14px 16px;
+        border-radius:16px;
+        border:1px dashed rgba(148,163,184,0.22);
+        color:var(--text-muted, var(--muted, #94a3b8));
+        background:rgba(255,255,255,0.03);
+        line-height:1.7;
+      }
+      body.light-mode .rail-ai-empty{
+        background:rgba(255,255,255,0.9);
+      }
+      .rail-ai-pagination{
+        margin-top:2px;
+        display:flex;
+        align-items:center;
+        justify-content:space-between;
+        gap:10px;
+        flex-wrap:wrap;
+      }
+      .rail-ai-pagination-note{
+        color:var(--text-muted, var(--muted, #94a3b8));
+        font-size:.84rem;
+        line-height:1.6;
+      }
+      .rail-ai-pagination-actions{
+        display:flex;
+        flex-wrap:wrap;
+        gap:8px;
+      }
+      .rail-ai-switch{
+        display:flex;
+        flex-wrap:wrap;
+        gap:10px;
+        align-items:center;
+        justify-content:space-between;
+        padding:14px 16px;
+        border:1px solid rgba(148,163,184,0.16);
+        border-radius:18px;
+        background:linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.03));
+      }
+      body.light-mode .rail-ai-switch{
+        background:linear-gradient(180deg, rgba(255,255,255,0.98), rgba(248,250,252,0.94));
+        border-color:rgba(15,23,42,0.08);
+      }
       @media (max-width: 720px){
-        .assistant-pagination{
+        .rail-ai-grid{
+          grid-template-columns:1fr;
+        }
+        .rail-ai-switch,
+        .rail-ai-pagination{
           align-items:flex-start;
         }
       }
@@ -116,9 +370,9 @@
     return String(text || "")
       .trim()
       .replace(/\s+/g, "")
-      .replace(/臺/g, "台")
-      .replace(/車站/g, "")
-      .replace(/站/g, "");
+      .replace(/[台臺]/g, "臺")
+      .replace(/車站|火車站|高鐵站|臺鐵站|站/g, "")
+      .replace(/[、，。．・]/g, "");
   }
 
   function resolveLocalStationName(raw, sys) {
@@ -136,19 +390,19 @@
 
   function simplifyTypeName(typeName) {
     const name = String(typeName || "").trim();
-    if (!name) return "台鐵";
+    if (!name) return "列車";
     if (window.RailNetwork?.normalizeTraDisplayType) {
-      return window.RailNetwork.normalizeTraDisplayType(name);
+      return window.RailNetwork.normalizeTraDisplayType(name) || name;
     }
-    if (/專開列車/.test(name)) return name;
-    if (/自強.*3000|3000|新自強|騰雲/.test(name)) return "新自強";
-    if (/普悠瑪/.test(name)) return "普悠瑪";
-    if (/太魯閣/.test(name)) return "太魯閣";
-    if (/區間快/.test(name)) return "區間快";
-    if (/區間/.test(name)) return "區間車";
-    if (/莒光/.test(name)) return "莒光號";
-    if (/復興/.test(name)) return "復興號";
-    if (/自強/.test(name)) return "自強號";
+    if (/普悠瑪/i.test(name)) return "普悠瑪";
+    if (/太魯閣/i.test(name)) return "太魯閣";
+    if (/自強.*3000|3000/i.test(name)) return "自強3000";
+    if (/自強/i.test(name)) return "自強";
+    if (/莒光/i.test(name)) return "莒光";
+    if (/復興/i.test(name)) return "復興";
+    if (/區間快/i.test(name)) return "區間快";
+    if (/區間/i.test(name)) return "區間";
+    if (/普快/i.test(name)) return "普快";
     return name;
   }
 
@@ -158,28 +412,24 @@
       return window.RailNetwork.getTraTypeColor(type);
     }
     const map = {
-      新自強: "#7c3aed",
-      普悠瑪: "#db2777",
-      太魯閣: "#2563eb",
-      自強號: "#e11d48",
-      莒光號: "#ea580c",
-      復興號: "#0284c7",
-      區間快: "#16a34a",
-      區間車: "#475569",
-      普快車: "#0f766e",
-      柴快車: "#7c2d12",
-      柴油客車: "#92400e",
-      普通車: "#1d4ed8",
-      加班車: "#0ea5e9",
+      "自強3000": "#7c3aed",
+      "普悠瑪": "#db2777",
+      "太魯閣": "#2563eb",
+      "自強": "#e11d48",
+      "莒光": "#ea580c",
+      "復興": "#0284c7",
+      "區間快": "#16a34a",
+      "區間": "#475569",
+      "普快": "#0f766e",
     };
     return map[type] || "#64748b";
   }
 
   function formatDateLabel(dateStr) {
     const today = getTodayDateStr();
-    if (dateStr === today) return `${dateStr} 今天`;
-    if (dateStr === addDays(today, 1)) return `${dateStr} 明天`;
-    if (dateStr === addDays(today, 2)) return `${dateStr} 後天`;
+    if (dateStr === today) return `${dateStr} 隞予`;
+    if (dateStr === addDays(today, 1)) return `${dateStr} ?予`;
+    if (dateStr === addDays(today, 2)) return `${dateStr} 敺予`;
     return dateStr;
   }
 
@@ -196,40 +446,10 @@
     if (window.RailAssistantCommon?.parseFlexibleDate) {
       return window.RailAssistantCommon.parseFlexibleDate(rawText, getTodayDateStr);
     }
-    let cleaned = String(rawText || "").trim();
-    let dateStr = getTodayDateStr();
-
-    if (/後天/.test(cleaned)) {
-      cleaned = cleaned.replace(/後天/g, " ");
-      dateStr = addDays(getTodayDateStr(), 2);
-    } else if (/明天/.test(cleaned)) {
-      cleaned = cleaned.replace(/明天/g, " ");
-      dateStr = addDays(getTodayDateStr(), 1);
-    } else if (/今天|今日/.test(cleaned)) {
-      cleaned = cleaned.replace(/今天|今日/g, " ");
-      dateStr = getTodayDateStr();
-    } else {
-      const ymd = cleaned.match(/(20\d{2})[\/\-年](\d{1,2})[\/\-月](\d{1,2})(?:日)?/);
-      const mdSlash = ymd ? null : cleaned.match(/(^|[^\d])(\d{1,2})\/(\d{1,2})(?!\d)/);
-      const mdDash = ymd || mdSlash ? null : cleaned.match(/(^|[^\d])(\d{1,2})-(\d{1,2})(?!\d)/);
-      const mdZh = ymd || mdSlash || mdDash ? null : cleaned.match(/(\d{1,2})月(\d{1,2})日?/);
-      const match = ymd || mdSlash || mdDash || mdZh;
-      if (match) {
-        const year = ymd ? match[1] : new Date().getFullYear();
-        const month = ymd ? match[2] : (mdZh ? match[1] : match[2]);
-        const day = ymd ? match[3] : (mdZh ? match[2] : match[3]);
-        const parsed = normalizeDate(year, month, day);
-        if (parsed) {
-          cleaned = cleaned.replace(match[0], " ");
-          dateStr = parsed;
-        }
-      }
-    }
-
     return {
-      dateStr,
-      dateLabel: formatDateLabel(dateStr),
-      cleanedText: cleaned.replace(/\s+/g, " ").trim(),
+      dateStr: getTodayDateStr(),
+      dateLabel: formatDateLabel(getTodayDateStr()),
+      cleanedText: String(rawText || "").trim(),
     };
   }
 
@@ -260,86 +480,23 @@
     return formatDurationMinutes(diff);
   }
 
-  function parseTimeWindow(rawText) {
-    if (window.RailAssistantCommon?.parseFlexibleTimeWindow) {
-      return window.RailAssistantCommon.parseFlexibleTimeWindow(rawText);
-    }
-    let cleaned = String(rawText || "").trim();
-    let timeStartMin = null;
-    let timeEndMin = null;
-    let timeLabel = "";
-
-    const rangeMatch = cleaned.match(/(\d{1,2}:\d{2})\s*(?:-|~|到)\s*(\d{1,2}:\d{2})/);
-    if (rangeMatch) {
-      const start = timeToMin(rangeMatch[1]);
-      const end = timeToMin(rangeMatch[2]);
-      if (start !== null && end !== null) {
-        timeStartMin = start;
-        timeEndMin = end;
-        timeLabel = `${rangeMatch[1]}-${rangeMatch[2]}`;
-        cleaned = cleaned.replace(rangeMatch[0], " ");
-      }
-    } else {
-      const singleMatch = cleaned.match(/(^|[^\d])(\d{1,2}:\d{2})(?!\d)/);
-      if (singleMatch) {
-        const start = timeToMin(singleMatch[2]);
-        if (start !== null) {
-          timeStartMin = start;
-          timeLabel = `${singleMatch[2]} 之後`;
-          cleaned = cleaned.replace(singleMatch[2], " ");
-        }
-      }
-    }
-
-    return {
-      timeStartMin,
-      timeEndMin,
-      timeLabel,
-      hasTimeFilter: Number.isFinite(timeStartMin),
-      cleanedText: cleaned.replace(/\s+/g, " ").trim(),
-    };
-  }
-
-  function currentMinutes() {
-    const now = new Date();
-    return now.getHours() * 60 + now.getMinutes();
-  }
-
-  function withDelayClock(clock, delayMin) {
-    const base = timeToMin(clock);
-    if (base === null) return clock || "--";
-    let value = base + Math.max(0, Number(delayMin || 0));
-    value = ((value % 1440) + 1440) % 1440;
-    return `${pad2(Math.floor(value / 60))}:${pad2(value % 60)}`;
-  }
-
-  function countdownText(diff) {
-    if (!Number.isFinite(diff)) return "";
-    if (diff <= 0) return "已到站";
-    return formatDurationMinutes(diff);
-  }
-
-  function etaText(clock, remainText) {
-    if (!clock) return "--";
-    if (!remainText) return `${clock} 抵達`;
-    if (remainText === "已到站") return `${clock} 抵達 ｜ ${remainText}`;
-    return `${clock} 抵達 ｜ 約還有 ${remainText}`;
-  }
-
   function detectSystem(text) {
     if (/高鐵|thsr|hsr/i.test(text)) return "thsr";
-    if (/台鐵|臺鐵|tra/i.test(text)) return "tr";
+    if (/臺鐵|台鐵|tra/i.test(text)) return "tr";
     return "";
   }
 
   function detectTraType(text) {
-    if (/自強.*3000|3000型自強|騰雲/.test(text)) return "新自強";
-    if (/自強/.test(text)) return "自強號";
-    if (/普悠瑪/.test(text)) return "普悠瑪";
-    if (/太魯閣/.test(text)) return "太魯閣";
-    if (/區間快/.test(text)) return "區間快";
-    if (/區間/.test(text)) return "區間車";
-    if (/莒光/.test(text)) return "莒光號";
+    const raw = String(text || "");
+    if (/普悠瑪/i.test(raw)) return "普悠瑪";
+    if (/太魯閣/i.test(raw)) return "太魯閣";
+    if (/自強\s*3000|3000/i.test(raw)) return "自強3000";
+    if (/自強/i.test(raw)) return "自強";
+    if (/莒光/i.test(raw)) return "莒光";
+    if (/復興/i.test(raw)) return "復興";
+    if (/區間快/i.test(raw)) return "區間快";
+    if (/區間/i.test(raw)) return "區間";
+    if (/普快/i.test(raw)) return "普快";
     return "";
   }
 
@@ -389,16 +546,15 @@
 
   function cleanupRouteToken(value) {
     return String(value || "")
-      .replace(/^(從|由)\s*/g, "")
-      .replace(/^(高鐵|台鐵|臺鐵|TRA|THSR)\s*/i, "")
-      .replace(/\s*(高鐵|台鐵|臺鐵|TRA|THSR)$/i, "")
-      .replace(/\s*(自強(?:號|3000)?|普悠瑪|太魯閣|區間快|區間車|區間|莒光號|莒光|直達優先|直達|不轉乘|免轉乘|可轉乘|轉乘|有沒有票|有票|票況|可訂|訂票|座位|班次|查詢|呢|嗎|全部站|停靠站|停靠|沿途)+\s*$/g, "")
-      .replace(/\s*(車站|站)$/g, "")
+      .replace(/^(從|由|查詢|幫我查|我要查|想查)\s*/g, "")
+      .replace(/^(臺鐵|台鐵|高鐵|TRA|THSR)\s*/i, "")
+      .replace(/\s*(臺鐵|台鐵|高鐵|TRA|THSR)$/i, "")
+      .replace(/\s*(直達|轉乘|訂票|買票|車票|班次|車次|時刻表|停靠站|停靠|狀態|完整查詢|查詢|票|有什麼車|有哪些車)$/g, "")
       .trim();
   }
 
   function parseRouteTokens(text) {
-    const routeMatch = text.match(/(.+?)(?:到|->|→|至|往)(.+)/);
+    const routeMatch = String(text || "").match(/(.+?)(?:到|至|往|→|->)(.+)/);
     if (!routeMatch) return null;
     const startRaw = cleanupRouteToken(routeMatch[1]);
     const endRaw = cleanupRouteToken(routeMatch[2]);
@@ -409,18 +565,18 @@
   function parseIntent(rawText) {
     const dateInfo = parseDate(rawText);
     const timeInfo = parseTimeWindow(dateInfo.cleanedText);
-    const text = timeInfo.cleanedText;
+    const text = String(timeInfo.cleanedText || "").trim();
     if (!text) return null;
 
     const preference = detectSystem(text);
     const typePreference = detectTraType(text);
-    const directOnly = /直達|不轉乘|免轉乘|直達優先/.test(text);
-    const allowTransfer = /轉乘|換車|接駁/.test(text);
-    const wantsTicket = /有票|票況|可訂|訂票|座位/.test(text);
-    const showStops = /停靠|停靠站|沿途|全部站/.test(text);
+    const directOnly = /直達|不要轉乘|免轉乘/.test(text);
+    const allowTransfer = /轉乘|換車|轉車/.test(text);
+    const wantsTicket = /訂票|買票|車票|票/.test(text);
+    const showStops = /停靠|停站|經過|通過|站點/.test(text);
 
-    const trainMatch = text.match(/(?:車次|列車|高鐵|台鐵|臺鐵)?\s*(\d{1,4}[A-Z]?)\s*(?:次|號)?/i);
-    const hasExplicitTrainCue = /車次|列車|班次|號/.test(text);
+    const trainMatch = text.match(/(?:車次|列車|班次|train)?\s*(\d{1,4}[A-Z]?)/i);
+    const hasExplicitTrainCue = /車次|列車|班次|train/i.test(text);
     if (trainMatch && (String(trainMatch[1]).length >= 2 || hasExplicitTrainCue)) {
       const remaining = text.replace(trainMatch[0], " ");
       const trainRouteTokens = parseRouteTokens(remaining);
@@ -428,7 +584,6 @@
         ...findMentionedStations(remaining, "tr"),
         ...findMentionedStations(remaining, "thsr"),
       ].sort((a, b) => a.idx - b.idx || b.len - a.len);
-
       return {
         kind: "train",
         dateStr: dateInfo.dateStr,
@@ -471,7 +626,7 @@
       ...(preference === "tr" ? [] : findMentionedStations(text, "thsr")),
     ].sort((a, b) => a.idx - b.idx || b.len - a.len);
 
-    if (stationMentions.length && (/有什麼車|班次|列車|車站|站/.test(text) || stationMentions.length === 1)) {
+    if (stationMentions.length && (/車站|站|班次|時刻|列車|幾點|有什麼車|有哪些車/.test(text) || stationMentions.length === 1)) {
       return {
         kind: "station",
         dateStr: dateInfo.dateStr,
@@ -671,9 +826,9 @@
   }
 
   function seatMeta(code) {
-    if (code === "O") return { text: "座位充裕", cls: "ok" };
-    if (code === "L") return { text: "座位有限", cls: "warn" };
-    if (code === "X") return { text: "接近售完", cls: "bad" };
+    if (code === "O") return { text: "摨找???", cls: "ok" };
+    if (code === "L") return { text: "摨找???", cls: "warn" };
+    if (code === "X") return { text: "?亥??桀?", cls: "bad" };
     return null;
   }
 
@@ -711,7 +866,7 @@
     const nowTs = Date.now();
     return Promise.all((services || []).map(async (service) => {
       if (!Number.isFinite(service.depTimestamp) || service.depTimestamp > nowTs) {
-        return { ...service, depDisplay: service.dep, arrDisplay: service.arr };
+        return { ...service, depDisplay: service.dep, arrDisplay: service.arr, liveStatusText: "" };
       }
       const live = await fetchTraLive(service.trainNo);
       const delayMin = Math.max(0, Number(live && live.DelayTime ? live.DelayTime : 0));
@@ -721,7 +876,7 @@
         arrDisplay: withDelayClock(service.arr, delayMin),
         delayMin,
         hasAdjustedTime: delayMin > 0,
-        liveStatusText: delayMin > 0 ? `目前狀態：晚 ${delayMin} 分` : "目前狀態：準點",
+        liveStatusText: delayMin > 0 ? `晚 ${delayMin} 分` : "準點",
       };
     }));
   }
@@ -872,7 +1027,7 @@
         timeTimestamp: timeDT.getTime(),
         rangeStart: train.stops[0] ? train.stops[0].name : "--",
         rangeEnd: train.stops[train.stops.length - 1] ? train.stops[train.stops.length - 1].name : "--",
-        range: `${train.stops[0] ? train.stops[0].name : "--"} → ${train.stops[train.stops.length - 1] ? train.stops[train.stops.length - 1].name : "--"}`,
+        range: `${train.stops[0] ? train.stops[0].name : "--"} ??${train.stops[train.stops.length - 1] ? train.stops[train.stops.length - 1].name : "--"}`,
       };
     }).filter(Boolean).sort((a, b) => a.timeTimestamp - b.timeTimestamp);
 
@@ -931,8 +1086,8 @@
     const endAbs = getStopAbs(stops[stops.length - 1], "arr");
     const nowAbs = today ? getNowRelativeAbs(train.originDate) : null;
     let delayMin = 0;
-    let statusText = today ? "準點" : "依時刻表";
-    let currentLocation = today ? "正在整理即時位置" : "查詢日期非今日，僅顯示時刻表";
+    let statusText = today ? "準點" : "非當日列車";
+    let currentLocation = today ? "正在整理目前位置" : "非當日列車，先顯示摘要資訊";
     let nextIndex = today ? findNextStopIndex(stops, 0, nowAbs) : -1;
 
     if (today) {
@@ -956,7 +1111,7 @@
           const liveIndex = train.stopMap ? train.stopMap[liveStation] : -1;
           if (Number.isInteger(liveIndex) && liveIndex < stops.length - 1) nextIndex = Math.max(nextIndex, liveIndex + 1);
         } else if (nextIndex > 0 && stops[nextIndex]) {
-          currentLocation = `已離開 ${stops[nextIndex - 1].name}，前往 ${stops[nextIndex].name}`;
+          currentLocation = `行駛於 ${stops[nextIndex - 1].name} 與 ${stops[nextIndex].name} 之間`;
         } else if (nextIndex === 0) {
           currentLocation = `目前位置 ${firstStation}`;
         } else {
@@ -972,14 +1127,15 @@
     const remainDiff = Number.isFinite(targetAbs) && Number.isFinite(nowAbs) ? targetAbs + delayMin - nowAbs : null;
 
     return {
+      trainNo: train.trainNo,
       sys: "tr",
-      label: "台鐵",
+      label: "臺鐵",
       firstStation,
       lastStation,
       routeText: `${firstStation} → ${lastStation}`,
       typeText: train.type,
       travelText: durationTextByClock(firstDep, lastArr),
-      crossDayText: isCrossDay(stops) ? "跨日車" : "當日車",
+      crossDayText: isCrossDay(stops) ? "跨日列車" : "當日列車",
       statusText,
       currentLocation,
       targetStation,
@@ -1001,8 +1157,8 @@
     const startAbs = getStopAbs(stops[0], "dep");
     const endAbs = getStopAbs(stops[stops.length - 1], "arr");
     const nowAbs = today ? getNowRelativeAbs(train.originDate) : null;
-    let statusText = today ? "準點" : "依時刻表";
-    let currentLocation = today ? "正在整理行駛區間" : "查詢日期非今日，僅顯示時刻表";
+    let statusText = today ? "準點" : "非當日列車";
+    let currentLocation = today ? "正在整理目前位置" : "非當日列車，先顯示摘要資訊";
     let nextIndex = today ? findNextStopIndex(stops, 0, nowAbs) : -1;
 
     if (today) {
@@ -1015,7 +1171,7 @@
         currentLocation = `已抵達 ${lastStation}`;
         nextIndex = -1;
       } else if (nextIndex > 0 && stops[nextIndex]) {
-        currentLocation = `已離開 ${stops[nextIndex - 1].name}，前往 ${stops[nextIndex].name}`;
+        currentLocation = `行駛於 ${stops[nextIndex - 1].name} 與 ${stops[nextIndex].name} 之間`;
       } else if (nextIndex === 0) {
         currentLocation = `目前位置 ${firstStation}`;
       } else {
@@ -1030,6 +1186,7 @@
     const remainDiff = Number.isFinite(targetAbs) && Number.isFinite(nowAbs) ? targetAbs - nowAbs : null;
 
     return {
+      trainNo: train.trainNo,
       sys: "thsr",
       label: "高鐵",
       firstStation,
@@ -1037,7 +1194,7 @@
       routeText: `${firstStation} → ${lastStation}`,
       typeText: "高鐵",
       travelText: durationTextByClock(firstDep, lastArr),
-      crossDayText: isCrossDay(stops) ? "跨日車" : "當日車",
+      crossDayText: isCrossDay(stops) ? "跨日列車" : "當日列車",
       statusText,
       currentLocation,
       targetStation,
@@ -1061,9 +1218,9 @@
   function metaRow(items) {
     const html = (items || [])
       .filter(Boolean)
-      .map((item) => `<span class="assistant-meta-pill">${escapeHtml(item)}</span>`)
+      .map((item) => `<span class="rail-ai-meta-pill">${escapeHtml(item)}</span>`)
       .join("");
-    return html ? `<div class="assistant-meta-row">${html}</div>` : "";
+    return html ? `<div class="rail-ai-meta-row">${html}</div>` : "";
   }
 
   function syncAssistantState(title, hint, tone) {
@@ -1074,6 +1231,11 @@
 
   function getAnswerElement() {
     return window.assistantRenderTarget || window.assistantLastRenderTarget || document.getElementById("assistantAnswer");
+  }
+
+  function setStructuredAnswerMode(answer, enabled) {
+    if (!answer || !answer.classList) return;
+    answer.classList.toggle("assistant-message-bubble-structured", !!enabled);
   }
 
   function setAssistantRenderState(nextState) {
@@ -1099,9 +1261,9 @@
     const actions = (buttons || []).filter(Boolean).join("");
     if (!note && !actions) return "";
     return `
-      <div class="assistant-pagination">
-        <div class="assistant-pagination-note">${escapeHtml(note || "")}</div>
-        ${actions ? `<div class="assistant-pagination-actions">${actions}</div>` : ""}
+      <div class="rail-ai-pagination">
+        <div class="rail-ai-pagination-note">${escapeHtml(note || "")}</div>
+        ${actions ? `<div class="rail-ai-pagination-actions">${actions}</div>` : ""}
       </div>
     `;
   }
@@ -1109,9 +1271,9 @@
   function renderStopChip(item, sys) {
     if (!item || !item.name) return "";
     return `
-      <span class="assistant-stop-chip">
+      <span class="rail-ai-stop-chip">
         ${renderStationLabel(item.name, sys)}
-        <span class="assistant-stop-chip-time">${escapeHtml(item.time || "--")}</span>
+        <span class="rail-ai-stop-chip-time">${escapeHtml(item.time || "--")}</span>
       </span>
     `;
   }
@@ -1121,6 +1283,23 @@
       return `${renderStationLabel(item.rangeStart, sys)} → ${renderStationLabel(item.rangeEnd, sys)}`;
     }
     return escapeHtml(item?.range || "--");
+  }
+
+  function renderSystemPill(sys, label) {
+    return `<span class="rail-ai-system-pill ${sys === "thsr" ? "thsr" : "tr"}">${escapeHtml(label)}</span>`;
+  }
+
+  function renderSummaryPills(results, formatter) {
+    return (results || []).map((result) => {
+      const text = typeof formatter === "function" ? formatter(result) : "";
+      if (!text) return "";
+      return `<span class="rail-ai-summary-pill">${escapeHtml(text)}</span>`;
+    }).join("");
+  }
+
+  function getRouteNextLabel(section, offset) {
+    if (section === "transfer") return offset > 0 ? "更晚轉乘" : "更多轉乘";
+    return offset > 0 ? "更晚班次" : "更多班次";
   }
 
   function rerenderAssistantState() {
@@ -1150,19 +1329,22 @@
   function renderSystemChoice(rawText, title, detail, systems) {
     const answer = getAnswerElement();
     setAssistantRenderState({ kind: "system-choice", rawText, title, detail, systems: Array.isArray(systems) ? [...systems] : [] });
-    syncAssistantState(title || "需要確認查詢系統", detail || "這句話可能同時對應台鐵與高鐵，先請你選擇要查哪一個。", "ready");
+    syncAssistantState(title || "請先選擇查詢系統", detail || "這個問題同時可能是臺鐵或高鐵，先選一個系統再繼續查詢。", "ready");
     if (!answer) return;
+    setStructuredAnswerMode(answer, true);
     answer.innerHTML = `
-      <div class="assistant-result-shell">
-        <div class="assistant-route-title">
-          <span class="assistant-helper-badge">需要確認</span>
-          <strong>${escapeHtml(title || "請選擇查詢系統")}</strong>
-        </div>
-        <div class="assistant-note-panel">
-          <div class="assistant-note">${escapeHtml(detail || "這句話可能同時對應台鐵與高鐵，先請你選擇要查哪一個。")}</div>
-          <div class="assistant-actions">
-            ${systems.map((sys) => `
-              <button class="assistant-action-btn" type="button" onclick='assistantResolveSystemQuery(${JSON.stringify(rawText)}, ${JSON.stringify(sys)})'>查 ${sys === "tr" ? "台鐵" : "高鐵"}</button>
+      <div class="rail-ai-collection">
+        <div class="rail-ai-switch">
+          <div class="rail-ai-section">
+            <div class="rail-ai-title">
+              <span class="rail-ai-badge">系統選擇</span>
+              <strong>${escapeHtml(title || "請先選擇查詢系統")}</strong>
+            </div>
+            <p class="rail-ai-note">${escapeHtml(detail || "這個問題同時可能是臺鐵或高鐵，先選一個系統再繼續查詢。")}</p>
+          </div>
+          <div class="rail-ai-actions">
+            ${(systems || []).map((sys, index) => `
+              <button class="rail-ai-btn ${index === 0 ? "primary" : ""}" type="button" onclick='assistantResolveSystemQuery(${JSON.stringify(rawText)}, ${JSON.stringify(sys)})'>${sys === "tr" ? "查詢臺鐵" : "查詢高鐵"}</button>
             `).join("")}
           </div>
         </div>
@@ -1173,10 +1355,11 @@
   function renderLoading(title, detail) {
     const answer = getAnswerElement();
     setAssistantRenderState(null);
-    const finalTitle = title || "正在整理資料";
-    const finalDetail = detail || "正在同步台鐵 / 高鐵資料、票況與列車狀態，幫你整理最適合的結果。";
+    const finalTitle = title || "正在整理查詢內容";
+    const finalDetail = detail || "正在讀取臺鐵與高鐵資料，稍後就會把結果整理成卡片。";
     syncAssistantState(finalTitle, finalDetail, "loading");
     if (!answer) return;
+    setStructuredAnswerMode(answer, false);
     answer.innerHTML = `
       <div class="assistant-placeholder">
         <strong>${escapeHtml(finalTitle)}</strong>
@@ -1188,8 +1371,9 @@
   function renderError(message) {
     const answer = getAnswerElement();
     setAssistantRenderState(null);
-    syncAssistantState("這次查詢沒有成功", message, "error");
+    syncAssistantState("查詢失敗", message, "error");
     if (!answer) return;
+    setStructuredAnswerMode(answer, false);
     answer.innerHTML = `<div class="assistant-error">${escapeHtml(message)}</div>`;
   }
 
@@ -1201,94 +1385,111 @@
     };
     const stateId = `route-${++assistantRenderStateSeq}`;
     setAssistantRenderState({ kind: "route", intent, results, view, stateId });
-    syncAssistantState("旅程建議已整理完成", "你可以繼續換條件，或直接打開完整查詢與訂票入口。", "ready");
+    syncAssistantState("旅程建議已整理", "可繼續往前看更早班次，或往後顯示更多與更晚的班次。", "ready");
     if (!answer) return;
+    setStructuredAnswerMode(answer, true);
+
+    const summaryPills = renderSummaryPills(results, (result) => {
+      const directItems = Array.isArray(result.direct?.items) ? result.direct.items : (result.direct?.matches || []);
+      const transferItems = Array.isArray(result.transfers) ? result.transfers : [];
+      if (directItems.length) return `${result.label} 直達 ${directItems.length} 班`;
+      if (transferItems.length) return `${result.label} 轉乘 ${transferItems.length} 組`;
+      return `${result.label} 目前無可用班次`;
+    });
+
     answer.innerHTML = `
-      <div class="assistant-result-shell">
-        <div class="assistant-route-title">
-          <span class="assistant-helper-badge">旅程建議</span>
+      <div class="rail-ai-collection">
+        <div class="rail-ai-title">
+          <span class="rail-ai-badge">旅程建議</span>
           <strong>${renderStationLabel(intent.displayStart, results[0]?.sys || intent.preference || "")} → ${renderStationLabel(intent.displayEnd, results[0]?.sys || intent.preference || "")}</strong>
         </div>
         ${metaRow([
           formatDateLabel(intent.dateStr),
           intent.timeLabel ? `時間 ${intent.timeLabel}` : "",
-          intent.preference ? (intent.preference === "tr" ? "台鐵" : "高鐵") : "自動比較台鐵 / 高鐵",
+          intent.preference ? (intent.preference === "tr" ? "臺鐵" : "高鐵") : "臺鐵 / 高鐵",
           intent.typePreference || "",
-          intent.directOnly ? "直達優先" : (intent.allowTransfer ? "可轉乘" : ""),
+          intent.directOnly ? "只看直達" : (intent.allowTransfer ? "可接受轉乘" : ""),
         ])}
-        <div class="assistant-note-panel">
-          <div class="assistant-note">先整理直達班次；如果你允許轉乘，或直達不足時，會再補上轉乘建議。高鐵若有查票需求，也會一起顯示票況。</div>
-          <div class="assistant-system-summary">
-            ${results.map((result) => {
-              const directItems = Array.isArray(result.direct?.items) ? result.direct.items : (result.direct?.matches || []);
-              return `<span class="assistant-summary-pill">${escapeHtml(result.label)} ${directItems.length ? `直達 ${directItems.length} 班` : "暫無直達"}</span>`;
-            }).join("")}
-          </div>
+        <div class="rail-ai-note-panel">
+          <p class="rail-ai-note">已把首頁與 AI 頁結果統一成和臺鐵、高鐵 AI 助手相同的卡片版型；需要更多資訊時可以直接按「更多班次」、「更早班次」或「更晚班次」。</p>
+          ${summaryPills ? `<div class="rail-ai-summary-row">${summaryPills}</div>` : ""}
         </div>
-        <div class="assistant-system-list">
+        <div class="rail-ai-collection">
           ${results.map((result) => {
             const directItems = Array.isArray(result.direct?.items) ? result.direct.items : (result.direct?.matches || []);
             const directPage = getPagedItems(directItems, view.direct[result.sys], RESULT_PAGE_SIZE.direct);
             const transferItems = Array.isArray(result.transfers) ? result.transfers : [];
             const transferPage = getPagedItems(transferItems, view.transfer[result.sys], RESULT_PAGE_SIZE.transfer);
-            return `
-              <div class="assistant-system-card">
-                <div class="assistant-system-head">
-                  <span class="assistant-system-tag ${result.sys === "tr" ? "tr" : "thsr"}">${escapeHtml(result.label)}</span>
-                  <span class="assistant-system-note">${directItems.length ? "已有可搭班次" : "目前沒有符合條件的直達班次"}</span>
-                </div>
-                <div class="assistant-section-block">
-                  <div class="assistant-section-title">直達建議</div>
-                  ${directPage.items.length ? `
-                    <div class="assistant-service-grid">
-                      ${directPage.items.map((service) => `
-                        <div class="assistant-service-row">
-                          <div class="assistant-service-main">
-                            <strong>${escapeHtml(service.trainNo)} 次${result.sys === "tr" ? ` ${renderTraTypeInline(service.type)}` : ""}</strong>
-                            <small>${escapeHtml(service.depDisplay || service.dep)} ${renderStationLabel(result.start, result.sys)} 出發 → ${escapeHtml(service.arrDisplay || service.arr)} ${renderStationLabel(result.end, result.sys)} 抵達 ｜ ${escapeHtml(service.duration)}${service.stopCount > 0 ? ` ｜ 中途 ${service.stopCount} 站` : " ｜ 直達"}${service.liveStatusText ? ` ｜ ${escapeHtml(service.liveStatusText)}` : ""}${service.hasAdjustedTime ? ` ｜ 原定 ${escapeHtml(service.dep)}→${escapeHtml(service.arr)}` : ""}</small>
-                          </div>
-                          <div class="assistant-service-side">
-                            ${service.seat ? `<span class="assistant-seat-pill ${service.seat.cls}">${escapeHtml(service.seat.text)}</span>` : ""}
-                            <button class="assistant-compact-btn" type="button" onclick='${result.sys === "tr" ? `assistantOpenTraBooking(${JSON.stringify(service.trainNo)}, ${JSON.stringify(result.start)}, ${JSON.stringify(result.end)}, ${JSON.stringify(intent.dateStr)})` : `assistantOpenTHSRBooking(${JSON.stringify(service.trainNo)}, ${JSON.stringify(result.start)}, ${JSON.stringify(result.end)}, ${JSON.stringify(intent.dateStr)}, ${JSON.stringify(service.dep)})`}'>訂票</button>
-                          </div>
-                        </div>
-                      `).join("")}
+            const directHtml = directPage.items.length ? `
+              <div class="rail-ai-list">
+                ${directPage.items.map((service) => `
+                  <article class="rail-ai-card">
+                    <div class="rail-ai-card-main">
+                      <strong>${escapeHtml(service.trainNo)} 次${result.sys === "tr" ? ` ${renderTraTypeInline(service.type)}` : ""}</strong>
+                      <p class="rail-ai-line">${escapeHtml(service.depDisplay || service.dep)} ${renderStationLabel(result.start, result.sys)} 出發 → ${escapeHtml(service.arrDisplay || service.arr)} ${renderStationLabel(result.end, result.sys)} 抵達</p>
+                      <p class="rail-ai-subline">${escapeHtml(service.duration)}${service.stopCount > 0 ? ` ｜ 中途 ${service.stopCount} 站` : " ｜ 直達"}${service.liveStatusText ? ` ｜ ${escapeHtml(service.liveStatusText)}` : ""}${service.hasAdjustedTime ? ` ｜ 原定 ${escapeHtml(service.dep)}→${escapeHtml(service.arr)}` : ""}</p>
                     </div>
-                  ` : `<div class="assistant-empty-note">${result.direct.total > 0 ? "當日有班次，但目前時間條件下沒有符合的直達車。" : "這一天查不到符合條件的直達資料。"}</div>`}
+                    <div class="rail-ai-actions">
+                      ${service.seat ? `<span class="assistant-seat-pill ${service.seat.cls}">${escapeHtml(service.seat.text)}</span>` : ""}
+                      <button class="rail-ai-btn primary" type="button" onclick='${result.sys === "tr" ? `assistantOpenTraBooking(${JSON.stringify(service.trainNo)}, ${JSON.stringify(result.start)}, ${JSON.stringify(result.end)}, ${JSON.stringify(intent.dateStr)})` : `assistantOpenTHSRBooking(${JSON.stringify(service.trainNo)}, ${JSON.stringify(result.start)}, ${JSON.stringify(result.end)}, ${JSON.stringify(intent.dateStr)}, ${JSON.stringify(service.dep)})`}'>直接訂票</button>
+                    </div>
+                  </article>
+                `).join("")}
+              </div>
+            ` : `<div class="rail-ai-empty">${result.direct.total > 0 ? "今天這個時段沒有更合適的直達班次。" : "目前沒有找到符合條件的直達班次。"}</div>`;
+            const transferHtml = !intent.directOnly && transferPage.items.length ? `
+              <div class="rail-ai-list">
+                ${transferPage.items.map((item) => `
+                  <article class="rail-ai-card">
+                    <div class="rail-ai-card-main">
+                      <strong>${escapeHtml(item.first.trainNo)} 次${renderTraTypeInline(item.first.type)} → ${escapeHtml(item.second.trainNo)} 次${renderTraTypeInline(item.second.type)}</strong>
+                      <p class="rail-ai-line">${escapeHtml(item.first.dep)} ${renderStationLabel(result.start, result.sys)} 出發 ｜ ${renderStationLabel(item.transfer, result.sys)} 轉乘 ${item.waitMin} 分 ｜ ${escapeHtml(item.second.arr)} 抵達 ${renderStationLabel(result.end, result.sys)}</p>
+                      <p class="rail-ai-subline">總耗時 ${escapeHtml(item.duration)} ｜ 第一段 ${escapeHtml(item.first.arr)} 抵達轉乘站 ｜ 第二段 ${escapeHtml(item.second.dep)} 發車</p>
+                    </div>
+                  </article>
+                `).join("")}
+              </div>
+            ` : (!intent.directOnly && transferItems.length === 0 ? `<div class="rail-ai-empty">目前沒有更合適的轉乘方案。</div>` : "");
+            return `
+              <section class="rail-ai-section rail-ai-system-block">
+                <div class="rail-ai-section-head">
+                  <strong>${renderSystemPill(result.sys, result.label)}${renderStationLabel(result.start, result.sys)} → ${renderStationLabel(result.end, result.sys)}</strong>
+                  <span>${directItems.length ? `直達 ${directItems.length} 班` : (transferItems.length ? `轉乘 ${transferItems.length} 組` : "暫無班次")}</span>
+                </div>
+                <div class="rail-ai-section">
+                  <div class="rail-ai-section-head">
+                    <strong>直達建議</strong>
+                    <span>${directItems.length ? `目前顯示 ${directPage.offset + 1}-${directPage.end} / ${directPage.total}` : "沒有符合條件的直達班次"}</span>
+                  </div>
+                  ${directHtml}
                   ${renderPager(
-                    directItems.length > RESULT_PAGE_SIZE.direct ? `目前顯示第 ${directPage.offset + 1}-${directPage.end} 班，共 ${directPage.total} 班直達。` : "",
+                    directItems.length > RESULT_PAGE_SIZE.direct ? `目前顯示 ${directPage.offset + 1}-${directPage.end} / ${directPage.total}` : "",
                     [
-                      directPage.hasPrev ? `<button class="assistant-compact-btn" type="button" onclick='assistantShiftRoutePage(${JSON.stringify(result.sys)}, "direct", -${RESULT_PAGE_SIZE.direct}, ${JSON.stringify(stateId)})'>更早 ${RESULT_PAGE_SIZE.direct} 班</button>` : "",
-                      directPage.hasNext ? `<button class="assistant-compact-btn" type="button" onclick='assistantShiftRoutePage(${JSON.stringify(result.sys)}, "direct", ${RESULT_PAGE_SIZE.direct}, ${JSON.stringify(stateId)})'>更晚 ${RESULT_PAGE_SIZE.direct} 班</button>` : "",
+                      directPage.hasPrev ? `<button class="rail-ai-btn" type="button" onclick='assistantShiftRoutePage(${JSON.stringify(result.sys)}, "direct", -${RESULT_PAGE_SIZE.direct}, ${JSON.stringify(stateId)})'>更早班次</button>` : "",
+                      directPage.hasNext ? `<button class="rail-ai-btn primary" type="button" onclick='assistantShiftRoutePage(${JSON.stringify(result.sys)}, "direct", ${RESULT_PAGE_SIZE.direct}, ${JSON.stringify(stateId)})'>${getRouteNextLabel("direct", directPage.offset)}</button>` : "",
                     ]
                   )}
                 </div>
-                ${!intent.directOnly && transferItems.length ? `
-                  <div class="assistant-section-block">
-                    <div class="assistant-section-title">轉乘建議</div>
-                    <div class="assistant-service-grid">
-                      ${transferPage.items.map((item) => `
-                        <div class="assistant-service-row">
-                          <div class="assistant-service-main">
-                            <strong>${escapeHtml(item.first.trainNo)} 次 ${renderTraTypeInline(item.first.type)} → ${escapeHtml(item.second.trainNo)} 次 ${renderTraTypeInline(item.second.type)}</strong>
-                            <small>${escapeHtml(item.first.dep)} ${renderStationLabel(result.start, result.sys)} 出發 ｜ ${escapeHtml(item.first.arr)} 於 ${renderStationLabel(item.transfer, result.sys)} 轉乘 ｜ 等待 ${item.waitMin} 分 ｜ ${escapeHtml(item.second.arr)} 抵達 ${renderStationLabel(result.end, result.sys)} ｜ 總耗時 ${escapeHtml(item.duration)}</small>
-                          </div>
-                        </div>
-                      `).join("")}
+                ${!intent.directOnly ? `
+                  <div class="rail-ai-section">
+                    <div class="rail-ai-section-head">
+                      <strong>轉乘建議</strong>
+                      <span>${transferItems.length ? `目前顯示 ${transferPage.offset + 1}-${transferPage.end} / ${transferPage.total}` : "沒有更好的轉乘方案"}</span>
                     </div>
+                    ${transferHtml}
                     ${renderPager(
-                      transferItems.length > RESULT_PAGE_SIZE.transfer ? `目前顯示第 ${transferPage.offset + 1}-${transferPage.end} 組，共 ${transferPage.total} 組轉乘。` : "",
+                      transferItems.length > RESULT_PAGE_SIZE.transfer ? `目前顯示 ${transferPage.offset + 1}-${transferPage.end} / ${transferPage.total}` : "",
                       [
-                        transferPage.hasPrev ? `<button class="assistant-compact-btn" type="button" onclick='assistantShiftRoutePage(${JSON.stringify(result.sys)}, "transfer", -${RESULT_PAGE_SIZE.transfer}, ${JSON.stringify(stateId)})'>更早轉乘</button>` : "",
-                        transferPage.hasNext ? `<button class="assistant-compact-btn" type="button" onclick='assistantShiftRoutePage(${JSON.stringify(result.sys)}, "transfer", ${RESULT_PAGE_SIZE.transfer}, ${JSON.stringify(stateId)})'>更多轉乘</button>` : "",
+                        transferPage.hasPrev ? `<button class="rail-ai-btn" type="button" onclick='assistantShiftRoutePage(${JSON.stringify(result.sys)}, "transfer", -${RESULT_PAGE_SIZE.transfer}, ${JSON.stringify(stateId)})'>更早轉乘</button>` : "",
+                        transferPage.hasNext ? `<button class="rail-ai-btn primary" type="button" onclick='assistantShiftRoutePage(${JSON.stringify(result.sys)}, "transfer", ${RESULT_PAGE_SIZE.transfer}, ${JSON.stringify(stateId)})'>${getRouteNextLabel("transfer", transferPage.offset)}</button>` : "",
                       ]
                     )}
                   </div>
                 ` : ""}
-                <div class="assistant-actions">
-                  <button class="assistant-action-btn" type="button" onclick='openAppOverlay(${JSON.stringify(result.sys)}, { start: ${JSON.stringify(result.start)}, end: ${JSON.stringify(result.end)} })'>打開${escapeHtml(result.label)}完整查詢</button>
+                <div class="rail-ai-actions">
+                  <button class="rail-ai-btn" type="button" onclick='openAppOverlay(${JSON.stringify(result.sys)}, { start: ${JSON.stringify(result.start)}, end: ${JSON.stringify(result.end)} })'>打開${escapeHtml(result.label)}完整查詢</button>
                 </div>
-              </div>
+              </section>
             `;
           }).join("")}
         </div>
@@ -1299,42 +1500,43 @@
   function renderTrain(intent, results) {
     const answer = getAnswerElement();
     setAssistantRenderState({ kind: "train", intent, results });
-    syncAssistantState("車次資訊已整理完成", "已整理目前狀態、目前位置與預估抵達資訊。", "ready");
+    syncAssistantState("車次資訊已整理", "已優先保留目前位置、狀態、預估到站與後續停靠資訊。", "ready");
     if (!answer) return;
+    setStructuredAnswerMode(answer, true);
     answer.innerHTML = `
-      <div class="assistant-result-shell">
-        <div class="assistant-route-title">
-          <span class="assistant-helper-badge">車次狀態</span>
+      <div class="rail-ai-collection">
+        <div class="rail-ai-title">
+          <span class="rail-ai-badge">車次助手</span>
           <strong>${escapeHtml(intent.trainNoRaw)} 次</strong>
         </div>
         ${metaRow([
           formatDateLabel(intent.dateStr),
           intent.timeLabel ? `時間 ${intent.timeLabel}` : "",
           intent.targetRaw ? `目標站 ${intent.targetRaw}` : "",
-          intent.showStops ? "顯示停靠站" : "",
+          intent.showStops ? "顯示更多停靠站" : "",
         ])}
-        <div class="assistant-note-panel">
-          <div class="assistant-note">已整理目前狀態、即時位置與預估抵達資訊；如果你指定站名，會優先顯示該站的到站時間。</div>
+        <div class="rail-ai-note-panel">
+          <p class="rail-ai-note">這裡會先整理目前位置、狀態、預估到站與後續停靠；空間不夠時優先保留最有用的資訊，並把更多站點壓成同一列標籤。</p>
         </div>
-        <div class="assistant-system-list">
+        <div class="rail-ai-collection">
           ${results.map((result) => `
-            <div class="assistant-system-card">
-              <div class="assistant-system-head">
-                <span class="assistant-system-tag ${result.sys === "tr" ? "tr" : "thsr"}">${escapeHtml(result.label)}</span>
-                <span class="assistant-system-note">${renderStationLabel(result.firstStation, result.sys)} → ${renderStationLabel(result.lastStation, result.sys)}</span>
+            <section class="rail-ai-section rail-ai-system-block">
+              <div class="rail-ai-section-head">
+                <strong>${renderSystemPill(result.sys, result.label)}${escapeHtml(result.trainNo)} 次${result.sys === "tr" ? ` ${renderTraTypeInline(result.typeText)}` : ""}</strong>
+                <span>${renderStationLabel(result.firstStation, result.sys)} → ${renderStationLabel(result.lastStation, result.sys)} ｜ ${escapeHtml(result.crossDayText)}</span>
               </div>
-              <div class="assistant-train-grid">
-                <div class="assistant-stat-card"><span>目前狀態</span><strong>${escapeHtml(result.statusText)}</strong></div>
-                <div class="assistant-stat-card"><span>目前位置</span><strong>${escapeHtml(result.currentLocation)}</strong></div>
-                <div class="assistant-stat-card"><span>車次資訊</span><strong>${result.sys === "tr" ? `${escapeHtml(result.trainNo)} 次 ${renderTraTypeInline(result.typeText)}` : `${escapeHtml(result.trainNo)} 次`} ｜ ${escapeHtml(result.crossDayText)}</strong></div>
-                <div class="assistant-stat-card"><span>${result.targetStation ? "預估抵達" : "預估車程"}</span><strong>${result.targetStation ? escapeHtml(etaText(result.etaClock || "--", result.remainText || "")) : escapeHtml(result.travelText)}</strong></div>
+              <div class="rail-ai-grid">
+                <div class="rail-ai-stat"><span>目前狀態</span><strong>${escapeHtml(result.statusText)}</strong></div>
+                <div class="rail-ai-stat"><span>目前位置</span><strong>${escapeHtml(result.currentLocation)}</strong></div>
+                <div class="rail-ai-stat"><span>${result.targetStation ? "預估抵達" : "預估車程"}</span><strong>${result.targetStation ? escapeHtml(etaText(result.etaClock || "--", result.remainText || "")) : escapeHtml(result.travelText)}</strong></div>
+                <div class="rail-ai-stat"><span>行駛區間</span><strong>${renderStationLabel(result.firstStation, result.sys)} → ${renderStationLabel(result.lastStation, result.sys)}</strong></div>
               </div>
-              ${result.stopPreview.length ? `<div class="assistant-section-title">停靠摘要</div><div class="assistant-stop-strip">${result.stopPreview.map((item) => renderStopChip(item, result.sys)).join("")}</div>` : ""}
-              <div class="assistant-actions">
-                <button class="assistant-action-btn" type="button" onclick='${result.queryAction}'>打開${escapeHtml(result.label)}完整查詢</button>
-                <button class="assistant-action-btn" type="button" onclick='${result.bookingAction}'>前往訂票</button>
+              ${result.stopPreview.length ? `<div class="rail-ai-stop-strip">${result.stopPreview.map((item) => renderStopChip(item, result.sys)).join("")}</div>` : ""}
+              <div class="rail-ai-actions">
+                <button class="rail-ai-btn" type="button" onclick='${result.queryAction}'>打開${escapeHtml(result.label)}完整查詢</button>
+                <button class="rail-ai-btn primary" type="button" onclick='${result.bookingAction}'>前往訂票</button>
               </div>
-            </div>
+            </section>
           `).join("")}
         </div>
       </div>
@@ -1346,53 +1548,57 @@
     const view = { station: { ...(viewState?.station || {}) } };
     const stateId = `station-${++assistantRenderStateSeq}`;
     setAssistantRenderState({ kind: "station", intent, results, view, stateId });
-    syncAssistantState("車站班次已整理完成", "已依日期與時間條件列出下一批班次。", "ready");
+    syncAssistantState("車站班次已整理", "可繼續往前看更早班次，或往後顯示更多與更晚的班次。", "ready");
     if (!answer) return;
+    setStructuredAnswerMode(answer, true);
     answer.innerHTML = `
-      <div class="assistant-result-shell">
-        <div class="assistant-route-title">
-          <span class="assistant-helper-badge">車站班次</span>
+      <div class="rail-ai-collection">
+        <div class="rail-ai-title">
+          <span class="rail-ai-badge">車站班次</span>
           <strong>${renderStationLabel(intent.stationRaw, results[0]?.sys || intent.preference || "")}</strong>
         </div>
         ${metaRow([
           formatDateLabel(intent.dateStr),
           intent.timeLabel ? `時間 ${intent.timeLabel}` : "",
-          intent.preference ? (intent.preference === "tr" ? "台鐵" : "高鐵") : "台鐵 / 高鐵",
+          intent.preference ? (intent.preference === "tr" ? "臺鐵" : "高鐵") : "臺鐵 / 高鐵",
         ])}
-        <div class="assistant-note-panel">
-          <div class="assistant-note">先列出最接近你條件的班次；如果需要更多，我會用「更早 / 更晚」按鈕讓你逐段展開，不一次塞滿整頁。</div>
+        <div class="rail-ai-note-panel">
+          <p class="rail-ai-note">會先顯示最接近你指定日期與時間的班次；按鈕可繼續往前看更早班次，或往後展開更多與更晚的班次。</p>
         </div>
-        <div class="assistant-system-list">
+        <div class="rail-ai-collection">
           ${results.map((result) => {
             const serviceItems = Array.isArray(result.services?.items) ? result.services.items : (result.services?.matches || []);
             const servicePage = getPagedItems(serviceItems, view.station[result.sys], RESULT_PAGE_SIZE.station);
             return `
-              <div class="assistant-system-card">
-                <div class="assistant-system-head">
-                  <span class="assistant-system-tag ${result.sys === "tr" ? "tr" : "thsr"}">${escapeHtml(result.label)}</span>
-                  <span class="assistant-system-note">${serviceItems.length ? "已整理下一批班次" : "沒有符合時間條件的班次"}</span>
+              <section class="rail-ai-section rail-ai-system-block">
+                <div class="rail-ai-section-head">
+                  <strong>${renderSystemPill(result.sys, result.label)}接下來班次</strong>
+                  <span>${serviceItems.length ? `目前顯示 ${servicePage.offset + 1}-${servicePage.end} / ${servicePage.total}` : "目前沒有可顯示班次"}</span>
                 </div>
-                <div class="assistant-service-grid">
-                  ${servicePage.items.length ? servicePage.items.map((item) => `
-                    <div class="assistant-service-row">
-                      <div class="assistant-service-main">
-                        <strong>${escapeHtml(item.trainNo)} 次${result.sys === "tr" ? ` ${renderTraTypeInline(item.type)}` : ""}</strong>
-                        <small>${escapeHtml(item.time)} ｜ ${renderStationRange(item, result.sys)}</small>
-                      </div>
-                    </div>
-                  `).join("") : `<div class="assistant-empty-note">目前沒有符合這個日期與時間條件的班次。</div>`}
-                </div>
+                ${servicePage.items.length ? `
+                  <div class="rail-ai-list">
+                    ${servicePage.items.map((item) => `
+                      <article class="rail-ai-card">
+                        <div class="rail-ai-card-main">
+                          <strong>${escapeHtml(item.trainNo)} 次${result.sys === "tr" ? ` ${renderTraTypeInline(item.type)}` : ""}</strong>
+                          <p class="rail-ai-line">${escapeHtml(item.time)}</p>
+                          <p class="rail-ai-subline">${renderStationRange(item, result.sys)}</p>
+                        </div>
+                      </article>
+                    `).join("")}
+                  </div>
+                ` : `<div class="rail-ai-empty">這個日期與時間條件下沒有找到可顯示的班次。</div>`}
                 ${renderPager(
-                  serviceItems.length > RESULT_PAGE_SIZE.station ? `目前顯示第 ${servicePage.offset + 1}-${servicePage.end} 班，共 ${servicePage.total} 班。` : "",
+                  serviceItems.length > RESULT_PAGE_SIZE.station ? `目前顯示 ${servicePage.offset + 1}-${servicePage.end} / ${servicePage.total}` : "",
                   [
-                    servicePage.hasPrev ? `<button class="assistant-compact-btn" type="button" onclick='assistantShiftStationPage(${JSON.stringify(result.sys)}, -${RESULT_PAGE_SIZE.station}, ${JSON.stringify(stateId)})'>更早 ${RESULT_PAGE_SIZE.station} 班</button>` : "",
-                    servicePage.hasNext ? `<button class="assistant-compact-btn" type="button" onclick='assistantShiftStationPage(${JSON.stringify(result.sys)}, ${RESULT_PAGE_SIZE.station}, ${JSON.stringify(stateId)})'>更晚 ${RESULT_PAGE_SIZE.station} 班</button>` : "",
+                    servicePage.hasPrev ? `<button class="rail-ai-btn" type="button" onclick='assistantShiftStationPage(${JSON.stringify(result.sys)}, -${RESULT_PAGE_SIZE.station}, ${JSON.stringify(stateId)})'>更早班次</button>` : "",
+                    servicePage.hasNext ? `<button class="rail-ai-btn primary" type="button" onclick='assistantShiftStationPage(${JSON.stringify(result.sys)}, ${RESULT_PAGE_SIZE.station}, ${JSON.stringify(stateId)})'>${servicePage.offset > 0 ? "更晚班次" : "更多班次"}</button>` : "",
                   ]
                 )}
-                <div class="assistant-actions">
-                  <button class="assistant-action-btn" type="button" onclick='openAppOverlay(${JSON.stringify(result.sys)}, { station: ${JSON.stringify(result.station)} })'>打開${escapeHtml(result.label)}車站查詢</button>
+                <div class="rail-ai-actions">
+                  <button class="rail-ai-btn" type="button" onclick='openAppOverlay(${JSON.stringify(result.sys)}, { station: ${JSON.stringify(result.station)} })'>打開${escapeHtml(result.label)}車站查詢</button>
                 </div>
-              </div>
+              </section>
             `;
           }).join("")}
         </div>
@@ -1407,30 +1613,30 @@
   }
 
   function assistantAskTraBookingChoice() {
-    const answer = window.prompt("台鐵訂票方式：請輸入 app 或 web", "app");
+    const answer = window.prompt("臺鐵訂票要開啟 app 還是 web？請輸入 app 或 web", "app");
     if (answer === null) return "cancel";
     const value = String(answer || "").trim().toLowerCase();
     if (!value || value === "app" || value === "a") return "app";
     if (value === "web" || value === "w") return "web";
-    alert("請輸入 app 或 web。");
+    alert("請輸入 app 或 web");
     return assistantAskTraBookingChoice();
   }
 
   function assistantAskTraSeatQuantity(defaultQty = 1) {
-    const answer = window.prompt("請輸入一般座票數（1-6 張）", String(defaultQty));
+    const answer = window.prompt("請輸入一般座位張數（1-6 張）", String(defaultQty));
     if (answer === null) return null;
     const qty = parseInt(String(answer).trim(), 10);
     if (qty >= 1 && qty <= 6) return qty;
-    alert("票數請輸入 1 到 6。");
+    alert("張數請輸入 1 到 6");
     return assistantAskTraSeatQuantity(defaultQty);
   }
 
   function assistantFormatTraBookingStationValue(stationName) {
     const raw = String(stationName || "").trim();
     if (!raw) return "";
-    const resolvedName = resolveLocalStationName(raw, "tr") || raw.replace(/台/g, "臺");
+    const resolvedName = resolveLocalStationName(raw, "tr") || raw;
     const station = (stationDB.tr || []).find((item) => normalizeLoose(item.name) === normalizeLoose(resolvedName));
-    const displayName = String((station && station.name) || resolvedName).replace(/台/g, "臺");
+    const displayName = String((station && station.name) || resolvedName);
     return station && station.id ? `${station.id}-${displayName}` : displayName;
   }
 
@@ -1616,20 +1822,20 @@
       modal.className = "assistant-booking-modal";
       modal.setAttribute("role", "dialog");
       modal.setAttribute("aria-modal", "true");
-      modal.setAttribute("aria-label", "選擇台鐵訂票方式");
+      modal.setAttribute("aria-label", "選擇臺鐵訂票方式");
       modal.innerHTML = `
         <div class="assistant-booking-modal-content">
           <div class="assistant-booking-modal-header">
             <div>
               <div class="assistant-booking-modal-title-main">選擇訂票方式</div>
-              <div class="assistant-booking-modal-title-sub">可使用台鐵 e 訂通 App 或台鐵官網。</div>
+              <div class="assistant-booking-modal-title-sub">你可以直接打開臺鐵 e 訂通 App，或改用網頁版訂票。</div>
             </div>
-            <button class="assistant-booking-close" id="assistantBookingChoiceClose" type="button" aria-label="關閉">✕</button>
+            <button class="assistant-booking-close" id="assistantBookingChoiceClose" type="button" aria-label="關閉">×</button>
           </div>
           <div class="assistant-booking-modal-body">
             <div class="assistant-booking-modal-grid">
-              <button class="assistant-booking-btn-primary" id="assistantBookingChoiceApp" type="button">使用台鐵 e 訂通 App</button>
-              <button class="assistant-booking-btn-ghost" id="assistantBookingChoiceWeb" type="button">使用台鐵官網訂票</button>
+              <button class="assistant-booking-btn-primary" id="assistantBookingChoiceApp" type="button">打開臺鐵 e 訂通 App</button>
+              <button class="assistant-booking-btn-ghost" id="assistantBookingChoiceWeb" type="button">改用臺鐵網頁訂票</button>
             </div>
           </div>
         </div>
@@ -1643,20 +1849,20 @@
       modal.className = "assistant-booking-modal";
       modal.setAttribute("role", "dialog");
       modal.setAttribute("aria-modal", "true");
-      modal.setAttribute("aria-label", "選擇一般座票數");
+      modal.setAttribute("aria-label", "選擇訂票張數");
       modal.innerHTML = `
         <div class="assistant-booking-modal-content">
           <div class="assistant-booking-modal-header">
             <div>
-              <div class="assistant-booking-modal-title-main">選擇一般座票數</div>
-              <div class="assistant-booking-modal-title-sub">可選 1 到 6 張，送出後會直接帶入台鐵官網。</div>
+              <div class="assistant-booking-modal-title-main">選擇一般座位張數</div>
+              <div class="assistant-booking-modal-title-sub">可選 1 到 6 張。確認後會直接帶你前往臺鐵網頁訂票。</div>
             </div>
-            <button class="assistant-booking-close" id="assistantBookingSeatClose" type="button" aria-label="關閉">✕</button>
+            <button class="assistant-booking-close" id="assistantBookingSeatClose" type="button" aria-label="關閉">×</button>
           </div>
           <div class="assistant-booking-modal-body">
             <div class="assistant-booking-modal-grid">
               <label class="assistant-booking-field">
-                <span>一般座票數</span>
+                <span>一般座位張數</span>
                 <select id="assistantBookingSeatQtySelect" class="assistant-booking-select">
                   <option value="1">1 張</option>
                   <option value="2">2 張</option>
@@ -1666,7 +1872,7 @@
                   <option value="6">6 張</option>
                 </select>
               </label>
-              <button class="assistant-booking-btn-primary" id="assistantBookingSeatConfirm" type="button">確定並前往官網</button>
+              <button class="assistant-booking-btn-primary" id="assistantBookingSeatConfirm" type="button">確認並前往訂票</button>
             </div>
           </div>
         </div>
@@ -1768,11 +1974,11 @@
     try {
       const token = await ensureToken();
       if (!token) {
-        alert("目前無法取得訂票授權，請稍後再試。");
+        alert("目前無法取得臺鐵訂票連結，請稍後再試。");
         return;
       }
-      const start = String(startStationName || "").replace(/台/g, "臺");
-      const end = String(endStationName || "").replace(/台/g, "臺");
+      const start = String(startStationName || "").trim();
+      const end = String(endStationName || "").trim();
       const result = await fetchJsonWithTimeout(
         `https://tdx.transportdata.tw/api/maas-tra/booking/deeplink/direct/tra?start_station=${encodeURIComponent(start)}&end_station=${encodeURIComponent(end)}&train_date=${encodeURIComponent(dateStr)}&train_number=${encodeURIComponent(String(trainNo))}`,
         { method: "GET", headers: { Authorization: `Bearer ${token}`, Accept: "application/json" } },
@@ -1780,13 +1986,13 @@
       );
       const jumpUrl = (result.data && result.data.deeplink) || result.DeepLinkUrl || result.url;
       if (!jumpUrl) {
-        alert("目前拿不到台鐵訂票連結。");
+        alert("目前拿不到臺鐵訂票連結。");
         return;
       }
       if (window.top && window.top !== window) window.top.location.href = jumpUrl;
       else window.location.href = jumpUrl;
     } catch (_) {
-      alert("台鐵訂票導頁失敗，請稍後再試。");
+      alert("臺鐵訂票連結建立失敗，請稍後再試。");
     }
   }
 
@@ -1799,18 +2005,18 @@
     try {
       const token = typeof getAccessToken === "function" ? await getAccessToken() : await ensureToken();
       if (!token) {
-        alert("目前無法取得高鐵訂票授權，請稍後再試。");
+        alert("目前無法取得高鐵訂票連結，請稍後再試。");
         return;
       }
-      const start = String(startStationName || "").replace(/臺/g, "台");
-      const end = String(endStationName || "").replace(/臺/g, "台");
+      const start = String(startStationName || "").trim();
+      const end = String(endStationName || "").trim();
       const response = await fetchWithTimeout(
         `https://tdx.transportdata.tw/api/maas-thsr/booking/deeplink/direct/hsr?start_station=${encodeURIComponent(start)}&end_station=${encodeURIComponent(end)}&train_date=${dateStr}&train_time=${encodeURIComponent(timeStr)}&train_number=${trainNo}`,
         { method: "GET", headers: { Authorization: `Bearer ${token}`, Accept: "application/json" } },
         8000
       );
       if (!response.ok) {
-        alert(`高鐵訂票導頁失敗（HTTP ${response.status}）。`);
+        alert(`高鐵訂票連結建立失敗，HTTP ${response.status}`);
         return;
       }
       const result = await response.json();
@@ -1822,14 +2028,14 @@
       if (window.top && window.top !== window) window.top.location.href = jumpUrl;
       else window.location.href = jumpUrl;
     } catch (_) {
-      alert("高鐵訂票導頁失敗，請稍後再試。");
+      alert("高鐵訂票連結建立失敗，請稍後再試。");
     }
   }
 
   window.assistantOpenTraBooking = assistantOpenTraBooking;
   window.assistantOpenTHSRBooking = assistantOpenTHSRBooking;
   window.assistantResolveSystemQuery = function (rawText, sys) {
-    const suffix = sys === "tr" ? " 台鐵" : " 高鐵";
+    const suffix = sys === "tr" ? " 臺鐵" : " 高鐵";
     return window.handleAssistantQuery(`${String(rawText || "").trim()}${suffix}`);
   };
   window.clearAssistantRenderState = function () {
@@ -1884,23 +2090,23 @@
     ensureAssistantUpgradeStyles();
     const text = String(rawText || "").trim();
     if (!text) {
-      renderError("請先輸入問題，例如「今天 08:00 台北到台中」「4/5 08:10-12:00 高鐵台北到左營」「412次台中幾點到」或「板橋站有什麼車」。");
+      renderError("請直接輸入問題，例如：今天 7:30 台北到台中、215 車次到花蓮、板橋站晚上有什麼車。");
       return;
     }
 
     if ((!stationDB.tr || !stationDB.tr.length) || (!stationDB.thsr || !stationDB.thsr.length)) {
-      renderLoading("正在同步站點資料", "第一次查詢會先確認台鐵與高鐵站名資料。");
+      renderLoading("正在讀取車站資料", "第一次查詢時會先載入臺鐵與高鐵站名資料。");
       if (typeof fetchAllStations === "function") await fetchAllStations();
     }
     await window.RailAssistantCommon?.ensureStationLocaleData?.();
 
     const intent = parseIntent(text);
     if (!intent) {
-      renderError("我目前支援三種問法：起訖站旅程、車次狀態、車站班次，也支援加上時間條件。例如「明天台北到台中自強號」「高鐵台北到左營有沒有票」「126次現在到哪了」或「台中站 08:10-12:00 有什麼車」。");
+      renderError("目前還無法判斷你的問題，請試試：台北到左營、215 車次到花蓮、板橋站 7 點後班次。");
       return;
     }
 
-    renderLoading("正在解析問題", "正在確認日期、時間、車次與車站條件。");
+    renderLoading("正在分析問題", "正在整理最接近的班次、車次與車站結果。");
 
     if (intent.kind === "route") {
       const systems = intent.preference ? [intent.preference] : (intent.typePreference ? ["tr"] : ["tr", "thsr"]);
@@ -1908,20 +2114,17 @@
         const start = resolveLocalStationName(intent.startRaw, sys);
         const end = resolveLocalStationName(intent.endRaw, sys);
         if (!start || !end || start === end) return null;
-        return { sys, label: sys === "tr" ? "台鐵" : "高鐵", start, end };
+        return { sys, label: sys === "tr" ? "臺鐵" : "高鐵", start, end };
       }).filter(Boolean);
 
       if (!candidates.length) {
-        renderError(`我暫時找不到「${intent.startRaw} → ${intent.endRaw}」對應的站名，請再試一次完整站名。`);
+        renderError(`找不到 ${intent.startRaw} 到 ${intent.endRaw} 的有效查詢組合。`);
         return;
       }
 
-      renderLoading("正在同步時刻表", "正在讀取查詢日期與前一天的台鐵 / 高鐵時刻資料。");
       await ensureData(intent.dateStr, candidates.map((item) => item.sys));
-
       const results = [];
-      for (let index = 0; index < candidates.length; index += 1) {
-        const item = candidates[index];
+      for (const item of candidates) {
         const dataset = item.sys === "tr" ? assistantRouteCache.tra : assistantRouteCache.thsr;
         const direct = collectDirect(dataset, item.start, item.end, {
           dateStr: intent.dateStr,
@@ -1933,7 +2136,6 @@
         });
 
         if (item.sys === "thsr" && direct.items.length && intent.wantsTicket) {
-          renderLoading("正在查詢高鐵票況", `正在確認 ${item.start} → ${item.end} 的可售座位。`);
           const seatMap = await fetchSeatStatus(intent.dateStr, item.start, item.end);
           direct.items = direct.items.map((service) => ({
             ...service,
@@ -1942,7 +2144,6 @@
           direct.matches = direct.items.slice(0, RESULT_PAGE_SIZE.direct);
         }
 
-        renderLoading("正在整理列車狀態", "正在比對今日班次的準點、誤點與調整後時間。");
         direct.items = await addTodayLiveStatus(item.sys, direct.items, intent.dateStr);
         direct.matches = direct.items.slice(0, RESULT_PAGE_SIZE.direct);
 
@@ -1965,19 +2166,17 @@
 
     if (intent.kind === "train") {
       const systems = intent.preference ? [intent.preference] : ["tr", "thsr"];
-      renderLoading("正在查詢列車資料", "正在讀取該車次的完整停靠、跨日與即時狀態資訊。");
       await ensureData(intent.dateStr, systems);
       const matchedSystems = systems.filter((sys) => {
         const dataset = sys === "tr" ? assistantRouteCache.tra : assistantRouteCache.thsr;
         return (dataset || []).some((item) => trainVariants(intent.trainNoRaw, sys).includes(String(item.trainNo).toUpperCase()));
       });
       if (!intent.preference && matchedSystems.length > 1) {
-        renderSystemChoice(text, `${intent.trainNoRaw} 次可能同時存在於台鐵與高鐵`, "先選一個系統，我再只整理那一邊的結果，避免一次塞太多資訊。", matchedSystems);
+        renderSystemChoice(text, `${intent.trainNoRaw} 次同時可能是臺鐵與高鐵`, "請先選擇要查詢的系統，再繼續顯示該車次的即時資訊。", matchedSystems);
         return;
       }
       const results = [];
-      for (let index = 0; index < systems.length; index += 1) {
-        const sys = systems[index];
+      for (const sys of systems) {
         const dataset = sys === "tr" ? assistantRouteCache.tra : assistantRouteCache.thsr;
         const train = (dataset || []).find((item) => trainVariants(intent.trainNoRaw, sys).includes(String(item.trainNo).toUpperCase()));
         if (!train) continue;
@@ -1986,7 +2185,7 @@
         results.push(summary);
       }
       if (!results.length) {
-        renderError(`我暫時找不到 ${intent.trainNoRaw} 次在 ${formatDateLabel(intent.dateStr)} 的資料，請確認車次或日期。`);
+        renderError(`找不到 ${intent.trainNoRaw} 次在 ${formatDateLabel(intent.dateStr)} 的資料。`);
         return;
       }
       renderTrain(intent, results);
@@ -1997,20 +2196,18 @@
       const systems = intent.preference ? [intent.preference] : ["tr", "thsr"];
       const matchedSystems = systems.filter((sys) => !!resolveLocalStationName(intent.stationRaw, sys));
       if (!intent.preference && matchedSystems.length > 1) {
-        renderSystemChoice(text, `${intent.stationRaw} 同時有台鐵與高鐵站名`, "先選擇要查看哪個系統，我就只展開那一邊的下一批班次。", matchedSystems);
+        renderSystemChoice(text, `${intent.stationRaw} 同時存在於臺鐵與高鐵`, "請先選擇要查哪一個系統，我再幫你整理那個站的班次。", matchedSystems);
         return;
       }
-      renderLoading("正在查詢車站班次", "正在整理指定日期與時間條件下的下一批班次。");
       await ensureData(intent.dateStr, systems);
       const results = [];
-      for (let index = 0; index < systems.length; index += 1) {
-        const sys = systems[index];
+      for (const sys of systems) {
         const station = resolveLocalStationName(intent.stationRaw, sys);
         if (!station) continue;
         const dataset = sys === "tr" ? assistantRouteCache.tra : assistantRouteCache.thsr;
         results.push({
           sys,
-          label: sys === "tr" ? "台鐵" : "高鐵",
+          label: sys === "tr" ? "臺鐵" : "高鐵",
           station,
           services: collectStation(dataset, station, {
             dateStr: intent.dateStr,
@@ -2022,7 +2219,7 @@
         });
       }
       if (!results.length) {
-        renderError(`我暫時找不到 ${intent.stationRaw} 的班次資料，請再試一次完整站名。`);
+        renderError(`找不到 ${intent.stationRaw} 的班次資料。`);
         return;
       }
       renderStation(intent, results);
@@ -2039,3 +2236,10 @@
     rerenderAssistantState();
   });
 })();
+
+
+
+
+
+
+

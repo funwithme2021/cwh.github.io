@@ -35,6 +35,11 @@
   const SW_PATH   = (isHomePage || isTrPage || isThsrPage) ? '../sw.js' : './sw.js';
   // icon is in /timetable/home/
   const ICON_PATH = isHomePage ? './icon-192.png' : '../home/icon-192.png';
+  const PAGE_URL = isHomePage
+    ? new URL('./index.html', location.href).href
+    : (isTrPage
+        ? new URL('./tr.html', location.href).href
+        : (isThsrPage ? new URL('./thsr.html', location.href).href : new URL('./home/index.html', location.href).href));
 
   // ===== Utils =====
   const pad2 = (n) => String(n).padStart(2, '0');
@@ -120,7 +125,8 @@
             icon: ICON_PATH,
             badge: ICON_PATH,
             tag: tag || title, // allow overwrite for same train/type
-            renotify: false
+            renotify: false,
+            data: { url: PAGE_URL }
           });
           return;
         }
