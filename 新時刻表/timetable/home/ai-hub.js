@@ -1,86 +1,29 @@
-const TDX_CONFIG = {
+const TDX_CONFIG = window.TDX_CONFIG || {
   clientId: "r36144112-d7b2ebdd-ce4c-40c3",
   clientSecret: "141d81d1-a450-4610-9309-412c8151cc3d",
 };
 
-var tdxToken = null;
-var stationDB = { tr: [], thsr: [] };
-var assistantRouteCache = { date: "", tra: null, thsr: null };
-var assistantSeatCache = {};
-var assistantTrainLiveCache = {};
+window.TDX_CONFIG = TDX_CONFIG;
+window.tdxToken = window.tdxToken || null;
+window.stationDB = window.stationDB || { tr: [], thsr: [] };
+window.assistantRouteCache = window.assistantRouteCache || { date: "", tra: null, thsr: null };
+window.assistantSeatCache = window.assistantSeatCache || {};
+window.assistantTrainLiveCache = window.assistantTrainLiveCache || {};
 
-let stationFetchPromise = null;
 const STATION_CACHE_KEY = "rail_station_cache_v2";
+let stationFetchPromise = null;
 
 function pad2(value) {
   return String(value).padStart(2, "0");
 }
 
-function todayDateStr() {
-  const date = new Date();
-  return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
-}
-
-function timeToMinutes(clock) {
-  const match = String(clock || "").trim().match(/^(\d{1,2}):(\d{2})$/);
-  if (!match) return null;
-  const hour = Number(match[1]);
-  const minute = Number(match[2]);
-  if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return null;
-  return hour * 60 + minute;
-}
-
-function formatDurationMinutes(totalMinutes) {
-  if (!Number.isFinite(totalMinutes)) return "--";
-  const hours = Math.floor(totalMinutes / 60);
-  const minutes = totalMinutes % 60;
-  if (!hours) return `${minutes} 分`;
-  if (!minutes) return `${hours} 小時`;
-  return `${hours} 小時 ${minutes} 分`;
-}
-
-function durationTextByClock(dep, arr) {
-  const depMin = timeToMinutes(dep);
-  const arrMin = timeToMinutes(arr);
-  if (depMin === null || arrMin === null) return "--";
-  const diff = arrMin >= depMin ? arrMin - depMin : arrMin + 1440 - depMin;
-  return formatDurationMinutes(diff);
-}
-
-function normalizeLooseStation(text) {
+function escapeHtml(text) {
   return String(text || "")
-    .trim()
-    .replace(/\s+/g, "")
-    .replace(/車站/g, "")
-    .replace(/站/g, "")
-    .replace(/臺/g, "台");
-}
-
-function simplifyTraTypeName(typeName) {
-  const name = String(typeName || "").trim();
-  if (!name) return "台鐵";
-  if (name.includes("自強") && name.includes("3000")) return "自強號3000";
-  if (name.includes("自強")) return "自強號";
-  if (name.includes("普悠瑪")) return "普悠瑪";
-  if (name.includes("太魯閣")) return "太魯閣";
-  if (name.includes("區間快")) return "區間快";
-  if (name.includes("區間")) return "區間車";
-  if (name.includes("莒光")) return "莒光號";
-  return name;
-}
-
-function resolveStationName(raw, sys) {
-  const list = stationDB[sys] || [];
-  if (!list.length) return "";
-  const normalized = normalizeLooseStation(raw);
-  if (!normalized) return "";
-  const exact = list.find((item) => normalizeLooseStation(item.name) === normalized);
-  if (exact) return exact.name;
-  const fuzzy = list.find((item) => {
-    const name = normalizeLooseStation(item.name);
-    return name.includes(normalized) || normalized.includes(name);
-  });
-  return fuzzy ? fuzzy.name : "";
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
 function readStationCache() {
@@ -96,33 +39,41 @@ function readStationCache() {
 
 function writeStationCache(data) {
   try {
-    localStorage.setItem(STATION_CACHE_KEY, JSON.stringify({
-      savedAt: Date.now(),
-      data,
-    }));
+    localStorage.setItem(
+      STATION_CACHE_KEY,
+      JSON.stringify({
+        savedAt: Date.now(),
+        data,
+      })
+    );
   } catch (_) {
   }
 }
 
-function updateAssistantLoadingState(title, hint, tone = "loading") {
-  const titleEl = document.getElementById("assistantReadyState");
-  const hintEl = document.getElementById("assistantReadyHint");
-  const shell = document.querySelector(".ai-page-shell");
-  if (titleEl) titleEl.textContent = title || "AI 助手待命中";
-  if (hintEl) hintEl.textContent = hint || "可直接輸入日期、時間、車次、車站或起訖站。";
-  if (shell) shell.dataset.state = tone;
-}
-
 function applyStationData(data) {
   if (!data || !Array.isArray(data.tr) || !Array.isArray(data.thsr)) return;
-  stationDB = data;
+  window.stationDB = {
+    tr: data.tr,
+    thsr: data.thsr,
+  };
+
   const countEl = document.getElementById("assistantDataCount");
   if (countEl) {
-    countEl.textContent = `已載入 ${data.tr.length} 個台鐵站與 ${data.thsr.length} 個高鐵站`;
+    countEl.textContent = `臺鐵 ${data.tr.length} 站 / 高鐵 ${data.thsr.length} 站`;
   }
 }
 
-async function fetchWithTimeout(url, options, timeoutMs = 8000) {
+function updateAssistantLoadingState(title, hint, tone = "loading") {
+  const shell = document.querySelector(".ai-page-shell");
+  const titleEl = document.getElementById("assistantReadyState");
+  const hintEl = document.getElementById("assistantReadyHint");
+
+  if (shell) shell.dataset.state = tone;
+  if (titleEl) titleEl.textContent = title || "AI 助手待命中";
+  if (hintEl) hintEl.textContent = hint || "可直接輸入日期、時間、車次、站名或起訖站開始查詢。";
+}
+
+async function fetchWithTimeout(url, options = {}, timeoutMs = 9000) {
   const controller = typeof AbortController === "function" ? new AbortController() : null;
   const timer = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
   try {
@@ -132,19 +83,22 @@ async function fetchWithTimeout(url, options, timeoutMs = 8000) {
   }
 }
 
-async function fetchJsonWithTimeout(url, options, timeoutMs = 8000) {
+async function fetchJsonWithTimeout(url, options = {}, timeoutMs = 9000) {
   const response = await fetchWithTimeout(url, options, timeoutMs);
   if (!response.ok) throw new Error(`HTTP_${response.status}`);
   return response.json();
 }
 
 async function getTdxToken() {
-  if (tdxToken) return tdxToken;
-  updateAssistantLoadingState("正在連線 TDX", "正在取得查詢與訂票需要的授權。");
+  if (window.tdxToken) return window.tdxToken;
+
+  updateAssistantLoadingState("正在連線 TDX", "正在取得查詢與訂票需要的授權。", "loading");
+
   const params = new URLSearchParams();
   params.append("grant_type", "client_credentials");
   params.append("client_id", TDX_CONFIG.clientId);
   params.append("client_secret", TDX_CONFIG.clientSecret);
+
   try {
     const response = await fetchWithTimeout(
       "https://tdx.transportdata.tw/auth/realms/TDXConnect/protocol/openid-connect/token",
@@ -153,69 +107,75 @@ async function getTdxToken() {
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body: params,
       },
-      8000
+      9000
     );
     const data = await response.json();
-    tdxToken = data && data.access_token ? data.access_token : null;
-    if (tdxToken) {
+    window.tdxToken = data?.access_token || null;
+    if (window.tdxToken) {
       updateAssistantLoadingState("AI 助手已就緒", "已取得授權，可直接開始查詢。", "ready");
     } else {
       updateAssistantLoadingState("授權取得失敗", "目前無法連線 TDX，請稍後再試。", "error");
     }
-    return tdxToken;
-  } catch (_) {
+    return window.tdxToken;
+  } catch (error) {
+    console.warn("[ai-hub] token error", error);
     updateAssistantLoadingState("授權取得失敗", "目前無法連線 TDX，請稍後再試。", "error");
     return null;
   }
 }
 
-async function getAccessToken() {
-  return getTdxToken();
-}
-
 async function fetchAllStations(force = false) {
-  if (!force && stationDB.tr.length && stationDB.thsr.length) return stationDB;
+  if (!force && window.stationDB.tr.length && window.stationDB.thsr.length) return window.stationDB;
   if (!force && stationFetchPromise) return stationFetchPromise;
+
   if (!force) {
     const cached = readStationCache();
     if (cached) {
       applyStationData(cached);
       updateAssistantLoadingState("已載入快取站點", "站名資料已就緒，查詢時只會補抓需要的即時資料。", "ready");
-      return stationDB;
+      return window.stationDB;
     }
   }
-  if (!tdxToken) await getTdxToken();
-  if (!tdxToken) return stationDB;
-  updateAssistantLoadingState("正在同步站點資料", "第一次使用會比較久，之後會使用快取。");
-  const headers = { Authorization: `Bearer ${tdxToken}` };
+
+  const token = await getTdxToken();
+  if (!token) return window.stationDB;
+
+  updateAssistantLoadingState("正在同步站點資料", "第一次使用會比較久，之後會使用快取。", "loading");
+
+  const headers = { Authorization: `Bearer ${token}` };
   stationFetchPromise = Promise.all([
-    fetchJsonWithTimeout("https://tdx.transportdata.tw/api/basic/v3/Rail/TRA/Station?%24format=JSON", { headers }, 9000),
-    fetchJsonWithTimeout("https://tdx.transportdata.tw/api/basic/v2/Rail/THSR/Station?%24format=JSON", { headers }, 9000),
-  ]).then(([trData, thsrData]) => {
-    const data = {
-      tr: (trData.Stations || []).map((st) => ({
-        id: st.StationID,
-        name: st.StationName.Zh_tw,
-        lat: st.StationPosition.PositionLat,
-        lon: st.StationPosition.PositionLon,
-      })),
-      thsr: (Array.isArray(thsrData) ? thsrData : []).map((st) => ({
-        id: st.StationID,
-        name: st.StationName.Zh_tw,
-        lat: st.StationPosition.PositionLat,
-        lon: st.StationPosition.PositionLon,
-      })),
-    };
-    applyStationData(data);
-    writeStationCache(data);
-    updateAssistantLoadingState("站點資料已同步", "可直接查詢台鐵、高鐵與車站 / 車次資訊。", "ready");
-    return stationDB;
-  }).catch(() => {
-    updateAssistantLoadingState("站點資料同步失敗", "目前無法同步最新站點資料，稍後可再試一次。", "error");
-    return stationDB;
-  }).finally(() => {
-    stationFetchPromise = null;
-  });
+    fetchJsonWithTimeout("https://tdx.transportdata.tw/api/basic/v3/Rail/TRA/Station?%24format=JSON", { headers }),
+    fetchJsonWithTimeout("https://tdx.transportdata.tw/api/basic/v2/Rail/THSR/Station?%24format=JSON", { headers }),
+  ])
+    .then(([trData, thsrData]) => {
+      const data = {
+        tr: (trData.Stations || []).map((station) => ({
+          id: station.StationID,
+          name: station.StationName.Zh_tw,
+          lat: station.StationPosition.PositionLat,
+          lon: station.StationPosition.PositionLon,
+        })),
+        thsr: (Array.isArray(thsrData) ? thsrData : []).map((station) => ({
+          id: station.StationID,
+          name: station.StationName.Zh_tw,
+          lat: station.StationPosition.PositionLat,
+          lon: station.StationPosition.PositionLon,
+        })),
+      };
+      applyStationData(data);
+      writeStationCache(data);
+      updateAssistantLoadingState("站點資料已同步", "可直接查詢臺鐵、高鐵、車站與車次資訊。", "ready");
+      return window.stationDB;
+    })
+    .catch((error) => {
+      console.warn("[ai-hub] station sync error", error);
+      updateAssistantLoadingState("站點資料同步失敗", "目前無法同步最新站點資料，稍後可再試一次。", "error");
+      return window.stationDB;
+    })
+    .finally(() => {
+      stationFetchPromise = null;
+    });
+
   return stationFetchPromise;
 }
 
@@ -230,8 +190,8 @@ function getRecentLaunches() {
 
 function rememberRecentLaunch(sys, params) {
   try {
-    const nextItem = { sys, params: params || null, ts: Date.now() };
     const current = getRecentLaunches();
+    const nextItem = { sys, params: params || null, ts: Date.now() };
     const dedupeKey = JSON.stringify({ sys, params: nextItem.params });
     const merged = [nextItem, ...current.filter((item) => JSON.stringify({ sys: item.sys, params: item.params || null }) !== dedupeKey)].slice(0, 6);
     localStorage.setItem("recent_launches_v1", JSON.stringify(merged));
@@ -239,67 +199,53 @@ function rememberRecentLaunch(sys, params) {
   }
 }
 
-function buildUrl(sys, params) {
+function isEmbeddedView() {
+  return new URLSearchParams(location.search).get("embed") === "1";
+}
+
+function buildSystemUrl(sys, params) {
+  const base =
+    sys === "tr"
+      ? "../tr/tr.html"
+      : sys === "thsr"
+        ? "../thsr/thsr.html"
+        : "./ai.html";
+
   const query = new URLSearchParams();
-  if (params) {
+  if (params && typeof params === "object") {
     Object.entries(params).forEach(([key, value]) => {
       if (value !== undefined && value !== null && value !== "") query.set(key, value);
     });
   }
   const search = query.toString();
-  return `./index.html${search ? `?${search}` : ""}#${sys}`;
+  return `${base}${search ? `?${search}` : ""}`;
 }
 
 function openAppOverlay(sys, params, options) {
   if (!(options && options.skipRecent)) rememberRecentLaunch(sys, params || null);
-  location.href = buildUrl(sys, params);
-}
 
-function toggleTheme() {
-  document.body.classList.toggle("light-mode");
-  const isLight = document.body.classList.contains("light-mode");
-  localStorage.setItem("theme", isLight ? "light" : "dark");
-}
+  if (isEmbeddedView() && window.parent && window.parent !== window) {
+    try {
+      window.parent.postMessage({ type: "OPEN_OVERLAY", sys, params: params || null }, "*");
+      return;
+    } catch (_) {
+    }
+  }
 
-function initEmbeddedNav() {
-  const isEmbed = new URLSearchParams(location.search).get("embed") === "1";
-  if (!isEmbed) return;
-  document.querySelectorAll(".ai-nav-link").forEach((link) => {
-    if (link.dataset.embedBound) return;
-    link.dataset.embedBound = "1";
-    link.addEventListener("click", (event) => {
-      const href = link.getAttribute("href") || "";
-      if (!href) return;
-      event.preventDefault();
-      if (href.includes("./index.html")) {
-        try {
-          parent.postMessage({ type: "APP_CLOSE" }, "*");
-        } catch (_) {
-          location.href = "./index.html";
-        }
-        return;
-      }
-      if (href.includes("../tr/tr.html")) {
-        try {
-          parent.postMessage({ type: "OPEN_OVERLAY", sys: "tr" }, "*");
-        } catch (_) {
-          location.href = "./index.html#tr";
-        }
-        return;
-      }
-      if (href.includes("../thsr/thsr.html")) {
-        try {
-          parent.postMessage({ type: "OPEN_OVERLAY", sys: "thsr" }, "*");
-        } catch (_) {
-          location.href = "./index.html#thsr";
-        }
-      }
-    });
-  });
+  location.href = buildSystemUrl(sys, params);
 }
 
 function getThreadContainer() {
   return document.getElementById("assistantAnswer");
+}
+
+function getEmptyThreadHtml() {
+  return `
+    <div class="assistant-placeholder assistant-thread-empty" data-thread-empty="1">
+      <strong>輸入一句話，我就會直接幫你整理。</strong>
+      <div>查詢結果會跟臺鐵 / 高鐵頁面的 AI 助手使用同一套卡片版型，也能繼續按「更多班次」、「更早班次」或「更晚班次」。</div>
+    </div>
+  `;
 }
 
 function clearThreadPlaceholder() {
@@ -312,6 +258,7 @@ function clearThreadPlaceholder() {
 function appendThreadMessage(role, html) {
   const thread = getThreadContainer();
   if (!thread) return null;
+
   clearThreadPlaceholder();
   const block = document.createElement("section");
   block.className = `assistant-message assistant-message-${role}`;
@@ -321,29 +268,43 @@ function appendThreadMessage(role, html) {
   return block;
 }
 
-async function runAssistantQuery(query) {
-  const finalQuery = String(query || "").trim();
-  if (!finalQuery) {
-    window.handleAssistantQuery?.("");
-    return;
-  }
-  appendThreadMessage("user", `
-    <div class="assistant-message-label">你</div>
-    <div class="assistant-message-bubble">
-      <strong>${finalQuery.replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;" }[ch]))}</strong>
-    </div>
-  `);
-  const replyBlock = appendThreadMessage("assistant", `
-    <div class="assistant-message-label">Rail AI</div>
-    <div class="assistant-message-bubble assistant-message-bubble-loading">正在整理資料...</div>
-  `);
+async function runAssistantQuery(rawQuery) {
+  const query = String(rawQuery || "").trim();
+  if (!query) return;
+
+  appendThreadMessage(
+    "user",
+    `
+      <div class="assistant-message-label">你</div>
+      <div class="assistant-message-bubble">
+        <strong>${escapeHtml(query)}</strong>
+      </div>
+    `
+  );
+
+  const replyBlock = appendThreadMessage(
+    "assistant",
+    `
+      <div class="assistant-message-label">Rail AI</div>
+      <div class="assistant-message-bubble assistant-message-bubble-loading">正在整理班次、票況與站點資訊...</div>
+    `
+  );
+
   try {
-    window.assistantRenderTarget = replyBlock ? replyBlock.querySelector(".assistant-message-bubble") : null;
-    window.assistantLastRenderTarget = window.assistantRenderTarget;
-    await window.handleAssistantQuery?.(finalQuery);
+    const bubble = replyBlock?.querySelector(".assistant-message-bubble") || null;
+    window.assistantRenderTarget = bubble;
+    window.assistantLastRenderTarget = bubble;
+    await Promise.resolve(window.handleAssistantQuery?.(query));
+    if (bubble) {
+      bubble.classList.remove("assistant-message-bubble-loading");
+      bubble.classList.add("assistant-message-bubble-result");
+    }
   } catch (error) {
-    if (window.assistantRenderTarget) {
-      window.assistantRenderTarget.innerHTML = `<div class="assistant-error">${String(error && error.message ? error.message : error)}</div>`;
+    const bubble = window.assistantRenderTarget;
+    if (bubble) {
+      bubble.classList.remove("assistant-message-bubble-loading");
+      bubble.classList.remove("assistant-message-bubble-result");
+      bubble.innerHTML = `<div class="assistant-error">${escapeHtml(error?.message || String(error || "查詢失敗"))}</div>`;
     }
   } finally {
     window.assistantRenderTarget = null;
@@ -358,23 +319,64 @@ function clearAssistantThread() {
   window.assistantRenderTarget = null;
   window.assistantLastRenderTarget = null;
   window.clearAssistantRenderState?.();
-  thread.innerHTML = `
-    <div class="assistant-placeholder assistant-thread-empty" data-thread-empty="1">
-      <strong>輸入一句話，我幫你整理最適合的結果。</strong>
-      <div>你可以直接問起訖站、車次、車站，也可以加上日期、時間、時間區間、車種或是否直達。需要高鐵票況與訂票入口也可以一起問。</div>
-    </div>
-  `;
+  thread.innerHTML = getEmptyThreadHtml();
+}
+
+function toggleTheme() {
+  document.body.classList.toggle("light-mode");
+  const isLight = document.body.classList.contains("light-mode");
+  localStorage.setItem("theme", isLight ? "light" : "dark");
+}
+
+function applySavedTheme() {
+  if (localStorage.getItem("theme") === "light") {
+    document.body.classList.add("light-mode");
+  }
+}
+
+function initEmbeddedNav() {
+  if (!isEmbeddedView()) return;
+
+  document.querySelectorAll(".ai-nav-link").forEach((link) => {
+    if (link.dataset.bound === "1") return;
+    link.dataset.bound = "1";
+    link.addEventListener("click", (event) => {
+      const href = link.getAttribute("href") || "";
+      if (!href) return;
+      event.preventDefault();
+
+      if (href.includes("./index.html")) {
+        try {
+          window.parent.postMessage({ type: "APP_CLOSE" }, "*");
+          return;
+        } catch (_) {
+          location.href = "./index.html";
+          return;
+        }
+      }
+
+      if (href.includes("../tr/tr.html")) {
+        openAppOverlay("tr", null, { skipRecent: true });
+        return;
+      }
+
+      if (href.includes("../thsr/thsr.html")) {
+        openAppOverlay("thsr", null, { skipRecent: true });
+      }
+    });
+  });
 }
 
 function bindAssistantUI() {
   const input = document.getElementById("routeAssistantInput");
   const submit = document.getElementById("routeAssistantBtn");
   const clearBtn = document.getElementById("assistantClearBtn");
-  const chips = Array.from(document.querySelectorAll(".assistant-chip"));
+
   if (submit && !submit.dataset.bound) {
     submit.dataset.bound = "1";
     submit.addEventListener("click", () => runAssistantQuery(input?.value || ""));
   }
+
   if (input && !input.dataset.bound) {
     input.dataset.bound = "1";
     input.addEventListener("keydown", (event) => {
@@ -383,12 +385,14 @@ function bindAssistantUI() {
       runAssistantQuery(input.value || "");
     });
   }
+
   if (clearBtn && !clearBtn.dataset.bound) {
     clearBtn.dataset.bound = "1";
     clearBtn.addEventListener("click", clearAssistantThread);
   }
-  chips.forEach((chip) => {
-    if (chip.dataset.bound) return;
+
+  document.querySelectorAll(".assistant-chip").forEach((chip) => {
+    if (chip.dataset.bound === "1") return;
     chip.dataset.bound = "1";
     chip.addEventListener("click", () => {
       const query = chip.dataset.query || "";
@@ -398,19 +402,16 @@ function bindAssistantUI() {
   });
 }
 
-function applySavedTheme() {
-  if (localStorage.getItem("theme") === "light") {
-    document.body.classList.add("light-mode");
-  }
-}
-
 function initAiHub() {
   applySavedTheme();
   initEmbeddedNav();
   bindAssistantUI();
 
   const themeBtn = document.getElementById("aiThemeToggle");
-  if (themeBtn) themeBtn.addEventListener("click", toggleTheme);
+  if (themeBtn && !themeBtn.dataset.bound) {
+    themeBtn.dataset.bound = "1";
+    themeBtn.addEventListener("click", toggleTheme);
+  }
 
   const cached = readStationCache();
   if (cached) {
@@ -438,9 +439,10 @@ function initAiHub() {
 
 window.updateAssistantLoadingState = updateAssistantLoadingState;
 window.getTdxToken = getTdxToken;
-window.getAccessToken = getAccessToken;
+window.getAccessToken = getTdxToken;
 window.fetchAllStations = fetchAllStations;
 window.openAppOverlay = openAppOverlay;
 window.rememberRecentLaunch = rememberRecentLaunch;
 window.clearAssistantThread = clearAssistantThread;
+
 window.addEventListener("DOMContentLoaded", initAiHub);

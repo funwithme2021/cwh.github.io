@@ -1,5 +1,10 @@
 (function () {
   const STYLE_ID = "rail-page-assistant-styles";
+  const RESULT_PAGE_SIZE = {
+    direct: 5,
+    transfer: 4,
+    station: 10,
+  };
 
   function pad2(value) {
     return String(value).padStart(2, "0");
@@ -428,6 +433,9 @@
       .rail-ai-actions{display:flex; flex-wrap:wrap; gap:8px;}
       .rail-ai-btn{border:1px solid var(--border); background:var(--bg-surface); color:var(--text-main); border-radius:12px; padding:9px 12px; font:inherit; font-size:.9rem; cursor:pointer;}
       .rail-ai-btn.primary{background:var(--primary); border-color:var(--primary); color:#fff;}
+      .rail-ai-pagination{display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:10px; margin-top:4px;}
+      .rail-ai-pagination-note{color:var(--text-muted); font-size:.84rem; line-height:1.6;}
+      .rail-ai-pagination-actions{display:flex; flex-wrap:wrap; gap:8px;}
       .rail-ai-grid{display:grid; gap:10px; grid-template-columns:repeat(2,minmax(0,1fr));}
       .rail-ai-stat{border:1px solid var(--border); border-radius:16px; background:var(--bg-body); padding:12px 14px; display:flex; flex-direction:column; gap:6px;}
       .rail-ai-stat span{font-size:.82rem; color:var(--text-muted);}
@@ -449,27 +457,68 @@
     document.head.appendChild(style);
   }
 
+  function getTomorrowDate() {
+    const value = new Date();
+    value.setDate(value.getDate() + 1);
+    return value;
+  }
+
+  function formatExampleSlashDate(date) {
+    return `${date.getMonth() + 1}/${date.getDate()}`;
+  }
+
+  function formatExampleChineseDate(date) {
+    return `${date.getMonth() + 1}月${date.getDate()}日`;
+  }
+
+  function getNextHourExampleDate() {
+    const value = new Date();
+    value.setMinutes(0, 0, 0);
+    value.setHours(value.getHours() + 1);
+    return value;
+  }
+
+  function formatExampleHourClock(date) {
+    return `${String(date.getHours()).padStart(2, "0")}:00`;
+  }
+
+  function formatExampleRelativeDay(date) {
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const startOfTarget = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    const diffDays = Math.round((startOfTarget.getTime() - startOfToday.getTime()) / 86400000);
+    if (diffDays <= 0) return "今天";
+    if (diffDays === 1) return "明天";
+    return formatExampleSlashDate(date);
+  }
+
   function buildPanelHTML(system) {
     const isTra = system === "tr";
+    const tomorrow = getTomorrowDate();
+    const nextHour = getNextHourExampleDate();
+    const tomorrowSlash = formatExampleSlashDate(tomorrow);
+    const tomorrowChinese = formatExampleChineseDate(tomorrow);
+    const nextHourPrompt = `${formatExampleRelativeDay(nextHour)} ${formatExampleHourClock(nextHour)}`;
     const title = isTra ? "台鐵 AI 助手" : "高鐵 AI 助手";
     const lead = isTra
       ? "可直接輸入日期、時間、時段、起訖站、車種、轉乘、車次或車站，助手會幫你套用到頁面查詢並整理重點。"
       : "可直接輸入日期、時間、時段、起訖站、直達條件、車次或車站，助手會幫你套用到頁面查詢並整理重點。";
     const placeholder = isTra
-      ? "例如：今天 7點半 台北到台中 自強號 / 明天上午 花蓮往台南 可轉乘 / 271次 台中幾點到 / 7.13 板橋站有什麼車"
-      : "例如：今天 7點半 台北到左營 直達 / 下午七點 台中站有什麼車 / 125次 台南幾點到 / 7月13日 板橋往左營";
+      ? `例如：${nextHourPrompt} 台北到台中 自強號 / 明天上午 花蓮往台南 可轉乘 / 271次 台中幾點到 / ${tomorrowSlash} 板橋站有什麼車`
+      : `例如：${nextHourPrompt} 台北到左營 / ${nextHourPrompt} 台中站有什麼車 / ${tomorrowChinese} 高鐵台北到左營有沒有票 / 125次 台南幾點到`;
     const chips = (isTra
       ? [
-          "今天 7點半 台北到台中 自強號",
+          `${nextHourPrompt} 台北到台中 自強號`,
           "明天上午 花蓮往台南 可轉乘",
           "271次 台中幾點到",
-          "7.13 板橋站有什麼車",
+          `${tomorrowSlash} 板橋站有什麼車`,
         ]
       : [
-          "今天 7點半 台北到左營 直達",
-          "下午七點 台中站有什麼車",
+          `${nextHourPrompt} 台北到左營`,
+          `${nextHourPrompt} 台中站有什麼車`,
           "125次 台南幾點到",
-          "7月13日 板橋往左營",
+          `${tomorrowChinese} 高鐵台北到左營有沒有票`,
+          `${tomorrowChinese} 板橋往左營`,
         ])
       .map((item) => `<button class="rail-ai-chip" type="button" data-ai-prompt="${escapeHtml(item)}">${escapeHtml(item)}</button>`)
       .join("");
@@ -504,6 +553,7 @@
   }
 
   function renderEmpty(state) {
+    state.renderState = null;
     state.answer.innerHTML = `
       <div class="rail-ai-empty">
         直接輸入旅程、車次或車站需求即可。支援日期、單一時間、時間區間，例如「今天 08:00 台北到台中」或「412次 台中幾點到」。
@@ -512,6 +562,7 @@
   }
 
   function renderError(state, message) {
+    state.renderState = null;
     state.answer.innerHTML = `<div class="rail-ai-error">${escapeHtml(message)}</div>`;
   }
 
@@ -521,6 +572,62 @@
       .map((item) => `<span class="rail-ai-meta-pill">${escapeHtml(item)}</span>`)
       .join("");
     return html ? `<div class="rail-ai-meta-row">${html}</div>` : "";
+  }
+
+  function getResultPageSize(section) {
+    const wide = typeof window.matchMedia === "function" && window.matchMedia("(min-width: 1180px)").matches;
+    const desktop = typeof window.matchMedia === "function" && window.matchMedia("(min-width: 860px)").matches;
+    if (section === "direct") return wide ? 6 : (desktop ? RESULT_PAGE_SIZE.direct : 4);
+    if (section === "transfer") return wide ? 5 : (desktop ? RESULT_PAGE_SIZE.transfer : 3);
+    if (section === "station") return wide ? 12 : (desktop ? RESULT_PAGE_SIZE.station : 8);
+    return RESULT_PAGE_SIZE[section] || 5;
+  }
+
+  function getPagedItems(items, rawOffset, pageSize) {
+    const list = Array.isArray(items) ? items : [];
+    const size = Math.max(1, Number(pageSize || 1));
+    if (!list.length) {
+      return { items: [], offset: 0, hasPrev: false, hasNext: false, start: 0, end: 0, total: 0 };
+    }
+    const maxOffset = Math.max(0, list.length - size);
+    const offset = Math.min(Math.max(0, Number(rawOffset || 0)), maxOffset);
+    const slice = list.slice(offset, offset + size);
+    return {
+      items: slice,
+      offset,
+      hasPrev: offset > 0,
+      hasNext: offset + size < list.length,
+      start: offset + 1,
+      end: offset + slice.length,
+      total: list.length,
+    };
+  }
+
+  function ensureViewState(state) {
+    if (!state.view) {
+      state.view = {
+        route: { direct: 0, transfer: 0 },
+        station: 0,
+      };
+    }
+    if (!state.view.route) state.view.route = { direct: 0, transfer: 0 };
+    if (!Number.isFinite(state.view.route.direct)) state.view.route.direct = 0;
+    if (!Number.isFinite(state.view.route.transfer)) state.view.route.transfer = 0;
+    if (!Number.isFinite(state.view.station)) state.view.station = 0;
+    return state.view;
+  }
+
+  function buildPaginationBlock(page, target, pageSize, prevLabel, nextLabel) {
+    if (!page.total || (!page.hasPrev && !page.hasNext)) return "";
+    return `
+      <div class="rail-ai-pagination">
+        <div class="rail-ai-pagination-note">目前顯示第 ${page.start}-${page.end} 筆，共 ${page.total} 筆。</div>
+        <div class="rail-ai-pagination-actions">
+          ${page.hasPrev ? `<button class="rail-ai-btn" type="button" data-ai-page="${target}" data-delta="-${pageSize}">${escapeHtml(prevLabel)}</button>` : ""}
+          ${page.hasNext ? `<button class="rail-ai-btn primary" type="button" data-ai-page="${target}" data-delta="${pageSize}">${escapeHtml(nextLabel)}</button>` : ""}
+        </div>
+      </div>
+    `;
   }
 
   function pageIsDesktopDevice() {
@@ -597,6 +704,47 @@
         }
       });
     });
+  }
+
+  function rerenderStoredState(state) {
+    const renderState = state.renderState;
+    if (!renderState) return;
+    if (renderState.kind === "tr-route") {
+      renderTraRoute(state, renderState.intent, renderState.directRows, renderState.transferRows, false);
+      return;
+    }
+    if (renderState.kind === "thsr-route") {
+      renderThsrRoute(state, renderState.intent, renderState.rows, false);
+      return;
+    }
+    if (renderState.kind === "station") {
+      renderStationAnswer(state, renderState.intent, renderState.rows, renderState.system, false);
+    }
+  }
+
+  function bindPagerButtons(state) {
+    state.answer.querySelectorAll("[data-ai-page]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const target = String(button.dataset.aiPage || "");
+        const delta = Number(button.dataset.delta || 0);
+        const view = ensureViewState(state);
+        if (target === "route-direct") {
+          view.route.direct = Math.max(0, view.route.direct + delta);
+        } else if (target === "route-transfer") {
+          view.route.transfer = Math.max(0, view.route.transfer + delta);
+        } else if (target === "station") {
+          view.station = Math.max(0, view.station + delta);
+        } else {
+          return;
+        }
+        rerenderStoredState(state);
+      });
+    });
+  }
+
+  function bindRenderedButtons(state) {
+    bindActionButtons(state);
+    bindPagerButtons(state);
   }
 
   function addAction(state, action) {
@@ -743,6 +891,7 @@
   }
 
   function renderSwitchCard(state, requestedSystem) {
+    state.renderState = null;
     const targetLabel = requestedSystem === "thsr" ? "高鐵頁面" : "台鐵頁面";
     const targetHref = requestedSystem === "thsr" ? "../thsr/thsr.html" : "../tr/tr.html";
     state.actions = [];
@@ -759,7 +908,11 @@
     bindActionButtons(state);
   }
 
-  function renderTraRoute(state, intent, directRows, transferRows) {
+  function renderTraRoute(state, intent, directRows, transferRows, persist = true) {
+    if (persist) {
+      state.renderState = { kind: "tr-route", intent, directRows, transferRows };
+    }
+    const view = ensureViewState(state);
     state.actions = [];
     const meta = buildMetaPills([
       intent.dateLabel,
@@ -767,8 +920,11 @@
       intent.typePreference,
       intent.allowTransfer ? "可轉乘" : "直達優先",
     ]);
-    const directHtml = directRows.length
-      ? directRows.slice(0, 5).map((item) => {
+    const directPageSize = getResultPageSize("direct");
+    const directPage = getPagedItems(directRows, view.route.direct, directPageSize);
+    view.route.direct = directPage.offset;
+    const directHtml = directPage.items.length
+      ? directPage.items.map((item) => {
           const detailAction = addAction(state, { type: "tra-detail", trainNo: item.num, originDate: item.originDate });
           const booking = typeof window.getBookingEligibilityByRow === "function" ? window.getBookingEligibilityByRow(item) : { ok: false };
           const bookingAction = booking.ok
@@ -791,11 +947,21 @@
           `;
         }).join("")
       : `<div class="rail-ai-empty">這個條件下沒有找到符合的直達班次。</div>`;
+    const directPagination = buildPaginationBlock(
+      directPage,
+      "route-direct",
+      directPageSize,
+      "更早班次",
+      directPage.offset > 0 ? "更晚班次" : "更多班次"
+    );
 
     const transferOnly = (transferRows || []).filter((item) => !item.isDirect);
+    const transferPageSize = getResultPageSize("transfer");
+    const transferPage = getPagedItems(transferOnly, view.route.transfer, transferPageSize);
+    view.route.transfer = transferPage.offset;
     const transferHtml = !intent.directOnly
-      ? (transferOnly.length
-          ? transferOnly.slice(0, 4).map((item) => {
+      ? (transferPage.items.length
+          ? transferPage.items.map((item) => {
               const actionIndex = addAction(state, { type: "tra-transfer", plan: item });
               return `
                 <article class="rail-ai-card">
@@ -812,6 +978,15 @@
             }).join("")
           : `<div class="rail-ai-empty">沒有找到更合適的 1 次轉乘方案。</div>`)
       : "";
+    const transferPagination = !intent.directOnly
+      ? buildPaginationBlock(
+          transferPage,
+          "route-transfer",
+          transferPageSize,
+          "更早轉乘",
+          transferPage.offset > 0 ? "更晚轉乘" : "更多轉乘"
+        )
+      : "";
 
     state.answer.innerHTML = `
       <div class="rail-ai-title">
@@ -823,10 +998,11 @@
       <section class="rail-ai-section">
         <div class="rail-ai-section-head"><strong>直達建議</strong><span>${directRows.length ? `共 ${directRows.length} 筆可參考` : "沒有符合條件的直達"}</span></div>
         <div class="rail-ai-list">${directHtml}</div>
+        ${directPagination}
       </section>
-      ${!intent.directOnly ? `<section class="rail-ai-section"><div class="rail-ai-section-head"><strong>轉乘建議</strong><span>${transferOnly.length ? `共 ${transferOnly.length} 筆候選` : "沒有更好的轉乘"}</span></div><div class="rail-ai-list">${transferHtml}</div></section>` : ""}
+      ${!intent.directOnly ? `<section class="rail-ai-section"><div class="rail-ai-section-head"><strong>轉乘建議</strong><span>${transferOnly.length ? `共 ${transferOnly.length} 筆候選` : "沒有更好的轉乘"}</span></div><div class="rail-ai-list">${transferHtml}</div>${transferPagination}</section>` : ""}
     `;
-    bindActionButtons(state);
+    bindRenderedButtons(state);
   }
 
   function seatMeta(code) {
@@ -841,7 +1017,11 @@
     return `<span class="rail-ai-seat-group"><span class="rail-ai-seat-label">${escapeHtml(label)}</span><span class="rail-ai-seat-pill ${meta.cls}">${escapeHtml(meta.text)}</span></span>`;
   }
 
-  function renderThsrRoute(state, intent, rows) {
+  function renderThsrRoute(state, intent, rows, persist = true) {
+    if (persist) {
+      state.renderState = { kind: "thsr-route", intent, rows };
+    }
+    const view = ensureViewState(state);
     state.actions = [];
     const seatMap = readPageValue("currentSeatMap") || {};
     const meta = buildMetaPills([
@@ -850,8 +1030,11 @@
       intent.directOnly ? "只看直達" : "",
       intent.wantsTicket ? "附票況" : "",
     ]);
-    const html = rows.length
-      ? rows.slice(0, 5).map((item) => {
+    const directPageSize = getResultPageSize("direct");
+    const page = getPagedItems(rows, view.route.direct, directPageSize);
+    view.route.direct = page.offset;
+    const html = page.items.length
+      ? page.items.map((item) => {
           const detailAction = addAction(state, { type: "thsr-detail", trainNo: item.trainNo, originDate: item.originDate });
           const bookable = item.originDate > todayDateStr() || (item.originDate === todayDateStr() && (timeToMinutes(item.dep) ?? -9999) - currentMinutes() > 10);
           const bookingAction = bookable
@@ -876,6 +1059,13 @@
           `;
         }).join("")
       : `<div class="rail-ai-empty">這個條件下沒有找到符合的高鐵班次。</div>`;
+    const pagination = buildPaginationBlock(
+      page,
+      "route-direct",
+      directPageSize,
+      "更早班次",
+      page.offset > 0 ? "更晚班次" : "更多班次"
+    );
 
     state.answer.innerHTML = `
       <div class="rail-ai-title">
@@ -887,12 +1077,14 @@
       <section class="rail-ai-section">
         <div class="rail-ai-section-head"><strong>班次建議</strong><span>${rows.length ? `共 ${rows.length} 筆候選` : "沒有符合條件的班次"}</span></div>
         <div class="rail-ai-list">${html}</div>
+        ${pagination}
       </section>
     `;
-    bindActionButtons(state);
+    bindRenderedButtons(state);
   }
 
   function renderTraTrain(state, intent, result) {
+    state.renderState = null;
     state.actions = [];
     const detailAction = addAction(state, { type: "tra-detail", trainNo: result.trainNo, originDate: result.originDate });
     const meta = buildMetaPills([intent.dateLabel, result.crossDayText]);
@@ -913,10 +1105,11 @@
         <button class="rail-ai-btn" type="button" data-ai-action="${detailAction}">打開列車詳細</button>
       </div>
     `;
-    bindActionButtons(state);
+    bindRenderedButtons(state);
   }
 
   function renderThsrTrain(state, intent, result) {
+    state.renderState = null;
     state.actions = [];
     const detailAction = addAction(state, { type: "thsr-detail", trainNo: result.trainNo, originDate: result.originDate });
     state.answer.innerHTML = `
@@ -936,13 +1129,20 @@
         <button class="rail-ai-btn" type="button" data-ai-action="${detailAction}">打開列車詳細</button>
       </div>
     `;
-    bindActionButtons(state);
+    bindRenderedButtons(state);
   }
 
-  function renderStationAnswer(state, intent, rows, system) {
+  function renderStationAnswer(state, intent, rows, system, persist = true) {
+    if (persist) {
+      state.renderState = { kind: "station", intent, rows, system };
+    }
+    const view = ensureViewState(state);
     state.actions = [];
-    const html = rows.length
-      ? rows.slice(0, 10).map((row) => {
+    const stationPageSize = getResultPageSize("station");
+    const page = getPagedItems(rows, view.station, stationPageSize);
+    view.station = page.offset;
+    const html = page.items.length
+      ? page.items.map((row) => {
           const actionType = system === "tr" ? "tra-detail" : "thsr-detail";
           const actionIndex = addAction(state, { type: actionType, trainNo: row.trainNo, originDate: row.originDate });
           return `
@@ -959,6 +1159,13 @@
           `;
         }).join("")
       : `<div class="rail-ai-empty">這個日期與時間條件下沒有找到符合的班次。</div>`;
+    const pagination = buildPaginationBlock(
+      page,
+      "station",
+      stationPageSize,
+      "更早班次",
+      page.offset > 0 ? "更晚班次" : "更多班次"
+    );
     const directionText = state.system === "tr"
       ? (intent.direction === "even" ? "順行 / 偶數車次" : intent.direction === "odd" ? "逆行 / 奇數車次" : "雙向整理")
       : (intent.direction === "south" ? "南下" : intent.direction === "north" ? "北上" : "雙向整理");
@@ -973,9 +1180,10 @@
       <section class="rail-ai-section">
         <div class="rail-ai-section-head"><strong>接下來班次</strong><span>${rows.length ? `共 ${rows.length} 筆候選` : "沒有符合條件的班次"}</span></div>
         <div class="rail-ai-list">${html}</div>
+        ${pagination}
       </section>
     `;
-    bindActionButtons(state);
+    bindRenderedButtons(state);
   }
 
   async function runTraRoute(state, intent) {
@@ -1260,6 +1468,8 @@
     }
     state.lastPrompt = raw;
     state.input.value = raw;
+    state.view = { route: { direct: 0, transfer: 0 }, station: 0 };
+    state.renderState = null;
     await window.RailAssistantCommon?.ensureStationLocaleData?.();
     const intent = parseIntent(raw, state.system);
     if (!intent) {
@@ -1280,6 +1490,132 @@
       button.disabled = false;
       button.textContent = previousLabel;
     }
+  }
+
+  function isEmbeddedAssistantMode() {
+    try {
+      return new URLSearchParams(location.search).get("home_ai_embed") === "1";
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function notifyEmbeddedAssistantHeight(state) {
+    if (!isEmbeddedAssistantMode()) return;
+    try {
+      const panel = document.getElementById("panel-ai");
+      if (!panel) return;
+      const height = Math.max(panel.scrollHeight || 0, Math.ceil(panel.getBoundingClientRect().height || 0)) + 24;
+      window.parent?.postMessage({ type: "RAIL_AI_HEIGHT", system: state.system, height }, "*");
+    } catch (_) {}
+  }
+
+  function syncEmbeddedTheme(theme) {
+    if (!isEmbeddedAssistantMode()) return;
+    const isLight = theme === "light";
+    document.body.classList.toggle("light-mode", isLight);
+    document.body.classList.toggle("dark-mode", !isLight);
+  }
+
+  function injectEmbeddedAssistantStyles() {
+    if (!isEmbeddedAssistantMode() || document.getElementById("rail-page-assistant-embed-style")) return;
+    const style = document.createElement("style");
+    style.id = "rail-page-assistant-embed-style";
+    style.textContent = `
+      html, body{
+        margin:0 !important;
+        padding:0 !important;
+        overflow-x:hidden !important;
+      }
+      .bg-blobs,
+      #loading-overlay,
+      header,
+      .header,
+      .query-tabs{
+        display:none !important;
+      }
+      main,
+      .container{
+        width:100% !important;
+        max-width:none !important;
+        margin:0 !important;
+        padding:0 !important;
+      }
+      main .grid{
+        display:block !important;
+        gap:0 !important;
+      }
+      main .grid > :not(#panel-ai){
+        display:none !important;
+      }
+      #panel-ai,
+      #panel-ai.hidden{
+        display:flex !important;
+        margin:0 !important;
+        padding:10px !important;
+        border:0 !important;
+        border-radius:0 !important;
+        box-shadow:none !important;
+        background:transparent !important;
+        box-sizing:border-box !important;
+      }
+      #panel-ai .rail-ai-panel{
+        margin-top:0 !important;
+      }
+      #panel-ai .section-title{
+        margin-top:0 !important;
+      }
+      @media (max-width: 760px){
+        #panel-ai,
+        #panel-ai.hidden{
+          padding:8px !important;
+        }
+      }
+    `;
+    document.head.appendChild(style);
+  }
+
+  function setupEmbeddedAssistantBridge(state) {
+    if (!isEmbeddedAssistantMode()) return;
+
+    injectEmbeddedAssistantStyles();
+    syncEmbeddedTheme(localStorage.getItem("theme") === "light" ? "light" : "dark");
+
+    try {
+      window.switchQueryPanel?.("panel-ai");
+    } catch (_) {}
+
+    const panel = document.getElementById("panel-ai");
+    panel?.classList.remove("hidden");
+
+    if (!window.__railAssistantEmbedMessageBound) {
+      window.__railAssistantEmbedMessageBound = true;
+      window.addEventListener("message", (event) => {
+        const data = event?.data;
+        if (!data || typeof data !== "object") return;
+        if (data.type === "RAIL_AI_THEME") {
+          syncEmbeddedTheme(data.theme === "light" ? "light" : "dark");
+          return;
+        }
+        if (data.type === "RAIL_AI_RUN" && data.system === state.system) {
+          const query = String(data.query || "").trim();
+          if (!query) return;
+          state.input.value = query;
+          runAssistant(state, query).finally(() => notifyEmbeddedAssistantHeight(state));
+        }
+      });
+    }
+
+    if (!window.__railAssistantEmbedResizeBound && typeof ResizeObserver === "function" && panel) {
+      window.__railAssistantEmbedResizeBound = true;
+      const observer = new ResizeObserver(() => notifyEmbeddedAssistantHeight(state));
+      observer.observe(panel);
+      if (document.body) observer.observe(document.body);
+      window.__railAssistantEmbedResizeObserver = observer;
+    }
+
+    window.parent?.postMessage({ type: "RAIL_AI_READY", system: state.system }, "*");
+    notifyEmbeddedAssistantHeight(state);
   }
 
   function initRailPageAssistant(system) {
@@ -1321,6 +1657,8 @@
       answer: panel.querySelector("#railAssistantAnswer"),
       actions: [],
       lastPrompt: "",
+      renderState: null,
+      view: { route: { direct: 0, transfer: 0 }, station: 0 },
     };
 
     state.runButton.addEventListener("click", () => runAssistant(state));
@@ -1340,6 +1678,7 @@
     });
 
     renderEmpty(state);
+    setupEmbeddedAssistantBridge(state);
   }
 
   window.initRailPageAssistant = initRailPageAssistant;

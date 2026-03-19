@@ -32,14 +32,14 @@
             --status-bar-h: 48px;
         }
 
-        /* ?瘚?摰孵 */
+        /* 垂直流程容器 */
 .monitor-flow-v {
     display: flex;
     flex-direction: column;
     gap: 4px;
 }
 
-/* 瘚?撠?蝞剝 */
+/* 流程導引箭頭 */
 .flow-arrow-down {
     text-align: left;
     padding-left: 20px;
@@ -49,7 +49,7 @@
     opacity: 0.5;
 }
 
-/* 撘瑕?敹銝??詨??閬?*/
+/* 強化必選下拉選單的視覺 */
 select.setting-input[id*="pick"] {
     background-color: rgba(255, 255, 255, 0.08);
 }
@@ -57,34 +57,34 @@ select.setting-input[id*="pick"] {
     background-color: rgba(0, 0, 0, 0.03);
 }
 
-/* 撘瑕靽格迤瘛梯璅∪?銝?select option ???航??? */
+/* 強制修正深色模式下 select option 的背景與文字 */
 .dark-mode select.setting-input option {
     background-color: #1e293b !important;
     color: #f1f5f9 !important;
 }
 
-/* ??頛詨獢??詨?冽楛憭芋撘?閬死撘瑕? */
+/* 針對輸入框與選單在深夜模式的視覺強化 */
 .dark-mode .setting-input {
     background: rgba(0, 0, 0, 0.4);
     color: #ffffff;
     border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-/* ?孵??暺頠活?詨?見撘絞銝 */
+/* 特別針對點選車次選單的樣式統一 */
 .dark-mode select.setting-input[id*="pick"] {
-    background-color: rgba(59, 130, 246, 0.1); /* ?粹?凝??*/
+    background-color: rgba(59, 130, 246, 0.1); /* 臺鐵藍微光 */
     color: #ffffff;
 }
 
 .dark-mode #mon_thsr_train_pick {
-    background-color: rgba(251, 146, 60, 0.1); /* 擃璈凝??*/
+    background-color: rgba(251, 146, 60, 0.1); /* 高鐵橘微光 */
 }
 
 
 
 
 
-        /* 撣貊銵?摰孵 */
+        /* 常用行程容器 */
 .fav-section {
     margin-top: 15px;
     display: flex;
@@ -92,9 +92,9 @@ select.setting-input[id*="pick"] {
     gap: 12px;
 }
 
-/* ?桀?蝔??∠?撘?撅 */
+/* 單個行程的卡片式佈局 */
 .fav-item-card {
-    background: rgba(255, 255, 255, 0.03); /* 敺桐漁????*/
+    background: rgba(255, 255, 255, 0.03); /* 微亮背景區分 */
     padding: 12px;
     border-radius: 16px;
     border: 1px solid rgba(255, 255, 255, 0.05);
@@ -104,7 +104,7 @@ select.setting-input[id*="pick"] {
     background: rgba(0, 0, 0, 0.02);
 }
 
-/* 銵?璅惜嚗?嚗?蝔?嚗?*/
+/* 行程標籤（如：行程一） */
 .card-mini-label {
     display: block;
     font-size: 0.7rem;
@@ -115,7 +115,7 @@ select.setting-input[id*="pick"] {
     letter-spacing: 0.5px;
 }
 
-/* 瘞游像??韏瑁?蝡?蝞剝 */
+/* 水平排列起訖站與箭頭 */
 .input-row-flex {
     display: flex;
     align-items: center;
@@ -123,11 +123,11 @@ select.setting-input[id*="pick"] {
 }
 
 .input-row-flex .setting-input {
-    flex: 1; /* 霈撓?交?撟喳?撖砍漲 */
-    text-align: center; /* 蝡?撅葉頛?閫 */
+    flex: 1; /* 讓輸入框平分寬度 */
+    text-align: center; /* 站名居中較美觀 */
 }
 
-/* 閬死撠?蝞剝 */
+/* 視覺導引箭頭 */
 .route-arrow {
     color: var(--text-muted);
     font-weight: 900;
@@ -149,7 +149,7 @@ select.setting-input[id*="pick"] {
         * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
         body { font-family: 'Inter', 'Noto Sans TC', sans-serif; background-color: var(--bg-dark); color: var(--text-main); min-height: 100vh; display: flex; flex-direction: column; align-items: center; transition: background-color 0.4s ease; overflow-x: hidden; padding-top: var(--status-bar-h); }
 
-        /* ?瘚?? */
+        /* 背景流動動畫 */
         .bg-blobs { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; pointer-events: none; overflow: hidden; }
         .blob { position: absolute; width: 60vw; height: 60vw; border-radius: 50%; filter: blur(80px); opacity: 0.45; animation: float 25s infinite alternate ease-in-out; }
         .blob-1 { background: radial-gradient(circle, var(--tr-color), transparent 60%); top: -10%; left: -10%; animation-delay: 0s; }
@@ -159,23 +159,23 @@ select.setting-input[id*="pick"] {
         @keyframes float { 0% { transform: translate(0, 0); } 100% { transform: translate(10%, 15%); } }
         @keyframes floatReverse { 0% { transform: translate(0, 0); } 100% { transform: translate(-10%, -15%); } }
 
-        /* ??單???? (靽格??????撌? */
+        /* 頂部即時狀態欄 (修改版：各半、靠左) */
         .status-bar {
             position: fixed; top: 0; left: 0; width: 100%; height: var(--status-bar-h);
             background: var(--dock-bg); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
             border-bottom: 1px solid var(--glass-border); z-index: 500;
-            display: flex; align-items: center; padding: 0; /* 蝘駁 padding 霈???皛輻? */
+            display: flex; align-items: center; padding: 0; /* 移除 padding 讓分隔線滿版 */
             overflow: hidden;
         }
         .status-content { display: flex; align-items: center; width: 100%; height: 100%; }
         
         .status-item { 
-            flex: 1; /* ??銝??*/
+            flex: 1; /* 各佔一半 */
             display: flex; align-items: center; gap: 8px; 
             height: 100%;
-            padding: 0 16px; /* ?扯? */
+            padding: 0 16px; /* 內距 */
             white-space: nowrap; overflow: hidden; position: relative;
-            border-right: 1px solid var(--glass-border); /* 銝剝???蝺?*/
+            border-right: 1px solid var(--glass-border); /* 中間分隔線 */
         }
         .status-item:last-child { border-right: none; }
         
@@ -187,17 +187,17 @@ select.setting-input[id*="pick"] {
             display: inline-block; white-space: nowrap; 
             font-size: 0.85rem; font-weight: 500; color: var(--text-main);
         }
-        /* ?亥郎蝷箸?摮云?瑕?頝收??*/
+        /* 若警示文字太長則跑馬燈 */
         .status-text-wrap.alert-scroll { padding-left: 100%; animation: scroll-linear 20s linear infinite; }
         @keyframes scroll-linear { 0% { transform: translateX(0); } 100% { transform: translateX(-150%); } }
 
-        /* 銝餃???*/
+        /* 主導航 */
         .top-nav { width: 100%; max-width: 1200px; padding: 25px 30px; display: flex; justify-content: space-between; align-items: center; z-index: 100; }
         .logo { font-weight: 900; font-size: 1.4rem; letter-spacing: -0.5px; display: flex; align-items: center; gap: 10px; }
         .logo span { background: linear-gradient(135deg, #fff, #94a3b8); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
         .light-mode .logo span { background: linear-gradient(135deg, #0f172a, #475569); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
 
-        /* ?批捆???*/
+        /* 內容區域 */
         .content { width: 100%; max-width: 1000px; padding: 20px 20px 120px; text-align: center; perspective: 1000px; }
         .header { margin-bottom: 50px; }
         .header h1 { font-size: 3rem; font-weight: 900; margin-bottom: 10px; letter-spacing: -2px; line-height: 1.1; background: linear-gradient(to bottom, var(--text-main), var(--text-muted)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
@@ -206,7 +206,7 @@ select.setting-input[id*="pick"] {
 
         .entry-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 30px; justify-content: center; }
 
-        /* ?∠?閮剛? */
+        /* 卡片設計 */
         .entry-card {
             position: relative; background: var(--glass-bg); 
             border: 1px solid var(--glass-border);
@@ -243,7 +243,7 @@ select.setting-input[id*="pick"] {
 
         .entry-card h2 { font-size: 2rem; margin-bottom: 10px; font-weight: 800; letter-spacing: -1px; pointer-events: none; }
 
-        /* ??璅?? */
+        /* 按鈕樣式 */
         .geo-btn {
             margin-bottom: 25px; 
             background: rgba(255,255,255,0.15); border: 1px solid var(--glass-border);
@@ -315,7 +315,7 @@ select.setting-input[id*="pick"] {
 
         .setting-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
         .setting-input { background: rgba(0,0,0,0.3); border: 1px solid var(--glass-border); color: var(--text-main); padding: 10px 14px; border-radius: 12px; width: 100%; outline: none; font-size: 0.95rem; }
-        /* 銝??詨璅?? */
+        /* 下拉選單樣式 */
         select.setting-input { appearance: none; cursor: pointer; background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%2394a3b8%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E"); background-repeat: no-repeat; background-position: right 12px top 50%; background-size: 10px auto; padding-right: 30px; }
         .light-mode .setting-input { background: #fff; color: #000; border-color: #ddd; }
         .fav-row { display: flex; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
@@ -341,7 +341,7 @@ select.setting-input[id*="pick"] {
             .status-bar { font-size: 0.75rem; }
         }
     
-        /* 擐活?脣擐?瘜冽?鈭?嚗憿舐內銝甈∴? */
+        /* 首次進入首頁注意事項（只顯示一次） */
         #homeNoticeModal {
             display: none;
             position: fixed;
@@ -416,13 +416,13 @@ select.setting-input[id*="pick"] {
 
  #splash-screen {
     position: fixed; inset: 0; z-index: 10000;
-    background: #0b1120; /* ?湔楛????*/
+    background: #0b1120; /* 更深邃的藍 */
     display: flex; align-items: center; justify-content: center;
     transition: opacity 1s cubic-bezier(0.4, 0, 0.2, 1), visibility 1s;
     overflow: hidden;
 }
 
-/* ?敺桀?鋆ˇ */
+/* 背景微光裝飾 */
 .splash-bg-decor {
     position: absolute; width: 150%; height: 150%;
     background: radial-gradient(circle at center, rgba(59, 130, 246, 0.05) 0%, transparent 70%);
@@ -430,15 +430,15 @@ select.setting-input[id*="pick"] {
 }
 
 .splash-logo-wrap {
-    width: 102px;  /* 敺?120px 蝮桀???85px嚗?韏瑚??蝎曄溶 */
+    width: 102px;  /* 從 120px 縮小至 85px，看起來會更精緻 */
     height: 120px;
-    margin: 0 auto 25px; /* 蝔凝蝮桀???憿?頝 */
+    margin: 0 auto 25px; /* 稍微縮小與標題的距離 */
     mix-blend-mode: screen; 
     transform: scale(0.8); opacity: 0;
     animation: logoPopIn 1.2s cubic-bezier(0.34, 1.56, 0.64, 1) forwards,
                logoBreathe 4s infinite ease-in-out 1.2s;
 }
-/* 蝣箔???摰寧瘞游像撅葉 */
+/* 確保所有內容物水平居中 */
 .splash-content {
     text-align: center;
     width: 100%;
@@ -482,24 +482,24 @@ select.setting-input[id*="pick"] {
     animation: loadingSlide 2s infinite ease-in-out;
 }
 
-/* ???摮撥?嗥蔭銝?*/
+/* 狀態文字強制置中 */
 .splash-status {
     margin-top: 15px;
     font-size: 0.9rem;
     color: #94a3b8;
     letter-spacing: 1px;
-    text-align: center; /* 蝣箔????祈澈蝵桐葉 */
+    text-align: center; /* 確保文字本身置中 */
     width: 100%;
 }
 
-/* 蝵桐葉摨鞈? */
-/* 摨鞈?摰孵靽格迤 */
+/* 置中底部資訊 */
+/* 底部資訊容器修正 */
 .splash-footer-info {
     position: absolute;
     bottom: 50px;
     left: 0;
     width: 100%;
-    text-align: center; /* 靽格迤??航??銝???? */
+    text-align: center; /* 修正原本可能偏向一邊的問題 */
     opacity: 0;
     animation: fadeIn 1s ease-out 1s forwards;
 }
@@ -516,7 +516,7 @@ select.setting-input[id*="pick"] {
     font-size: 0.8rem; color: rgba(255,255,255,0.4); font-weight: 500;
 }
 
-/* ?摰儔 */
+/* 動畫定義 */
 @keyframes logoPopIn {
     to { transform: scale(1); opacity: 1; }
 }
@@ -1020,7 +1020,7 @@ select.setting-input[id*="pick"] {
             border-color: rgba(15,23,42,0.06);
         }
         .desc-list:empty::before{
-            content: '撠?脣?撣貊頝舐?';
+            content: '尚未儲存常用路線';
             color: var(--text-muted);
             font-size: .92rem;
             font-weight: 700;
@@ -2128,19 +2128,19 @@ select.setting-input[id*="pick"] {
         
         <div class="splash-text-group">
             <h1 class="splash-title">Real-Time</h1>
-            <p class="splash-tagline">???瘥?畾菟??</p>
+            <p class="splash-tagline">連結每一段通勤時光</p>
         </div>
 
         <div class="splash-status-container">
             <div class="splash-loader-wrap">
                 <div class="splash-loader-bar"></div>
             </div>
-            <p id="splash-status-text" class="splash-status">蝟餌絞??銝?..</p>
+            <p id="splash-status-text" class="splash-status">系統啟動中...</p>
         </div>
         
         <div class="splash-footer-info">
             <span class="v-num">Version 26.0210.77</span>
-            <p>穢 2026 Real-Time</p>
+            <p>© 2026 Real-Time</p>
         </div>
     </div>
 </div>
@@ -2152,13 +2152,13 @@ select.setting-input[id*="pick"] {
             <div class="status-item">
                 <span class="status-dot ok" id="trStatusDot"></span>
                 <span id="trStatusTextWrap" class="status-text-wrap">
-                    <span id="trStatusText">?粹: 頛銝?..</span>
+                    <span id="trStatusText">臺鐵: 載入中...</span>
                 </span>
             </div>
             <div class="status-item">
                 <span class="status-dot ok" id="thsrStatusDot"></span>
                 <span id="thsrStatusTextWrap" class="status-text-wrap">
-                    <span id="thsrStatusText">擃: 頛銝?..</span>
+                    <span id="thsrStatusText">高鐵: 載入中...</span>
                 </span>
             </div>
             <span id="monitorStatusText" style="display:none;"></span>
@@ -2169,17 +2169,17 @@ select.setting-input[id*="pick"] {
         <div class="logo">
             <div class="logo-mark">RT</div>
             <div class="logo-copy">
-                <span>?銵?Pro</span>
+                <span>時刻表 Pro</span>
                 <small>Mobility Console</small>
             </div>
         </div>
         <div class="nav-actions">
-            <button class="nav-shortcut" type="button" onclick="toggleSettings(true)">敹恍身摰?/button>
-            <button class="nav-shortcut" type="button" onclick="toggleTools()">撖衣撌亙</button>
+            <button class="nav-shortcut" type="button" onclick="toggleSettings(true)">快速設定</button>
+            <button class="nav-shortcut" type="button" onclick="toggleTools()">實用工具</button>
             <select class="lang-switch" id="langSelect" style="background:var(--glass-bg); color:var(--text-main); border:1px solid var(--glass-border); outline:none; cursor:pointer;">
-                <option value="zh">蝜?銝剜?</option>
+                <option value="zh">繁體中文</option>
                 <option value="en">English</option>
-                <option value="jp">?交隤?/option>
+                <option value="jp">日本語</option>
             </select>
         </div>
     </nav>
@@ -2191,20 +2191,20 @@ select.setting-input[id*="pick"] {
     </div>
 
     <main class="content home-shell">
-        <section class="home-toolbar-shell" aria-label="擐?撌亙??>
+        <section class="home-toolbar-shell" aria-label="首頁工具列">
             <div class="home-toolbar-grid">
                 <article class="summary-card home-toolbar-card">
                     <div class="summary-card-head">
                         <span class="summary-eyebrow">Operations</span>
-                        <h3>???啣虜</h3>
+                        <h3>營運異常</h3>
                     </div>
-                    <strong id="heroOpsSummary">霈?????臭葉</strong>
-                    <p id="heroOpsDetail" class="home-toolbar-text">甇??郊?粹???萇???啁?????/p>
+                    <strong id="heroOpsSummary">讀取營運訊息中</strong>
+                    <p id="heroOpsDetail" class="home-toolbar-text">正在同步臺鐵與高鐵的最新營運狀態。</p>
                     <div class="home-toolbar-actions">
-                        <button class="home-tool-btn primary" type="button" onclick="openAppOverlay('ai')">AI 撠?</button>
-                        <button class="home-tool-btn" type="button" onclick="openPreferredHome('tr')">?粹擐?蝡?/button>
-                        <button class="home-tool-btn" type="button" onclick="openPreferredHome('thsr')">擃擐?蝡?/button>
-                        <button class="home-tool-btn" type="button" onclick="toggleSettings(true)">閮剖? / ??</button>
+                        <button class="home-tool-btn primary" type="button" onclick="openAppOverlay('ai')">AI 專頁</button>
+                        <button class="home-tool-btn" type="button" onclick="openPreferredHome('tr')">臺鐵首頁站</button>
+                        <button class="home-tool-btn" type="button" onclick="openPreferredHome('thsr')">高鐵首頁站</button>
+                        <button class="home-tool-btn" type="button" onclick="toggleSettings(true)">設定 / 監控</button>
                     </div>
                 </article>
             </div>
@@ -2216,29 +2216,29 @@ select.setting-input[id*="pick"] {
                 <div class="card-content-layer">
                     <span class="system-badge tr-badge">TRA Matrix</span>
                     <div class="system-headline">
-                        <div class="icon-box">??</div>
+                        <div class="icon-box">🚆</div>
                         <div class="system-copy">
-                            <h2 data-i18n="tra">?粹</h2>
-                            <p>韏瑁?蝡?銋?蝡??颯?甈⊥閰Ｚ?閰喟敦??鞈?</p>
+                            <h2 data-i18n="tra">臺鐵</h2>
+                            <p>起訖站、轉乘、車站時刻、車次查詢與詳細列車資訊</p>
                         </div>
                     </div>
 
                     <div class="system-inline-stats">
                         <div class="inline-stat">
-                            <span>擐?蝡?/span>
-                            <strong id="trHomeDisplay">?芾身摰?/strong>
+                            <span>首頁站</span>
+                            <strong id="trHomeDisplay">未設定</strong>
                         </div>
                         <div class="inline-stat">
-                            <span>撣貊頝舐?</span>
-                            <strong id="trFavDisplay">0 蝯?/strong>
+                            <span>常用路線</span>
+                            <strong id="trFavDisplay">0 組</strong>
                         </div>
                     </div>
                     
                     <div class="system-card-actions">
                         <button class="geo-btn loading" id="trGeoBtn" onclick="event.stopPropagation(); findNearest('tr')">
-                            <span>??甇?銝??典頠?鞈?...</span>
+                            <span>⌛ 正在下載全台車站資料...</span>
                         </button>
-                        <button class="card-mini-btn" type="button" onclick="event.stopPropagation(); goToSystem('tr')">?脣?粹</button>
+                        <button class="card-mini-btn" type="button" onclick="event.stopPropagation(); goToSystem('tr')">進入臺鐵</button>
                     </div>
 
                     <ul class="desc-list" id="trList"></ul>
@@ -2250,29 +2250,29 @@ select.setting-input[id*="pick"] {
                 <div class="card-content-layer">
                     <span class="system-badge thsr-badge">THSR Console</span>
                     <div class="system-headline">
-                        <div class="icon-box">??</div>
+                        <div class="icon-box">🚅</div>
                         <div class="system-copy">
-                            <h2 data-i18n="thsr">擃</h2>
-                            <p>韏瑁?蝡閰Ｕ?蝡??颯?甈∟?閮漣雿???閮??亙</p>
+                            <h2 data-i18n="thsr">高鐵</h2>
+                            <p>起訖站查詢、車站時刻、車次資訊、座位狀態與訂位入口</p>
                         </div>
                     </div>
 
                     <div class="system-inline-stats">
                         <div class="inline-stat">
-                            <span>擐?蝡?/span>
-                            <strong id="thsrHomeDisplay">?芾身摰?/strong>
+                            <span>首頁站</span>
+                            <strong id="thsrHomeDisplay">未設定</strong>
                         </div>
                         <div class="inline-stat">
-                            <span>撣貊頝舐?</span>
-                            <strong id="thsrFavDisplay">0 蝯?/strong>
+                            <span>常用路線</span>
+                            <strong id="thsrFavDisplay">0 組</strong>
                         </div>
                     </div>
                     
                     <div class="system-card-actions">
                         <button class="geo-btn loading" id="thsrGeoBtn" onclick="event.stopPropagation(); findNearest('thsr')">
-                            <span>??甇?銝??典頠?鞈?...</span>
+                            <span>⌛ 正在下載全台車站資料...</span>
                         </button>
-                        <button class="card-mini-btn" type="button" onclick="event.stopPropagation(); goToSystem('thsr')">?脣擃</button>
+                        <button class="card-mini-btn" type="button" onclick="event.stopPropagation(); goToSystem('thsr')">進入高鐵</button>
                     </div>
 
                     <ul class="desc-list" id="thsrList"></ul>
@@ -2284,10 +2284,10 @@ select.setting-input[id*="pick"] {
                 <div class="card-content-layer">
                     <span class="system-badge assistant-entry-badge">AI Hub</span>
                     <div class="system-headline">
-                        <div class="icon-box">??</div>
+                        <div class="icon-box">🤖</div>
                         <div class="system-copy">
-                            <h2>AI ?拇?</h2>
-                            <p>?葉?交?蝔?甈～?蝡???隞嗚巨瘜?頝券?閰喟敦?亥岷嚗?????鞈???/p>
+                            <h2>AI 助手</h2>
+                            <p>集中查旅程、車次、車站、時間條件、票況與跨頁詳細查詢，保留最重要資訊。</p>
                         </div>
                     </div>
 
@@ -2295,50 +2295,25 @@ select.setting-input[id*="pick"] {
             </div>
         </div>
 
-        <section class="assistant-hub" aria-label="AI ???拇?">
+        <section class="assistant-hub" aria-label="AI 問答助手">
             <article class="assistant-card">
-                <div class="summary-card-head">
-                    <span class="summary-eyebrow">AI Rail Console</span>
-                    <h3>?箸???拇?</h3>
-                    <p>?舀?游隤??交?????甈～?蝡?蟡冽???嚗??????渡?嚗????脫?閮餉?敹?????/p>
-                </div>
-                <div class="assistant-layout">
-                    <div class="assistant-form">
-                        <div class="assistant-input-wrap">
-                            <input id="routeAssistantInput" class="assistant-input" type="text" placeholder="靘?嚗?憭?7暺? ?啣??啣銝准?15頠活?啣??啗?柴璈???銝???暻潸?">
-                            <button id="routeAssistantBtn" class="assistant-submit" type="button">??閰Ｗ?</button>
-                        </div>
-                        <div class="assistant-chip-row">
-                            <button class="assistant-chip" type="button" data-query="隞予 7暺? ?啣??啣銝?>隞予 7暺? ?啣??啣銝?/button>
-                            <button class="assistant-chip" type="button" data-query="7.13 擃?啣??啣椰??瘝?蟡?>擃蟡冽?</button>
-                            <button class="assistant-chip" type="button" data-query="412甈∪銝剖嗾暺">頠活 ETA</button>
-                            <button class="assistant-chip" type="button" data-query="?踵?蝡?隞暻潸?">頠??剜活</button>
-                        </div>
-                        <div class="assistant-note">?舀 07:30??暺?暺???????銝?/13??-13??.13????3?亦??芰頛詨嚗???銝閰Ｘ?閮巨?亙??/div>
-                    </div>
-                    <div class="assistant-answer" id="assistantAnswer">
-                        <div class="assistant-placeholder">
-                            <strong>頛詨銝?亥店撠梯???乓?/strong>
-                            <div>???湔?渡??剜活?????隡唳??蟡冽?嚗??賜??撅??游??剜活嚗?銝甈∪?皛踵??/div>
-                        </div>
-                    </div>
-                </div>
+                <div data-rail-assistant-host="home"></div>
             </article>
         </section>
 
-        <section class="monitor-shell" aria-label="??銝剖?">
+        <section class="monitor-shell" aria-label="監控中心">
             <article class="summary-card monitor-shell-card">
                 <div class="summary-card-head">
                     <span class="summary-eyebrow">Monitor</span>
-                    <h3>??銝剖?</h3>
-                    <p>?葉憿舐內??銝剔??剜活???詨?頠?銝???憭?銴?憛?/p>
+                    <h3>監控中心</h3>
+                    <p>集中顯示監控中的班次與釘選列車，不再拆成多個重複區塊。</p>
                 </div>
                 <div class="monitor-quick" id="homeMonitorBoard">
-                    <div class="monitor-empty" id="homeMonitorSummary">撠?????刻身摰葉??憭?甈∟憚?剛??????/div>
+                    <div class="monitor-empty" id="homeMonitorSummary">尚未啟用監控。可在設定中開啟多車次輪播與通知提醒。</div>
                 </div>
                 <div class="home-toolbar-actions">
-                    <button class="home-tool-btn primary" type="button" onclick="openAppOverlay('ai')">AI 餈質馱</button>
-                    <button class="home-tool-btn" type="button" onclick="toggleSettings(true)">蝞∠??????/button>
+                    <button class="home-tool-btn primary" type="button" onclick="openAppOverlay('ai')">AI 追蹤</button>
+                    <button class="home-tool-btn" type="button" onclick="toggleSettings(true)">管理監控與收藏</button>
                 </div>
             </article>
         </section>
@@ -2346,31 +2321,32 @@ select.setting-input[id*="pick"] {
 
     <div id="settingsModal" onclick="toggleSettings(false)">
         <div class="modal-content" onclick="event.stopPropagation()">
-            <h2 style="margin-bottom:20px; font-weight:900; font-size:1.6rem;" data-i18n="settings">蝟餌絞閮剖?</h2>
+            <h2 style="margin-bottom:20px; font-weight:900; font-size:1.6rem;" data-i18n="settings">系統設定</h2>
             
-            <span class="section-title">憭??＊蝷?/span>
+            <span class="section-title">外觀與顯示</span>
             <div class="setting-group">
                 <div class="setting-row">
-                    <span>銝駁?璅∪?</span>
-                    <button id="modeBtn" class="toggle-btn" onclick="toggleDarkMode()">??鈭株 / 瘛梯</button>
+                    <span>主題模式</span>
+                    <button id="modeBtn" class="toggle-btn" onclick="toggleDarkMode()">切換亮色 / 深色</button>
                 </div>
             </div>
 
-            <span class="section-title">?? ?單?隤日???</span>
+            <span class="section-title">🔔 即時誤點監控</span>
 <div class="setting-group" style="border: 1px solid var(--tr-color); background: rgba(59, 130, 246, 0.05);">
     <div style="font-size: 0.8rem; background: rgba(0,0,0,0.2); padding: 12px; border-radius: 12px; margin-bottom: 15px; line-height: 1.5; color: var(--text-muted);">
-        <strong style="color: var(--warning); display: block; margin-bottom: 5px;">?? ?????伐?</strong>
+        <strong style="color: var(--warning); display: block; margin-bottom: 5px;">⚠️ 啟動前須知：</strong>
         <ul style="padding-left: 18px; margin-bottom: 8px;">
-            <li><strong>iOS 雿輻??</strong> 敹?暺? Safari??鈭怒蒂?豢?<strong>???乩蜓?恍??/strong>嚗?獢???孵?舀?冽??/li>
-            <li><strong>Android 雿輻??</strong> 撱箄降暺????唬蜓?恍?蒂?豢?<strong>??鋆??函?撘?/strong>嚗?獢???孵?舀?冽??/li>
-            <li><strong>甈?嚗?/strong> 敹???HTTPS ?啣?銝蒂蝣箄??潸身摰蝞∠?銝剖??eal-Time??strong>????閮梢??/strong>??/li>
+            <li><strong>iOS 使用者：</strong> 必須點擊 Safari「分享」並選擇<strong>「加入主畫面」</strong>，從桌面開啟方可支援推播。</li>
+            <li><strong>Android 使用者：</strong> 建議點擊「加到主畫面」並選擇<strong>「安裝應用程式」</strong>，從桌面開啟方可支援推播。</li>
+            <li><strong>權限：</strong> 必須在 HTTPS 環境下並確認於設定通知管理中將「Real-Time」<strong>開啟「允許通知」</strong>。</li>
         </ul>
         <div style="border-top: 1px solid rgba(255,255,255,0.1); padding-top: 8px; margin-top: 8px; font-size: 0.75rem;">
-            <strong>甇仿?嚗?/strong> 1. 頛詨頠活(?亥岷) ??2. <strong>隢??貉?甈∴?敹嚗?/strong> ??3. ?豢??格?蝡???4. ?脣???        </div>
+            <strong>步驟：</strong> 1. 輸入車次(查詢) → 2. <strong>請點選車次（必選）</strong> → 3. 選擇目標站 → 4. 儲存。
+        </div>
     </div>
 
     <div class="setting-row">
-        <span style="font-size:0.9rem; font-weight: 700;">?憭?甈∠?扯憚??/span>
+        <span style="font-size:0.9rem; font-weight: 700;">啟用多車次監控輪播</span>
         <label class="switch">
             <input type="checkbox" id="monitorSwitch" onchange="toggleMonitor(this)">
             <span class="slider"></span>
@@ -2379,7 +2355,7 @@ select.setting-input[id*="pick"] {
 
     <div id="monitorConfig" style="display:none; margin-top:15px; border-top:1px solid var(--glass-border); padding-top:15px;">
         <div class="setting-row" style="margin-bottom:15px; border-bottom:1px solid var(--glass-border); padding-bottom:15px;">
-            <span style="font-size:0.9rem;">?交隤日???頠??/span>
+            <span style="font-size:0.9rem;">接收誤點與下車推播</span>
             <label class="switch">
                 <input type="checkbox" id="pushSwitch" onchange="togglePush(this)">
                 <span class="slider"></span>
@@ -2389,163 +2365,163 @@ select.setting-input[id*="pick"] {
         <datalist id="traTrainList"></datalist>
         <datalist id="thsrTrainList"></datalist>
 
-        <div style="margin-bottom: 8px; font-size: 0.8rem; color: var(--tr-color); font-weight: 800;">???粹?? (TRA)</div>
+        <div style="margin-bottom: 8px; font-size: 0.8rem; color: var(--tr-color); font-weight: 800;">● 臺鐵監控 (TRA)</div>
 
 <div class="fav-item-card" style="border-left: 3px solid var(--tr-color); margin-bottom: 12px;">
-    <span class="card-mini-label">??頠活銝</span>
+    <span class="card-mini-label">監控車次一</span>
     <div class="monitor-flow-v">
         <div class="input-row-flex">
-            <input type="text" id="mon_tr1_train" class="setting-input"  placeholder="????頠活"
+            <input type="text" id="mon_tr1_train" class="setting-input"  placeholder="🔍搜尋車次"
                    oninput="onTrainInput('tra','mon_tr1_train','mon_tr1_train_pick')"
                    style="flex: 1.2;">
             <select id="mon_tr1_train_pick" class="setting-input"
                     onchange="onTrainPick('tra','mon_tr1_train','mon_tr1_train_pick','mon_tr1_station')"
                     style="flex: 2; font-weight: 800; border-color: var(--tr-color);">
-                <option value="" selected>隢??貊Ⅱ隤?/option>
+                <option value="" selected>請點選確認</option>
             </select>
         </div>
         <input type="hidden" id="mon_tr1_train_final">
         
-        <div class="flow-arrow-down">??/div>
+        <div class="flow-arrow-down">↓</div>
 
         <select id="mon_tr1_station" class="setting-input">
-            <option value="" disabled selected>??豢????格?蝡?/option>
+            <option value="" disabled selected>🚩選擇提醒目標站</option>
         </select>
     </div>
 </div>
 
 <div class="fav-item-card" style="border-left: 3px solid var(--tr-color); margin-bottom: 12px;">
-    <span class="card-mini-label">??頠活鈭?/span>
+    <span class="card-mini-label">監控車次二</span>
     <div class="monitor-flow-v">
         <div class="input-row-flex">
-            <input type="text" id="mon_tr2_train" class="setting-input"  placeholder="????頠活"
+            <input type="text" id="mon_tr2_train" class="setting-input"  placeholder="🔍搜尋車次"
                    oninput="onTrainInput('tra','mon_tr2_train','mon_tr2_train_pick')"
                    style="flex: 1.2;">
             <select id="mon_tr2_train_pick" class="setting-input"
                     onchange="onTrainPick('tra','mon_tr2_train','mon_tr2_train_pick','mon_tr2_station')"
                     style="flex: 2; font-weight: 800; border-color: var(--tr-color);">
-                <option value="" selected>隢??貊Ⅱ隤?/option>
+                <option value="" selected>請點選確認</option>
             </select>
         </div>
         <input type="hidden" id="mon_tr2_train_final">
-        <div class="flow-arrow-down">??/div>
+        <div class="flow-arrow-down">↓</div>
         <select id="mon_tr2_station" class="setting-input">
-            <option value="" disabled selected>??豢????格?蝡?/option>
+            <option value="" disabled selected>🚩選擇提醒目標站</option>
         </select>
     </div>
 </div>
 
-<div style="margin: 16px 0 8px; font-size: 0.8rem; color: var(--thsr-color); font-weight: 800;">??擃?? (THSR)</div>
+<div style="margin: 16px 0 8px; font-size: 0.8rem; color: var(--thsr-color); font-weight: 800;">● 高鐵監控 (THSR)</div>
 
 <div class="fav-item-card" style="border-left: 3px solid var(--thsr-color);">
-    <span class="card-mini-label">擃??頠活</span>
+    <span class="card-mini-label">高鐵監控車次</span>
     <div class="monitor-flow-v">
         <div class="input-row-flex">
-            <input type="text" id="mon_thsr_train" class="setting-input"  placeholder="????頠活"
+            <input type="text" id="mon_thsr_train" class="setting-input"  placeholder="🔍搜尋車次"
                    oninput="onTrainInput('thsr','mon_thsr_train','mon_thsr_train_pick')"
                    style="flex: 1.2;">
             <select id="mon_thsr_train_pick" class="setting-input"
                     onchange="onTrainPick('thsr','mon_thsr_train','mon_thsr_train_pick','mon_thsr_station')"
                     style="flex: 2; font-weight: 800; border-color: var(--thsr-color);">
-                <option value="" selected>隢??貊Ⅱ隤?/option>
+                <option value="" selected>請點選確認</option>
             </select>
         </div>
         <input type="hidden" id="mon_thsr_train_final">
-        <div class="flow-arrow-down">??/div>
+        <div class="flow-arrow-down">↓</div>
         <select id="mon_thsr_station" class="setting-input">
-            <option value="" disabled selected>??豢????格?蝡?/option>
+            <option value="" disabled selected>🚩選擇提醒目標站</option>
         </select>
     </div>
 </div>
         
-        <button onclick="testNotification()" style="width:100%; margin-top:10px; padding:8px; border-radius:10px; border:1px solid var(--glass-border); background:rgba(255,255,255,0.05); color:var(--text-main); cursor:pointer;">?? 皜祈岫?甈?</button>
+        <button onclick="testNotification()" style="width:100%; margin-top:10px; padding:8px; border-radius:10px; border:1px solid var(--glass-border); background:rgba(255,255,255,0.05); color:var(--text-main); cursor:pointer;">🔔 測試通知權限</button>
     </div>
 </div>
 
 
-         <span class="section-title" style="color: var(--tr-color); border-left-color: var(--tr-color);">?粹撣貊 (TRA)</span>
+         <span class="section-title" style="color: var(--tr-color); border-left-color: var(--tr-color);">臺鐵常用 (TRA)</span>
 <div class="setting-group" style="border-top: 2px solid var(--tr-color);">
     <datalist id="traStationList"></datalist>
     
     <div class="setting-row">
-        <span>撣貊頠?</span>
-        <input type="text" id="tr_home" class="setting-input" list="traStationList" placeholder="憒??箏?" style="width: 150px; border-color: rgba(59, 130, 246, 0.3);">
+        <span>常用車站</span>
+        <input type="text" id="tr_home" class="setting-input" list="traStationList" placeholder="如：臺北" style="width: 150px; border-color: rgba(59, 130, 246, 0.3);">
     </div>
     <div class="setting-row">
-        <span>?圈閮巨頨怠?霅?/span>
-        <input type="text" id="tra_booking_pid" class="setting-input" placeholder="憒?A123456789" maxlength="10" style="width: 180px; border-color: rgba(59, 130, 246, 0.3); text-transform: uppercase;">
+        <span>台鐵訂票身分證</span>
+        <input type="text" id="tra_booking_pid" class="setting-input" placeholder="如：A123456789" maxlength="10" style="width: 180px; border-color: rgba(59, 130, 246, 0.3); text-transform: uppercase;">
     </div>
     
     <div class="fav-section">
         <div class="fav-item-card" style="border-left: 3px solid var(--tr-color);">
-            <span class="card-mini-label">撣貊銵?銝</span>
+            <span class="card-mini-label">常用行程一</span>
             <div class="input-row-flex">
-                <input type="text" id="tr_s1" class="setting-input" list="traStationList" placeholder="韏琿?">
-                <span class="route-arrow">??/span>
-                <input type="text" id="tr_e1" class="setting-input" list="traStationList" placeholder="蝯?">
+                <input type="text" id="tr_s1" class="setting-input" list="traStationList" placeholder="起點">
+                <span class="route-arrow">→</span>
+                <input type="text" id="tr_e1" class="setting-input" list="traStationList" placeholder="終點">
             </div>
         </div>
 
         <div class="fav-item-card" style="border-left: 3px solid var(--tr-color);">
-            <span class="card-mini-label">撣貊銵?鈭?/span>
+            <span class="card-mini-label">常用行程二</span>
             <div class="input-row-flex">
-                <input type="text" id="tr_s2" class="setting-input" list="traStationList" placeholder="韏琿?">
-                <span class="route-arrow">??/span>
-                <input type="text" id="tr_e2" class="setting-input" list="traStationList" placeholder="蝯?">
+                <input type="text" id="tr_s2" class="setting-input" list="traStationList" placeholder="起點">
+                <span class="route-arrow">→</span>
+                <input type="text" id="tr_e2" class="setting-input" list="traStationList" placeholder="終點">
             </div>
         </div>
 
         <div class="fav-item-card" style="border-left: 3px solid var(--tr-color);">
-            <span class="card-mini-label">撣貊銵?銝?/span>
+            <span class="card-mini-label">常用行程三</span>
             <div class="input-row-flex">
-                <input type="text" id="tr_s3" class="setting-input" list="traStationList" placeholder="韏琿?">
-                <span class="route-arrow">??/span>
-                <input type="text" id="tr_e3" class="setting-input" list="traStationList" placeholder="蝯?">
+                <input type="text" id="tr_s3" class="setting-input" list="traStationList" placeholder="起點">
+                <span class="route-arrow">→</span>
+                <input type="text" id="tr_e3" class="setting-input" list="traStationList" placeholder="終點">
             </div>
         </div>
     </div>
 </div>
 <hr style="margin: 20px 0; border: none; border-bottom: 1px solid var(--glass-border); opacity: 0.5;">
 
-<span class="section-title" style="color: var(--thsr-color); border-left-color: var(--thsr-color);">擃撣貊 (THSR)</span>
+<span class="section-title" style="color: var(--thsr-color); border-left-color: var(--thsr-color);">高鐵常用 (THSR)</span>
 <div class="setting-group" style="border-top: 2px solid var(--thsr-color);">
     <datalist id="thsrStationList"></datalist>
     <div class="setting-row">
-        <span>撣貊頠?</span>
-        <input type="text" id="thsr_home" class="setting-input" list="thsrStationList" placeholder="憒??啣?" style="width: 150px; border-color: rgba(251, 146, 60, 0.3);">
+        <span>常用車站</span>
+        <input type="text" id="thsr_home" class="setting-input" list="thsrStationList" placeholder="如：台北" style="width: 150px; border-color: rgba(251, 146, 60, 0.3);">
     </div>
 
     <div class="fav-section">
         <div class="fav-item-card" style="border-left: 3px solid var(--thsr-color);">
-            <span class="card-mini-label">撣貊銵?銝</span>
+            <span class="card-mini-label">常用行程一</span>
             <div class="input-row-flex">
-                <input type="text" id="thsr_s1" class="setting-input" list="thsrStationList" placeholder="韏琿?">
-                <span class="route-arrow">??/span>
-                <input type="text" id="thsr_e1" class="setting-input" list="thsrStationList" placeholder="蝯?">
+                <input type="text" id="thsr_s1" class="setting-input" list="thsrStationList" placeholder="起點">
+                <span class="route-arrow">→</span>
+                <input type="text" id="thsr_e1" class="setting-input" list="thsrStationList" placeholder="終點">
             </div>
         </div>
         <div class="fav-item-card" style="border-left: 3px solid var(--thsr-color);">
-            <span class="card-mini-label">撣貊銵?鈭?/span>
+            <span class="card-mini-label">常用行程二</span>
             <div class="input-row-flex">
-                <input type="text" id="thsr_s2" class="setting-input" list="thsrStationList" placeholder="韏琿?">
-                <span class="route-arrow">??/span>
-                <input type="text" id="thsr_e2" class="setting-input" list="thsrStationList" placeholder="蝯?">
+                <input type="text" id="thsr_s2" class="setting-input" list="thsrStationList" placeholder="起點">
+                <span class="route-arrow">→</span>
+                <input type="text" id="thsr_e2" class="setting-input" list="thsrStationList" placeholder="終點">
             </div>
         </div>
         <div class="fav-item-card" style="border-left: 3px solid var(--thsr-color);">
-            <span class="card-mini-label">撣貊銵?銝?/span>
+            <span class="card-mini-label">常用行程三</span>
             <div class="input-row-flex">
-                <input type="text" id="thsr_s3" class="setting-input" list="thsrStationList" placeholder="韏琿?">
-                <span class="route-arrow">??/span>
-                <input type="text" id="thsr_e3" class="setting-input" list="thsrStationList" placeholder="蝯?">
+                <input type="text" id="thsr_s3" class="setting-input" list="thsrStationList" placeholder="起點">
+                <span class="route-arrow">→</span>
+                <input type="text" id="thsr_e3" class="setting-input" list="thsrStationList" placeholder="終點">
             </div>
         </div>
     </div>
 </div>
 
             <div class="btn-group">
-                <button class="danger-btn" onclick="clearData()">皜閮剖?</button>
-                <button class="save-btn" onclick="saveSettings()" data-i18n="done">?脣?銝阡??/button>
+                <button class="danger-btn" onclick="clearData()">清除設定</button>
+                <button class="save-btn" onclick="saveSettings()" data-i18n="done">儲存並離開</button>
             </div>
         </div>
     </div>
@@ -2553,18 +2529,18 @@ select.setting-input[id*="pick"] {
 
     <div id="homeNoticeModal" onclick="closeHomeNotice()">
         <div class="notice-content" onclick="event.stopPropagation()">
-            <div class="notice-title">?? 瘜冽?鈭?</div>
-            <div class="notice-sub">?箔?霈?剝?迤撣賊?雿?隢?蝣箄?隞乩?璇辣嚗?/div>
+            <div class="notice-title">📌 注意事項</div>
+            <div class="notice-sub">為了讓「推播通知」正常運作，請先確認以下條件：</div>
             <div class="notice-box">
                 <ul>
-                    <li><strong>iOS 雿輻??</strong> 敹?暺? Safari??鈭怒蒂?豢?<strong>???乩蜓?恍??/strong>嚗?獢???孵?舀?冽??/li>
-                    <li><strong>Android 雿輻??</strong> 撱箄降暺????唬蜓?恍?蒂?豢?<strong>??鋆??函?撘?/strong>嚗?獢???孵?舀?冽??/li>
-                    <li><strong>甈?嚗?/strong> 敹???<strong>HTTPS</strong> ?啣?銝?銝衣Ⅱ隤蝟餌絞/?汗?券蝞∠?銝剖??eal-Time?身??strong>?迂?</strong>??/li>
+                    <li><strong>iOS 使用者：</strong> 必須點擊 Safari「分享」並選擇<strong>「加入主畫面」</strong>，從桌面開啟方可支援推播。</li>
+                    <li><strong>Android 使用者：</strong> 建議點擊「加到主畫面」並選擇<strong>「安裝應用程式」</strong>，從桌面開啟方可支援推播。</li>
+                    <li><strong>權限：</strong> 必須在 <strong>HTTPS</strong> 環境下，並確認在系統/瀏覽器通知管理中將「Real-Time」設為<strong>允許通知</strong>。</li>
                 </ul>
             </div>
             <div class="notice-actions">
-                <button onclick="closeHomeNotice()">???</button>
-                <button class="primary" onclick="closeHomeNotice(); toggleSettings(true);">??閮剖?</button>
+                <button onclick="closeHomeNotice()">我知道了</button>
+                <button class="primary" onclick="closeHomeNotice(); toggleSettings(true);">前往設定</button>
             </div>
         </div>
     </div>
@@ -2572,17 +2548,17 @@ select.setting-input[id*="pick"] {
 
     <div class="dock-container">
         <div class="tools-popup" id="toolsPopup">
-            <a href="https://www.cwa.gov.tw/V8/C/" target="_blank" class="tool-btn"><div class="tool-icon">?儭?/div><span class="tool-name">瘞?情</span></a>
-            <a href="https://web.metro.taipei/pages/assets/images/routemap2023n.png" target="_blank" class="tool-btn"><div class="tool-icon">??</div><span class="tool-name">?</span></a>
-            <a href="https://www.tmrt.com.tw/" target="_blank" class="tool-btn"><div class="tool-icon">??</div><span class="tool-name">銝剜</span></a>
-            <a href="https://www.krtc.com.tw/" target="_blank" class="tool-btn"><div class="tool-icon">??</div><span class="tool-name">擃</span></a>
+            <a href="https://www.cwa.gov.tw/V8/C/" target="_blank" class="tool-btn"><div class="tool-icon">🌥️</div><span class="tool-name">氣象</span></a>
+            <a href="https://web.metro.taipei/pages/assets/images/routemap2023n.png" target="_blank" class="tool-btn"><div class="tool-icon">🚇</div><span class="tool-name">北捷</span></a>
+            <a href="https://www.tmrt.com.tw/" target="_blank" class="tool-btn"><div class="tool-icon">🚄</div><span class="tool-name">中捷</span></a>
+            <a href="https://www.krtc.com.tw/" target="_blank" class="tool-btn"><div class="tool-icon">🚈</div><span class="tool-name">高捷</span></a>
         </div>
         <nav class="dock">
-            <div class="dock-item" onclick="location.reload()">??</div>
-            <div class="dock-item" onclick="goToSystem('tr')">??</div>
-            <div class="dock-item" onclick="toggleTools()" style="color: #facc15;">??/div>
-            <div class="dock-item" onclick="goToSystem('thsr')">??</div>
-            <div class="dock-item" onclick="toggleSettings(true)">??</div>
+            <div class="dock-item" onclick="location.reload()">🏠</div>
+            <div class="dock-item" onclick="goToSystem('tr')">🚆</div>
+            <div class="dock-item" onclick="toggleTools()" style="color: #facc15;">⚡</div>
+            <div class="dock-item" onclick="goToSystem('thsr')">🚅</div>
+            <div class="dock-item" onclick="toggleSettings(true)">⚙️</div>
         </nav>
     </div>
 
@@ -2742,10 +2718,10 @@ select.setting-input[id*="pick"] {
         font-size: 0.95rem;
       }
       
-      /* ?????- Pill Highlight */
+      /* 狀態顏色 - Pill Highlight */
       #dynamicIsland .di-pill.warn{ border-color: rgba(251,191,36,0.6); box-shadow: 0 0 15px rgba(251,191,36,0.2); }
       #dynamicIsland .di-pill.danger{ border-color: rgba(248,113,113,0.7); box-shadow: 0 0 15px rgba(248,113,113,0.25); }
-      /* 撌脣蝡?鈭?(蝬) */
+      /* 已到站提亮 (綠色) */
       #dynamicIsland .di-pill.arrived{ border-color: rgba(16, 185, 129, 0.6); box-shadow: 0 0 15px rgba(16, 185, 129, 0.25); }
 
       /* Expanded Panel */
@@ -2785,7 +2761,7 @@ select.setting-input[id*="pick"] {
         top: 0;
       }
 
-     /* ??撜嗅??? */
+     /* 動態島展開行 */
 #dynamicIsland .di-row {
     display: flex;
     align-items: flex-start;
@@ -2793,40 +2769,40 @@ select.setting-input[id*="pick"] {
     padding: 12px 14px;
     border-radius: 18px;
     border: 1px solid rgba(0,0,0,0.06);
-    background: rgba(241, 245, 249, 0.9); /* ??銝?摨?*/
+    background: rgba(241, 245, 249, 0.9); /* 提高不透明度 */
     margin-bottom: 8px;
     width: 100%;
     box-sizing: border-box;
 }
 
-/* 蝚砌?銵?摮??桀?雿蔭 */
-/* 蝣箔???撜園?踹??摮??脩帘摰?*/
+/* 第一行文字：目前位置 */
+/* 確保動態島面板內的文字顏色穩定 */
 #dynamicIsland .v-main {
     font-weight: 800;
     font-size: 0.95rem;
-    color: #0f172a; /* 瘛梯?? */
+    color: #0f172a; /* 深色文字 */
     line-height: 1.3;
 }
 
 #dynamicIsland .v-sub {
     font-weight: 600;
     font-size: 0.85rem;
-    color: #475569; /* 甈∟?鞈?瘛梁??*/
+    color: #475569; /* 次要資訊深灰色 */
     margin-top: 3px;
     display: block;
 }
 
-/* 鈭株璅∪?敺株矽 */
+/* 亮色模式微調 */
 .light-mode #dynamicIsland .v-main { color: #0f172a; }
 .light-mode #dynamicIsland .v-sub { color: #64748b; }
 
-/* 靽格迤撌脣蝡?蝐日??莎?雿踹?湔?霈 */
+/* 修正已到站標籤顏色，使其更易讀 */
 #dynamicIsland .badge.arrived {
     background: #d1fae5 !important;
     color: #065f46 !important;
 }
 
-/* 霈頠?蝷箄?頠活銝??瑁? */
+/* 讓火車圖示與車次不要斷行 */
 #dynamicIsland .di-row .k {
     white-space: nowrap;
     color: #1e293b;
@@ -2852,15 +2828,16 @@ select.setting-input[id*="pick"] {
 
     <div id="dynamicIsland" aria-live="polite" aria-atomic="true">
       <div class="di-pill" id="diPill">
-        <div class="di-icon" id="diIcon">?儭?/div>
-        <div class="di-text" id="diText">???芸???/div>
+        <div class="di-icon" id="diIcon">🛰️</div>
+        <div class="di-text" id="diText">監控未啟用</div>
       </div>
       <div class="di-panel" id="diPanel"></div>
     </div>
 
     <script>
     (function(){
-      // 1. ????      const root = document.getElementById('dynamicIsland');
+      // 1. 初始化
+      const root = document.getElementById('dynamicIsland');
       const pill = document.getElementById('diPill');
       const diIcon = document.getElementById('diIcon');
       const diText = document.getElementById('diText');
@@ -2874,17 +2851,17 @@ select.setting-input[id*="pick"] {
       let rotIdx = 0;
       let autoCollapseTimer = null;
 
-      // 2. 頛?賢?
+      // 2. 輔助函式
       function safeSplitMessages(text){
         if(!text) return [];
         const t = String(text).trim();
-        if(!t || t.includes('???芸???) || t.includes('撠閮剖?') || t.includes('????')) return [];
-        if(t.includes('??)) return t.split('??).map(s=>s.trim()).filter(Boolean);
+        if(!t || t.includes('監控未啟用') || t.includes('尚未設定') || t.includes('監控啟動')) return [];
+        if(t.includes('✦')) return t.split('✦').map(s=>s.trim()).filter(Boolean);
         return t.split(/\s{2,}/).map(s=>s.trim()).filter(Boolean);
       }
 
       function parseETA(line){
-        const m = String(line).match(/??\s*(\d{1,2}):(\d{2})\s*?菟?\s*([^|\s]+)/);
+        const m = String(line).match(/預計\s*(\d{1,2}):(\d{2})\s*抵達\s*([^|\s]+)/);
         if(!m) return null;
         const hh = parseInt(m[1],10);
         const mm = parseInt(m[2],10);
@@ -2899,12 +2876,12 @@ select.setting-input[id*="pick"] {
 
       function inferType(line){
         const s = String(line);
-        if(s.includes('擃') || s.includes('THSR') || s.includes('??')) return 'thsr';
+        if(s.includes('高鐵') || s.includes('THSR') || s.includes('🚅')) return 'thsr';
         return 'tra'; 
       }
 
       function inferTrainNo(line){
-        const m = String(line).match(/(?:?粹|?圈|擃)?\s*(\d{1,4})\s*甈?);
+        const m = String(line).match(/(?:臺鐵|台鐵|高鐵)?\s*(\d{1,4})\s*次/);
         return m ? m[1] : '';
       }
 
@@ -2912,12 +2889,12 @@ select.setting-input[id*="pick"] {
         const type = inferType(line);
         const trainNo = inferTrainNo(line);
         const eta = parseETA(line);
-        let icon = (type==='thsr') ? '??' : '??';
+        let icon = (type==='thsr') ? '🚅' : '🚆';
         let text = '';
         let badge = null; 
         let pillCls = '';
 
-        const delayM = String(line).match(/?s*(\d+)\s*??);
+        const delayM = String(line).match(/晚\s*(\d+)\s*分/);
         const hasDelay = delayM && parseInt(delayM[1],10) > 0;
 
         if(eta){
@@ -2925,38 +2902,38 @@ select.setting-input[id*="pick"] {
           const mm = String(eta.mm).padStart(2,'0');
 
           if(eta.diffMin <= 0){
-            text = `${trainNo||''} 繚 撌脣 ${eta.stn}`.trim();
+            text = `${trainNo||''} · 已到 ${eta.stn}`.trim();
             pillCls = 'arrived';
-            badge = {text:'撌脣蝡?, cls:'arrived'};
+            badge = {text:'已到站', cls:'arrived'};
           } else if (eta.diffMin <= 60) {
-            text = `${trainNo||''} 繚 ${eta.diffMin}??${eta.stn}`.trim();
+            text = `${trainNo||''} · ${eta.diffMin}分 ${eta.stn}`.trim();
             if(eta.diffMin <= 15) {
-                badge = {text:`?喳??啁? 繚 ??${eta.diffMin}?, cls:'soon'};
+                badge = {text:`即將到站 · 剩 ${eta.diffMin}分`, cls:'soon'};
                 pillCls = 'warn';
             } else {
-                badge = {text:`??${eta.diffMin}?, cls:''};
+                badge = {text:`剩 ${eta.diffMin}分`, cls:''};
             }
           } else {
-            text = `${trainNo||''} 繚 ${hh}:${mm} ${eta.stn}`.trim();
+            text = `${trainNo||''} · ${hh}:${mm} ${eta.stn}`.trim();
             const h = Math.floor(eta.diffMin/60);
             const m = eta.diffMin % 60;
-            badge = {text:`??${h}撠?${m}?, cls:''};
+            badge = {text:`剩 ${h}小時${m}分`, cls:''};
           }
           if(hasDelay && eta.diffMin > 0) pillCls = 'danger';
         } else {
-          const short = String(line).split('|')[1] || '??銝?;
-          text = `${trainNo||''} 繚 ${short.trim()}`;
+          const short = String(line).split('|')[1] || '監控中';
+          text = `${trainNo||''} · ${short.trim()}`;
           pillCls = hasDelay ? 'danger' : '';
         }
         return {icon, text, badge, pillCls};
       }
 
-      // 3. 皜脫??摩
+      // 3. 渲染邏輯
       function renderCollapsed(){
         const monitorOn = (localStorage.getItem('monitor_enabled') === 'true');
         if(!monitorOn || !lines || lines.length===0){
-            diIcon.textContent = '?儭?;
-            diText.textContent = monitorOn ? '??銝?..' : '???芸???;
+            diIcon.textContent = '🛰️';
+            diText.textContent = monitorOn ? '搜尋中...' : '監控未啟用';
             pill.classList.remove('warn','danger','arrived');
             return;
         }
@@ -2968,7 +2945,7 @@ select.setting-input[id*="pick"] {
         if(d.pillCls) pill.classList.add(d.pillCls);
       }
 
-      // ?詨?靽格迤嚗宏?日?銴?蝢拐蒂?芸????摩
+      // 核心修正：移除重複定義並優化分行邏輯
       function renderExpanded(){
         panel.innerHTML = '';
         if(!lines || lines.length === 0) return;
@@ -2993,16 +2970,16 @@ select.setting-input[id*="pick"] {
             v.className = 'v';
             
             let rawContent = ln.replace(/\s+/g, ' ').trim()
-                               .replace(/^??:\s*\d+甈﹏s*\|\s*/, '')
-                               .replace(/^(?:?粹|擃)\s*\d+甈??\s*/, '');
+                               .replace(/^監控:\s*\d+次\s*\|\s*/, '')
+                               .replace(/^(?:臺鐵|高鐵)\s*\d+次:?\s*/, '');
 
             let mainPart = "";
             let subPart = "";
 
-            if (rawContent.includes('??')) {
-                let parts = rawContent.split('??');
+            if (rawContent.includes('預計')) {
+                let parts = rawContent.split('預計');
                 mainPart = parts[0].replace('|', '').trim();
-                subPart = '?? ' + parts[1].trim();
+                subPart = '預計 ' + parts[1].trim();
             } else if (rawContent.includes('|')) {
                 let parts = rawContent.split('|');
                 mainPart = parts[0].trim();
@@ -3031,7 +3008,7 @@ select.setting-input[id*="pick"] {
         });
       }
 
-      // 4. ?批?摩
+      // 4. 控制邏輯
       function startRotate(){
         if(rotTimer) clearInterval(rotTimer);
         if(!lines || lines.length<=1) return;
@@ -3068,7 +3045,7 @@ select.setting-input[id*="pick"] {
         if(!rotTimer && lines.length > 1) startRotate();
       }
 
-      // 5. 鈭辣??
+      // 5. 事件監聽
       pill.addEventListener('click', ()=>{
         const monitorOn = (localStorage.getItem('monitor_enabled') === 'true');
         if(!monitorOn){
@@ -3113,8 +3090,8 @@ select.setting-input[id*="pick"] {
         let assistantTrainLiveCache = {};
         const STATION_CACHE_KEY = 'rail_station_cache_v2';
 
-        function normalizeTRA(str) { return str ? str.replace(/??g, '??) : ''; }
-        function normalizeTHSR(str) { return str ? str.replace(/??g, '??) : ''; }
+        function normalizeTRA(str) { return str ? str.replace(/台/g, '臺') : ''; }
+        function normalizeTHSR(str) { return str ? str.replace(/臺/g, '台') : ''; }
         function uniqueTexts(list) {
             const seen = new Set();
             const out = [];
@@ -3154,7 +3131,7 @@ select.setting-input[id*="pick"] {
                 return String(value).replace(/\s+/g, ' ').trim();
             }
             if (Array.isArray(value)) {
-                return uniqueTexts(value.map(item => pickAlertText(item))).join(' 嚚?');
+                return uniqueTexts(value.map(item => pickAlertText(item))).join(' ｜ ');
             }
             if (typeof value === 'object') {
                 return pickAlertText(
@@ -3219,7 +3196,7 @@ select.setting-input[id*="pick"] {
             }
             if (!parts.length) return '';
             if (parts.length === 1) return parts[0];
-            return `${parts[0]}嚗?{parts.slice(1).join(' 嚚?')}`;
+            return `${parts[0]}：${parts.slice(1).join(' ｜ ')}`;
         }
         function collectAlertMessages(source, depth = 0) {
             if (depth > 4 || source === null || source === undefined) return [];
@@ -3243,8 +3220,8 @@ select.setting-input[id*="pick"] {
         function isNormalStatusMessage(message) {
             const text = String(message || '').replace(/\s+/g, ' ').trim();
             if (!text) return false;
-            const hasNormal = /(?函?)?甇?虜|甇?虜??|??甇?虜|??甇?虜|銵?甇?虜|?函??/.test(text);
-            const hasAbnormal = /撱嗉炊|??|??|?啣虜|?|銝剜|?寥?|??|鈭?|?Ｚ?|蝞∪|?賢極|鞊芷|憸梢◢|敶梢|?|??|?賢拿|?郎|蝛偌|?|蝬凋耨|蝺?.test(text);
+            const hasNormal = /(全線)?正常|正常營運|營運正常|服務正常|行車正常|全線順暢/.test(text);
+            const hasAbnormal = /延誤|停駛|取消|異常|受阻|中斷|改點|故障|事故|慢行|管制|施工|豪雨|颱風|影響|停電|障礙|災害|告警|積水|坍方|維修|緊急/.test(text);
             return hasNormal && !hasAbnormal;
         }
         function filterAbnormalMessages(messages) {
@@ -3285,14 +3262,14 @@ select.setting-input[id*="pick"] {
         function summarizeMessages(messages, maxItems = 2) {
             const unique = uniqueTexts(messages);
             if (!unique.length) return '';
-            if (unique.length <= maxItems) return unique.join(' 嚚?');
-            return `${unique.slice(0, maxItems).join(' 嚚?')} 蝑?${unique.length} ?;
+            if (unique.length <= maxItems) return unique.join(' ｜ ');
+            return `${unique.slice(0, maxItems).join(' ｜ ')} 等 ${unique.length} 則`;
         }
         function setStatusTicker(prefix, messages, textEl, wrapEl, dotEl) {
             const abnormal = filterAbnormalMessages(messages);
             const displayItems = abnormal.length
                 ? abnormal.map(message => `${prefix}: ${message}`)
-                : [`${prefix}: ?函?甇?虜`];
+                : [`${prefix}: 全線正常`];
             const titleText = displayItems.join('\n');
             rotateTextMessages(textEl?.id || prefix, displayItems, (current, index, items) => {
                 if (textEl) {
@@ -3312,7 +3289,7 @@ select.setting-input[id*="pick"] {
 
             const unique = uniqueTexts(messages);
             const hasAlerts = unique.length > 0;
-            const finalText = hasAlerts ? `${prefix}: ${unique.join(' 嚚?')}` : `${prefix}: ?函?甇?虜`;
+            const finalText = hasAlerts ? `${prefix}: ${unique.join(' ｜ ')}` : `${prefix}: 全線正常`;
             if (textEl) {
                 textEl.innerText = finalText;
                 textEl.title = finalText;
@@ -3350,11 +3327,11 @@ select.setting-input[id*="pick"] {
             stationDB = data;
             if (document.getElementById('trGeoBtn')?.querySelector('span')) {
                 document.getElementById('trGeoBtn').classList.remove('loading');
-                document.getElementById('trGeoBtn').querySelector('span').innerText = '?? 摰?銝行??餈?蝡?;
+                document.getElementById('trGeoBtn').querySelector('span').innerText = '📍 定位並查看最近車站';
             }
             if (document.getElementById('thsrGeoBtn')?.querySelector('span')) {
                 document.getElementById('thsrGeoBtn').classList.remove('loading');
-                document.getElementById('thsrGeoBtn').querySelector('span').innerText = '?? 摰?銝行??餈?蝡?;
+                document.getElementById('thsrGeoBtn').querySelector('span').innerText = '📍 定位並查看最近車站';
             }
         }
         function todayDateStr() {
@@ -3374,35 +3351,35 @@ select.setting-input[id*="pick"] {
             if (diff < 0) diff += 1440;
             const h = Math.floor(diff / 60);
             const m = diff % 60;
-            if (h > 0 && m > 0) return `${h} 撠? ${m} ?;
-            if (h > 0) return `${h} 撠?`;
-            return `${m} ?;
+            if (h > 0 && m > 0) return `${h} 小時 ${m} 分`;
+            if (h > 0) return `${h} 小時`;
+            return `${m} 分`;
         }
         function normalizeLooseStation(str) {
             return String(str || '')
                 .trim()
                 .replace(/\s+/g, '')
-                .replace(/頠?/g, '')
-                .replace(/?怨?蝡?g, '')
-                .replace(/[?榜/g, '??);
+                .replace(/車站/g, '')
+                .replace(/火車站/g, '')
+                .replace(/[臺]/g, '台');
         }
         function simplifyTraTypeName(typeName) {
             let name = String(typeName || '').trim();
-            if (name.includes("?芸撥(3000)")) name = "?啗撘?;
-            else if (name.includes("?格???)) name = "?格???;
-            else if (name.includes("?芸撥")) name = "?芸撥??;
-            else if (name.includes("??翰")) name = "??翰";
-            else if (name.includes("???)) name = "???";
-            else if (name.includes("憭芷陌??)) name = "憭芷陌??;
-            else if (name.includes("??")) name = "????;
-            return name || '??';
+            if (name.includes("自強(3000)")) name = "新自強";
+            else if (name.includes("普悠瑪")) name = "普悠瑪";
+            else if (name.includes("自強")) name = "自強號";
+            else if (name.includes("區間快")) name = "區間快";
+            else if (name.includes("區間")) name = "區間車";
+            else if (name.includes("太魯閣")) name = "太魯閣";
+            else if (name.includes("莒光")) name = "莒光號";
+            return name || '列車';
         }
         function resolveStationName(raw, sys) {
             const list = (stationDB[sys] || []).map(item => item.name);
             if (!list.length) return '';
             const aliasMap = sys === 'thsr'
-                ? { '?啣椰??: '撌衣?', '?啣?': '?啣?', '?唬葉': '?唬葉', '?啣?': '?啣?' }
-                : { '?啣?': '?箏?', '?唬葉': '?箔葉', '?啣?': '?箏?', '?唳': '?箸', '?圈?唬葉': '?箔葉', '?圈?啣?': '?箏?' };
+                ? { '新左營': '左營', '台北': '台北', '台中': '台中', '台南': '台南' }
+                : { '台北': '臺北', '台中': '臺中', '台南': '臺南', '台東': '臺東', '台鐵台中': '臺中', '台鐵台北': '臺北' };
             const normalized = normalizeLooseStation(raw);
             const alias = aliasMap[normalized];
             if (alias && list.includes(alias)) return alias;
@@ -3412,18 +3389,18 @@ select.setting-input[id*="pick"] {
             return fuzzy || '';
         }
         function detectRouteIntent(text) {
-            const cleaned = String(text || '').trim().replace(/^(?|??|隢?|撟急??撟急??四?喳?|?臭誑撟急???臭誑撟急???\s*/,'');
+            const cleaned = String(text || '').trim().replace(/^(我想|我要|請問|幫我看|幫我查|想問|可以幫我看|可以幫我查)\s*/,'');
             if (!cleaned) return null;
-            const pref = /擃|thsr|hsr/i.test(cleaned)
+            const pref = /高鐵|thsr|hsr/i.test(cleaned)
                 ? 'thsr'
-                : /?圈|?粹|tra|?怨?/i.test(cleaned)
+                : /台鐵|臺鐵|tra|火車/i.test(cleaned)
                     ? 'tr'
                     : '';
-            const match = cleaned.replace(/[嚗??]/g, ' ').match(/(?:敺??\s*([^\s]+?)\s*(?:?院敺|?逖?誡?-)\s*([^\s]+)(?:\s|$)/);
+            const match = cleaned.replace(/[，。？?]/g, ' ').match(/(?:從)?\s*([^\s]+?)\s*(?:到|往|至|去|→|-)\s*([^\s]+)(?:\s|$)/);
             if (!match) return null;
             const cleanup = (value) => String(value || '')
-                .replace(/^(擃|?圈|?粹|?怨?|TRA|THSR)/i, '')
-                .replace(/(?獐?迢?獐?誡憒??迢憒??誡?剖?剛?|?臭誑?獐?迢?臭誑?獐?誡?獐??刻|撱箄降)$/g, '')
+                .replace(/^(高鐵|台鐵|臺鐵|火車|TRA|THSR)/i, '')
+                .replace(/(怎麼搭|怎麼去|如何搭|如何去|搭哪班車|可以怎麼搭|可以怎麼去|怎麼坐|推薦|建議)$/g, '')
                 .trim();
             const startRaw = cleanup(match[1]);
             const endRaw = cleanup(match[2]);
@@ -3464,7 +3441,7 @@ select.setting-input[id*="pick"] {
                         .then(data => {
                             assistantRouteCache.thsr = (Array.isArray(data) ? data : []).map(item => ({
                                 trainNo: item.DailyTrainInfo?.TrainNo || item.TrainDate?.TrainNo || '',
-                                type: '?湧?',
+                                type: '直達',
                                 stops: (item.StopTimes || []).map(stop => ({
                                     name: stop.StationName?.Zh_tw || '',
                                     dep: stop.DepartureTime || stop.ArrivalTime || '',
@@ -3517,19 +3494,19 @@ select.setting-input[id*="pick"] {
         function buildAssistantIntro(routeLabel, results) {
             const snippets = results
                 .filter(result => result.services.matches.length)
-                .map(result => `${result.label}?餈???${result.services.matches[0].trainNo} 甈?${result.services.matches[0].dep} ??`);
+                .map(result => `${result.label}最近一班 ${result.services.matches[0].trainNo} 次 ${result.services.matches[0].dep} 開車`);
             if (!snippets.length) {
-                return `${routeLabel} 隞予?拚??挾瘝??曉?Ⅱ??甈∪遣霅堆??臭誑?湔??摰?亥岷???游?蝯???銋獢;
+                return `${routeLabel} 今天剩餘時段沒有找到明確的直達班次建議，可以直接打開完整查詢頁看更多結果或轉乘方案。`;
             }
-            return `${routeLabel} 靘?憭拙擗甈⊥??${snippets.join('嚗?)}?;
+            return `${routeLabel} 依今天剩餘班次整理：${snippets.join('；')}。`;
         }
         function renderAssistantLoading() {
             const answer = document.getElementById('assistantAnswer');
             if (!answer) return;
             answer.innerHTML = `
                 <div class="assistant-placeholder">
-                    <strong>甇??渡??剜活撱箄降</strong>
-                    <div>?迤?冽?撠?憭拍??粹 / 擃?銵剁?撟思??銝?頛???剜活??/div>
+                    <strong>正在整理班次建議</strong>
+                    <div>我正在比對今天的臺鐵 / 高鐵時刻表，幫你抓接下來較適合的班次。</div>
                 </div>
             `;
         }
@@ -3541,33 +3518,33 @@ select.setting-input[id*="pick"] {
         function renderAssistantResult(intent, results) {
             const answer = document.getElementById('assistantAnswer');
             if (!answer) return;
-            const routeLabel = `${intent.displayStart} ??${intent.displayEnd}`;
+            const routeLabel = `${intent.displayStart} → ${intent.displayEnd}`;
             const cards = results.map(result => {
                 const services = result.services;
                 const items = services.matches.length
                     ? services.matches.map(service => `
                         <div class="assistant-train-item">
-                            <strong>${escapeHtml(service.trainNo)} 甈?{result.sys === 'tr' ? ` 嚚?${escapeHtml(service.type)}` : ''}</strong>
-                            <small>${escapeHtml(service.dep)} ${escapeHtml(intent.displayStart)} ?箇 ??${escapeHtml(service.arr)} ${escapeHtml(intent.displayEnd)} ?菟? ??${escapeHtml(service.duration)}${service.stopCount > 0 ? ` ??銝剝?${service.stopCount} 蝡 : ' ???湧?'}</small>
+                            <strong>${escapeHtml(service.trainNo)} 次${result.sys === 'tr' ? ` ｜ ${escapeHtml(service.type)}` : ''}</strong>
+                            <small>${escapeHtml(service.dep)} ${escapeHtml(intent.displayStart)} 出發 → ${escapeHtml(service.arr)} ${escapeHtml(intent.displayEnd)} 抵達 ・ ${escapeHtml(service.duration)}${service.stopCount > 0 ? ` ・ 中途 ${service.stopCount} 站` : ' ・ 直達'}</small>
                         </div>
                     `).join('')
-                    : `<div class="assistant-train-item"><small>${services.total > 0 ? '隞予?拚??挾瘝??湔???甈∴?撱箄降??摰?亥岷?Ⅱ隤? : '??蝯絲閮?隞予瘝??曉?湧??剜活嚗遣霅唳?典??湔閰ａ??憭???}</small></div>`;
+                    : `<div class="assistant-train-item"><small>${services.total > 0 ? '今天剩餘時段沒有更晚的直達班次，建議打開完整查詢頁確認。' : '這一組起訖站今天沒有找到直達班次，建議改用完整查詢頁看更多結果。'}</small></div>`;
                 return `
                     <div class="assistant-system-card">
                         <div class="assistant-system-head">
                             <span class="assistant-system-tag ${result.sys === 'tr' ? 'tr' : 'thsr'}">${result.label}</span>
-                            <span class="assistant-system-note">${services.matches.length ? (services.hasUpcoming ? '?乩?靘?? : '隞?剜活') : '撱箄降?孵??湔閰?}</span>
+                            <span class="assistant-system-note">${services.matches.length ? (services.hasUpcoming ? '接下來可搭' : '今日班次') : '建議改完整查詢'}</span>
                         </div>
                         <div class="assistant-train-list">${items}</div>
                         <div class="assistant-actions">
-                            <button class="assistant-action-btn" type="button" onclick="openAppOverlay('${result.sys}', { start: '${escapeHtml(result.start)}', end: '${escapeHtml(result.end)}' })">??${result.label}摰?亥岷</button>
+                            <button class="assistant-action-btn" type="button" onclick="openAppOverlay('${result.sys}', { start: '${escapeHtml(result.start)}', end: '${escapeHtml(result.end)}' })">打開${result.label}完整查詢</button>
                         </div>
                     </div>
                 `;
             }).join('');
             answer.innerHTML = `
                 <div class="assistant-route-title">
-                    <span class="assistant-helper-badge">隞撱箄降</span>
+                    <span class="assistant-helper-badge">今日建議</span>
                     <strong>${escapeHtml(routeLabel)}</strong>
                 </div>
                 <div class="assistant-note">${escapeHtml(buildAssistantIntro(routeLabel, results))}</div>
@@ -3577,7 +3554,7 @@ select.setting-input[id*="pick"] {
         async function handleAssistantQuery(rawText) {
             const intent = detectRouteIntent(rawText);
             if (!intent) {
-                renderAssistantError('?桀???氬絲暺蝯?????嚗?憒??啣??啣銝准??萄?撌衣???);
+                renderAssistantError('目前先支援「起點到終點」的問法，例如：台北到台中、高鐵台北到左營。');
                 return;
             }
             if (!tdxToken) await getTdxToken();
@@ -3588,15 +3565,15 @@ select.setting-input[id*="pick"] {
             if (intent.preference !== 'thsr') {
                 const start = resolveStationName(intent.startRaw, 'tr');
                 const end = resolveStationName(intent.endRaw, 'tr');
-                if (start && end) candidates.push({ sys: 'tr', label: '?粹', start, end });
+                if (start && end) candidates.push({ sys: 'tr', label: '臺鐵', start, end });
             }
             if (intent.preference !== 'tr') {
                 const start = resolveStationName(intent.startRaw, 'thsr');
                 const end = resolveStationName(intent.endRaw, 'thsr');
-                if (start && end) candidates.push({ sys: 'thsr', label: '擃', start, end });
+                if (start && end) candidates.push({ sys: 'thsr', label: '高鐵', start, end });
             }
             if (!candidates.length) {
-                renderAssistantError(`??銝??{intent.startRaw} ??${intent.endRaw}????蝡?嚗??岫銝甈∪??渡??);
+                renderAssistantError(`我暫時找不到「${intent.startRaw} → ${intent.endRaw}」對應的站名，請再試一次完整站名。`);
                 return;
             }
             renderAssistantLoading();
@@ -3613,22 +3590,22 @@ select.setting-input[id*="pick"] {
         }
         function parseMonitorLineForHome(line) {
             const text = String(line || '').trim();
-            const isTHSR = text.includes('擃');
-            const trainNo = (text.match(/(\d{1,4})甈?) || [,'--'])[1];
-            const etaMatch = text.match(/??\s*(\d{1,2}:\d{2})\s*?菟?\s*([^\s|]+)/);
-            const currentMatch = text.match(/?桀??沔s*([^|]+)/) || text.match(/??\s*([^|]+)/);
-            const delayMatch = text.match(/?s*(\d+)\s*??);
-            const arrived = /撌脣蝯?|??撌脩??撌脫??.test(text);
-            let summary = currentMatch ? currentMatch[0].replace(/\s+/g, ' ').trim() : '??銝?;
-            if (etaMatch) summary += ` 嚚??? ${etaMatch[1]} ?菟? ${etaMatch[2]}`;
+            const isTHSR = text.includes('高鐵');
+            const trainNo = (text.match(/(\d{1,4})次/) || [,'--'])[1];
+            const etaMatch = text.match(/預計\s*(\d{1,2}:\d{2})\s*抵達\s*([^\s|]+)/);
+            const currentMatch = text.match(/目前在\s*([^|]+)/) || text.match(/通過\s*([^|]+)/);
+            const delayMatch = text.match(/晚\s*(\d+)\s*分/);
+            const arrived = /已到終點|監控已結束|已抵達/.test(text);
+            let summary = currentMatch ? currentMatch[0].replace(/\s+/g, ' ').trim() : '監控中';
+            if (etaMatch) summary += ` ｜ 預計 ${etaMatch[1]} 抵達 ${etaMatch[2]}`;
             const badge = arrived
-                ? { text: '撌脣蝯?', cls: 'arrived' }
+                ? { text: '已到終點', cls: 'arrived' }
                 : delayMatch
-                    ? { text: `??${delayMatch[1]} ?, cls: 'delay' }
-                    : { text: '??銝?, cls: 'active' };
+                    ? { text: `晚 ${delayMatch[1]} 分`, cls: 'delay' }
+                    : { text: '監控中', cls: 'active' };
             return {
-                icon: isTHSR ? '??' : '??',
-                title: `${isTHSR ? '擃' : '?粹'} ${trainNo} 甈︶,
+                icon: isTHSR ? '🚅' : '🚆',
+                title: `${isTHSR ? '高鐵' : '臺鐵'} ${trainNo} 次`,
                 summary,
                 badge
             };
@@ -3636,20 +3613,20 @@ select.setting-input[id*="pick"] {
         function renderMonitorBoard(monitorOn, pushOn, monitorTargets, monitorText) {
             const board = document.getElementById('homeMonitorBoard');
             if (!board) return;
-            const lines = uniqueTexts((monitorText || '').split('??));
+            const lines = uniqueTexts((monitorText || '').split('✦'));
             if (!monitorOn) {
-                board.innerHTML = `<div class="monitor-empty">撠?????刻身摰葉??憭?甈∟憚?剛??????/div>`;
+                board.innerHTML = `<div class="monitor-empty">尚未啟用監控。可在設定中開啟多車次輪播與通知提醒。</div>`;
                 return;
             }
-            if (!lines.length || /???芸??育撠閮剖???頠活/.test(monitorText || '')) {
+            if (!lines.length || /監控未啟用|尚未設定監控車次/.test(monitorText || '')) {
                 board.innerHTML = `
                     <div class="monitor-board">
                         <div class="monitor-chip-row">
-                            <span class="monitor-chip active">撌脣??函??/span>
-                            <span class="monitor-chip ${pushOn ? 'push' : 'warn'}">${pushOn ? '?冽??' : '?冽??'}</span>
-                            <span class="monitor-chip">${monitorTargets} ??/span>
+                            <span class="monitor-chip active">已啟用監控</span>
+                            <span class="monitor-chip ${pushOn ? 'push' : 'warn'}">${pushOn ? '推播開啟' : '推播關閉'}</span>
+                            <span class="monitor-chip">${monitorTargets} 班</span>
                         </div>
-                        <div class="monitor-empty">?桀????憿舐內??甈∪摰對?隢閮剖?銝剝??扯?甈∟??格?蝡?/div>
+                        <div class="monitor-empty">目前還沒有可顯示的車次內容，請在設定中選擇監控車次與目標站。</div>
                     </div>
                 `;
                 return;
@@ -3667,9 +3644,9 @@ select.setting-input[id*="pick"] {
             board.innerHTML = `
                 <div class="monitor-board">
                     <div class="monitor-chip-row">
-                        <span class="monitor-chip active">撌脣???${monitorTargets} ??/span>
-                        <span class="monitor-chip ${pushOn ? 'push' : 'warn'}">${pushOn ? '?冽??' : '?冽??'}</span>
-                        <span class="monitor-chip">${lines.length} ????/span>
+                        <span class="monitor-chip active">已啟用 ${monitorTargets} 班</span>
+                        <span class="monitor-chip ${pushOn ? 'push' : 'warn'}">${pushOn ? '推播開啟' : '推播關閉'}</span>
+                        <span class="monitor-chip">${lines.length} 則動態</span>
                     </div>
                     <div class="monitor-list">${items}</div>
                 </div>
@@ -3750,11 +3727,11 @@ select.setting-input[id*="pick"] {
                 const trWrap = document.getElementById('trStatusTextWrap');
                 const trDot = document.getElementById('trStatusDot');
                 const trMessages = await fetchAlertMessages('tr', headers);
-                systemAlertState.tr = setStatusTicker('?粹', trMessages, trText, trWrap, trDot);
+                systemAlertState.tr = setStatusTicker('臺鐵', trMessages, trText, trWrap, trDot);
             } catch(e) {
                 console.log(e);
                 systemAlertState.tr = [];
-                setStatusTicker('?粹', [], document.getElementById('trStatusText'), document.getElementById('trStatusTextWrap'), document.getElementById('trStatusDot'));
+                setStatusTicker('臺鐵', [], document.getElementById('trStatusText'), document.getElementById('trStatusTextWrap'), document.getElementById('trStatusDot'));
             }
 
             try {
@@ -3762,16 +3739,16 @@ select.setting-input[id*="pick"] {
                 const thsrWrap = document.getElementById('thsrStatusTextWrap');
                 const thsrDot = document.getElementById('thsrStatusDot');
                 const thsrMessages = await fetchAlertMessages('thsr', headers);
-                systemAlertState.thsr = setStatusTicker('擃', thsrMessages, thsrText, thsrWrap, thsrDot);
+                systemAlertState.thsr = setStatusTicker('高鐵', thsrMessages, thsrText, thsrWrap, thsrDot);
             } catch(e) {
                 console.log(e);
                 systemAlertState.thsr = [];
-                setStatusTicker('擃', [], document.getElementById('thsrStatusText'), document.getElementById('thsrStatusTextWrap'), document.getElementById('thsrStatusDot'));
+                setStatusTicker('高鐵', [], document.getElementById('thsrStatusText'), document.getElementById('thsrStatusTextWrap'), document.getElementById('thsrStatusDot'));
             }
             if(typeof window.refreshHomePanels === 'function') window.refreshHomePanels();
         }
 
-        // ===== ?箸?詨?摩 (Autocomplete & Dropdown) =====
+        // ===== 智慧選單邏輯 (Autocomplete & Dropdown) =====
 
         async function initTrainLists() {
             if(!tdxToken) await getTdxToken();
@@ -3785,7 +3762,8 @@ select.setting-input[id*="pick"] {
                     const data = await res.json();
                     cachedTrainList.thsr = data.map(d => (d.TrainDate && d.TrainDate.TrainNo) || (d.DailyTrainInfo && d.DailyTrainInfo.TrainNo)).filter(Boolean);
                     populateDatalist('thsrTrainList', cachedTrainList.thsr);
-                    // ???郊?啜??詻???                    fillTrainPickOptions('thsr', 'mon_thsr_train_pick', cachedTrainList.thsr);
+                    // ★ 同步到「必選」下拉
+                    fillTrainPickOptions('thsr', 'mon_thsr_train_pick', cachedTrainList.thsr);
                 } catch(e){}
             } else {
                 fillTrainPickOptions('thsr', 'mon_thsr_train_pick', cachedTrainList.thsr);
@@ -3798,7 +3776,8 @@ select.setting-input[id*="pick"] {
                     const rawList = data.TrainTimetables.map(d => d.TrainInfo.TrainNo);
                     cachedTrainList.tra = [...new Set(rawList)].sort();
                     populateDatalist('traTrainList', cachedTrainList.tra);
-                    // ???郊?啜??詻???                    fillTrainPickOptions('tra', 'mon_tr1_train_pick', cachedTrainList.tra);
+                    // ★ 同步到「必選」下拉
+                    fillTrainPickOptions('tra', 'mon_tr1_train_pick', cachedTrainList.tra);
                     fillTrainPickOptions('tra', 'mon_tr2_train_pick', cachedTrainList.tra);
                 } catch(e){}
             } else {
@@ -3807,22 +3786,24 @@ select.setting-input[id*="pick"] {
             }
         }
 
-        // ===== 頠活?????詻?銝??郊撌亙 =====
+        // ===== 車次「必須點選」的下拉同步工具 =====
         function fillTrainPickOptions(type, selectId, list) {
           const sel = document.getElementById(selectId);
           if (!sel) return;
           const current = sel.value || "";
-          const head = `<option value="" ${current===""?"selected":""}>隢??貉?甈∴?敹嚗?/option>`;
+          const head = `<option value="" ${current===""?"selected":""}>請點選車次（必選）</option>`;
           const opts = (list || []).map(no => `<option value="${no}">${no}</option>`).join('');
           sel.innerHTML = head + opts;
-          // 靽?撌脤?潘??仿?摮嚗?          if (current && sel.querySelector(`option[value="${CSS.escape(current)}"]`)) sel.value = current;
+          // 保留已選值（若還存在）
+          if (current && sel.querySelector(`option[value="${CSS.escape(current)}"]`)) sel.value = current;
         }
 
         function onTrainInput(type, inputId, selectId) {
     const query = document.getElementById(inputId).value.trim();
     const sel = document.getElementById(selectId);
     
-    // 皜征????    const finalHidden = document.getElementById(inputId + "_final");
+    // 清空有效值
+    const finalHidden = document.getElementById(inputId + "_final");
     if (finalHidden) finalHidden.value = "";
 
     const fullList = (type === 'tra' ? cachedTrainList.tra : cachedTrainList.thsr) || [];
@@ -3830,10 +3811,10 @@ select.setting-input[id*="pick"] {
     
     fillTrainPickOptions(type, selectId, filteredList);
 
-    // ???啣?嚗?蕪敺?拐?銝?移蝣箏???潘??芸?憛怠??梯?甈?
+    // ★ 新增：若過濾後只剩下一個精確匹配的值，自動填充隱藏欄位
     if (filteredList.length === 1 && filteredList[0].toString() === query) {
         if (finalHidden) finalHidden.value = query;
-        // 閫貊?格?蝡?頛
+        // 觸發目標站點載入
         updateStationOptions(type, query, inputId.replace('train', 'station'));
     }
 }
@@ -3843,17 +3824,18 @@ select.setting-input[id*="pick"] {
           const inp = document.getElementById(inputId);
           const picked = sel ? sel.value : "";
 
-          // ???貊???甇亙? input嚗?閬箔??湛?
+          // 把點選結果同步回 input（視覺一致）
           if (inp) inp.value = picked;
 
-          // 摮 hidden嚗?甇???潘?
+          // 存到 hidden（真正有效值）
           const finalHidden = document.getElementById(inputId + "_final") || document.getElementById(inputId.replace("_train","_train_final"));
           if (finalHidden) finalHidden.value = picked || "";
 
-          // 暺敺??湔?格?蝡???          if (picked) updateStationOptions(type, picked, stationSelectId);
+          // 點選後才更新目標站下拉
+          if (picked) updateStationOptions(type, picked, stationSelectId);
           else {
             const stSel = document.getElementById(stationSelectId);
-            if (stSel) stSel.innerHTML = '<option value="" disabled selected>隢?頛詨頠活</option>';
+            if (stSel) stSel.innerHTML = '<option value="" disabled selected>請先輸入車次</option>';
           }
         }
 
@@ -3861,11 +3843,11 @@ select.setting-input[id*="pick"] {
             const selectEl = document.getElementById(selectId);
             if(!selectEl) return;
             if(!trainNo) {
-                selectEl.innerHTML = '<option value="" disabled selected>隢?頛詨頠活</option>';
+                selectEl.innerHTML = '<option value="" disabled selected>請先輸入車次</option>';
                 return;
             }
 
-            selectEl.innerHTML = '<option value="" disabled selected>頛銝?..</option>';
+            selectEl.innerHTML = '<option value="" disabled selected>載入中...</option>';
             
             if(!tdxToken) await getTdxToken();
             const headers = { 'Authorization': `Bearer ${tdxToken}` };
@@ -3889,11 +3871,11 @@ select.setting-input[id*="pick"] {
                 }
 
                 if(stops.length === 0) {
-                    selectEl.innerHTML = '<option value="" disabled selected>?亦??蝡?/option>';
+                    selectEl.innerHTML = '<option value="" disabled selected>查無停靠站</option>';
                     return;
                 }
 
-                let html = '<option value="" disabled selected>隢?璅?</option>';
+                let html = '<option value="" disabled selected>請選擇目標站</option>';
                 stops.forEach(s => {
                     const stName = s.StationName.Zh_tw;
                     const time = s.ArrivalTime || s.DepartureTime;
@@ -3909,12 +3891,12 @@ select.setting-input[id*="pick"] {
 
             } catch(e) {
                 console.error(e);
-                selectEl.innerHTML = '<option value="" disabled selected>頛憭望?</option>';
+                selectEl.innerHTML = '<option value="" disabled selected>載入失敗</option>';
             }
         }
 
 
-        // ===== ???詨??摩 =====
+        // ===== 監控核心邏輯 =====
 
         async function startMonitorSystem(isForceRefresh = false) {
             if(monitorFetchInterval) clearInterval(monitorFetchInterval);
@@ -3923,7 +3905,7 @@ select.setting-input[id*="pick"] {
             const marquee = document.getElementById('monitorStatusText');
 
             if(!isMonitorOn) {
-                marquee.innerText = "???芸???;
+                marquee.innerText = "監控未啟用";
                 if(typeof window.refreshHomePanels === 'function') window.refreshHomePanels();
                 return;
             }
@@ -3938,13 +3920,13 @@ select.setting-input[id*="pick"] {
             if(thsr.no && thsr.no.trim()) targets.push(thsr);
 
             if(targets.length === 0) {
-                marquee.innerText = "撠閮剖???頠活";
+                marquee.innerText = "尚未設定監控車次";
                 if(typeof window.refreshHomePanels === 'function') window.refreshHomePanels();
                 return;
             }
 
             if(isForceRefresh) {
-                marquee.innerText = `?? ???? (??${targets.length} ?剛?)...`;
+                marquee.innerText = `🔍 監控啟動 (共 ${targets.length} 班車)...`;
             }
 
             await updateAllMonitor(targets);
@@ -3980,11 +3962,11 @@ select.setting-input[id*="pick"] {
             }
 
             const marquee = document.getElementById('monitorStatusText');
-            // ?芸?鞈?撖怠 DOM 靘??雀霈??銝＊蝷箏?
+            // 只將資訊寫入 DOM 供動態島讀取，不顯示在頂部
             if (statusMessages.length === 0) {
-                marquee.innerText = "??撌脩???(撌脫??";
+                marquee.innerText = "監控已結束 (已抵達)";
             } else {
-                marquee.innerText = statusMessages.join("   ??  ");
+                marquee.innerText = statusMessages.join("   ✦   ");
             }
             if(typeof window.refreshHomePanels === 'function') window.refreshHomePanels();
         }
@@ -4006,14 +3988,14 @@ select.setting-input[id*="pick"] {
                 
                 const isPushOn = localStorage.getItem('push_enabled') === 'true';
                 if (isPushOn) {
-                    sendNotification(`?? ??蝯?`, `${trainNo}甈?撌脫?璅?嚗????扼);
+                    sendNotification(`🏁 監控結束`, `${trainNo}次 已抵達目標站，自動關閉監控。`);
                 }
                 
                 const elTrain = document.getElementById(`mon_${targetId}_train`);
                 const elStn = document.getElementById(`mon_${targetId}_station`);
                 if(elTrain) elTrain.value = '';
                 if(elStn) {
-                    elStn.innerHTML = '<option value="" disabled selected>隢?頛詨頠活</option>';
+                    elStn.innerHTML = '<option value="" disabled selected>請先輸入車次</option>';
                     elStn.value = '';
                 }
 
@@ -4030,11 +4012,11 @@ select.setting-input[id*="pick"] {
                 const liveData = await liveRes.json();
                 const trainLive = liveData.TrainLiveBoards ? liveData.TrainLiveBoards[0] : null;
 
-                if (!trainLive) return { text: `?粹 ${target.no}甈? ?亦鞈?`, delay: false };
+                if (!trainLive) return { text: `臺鐵 ${target.no}次: 查無資料`, delay: false };
 
                 const currentStn = trainLive.StationName.Zh_tw;
                 const delay = parseInt(trainLive.DelayTime);
-                const statusStr = delay > 0 ? `| ??${delay} ? : `| 皞?`;
+                const statusStr = delay > 0 ? `| 晚 ${delay} 分` : `| 準點`;
                 
                 let arrivalStr = "";
                 let targetArrivalTime = null;
@@ -4053,7 +4035,7 @@ select.setting-input[id*="pick"] {
                             date.setHours(h, m + delay);
                             const predH = date.getHours().toString().padStart(2, '0');
                             const predM = date.getMinutes().toString().padStart(2, '0');
-                            arrivalStr = `  ?? ${predH}:${predM} ?菟? ${target.stn}`;
+                            arrivalStr = `  預計 ${predH}:${predM} 抵達 ${target.stn}`;
                         }
                     }
                 }
@@ -4063,20 +4045,20 @@ select.setting-input[id*="pick"] {
                     if (cleared) return null;
                 }
 
-                const finalText = `?粹 ${target.no}甈??桀???${currentStn} | ${statusStr}${arrivalStr}`;
+                const finalText = `臺鐵 ${target.no}次:目前在 ${currentStn} | ${statusStr}${arrivalStr}`;
                 const stateKey = `tra_${target.no}`;
 
                 const isPushOn = localStorage.getItem('push_enabled') === 'true';
                 if (isPushOn && delay > 0) {
                     if (lastNotificationStates[stateKey] !== finalText) {
-                        sendNotification(`?? ${target.no}甈????躬, finalText);
+                        sendNotification(`🚆 ${target.no}次 狀態更新`, finalText);
                         lastNotificationStates[stateKey] = finalText;
                     }
                 }
 
                 return { text: finalText, delay: delay > 0 };
             } catch (e) {
-                return { text: `?粹 ${target.no}甈? 鞈?霈?隤亡, delay: false };
+                return { text: `臺鐵 ${target.no}次: 資料讀取錯誤`, delay: false };
             }
         }
 
@@ -4086,17 +4068,17 @@ select.setting-input[id*="pick"] {
         const res = await fetch(url, { headers: { 'Authorization': `Bearer ${tdxToken}` } });
         const data = await res.json();
         
-        if (!Array.isArray(data) || data.length === 0) return { text: `擃 ${target.no}甈? 隞?∟?擏, delay: false };
+        if (!Array.isArray(data) || data.length === 0) return { text: `高鐵 ${target.no}次: 今日無行駛`, delay: false };
 
         const stops = data[0].StopTimes;
         const now = new Date();
-        const nowStr = now.toTimeString().slice(0, 5); // ?? HH:mm
+        const nowStr = now.toTimeString().slice(0, 5); // 取得 HH:mm
 
-        // --- ?詨??摩嚗?蝞??蝵?---
-        let currentStatus = "銵?銝?;
+        // --- 核心邏輯：計算目前位置 ---
+        let currentStatus = "行駛中";
         let lastPassedStn = "";
         
-        // ?曉?敺???潭???<= ?曉??頠?
+        // 找出最後一個「出發時間 <= 現在」的車站
         for (let i = 0; i < stops.length; i++) {
             if (nowStr >= stops[i].DepartureTime) {
                 lastPassedStn = stops[i].StationName.Zh_tw;
@@ -4107,11 +4089,12 @@ select.setting-input[id*="pick"] {
         const endTime = stops[stops.length - 1].ArrivalTime;
 
         if (nowStr < startTime) {
-            currentStatus = "?芰頠?;
+            currentStatus = "未發車";
         } else if (nowStr > endTime) {
-            currentStatus = "撌脣蝯?";
+            currentStatus = "已到終點";
         } else {
-            // ?刻絲閮??嚗??歇?? XX 蝡?            currentStatus = `?? ${lastPassedStn} | | 銵?銝苜;
+            // 在起訖時間內，組合「已通過 XX 站」
+            currentStatus = `通過 ${lastPassedStn} | | 行駛中`;
         }
 
         let arrivalStr = "";
@@ -4122,35 +4105,35 @@ select.setting-input[id*="pick"] {
                 const targetStop = stops.find(s => s.StationName.Zh_tw === target.stn);
                 if (targetStop) {
                     targetArrivalTime = targetStop.ArrivalTime;
-                    arrivalStr = `  ?? ${targetStop.ArrivalTime} ?菟? ${target.stn}`;
+                    arrivalStr = `  預計 ${targetStop.ArrivalTime} 抵達 ${target.stn}`;
                 }
             }
         }
 
-        // ?芸?皜?摩
+        // 自動清除邏輯
         if (target.stn && targetArrivalTime) {
             const cleared = checkAutoClear(target.id, target.no, targetArrivalTime, 0);
             if (cleared) return null;
         }
 
-        const finalText = `擃 ${target.no}甈? ${currentStatus}${arrivalStr}`;
+        const finalText = `高鐵 ${target.no}次: ${currentStatus}${arrivalStr}`;
         const stateKey = `thsr_${target.no}`;
 
-        // ?冽?摩
+        // 推播邏輯
         const isPushOn = localStorage.getItem('push_enabled') === 'true';
         if (isPushOn && lastNotificationStates[stateKey] !== finalText) {
-            sendNotification(`?? ${target.no}甈????躬, finalText);
+            sendNotification(`🚅 ${target.no}次 狀態更新`, finalText);
             lastNotificationStates[stateKey] = finalText;
         }
 
         return { text: finalText, delay: false };
     } catch(e) {
-        return { text: `擃 ${target.no}甈? 鞈??航炊`, delay: false };
+        return { text: `高鐵 ${target.no}次: 資料錯誤`, delay: false };
     }
 }
 
-        // ===== 閮剖?????頛?=====
-        // 靽格迤敺?頛?摩嚗??脣?隞嗡?摮?梢嚗蒂撘瑕??詨?＊
+        // ===== 設定與開關邏輯 =====
+        // 修正後的載入邏輯：預防元件不存在報錯，並強化選單回顯
 function toggleSettings(show) {
     const modal = document.getElementById('settingsModal');
     if(show) {
@@ -4173,7 +4156,8 @@ function toggleSettings(show) {
 
             if(elTrain) elTrain.value = trainNo;
             if(elPick && trainNo) {
-                // 撘瑕?券?格??亦??頠活嚗??憪???桅?瘝? API 銝?摰??渡征??                elPick.innerHTML = `<option value="${trainNo}" selected>${trainNo}</option>`;
+                // 強制在選單插入目前的車次，避免初始化時選單還沒從 API 下載完導致空白
+                elPick.innerHTML = `<option value="${trainNo}" selected>${trainNo}</option>`;
             }
             if(elFinal) elFinal.value = trainNo;
 
@@ -4181,11 +4165,11 @@ function toggleSettings(show) {
                 updateStationOptions(type, trainNo, stnId, savedStn);
             } else {
                 const elSelect = document.getElementById(stnId);
-                if(elSelect) elSelect.innerHTML = '<option value="" disabled selected>隢?頛詨頠活</option>';
+                if(elSelect) elSelect.innerHTML = '<option value="" disabled selected>請先輸入車次</option>';
             }
         };
 
-        // 蝣箔? ID ?寥?
+        // 確保 ID 匹配
         loadMonitorRow('tra', 'mon_tr1_train', 'mon_tr1_station', 'mon_tr1_train_pick', 'mon_tr1_train_final');
         loadMonitorRow('tra', 'mon_tr2_train', 'mon_tr2_station', 'mon_tr2_train_pick', 'mon_tr2_train_final');
         loadMonitorRow('thsr', 'mon_thsr_train', 'mon_thsr_station', 'mon_thsr_train_pick', 'mon_thsr_train_final');
@@ -4212,63 +4196,84 @@ function toggleSettings(show) {
             if(typeof window.refreshHomePanels === 'function') window.refreshHomePanels();
         }
 
-        async function ensureHomeNotificationRegistration() {
+        async function registerHomeNotificationServiceWorker() {
             if (!('serviceWorker' in navigator)) return null;
+            if (location.protocol !== 'https:' && location.protocol !== 'http:') return null;
             try {
-                const existing = await navigator.serviceWorker.getRegistration('../');
-                if (existing) return existing;
-            } catch (_) {}
-            try {
-                return await navigator.serviceWorker.register('../sw.js');
-            } catch (_) {
-                return null;
+                const reg = await navigator.serviceWorker.register('../sw.js');
+                try {
+                    return await navigator.serviceWorker.ready;
+                } catch (_) {
+                    return reg;
+                }
+            } catch (e) {
+                console.warn('[home] sw register failed', e);
+                try {
+                    return await navigator.serviceWorker.getRegistration();
+                } catch (_) {
+                    return null;
+                }
             }
         }
 
-        async function showHomeNotification(title, body, tag = '') {
-            if (!('Notification' in window) || Notification.permission !== 'granted') return false;
-            const iconUrl = new URL('./icon-192.png', location.href).href;
-            const targetUrl = new URL('./index.html', location.href).href;
-            const options = {
-                body,
-                icon: iconUrl,
-                badge: iconUrl,
-                tag: tag || title,
-                renotify: false,
-                data: { url: targetUrl }
-            };
-
+        async function ensureHomeNotificationPermission(requestIfNeeded = true) {
+            if (!('Notification' in window)) return false;
+            if (Notification.permission === 'granted') return true;
+            if (Notification.permission === 'denied') return false;
+            if (!requestIfNeeded) return false;
             try {
-                const registration = await ensureHomeNotificationRegistration();
-                if (registration && registration.showNotification) {
-                    await registration.showNotification(title, options);
-                    return true;
-                }
-            } catch (_) {}
-
-            try {
-                new Notification(title, { body, icon: iconUrl, tag: tag || title });
-                return true;
+                return (await Notification.requestPermission()) === 'granted';
             } catch (_) {
                 return false;
             }
         }
 
-        function togglePush(el) {
+        async function showHomeNotification(title, body, tag = '') {
+            const granted = await ensureHomeNotificationPermission(false);
+            if (!granted) return false;
+
+            try {
+                const reg = ('serviceWorker' in navigator)
+                    ? ((await navigator.serviceWorker.getRegistration()) || (await registerHomeNotificationServiceWorker()))
+                    : null;
+                if (reg && reg.showNotification) {
+                    await reg.showNotification(title, {
+                        body,
+                        icon: './icon-192.png',
+                        badge: './icon-192.png',
+                        tag: tag || title,
+                        renotify: false,
+                        data: { url: new URL('./index.html', location.href).href }
+                    });
+                    return true;
+                }
+            } catch (e) {
+                console.warn('[home] sw notify fallback', e);
+            }
+
+            try {
+                new Notification(title, { body, icon: './icon-192.png', tag: tag || title });
+                return true;
+            } catch (e) {
+                console.warn('[home] notification failed', e);
+                return false;
+            }
+        }
+
+        async function togglePush(el) {
             if (el.checked) {
-                Notification.requestPermission().then(async p => {
-                    if (p === 'granted') {
-                        localStorage.setItem('push_enabled', 'true');
-                        await ensureHomeNotificationRegistration();
-                        await showHomeNotification('通知已開啟', '監控提醒會優先改走 service worker 通知；切到別的頁面時也比較有機會持續跳出提醒。', 'home_push_enabled');
-                        if(typeof window.refreshHomePanels === 'function') window.refreshHomePanels();
-                    } else {
-                        el.checked = false;
-                        localStorage.setItem('push_enabled', 'false');
-                        alert('請先允許瀏覽器通知權限，才能啟用監控提醒。');
-                        if(typeof window.refreshHomePanels === 'function') window.refreshHomePanels();
-                    }
-                });
+                const granted = await ensureHomeNotificationPermission(true);
+                if (granted) {
+                    localStorage.setItem('push_enabled', 'true');
+                    await registerHomeNotificationServiceWorker();
+                    await showHomeNotification("通知測試", "推播通知已啟用！", 'push_enabled_test');
+                    if(typeof window.refreshHomePanels === 'function') window.refreshHomePanels();
+                } else {
+                    el.checked = false;
+                    localStorage.setItem('push_enabled', 'false');
+                    alert("請允許瀏覽器通知權限以使用推播功能");
+                    if(typeof window.refreshHomePanels === 'function') window.refreshHomePanels();
+                }
             } else {
                 localStorage.setItem('push_enabled', 'false');
                 if(typeof window.refreshHomePanels === 'function') window.refreshHomePanels();
@@ -4276,15 +4281,17 @@ function toggleSettings(show) {
         }
 
         function sendNotification(title, body) {
-            showHomeNotification(title, body, title);
+            showHomeNotification(title, body, title).catch(() => {});
         }
 
-        function testNotification() {
-            if (Notification.permission === 'granted') {
-                showHomeNotification('測試通知', '如果瀏覽器允許背景執行，後續監控提醒就會優先走這個通知通道。', 'home_test_notification');
-            } else {
-                alert('通知權限尚未開啟，請先在設定裡允許通知。');
+        async function testNotification() {
+            const granted = await ensureHomeNotificationPermission(true);
+            if (!granted) {
+                alert("通知權限未開啟，請開啟「接收誤點推播通知」開關。");
+                return;
             }
+            await registerHomeNotificationServiceWorker();
+            await showHomeNotification("🔔 測試成功", "瀏覽器通知功能正常運作中！", 'push_test_success');
         }
 
         function toggleDarkMode() {
@@ -4295,7 +4302,7 @@ function toggleSettings(show) {
         }
 
         function saveSettings() {
-            // ??撘瑕嚗?甈∪?????詻???
+            // ★ 強制：車次必須用「點選」才有效
             const forcedTrainMap = {
               mon_tr1_train: (document.getElementById('mon_tr1_train_final')?.value || '').trim(),
               mon_tr2_train: (document.getElementById('mon_tr2_train_final')?.value || '').trim(),
@@ -4316,8 +4323,9 @@ function toggleSettings(show) {
                 if(el) {
                     let val = el.value.trim();
 
-                    // ??train 甈??寧???貊???                    if (Object.prototype.hasOwnProperty.call(forcedTrainMap, k)) {
-                      val = forcedTrainMap[k]; // 瘝??詨停?舐征摮葡
+                    // ★ train 欄位改用「點選結果」
+                    if (Object.prototype.hasOwnProperty.call(forcedTrainMap, k)) {
+                      val = forcedTrainMap[k]; // 沒點選就是空字串
                     }
 
                     if (k === 'tra_booking_pid') {
@@ -4331,7 +4339,8 @@ function toggleSettings(show) {
                 }
             });
 
-            // 蝣箔??? Key ?詨捆??            localStorage.setItem('mon_train', localStorage.getItem('mon_tr1_train') || '');
+            // 確保舊版 Key 相容性
+            localStorage.setItem('mon_train', localStorage.getItem('mon_tr1_train') || '');
             localStorage.setItem('mon_station', localStorage.getItem('mon_tr1_station') || '');
 
             renderFavs();
@@ -4342,7 +4351,7 @@ function toggleSettings(show) {
         }
 
         function clearData() {
-            if(confirm('蝣箏?皜??身摰?')) { localStorage.clear(); location.reload(); }
+            if(confirm('確定清除所有設定？')) { localStorage.clear(); location.reload(); }
         }
 
         function countFavRoutes(sys) {
@@ -4356,16 +4365,16 @@ function toggleSettings(show) {
         }
 
         function formatRecentLaunchLabel(item) {
-            if (!item) return '撠蝝??;
-            const sysLabel = item.sys === 'ai' ? 'AI' : (item.sys === 'thsr' ? '擃' : '?粹');
+            if (!item) return '尚無紀錄';
+            const sysLabel = item.sys === 'ai' ? 'AI' : (item.sys === 'thsr' ? '高鐵' : '臺鐵');
             const params = item.params || {};
             if (item.sys === 'ai') {
-                if (params.q) return `AI 繚 ${String(params.q).slice(0, 18)}`;
-                return 'AI 繚 ?拇???;
+                if (params.q) return `AI · ${String(params.q).slice(0, 18)}`;
+                return 'AI · 助手頁';
             }
-            if (params.start && params.end) return `${sysLabel} 繚 ${params.start} ??${params.end}`;
-            if (params.station) return `${sysLabel} 繚 ${params.station}`;
-            return `${sysLabel} 繚 蝟餌絞擐?`;
+            if (params.start && params.end) return `${sysLabel} · ${params.start} → ${params.end}`;
+            if (params.station) return `${sysLabel} · ${params.station}`;
+            return `${sysLabel} · 系統首頁`;
         }
 
         function getRecentLaunches() {
@@ -4394,7 +4403,7 @@ function toggleSettings(show) {
             if (!list) return;
             const items = getRecentLaunches();
             if (!items.length) {
-                list.innerHTML = '<div class="recent-empty">撠?餈?????擐??脣?粹???萄?嚗ㄐ?????餈???/div>';
+                list.innerHTML = '<div class="recent-empty">尚無最近開啟紀錄。從首頁進入臺鐵或高鐵後，這裡會自動保留最近入口。</div>';
                 return;
             }
             list.innerHTML = '';
@@ -4413,20 +4422,20 @@ function toggleSettings(show) {
 
         function buildPinnedTrainQuery(item) {
             if (!item || !item.no) return '';
-            return item.station ? `${item.no}甈?${item.station} ?摯撟暸??躬 : `${item.no}甈??曉?啣鈭;
+            return item.station ? `${item.no}次 ${item.station} 預估幾點到` : `${item.no}次 現在到哪了`;
         }
 
         function renderPinnedTrainCards() {
             const list = document.getElementById('pinnedTrainList');
             if (!list) return;
             const items = [
-                { sys: 'tr', label: '?粹', no: (localStorage.getItem('mon_tr1_train') || '').trim(), station: normalizeTRA(localStorage.getItem('mon_tr1_station') || '') },
-                { sys: 'tr', label: '?粹', no: (localStorage.getItem('mon_tr2_train') || '').trim(), station: normalizeTRA(localStorage.getItem('mon_tr2_station') || '') },
-                { sys: 'thsr', label: '擃', no: (localStorage.getItem('mon_thsr_train') || '').trim(), station: normalizeTHSR(localStorage.getItem('mon_thsr_station') || '') }
+                { sys: 'tr', label: '臺鐵', no: (localStorage.getItem('mon_tr1_train') || '').trim(), station: normalizeTRA(localStorage.getItem('mon_tr1_station') || '') },
+                { sys: 'tr', label: '臺鐵', no: (localStorage.getItem('mon_tr2_train') || '').trim(), station: normalizeTRA(localStorage.getItem('mon_tr2_station') || '') },
+                { sys: 'thsr', label: '高鐵', no: (localStorage.getItem('mon_thsr_train') || '').trim(), station: normalizeTHSR(localStorage.getItem('mon_thsr_station') || '') }
             ].filter(item => item.no);
 
             if (!items.length) {
-                list.innerHTML = `<div class="pinned-empty">撠?????刻身摰葉???扯?甈∟??格?蝡?/div>`;
+                list.innerHTML = `<div class="pinned-empty">尚未釘選列車。可在設定中先選擇監控車次與目標站。</div>`;
                 return;
             }
 
@@ -4436,12 +4445,12 @@ function toggleSettings(show) {
                     <div class="pinned-train-item">
                         <div class="pinned-train-head">
                             <span class="monitor-chip ${item.sys === 'thsr' ? 'push' : 'active'}">${item.label}</span>
-                            <strong>${escapeHtml(item.no)} 甈?/strong>
+                            <strong>${escapeHtml(item.no)} 次</strong>
                         </div>
-                        <div class="pinned-train-note">${escapeHtml(item.station ? `?格?蝡?${item.station} 嚚??湔?亦??摯?啁????蝵害 : '?亦??桀?????蝵株?敺???蝡?)}</div>
+                        <div class="pinned-train-note">${escapeHtml(item.station ? `目標站 ${item.station} ｜ 直接查看預估到站與目前位置` : '查看目前狀態、目前位置與後續停靠站')}</div>
                         <div class="home-toolbar-actions">
-                            <button class="home-tool-btn" type="button" onclick='openAppOverlay("ai", { q: ${JSON.stringify(query)} })'>AI 餈質馱</button>
-                            <button class="home-tool-btn" type="button" onclick="toggleSettings(true)">蝞∠??</button>
+                            <button class="home-tool-btn" type="button" onclick='openAppOverlay("ai", { q: ${JSON.stringify(query)} })'>AI 追蹤</button>
+                            <button class="home-tool-btn" type="button" onclick="toggleSettings(true)">管理釘選</button>
                         </div>
                     </div>
                 `;
@@ -4466,10 +4475,10 @@ function toggleSettings(show) {
         };
 
         window.refreshHomePanels = function() {
-            const trHome = normalizeTRA(localStorage.getItem('tr_home') || '') || '?芾身摰?;
-            const thsrHome = normalizeTHSR(localStorage.getItem('thsr_home') || '') || '?芾身摰?;
-            const trFavCount = `${countFavRoutes('tr')} 蝯;
-            const thsrFavCount = `${countFavRoutes('thsr')} 蝯;
+            const trHome = normalizeTRA(localStorage.getItem('tr_home') || '') || '未設定';
+            const thsrHome = normalizeTHSR(localStorage.getItem('thsr_home') || '') || '未設定';
+            const trFavCount = `${countFavRoutes('tr')} 組`;
+            const thsrFavCount = `${countFavRoutes('thsr')} 組`;
             const latest = getRecentLaunches()[0] || null;
 
             const setText = (id, text) => {
@@ -4484,12 +4493,12 @@ function toggleSettings(show) {
             setText('trFavDisplay', trFavCount);
             setText('thsrFavDisplay', thsrFavCount);
             setText('heroRecentSummary', formatRecentLaunchLabel(latest));
-            setText('quickConfigSummary', `擐?蝡?${trHome} / ${thsrHome} 嚚?撣貊 ${trFavCount}??{thsrFavCount}`);
+            setText('quickConfigSummary', `首頁站 ${trHome} / ${thsrHome} ｜ 常用 ${trFavCount}、${thsrFavCount}`);
 
             const trShortcutBtn = document.getElementById('trHomeShortcutBtn');
             const thsrShortcutBtn = document.getElementById('thsrHomeShortcutBtn');
-            if (trShortcutBtn) trShortcutBtn.disabled = trHome === '?芾身摰?;
-            if (thsrShortcutBtn) thsrShortcutBtn.disabled = thsrHome === '?芾身摰?;
+            if (trShortcutBtn) trShortcutBtn.disabled = trHome === '未設定';
+            if (thsrShortcutBtn) thsrShortcutBtn.disabled = thsrHome === '未設定';
 
             const monitorOn = localStorage.getItem('monitor_enabled') === 'true';
             const pushOn = localStorage.getItem('push_enabled') === 'true';
@@ -4499,13 +4508,13 @@ function toggleSettings(show) {
                 localStorage.getItem('mon_thsr_train')
             ].filter(Boolean).length;
             const monitorText = (document.getElementById('monitorStatusText')?.textContent || '').trim();
-            const monitorState = monitorOn ? `撌脣???${monitorTargets} ?苜 : '???芸???;
+            const monitorState = monitorOn ? `已啟用 ${monitorTargets} 班` : '監控未啟用';
             const monitorHint = monitorOn
-                ? `${pushOn ? '?冽撌脤??? : '?桀??憚??}${monitorTargets ? `嚗 ${monitorTargets} ?剛?` : '嚗??芾身摰?甈?}`
-                : '?臬閮剖?銝剝???頠活頛芣?蝡???;
+                ? `${pushOn ? '推播已開啟' : '目前僅輪播'}${monitorTargets ? `，共 ${monitorTargets} 班車` : '，尚未設定車次'}`
+                : '可在設定中開啟多車次輪播與到站提醒。';
             const monitorSummary = monitorOn
-                ? (monitorText && !monitorText.includes('???芸???) ? monitorText : `??撌脣??剁?${pushOn ? '?冽???' : '?冽??芷???}?)
-                : '撠?????刻身摰葉??憭?甈∟憚?剛??????;
+                ? (monitorText && !monitorText.includes('監控未啟用') ? monitorText : `監控已啟用，${pushOn ? '推播通知開啟' : '推播通知未開啟'}。`)
+                : '尚未啟用監控。可在設定中開啟多車次輪播與通知提醒。';
 
             setText('heroMonitorState', monitorState);
             setText('heroMonitorHint', monitorHint);
@@ -4514,20 +4523,20 @@ function toggleSettings(show) {
             {
                 const trAlerts = Array.isArray(systemAlertState.tr) ? systemAlertState.tr : null;
                 const thsrAlerts = Array.isArray(systemAlertState.thsr) ? systemAlertState.thsr : null;
-                let opsSummary = '霈?????臭葉';
-                let opsDetail = '甇??郊?粹???萇???啁?????;
+                let opsSummary = '讀取營運訊息中';
+                let opsDetail = '正在同步臺鐵與高鐵的最新營運狀態。';
                 let opsMessages = [];
                 if (trAlerts && thsrAlerts) {
                     const abnormalItems = uniqueTexts([
-                        ...trAlerts.map(msg => `?粹 ${msg}`),
-                        ...thsrAlerts.map(msg => `擃 ${msg}`)
+                        ...trAlerts.map(msg => `臺鐵 ${msg}`),
+                        ...thsrAlerts.map(msg => `高鐵 ${msg}`)
                     ]);
                     opsSummary = abnormalItems.length
-                        ? `???啣虜?內嚗?{abnormalItems.length} ?
-                        : '?桀??∠??撣?;
+                        ? `營運異常提示：${abnormalItems.length} 則`
+                        : '目前無營運異常';
                     opsDetail = abnormalItems.length
                         ? abnormalItems[0]
-                        : '?桀?瘝??啁????啣虜?砍???;
+                        : '目前沒有新的營運異常公告。';
                     opsMessages = abnormalItems;
                 }
                 setText('heroOpsSummary', opsSummary);
@@ -4549,19 +4558,19 @@ function toggleSettings(show) {
 
             const trAlerts = Array.isArray(systemAlertState.tr) ? systemAlertState.tr : null;
             const thsrAlerts = Array.isArray(systemAlertState.thsr) ? systemAlertState.thsr : null;
-            let opsSummary = '霈?????臭葉';
-            let opsDetail = '甇??郊?粹???萇???啁?????;
+            let opsSummary = '讀取營運訊息中';
+            let opsDetail = '正在同步臺鐵與高鐵的最新營運狀態。';
             if (trAlerts && thsrAlerts) {
                 const abnormalItems = [
-                    ...trAlerts.map(msg => `?粹 ${msg}`),
-                    ...thsrAlerts.map(msg => `擃 ${msg}`)
+                    ...trAlerts.map(msg => `臺鐵 ${msg}`),
+                    ...thsrAlerts.map(msg => `高鐵 ${msg}`)
                 ];
                 opsSummary = abnormalItems.length
-                    ? `???啣虜?內嚗?{abnormalItems.length} ?
-                    : '?桀??∠??撣?;
+                    ? `營運異常提示：${abnormalItems.length} 則`
+                    : '目前無營運異常';
                 opsDetail = abnormalItems.length
                     ? abnormalItems.join('\n')
-                    : '?桀?瘝??啁????啣虜?砍???;
+                    : '目前沒有新的營運異常公告。';
             }
             setText('heroOpsSummary', opsSummary);
             setText('heroOpsDetail', opsDetail);
@@ -4583,7 +4592,7 @@ function toggleSettings(show) {
                         
                         const li = document.createElement('li');
                         li.className = sys === 'tr' ? 'fav-tag' : 'thsr-fav-tag';
-                        li.innerHTML = `?? ${s}??{e}`;
+                        li.innerHTML = `📍 ${s}→${e}`;
                         li.onclick = (ev) => { 
                             ev.stopPropagation(); 
                             openAppOverlay(sys, { start: s, end: e }); 
@@ -4621,14 +4630,14 @@ function toggleSettings(show) {
 
         function findNearest(sys) {
             if (stationDB[sys].length === 0) {
-                alert("頠?鞈?甇?銝?銝哨?隢?敺?閰?..");
+                alert("車站資料正在下載中，請稍後再試...");
                 return;
             }
-            if (!navigator.geolocation) { alert("?汗?其??舀摰?"); return; }
+            if (!navigator.geolocation) { alert("瀏覽器不支援定位"); return; }
             const btns = document.querySelectorAll('.geo-btn span');
             const targetSpan = sys === 'tr' ? btns[0] : btns[1];
             const originalText = targetSpan.innerText;
-            targetSpan.innerText = "?儭?...";
+            targetSpan.innerText = "🛰️ ...";
             
             navigator.geolocation.getCurrentPosition((pos) => {
                 let nearest = null, minDist = Infinity;
@@ -4637,18 +4646,18 @@ function toggleSettings(show) {
                     if(d < minDist) { minDist = d; nearest = st.name; }
                 });
                 if (nearest) {
-                    targetSpan.innerText = `?? ?餈? ${nearest}`;
+                    targetSpan.innerText = `📍 最近: ${nearest}`;
                     setTimeout(() => {
                         openAppOverlay(sys, { station: nearest });
                     }, 800);
                 }
-            }, () => { targetSpan.innerText = originalText; alert("?⊥???雿蔭"); });
+            }, () => { targetSpan.innerText = originalText; alert("無法取得位置"); });
         }
 
         const translations = {
-            zh: { title: "?唳??餉”", subtitle: "Real-time Railway Data", tra: "?粹", thsr: "擃", settings: "蝟餌絞閮剖?", done: "?脣?銝阡?? },
+            zh: { title: "新時刻表", subtitle: "Real-time Railway Data", tra: "臺鐵", thsr: "高鐵", settings: "系統設定", done: "儲存並離開" },
             en: { title: "Timetable Pro", subtitle: "Live Railway Data", tra: "TRA", thsr: "THSR", settings: "Settings", done: "Save & Exit" },
-            jp: { title: "?銵?Pro", subtitle: "?芥?怒?扎???", tra: "?圈?", thsr: "擃?", settings: "閮剖?", done: "靽?" }
+            jp: { title: "時刻表 Pro", subtitle: "リアルタイム運行", tra: "台鉄", thsr: "高鉄", settings: "設定", done: "保存" }
         };
         function changeLanguage(lang) {
             if (window.RailAssistantCommon?.changeLanguage) {
@@ -4699,7 +4708,7 @@ function toggleSettings(show) {
         }
 
 
-        // ===== 擐活?脣擐?瘜冽?鈭?嚗憿舐內銝甈∴? =====
+        // ===== 首次進入首頁注意事項（只顯示一次） =====
         function showHomeNoticeOnce() {
             try {
                 if (sessionStorage.getItem('home_notice_shown') === '1') return;
@@ -4741,7 +4750,7 @@ function toggleSettings(show) {
         });
     };
 
-    // ?????(銝蔣?踹??急??Ｗ漲)
+    // 背景初始化 (不影響動畫流暢度)
     showHomeNoticeOnce();
     initTilt();
     initRouteAssistant();
@@ -4749,24 +4758,25 @@ function toggleSettings(show) {
     const cachedStations = readStationCache();
     if (cachedStations) applyStationData(cachedStations);
     if(localStorage.getItem('theme') === 'light') document.body.classList.add('light-mode');
+    if (localStorage.getItem('push_enabled') === 'true') registerHomeNotificationServiceWorker();
     if(typeof window.refreshHomePanels === 'function') window.refreshHomePanels();
-    if (localStorage.getItem('push_enabled') === 'true' || (typeof Notification !== 'undefined' && Notification.permission === 'granted')) {
-        ensureHomeNotificationRegistration().catch(() => {});
-    }
 
-    // 1. ?瑁?頛?瘚?
-    await updateStatus("甇???? TDX 隡箸???..", 800);
+    // 1. 執行載入動畫流程
+    await updateStatus("正在連線 TDX 伺服器...", 800);
     const success = await getTdxToken();
-    await updateStatus("甇??湔?典頠?鞈?...", 600);
-    await updateStatus("皞?撠梁?", 800);
+    await updateStatus("正在更新全台車站資料...", 600);
+    await updateStatus("準備就緒", 800);
     
-    // 2. 憿舐內?敺?甇∟?隤?    await updateStatus("??甇∟?雿輻 ??, 1000);
+    // 2. 顯示最後的歡迎語
+    await updateStatus("✨ 歡迎使用 ✨", 1000);
 
-    // 3. ?詨?靽格迤嚗Ⅱ靽??Splash Screen 銝血??圈????    setTimeout(() => {
+    // 3. 核心修正：確保隱藏 Splash Screen 並回到首頁畫面
+    setTimeout(() => {
         if (splash) {
             splash.style.opacity = '0';
-            splash.style.pointerEvents = 'none'; // 蝣箔?銝???摨?????            
-            // 蝑??腹?摰?敺器摨? DOM ??閬死蝘駁
+            splash.style.pointerEvents = 'none'; // 確保不會擋住底下的點擊
+            
+            // 等待過渡動畫完成後徹底從 DOM 或 視覺移除
             setTimeout(() => {
                 splash.style.display = 'none';
                 if (success) startMonitorSystem(true);
@@ -4775,10 +4785,9 @@ function toggleSettings(show) {
     }, 1200);
 };
     </script>
-    <script src="../shared/rail-network.js"></script>
-    <script src="../shared/rail-assistant-common.js"></script>
-    <script src="./assistant-upgrade.js"></script>
-     <script src="../monitor.js"></script>
+    <script charset="UTF-8" src="../shared/rail-network.js?v=20260319-utf8fix"></script>
+    <script charset="UTF-8" src="../shared/rail-assistant-common.js?v=20260319-utf8fix"></script>
+    <script charset="UTF-8" src="./assistant-embed-bridge.js?v=20260319-embedbridge8"></script>
+     <script charset="UTF-8" src="../monitor.js?v=20260319-utf8fix"></script>
 </body>
 </html>
-
