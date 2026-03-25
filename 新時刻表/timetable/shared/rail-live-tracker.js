@@ -43,6 +43,15 @@
     return value && typeof value.then === "function" ? value : Promise.resolve(value);
   }
 
+  async function ensureLiveTrackerAccess() {
+    if (!window.RailFeatureGate?.ensureAccess) return true;
+    try {
+      return await window.RailFeatureGate.ensureAccess("live-tracker");
+    } catch (_) {
+      return false;
+    }
+  }
+
   function readPageValue(expression) {
     try {
       return window.eval(expression);
@@ -1161,6 +1170,7 @@
   }
 
   async function renderTracker(state) {
+    if (!(await ensureLiveTrackerAccess())) return;
     try {
       const scheduleSources = await ensureScheduleReady(state.system);
       if (!scheduleSources.length) {
@@ -1431,11 +1441,15 @@
         state.renderButton.textContent = previousLabel;
       });
     };
-    tab.addEventListener("click", () => {
+    tab.addEventListener("click", async () => {
+      if (!(await ensureLiveTrackerAccess())) return;
       window.switchQueryPanel?.(PANEL_ID);
       run();
     });
-    state.renderButton.addEventListener("click", run);
+    state.renderButton.addEventListener("click", async () => {
+      if (!(await ensureLiveTrackerAccess())) return;
+      run();
+    });
     state.routeSelect?.addEventListener("change", run);
     state.directionSelect?.addEventListener("change", run);
     let timer = null;

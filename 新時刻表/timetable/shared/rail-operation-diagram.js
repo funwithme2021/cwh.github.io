@@ -172,6 +172,15 @@
     return value && typeof value.then === "function" ? value : Promise.resolve(value);
   }
 
+  async function ensureOperationDiagramAccess() {
+    if (!window.RailFeatureGate?.ensureAccess) return true;
+    try {
+      return await window.RailFeatureGate.ensureAccess("operation-diagram");
+    } catch (_) {
+      return false;
+    }
+  }
+
   function nextFrame() {
     return new Promise((resolve) => requestAnimationFrame(() => resolve()));
   }
@@ -1423,6 +1432,7 @@
   }
 
   async function renderOperationDiagram(state) {
+    if (!(await ensureOperationDiagramAccess())) return;
     const button = state.renderButton;
     const previousLabel = button.textContent;
     button.disabled = true;
@@ -1741,11 +1751,15 @@
 
   function bindOperationPanel(state, tab) {
     const render = () => renderOperationDiagram(state);
-    tab.addEventListener("click", () => {
+    tab.addEventListener("click", async () => {
+      if (!(await ensureOperationDiagramAccess())) return;
       window.switchQueryPanel?.(PANEL_ID);
       if (!state.output.querySelector(".rail-op-export-scope")) render();
     });
-    state.renderButton.addEventListener("click", render);
+    state.renderButton.addEventListener("click", async () => {
+      if (!(await ensureOperationDiagramAccess())) return;
+      render();
+    });
     state.resetButton.addEventListener("click", () => resetState(state));
 
     [state.routeSelect, state.directionSelect, state.scaleSelect, state.labelSelect].forEach((element) => {

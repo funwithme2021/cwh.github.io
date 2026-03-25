@@ -373,6 +373,15 @@
     return value && typeof value.then === "function" ? value : Promise.resolve(value);
   }
 
+  async function ensureAiFeatureAccess() {
+    if (!window.RailFeatureGate?.ensureAccess) return true;
+    try {
+      return await window.RailFeatureGate.ensureAccess("ai");
+    } catch (_) {
+      return false;
+    }
+  }
+
   function readPageValue(expression) {
     try {
       return window.eval(expression);
@@ -1466,8 +1475,10 @@
       renderEmpty(state);
       return;
     }
-    state.lastPrompt = raw;
     state.input.value = raw;
+    const allowed = await ensureAiFeatureAccess();
+    if (!allowed) return;
+    state.lastPrompt = raw;
     state.view = { route: { direct: 0, transfer: 0 }, station: 0 };
     state.renderState = null;
     await window.RailAssistantCommon?.ensureStationLocaleData?.();

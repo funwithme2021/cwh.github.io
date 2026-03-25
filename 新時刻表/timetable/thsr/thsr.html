@@ -2921,7 +2921,30 @@
   }
   
   function bindQueryTabs(){ document.querySelectorAll('.query-tab').forEach(btn=>{ btn.addEventListener('click',()=>switchQueryPanel(btn.dataset.target)); }); }
-  function switchQueryPanel(panelId){ document.querySelectorAll('.query-tab').forEach(b=>b.classList.remove('active')); document.querySelectorAll('.query-panel').forEach(p=>p.classList.add('hidden')); const tab = document.querySelector(`.query-tab[data-target="${panelId}"]`); const panel = document.getElementById(panelId); if(tab) tab.classList.add('active'); if(panel) panel.classList.remove('hidden'); }
+  async function switchQueryPanel(panelId){
+    const featureMap = {
+      'panel-ai': 'ai',
+      'panel-live-tracker': 'live-tracker',
+      'panel-master-table': 'master-table',
+      'panel-operation-diagram': 'operation-diagram'
+    };
+    const feature = featureMap[panelId];
+    if(feature && window.RailFeatureGate?.ensureAccess){
+      try{
+        const allowed = await window.RailFeatureGate.ensureAccess(feature);
+        if(!allowed) return false;
+      }catch(_){
+        return false;
+      }
+    }
+    document.querySelectorAll('.query-tab').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('.query-panel').forEach(p=>p.classList.add('hidden'));
+    const tab = document.querySelector(`.query-tab[data-target="${panelId}"]`);
+    const panel = document.getElementById(panelId);
+    if(tab) tab.classList.add('active');
+    if(panel) panel.classList.remove('hidden');
+    return true;
+  }
 
   const modal = document.getElementById('trainModal');
   function closeModal(){
@@ -3778,11 +3801,13 @@
 </script>
 
 <script charset="UTF-8" src="../shared/rail-assistant-common.js?v=20260319-utf8fix"></script>
-<script charset="UTF-8" src="../shared/rail-page-assistant.js?v=20260319-aichips3"></script>
+<script charset="UTF-8" src="../shared/rail-feature-gate.js?v=20260326-captcha4"></script>
+<script charset="UTF-8" src="../shared/rail-page-assistant.js?v=20260326-captcha1"></script>
 <script charset="UTF-8" src="../shared/rail-network.js?v=20260319-utf8fix"></script>
-<script charset="UTF-8" src="../shared/rail-master-table.js?v=20260319-utf8fix"></script>
-<script charset="UTF-8" src="../shared/rail-operation-diagram.js?v=20260319-utf8fix"></script>
-<script charset="UTF-8" src="../shared/rail-live-tracker.js?v=20260319-utf8fix"></script>
+<script charset="UTF-8" src="../shared/rail-master-table.js?v=20260326-captcha1"></script>
+<script charset="UTF-8" src="../shared/rail-operation-diagram.js?v=20260326-captcha1"></script>
+<script charset="UTF-8" src="../shared/rail-live-tracker.js?v=20260326-captcha1"></script>
+<script charset="UTF-8" src="../shared/rail-usage-footer.js?v=20260326-footer3"></script>
 <script>
 window.addEventListener('load', () => {
   window.initRailPageAssistant?.('thsr');

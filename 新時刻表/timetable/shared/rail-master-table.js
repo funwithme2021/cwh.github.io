@@ -85,6 +85,15 @@
     return value && typeof value.then === "function" ? value : Promise.resolve(value);
   }
 
+  async function ensureMasterTableAccess() {
+    if (!window.RailFeatureGate?.ensureAccess) return true;
+    try {
+      return await window.RailFeatureGate.ensureAccess("master-table");
+    } catch (_) {
+      return false;
+    }
+  }
+
   function escapeHtml(value) {
     return String(value || "")
       .replace(/&/g, "&amp;")
@@ -1753,6 +1762,7 @@
   }
 
   async function renderMasterTable(state) {
+    if (!(await ensureMasterTableAccess())) return;
     const button = state.renderButton;
     const exportButton = state.exportButton;
     const oldLabel = button.textContent;
@@ -2057,11 +2067,15 @@
 
   function bindMasterPanel(state, tab) {
     const render = () => renderMasterTable(state);
-    tab.addEventListener("click", () => {
+    tab.addEventListener("click", async () => {
+      if (!(await ensureMasterTableAccess())) return;
       window.switchQueryPanel?.(PANEL_ID);
       if (!state.output.querySelector(".rail-master-export-scope")) render();
     });
-    state.renderButton.addEventListener("click", render);
+    state.renderButton.addEventListener("click", async () => {
+      if (!(await ensureMasterTableAccess())) return;
+      render();
+    });
     state.exportButton.addEventListener("click", () => exportMasterPdf(state));
     state.resetButton.addEventListener("click", () => resetState(state));
     state.panel.querySelector("#railMasterSwap")?.addEventListener("click", () => {
