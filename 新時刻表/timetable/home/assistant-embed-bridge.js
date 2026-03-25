@@ -122,55 +122,6 @@
         flex-direction:column;
         gap:14px;
       }
-      .home-rail-assistant-lock{
-        display:flex;
-        flex-direction:column;
-        gap:14px;
-        padding:18px;
-        border:1px solid rgba(148,163,184,0.18);
-        border-radius:22px;
-        background:
-          radial-gradient(circle at top left, rgba(59,130,246,0.12), transparent 28%),
-          linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02));
-      }
-      .home-rail-assistant-lock h3{
-        margin:0;
-        font-size:1.06rem;
-      }
-      .home-rail-assistant-lock p{
-        margin:0;
-        color:var(--text-muted, #64748b);
-        line-height:1.75;
-      }
-      .home-rail-assistant-lock-actions{
-        display:flex;
-        flex-wrap:wrap;
-        gap:10px;
-      }
-      .home-rail-assistant-lock-btn{
-        min-height:44px;
-        border-radius:14px;
-        border:1px solid rgba(59,130,246,0.28);
-        background:rgba(59,130,246,0.14);
-        color:inherit;
-        padding:0 16px;
-        font:inherit;
-        font-weight:800;
-        cursor:pointer;
-        transition:transform .18s ease, border-color .18s ease, background .18s ease;
-      }
-      .home-rail-assistant-lock-btn:hover{
-        transform:translateY(-1px);
-        border-color:rgba(59,130,246,0.42);
-      }
-      body.light-mode .home-rail-assistant-lock{
-        background:
-          radial-gradient(circle at top left, rgba(59,130,246,0.08), transparent 28%),
-          linear-gradient(180deg, rgba(255,255,255,0.94), rgba(248,250,252,0.96));
-      }
-      body.light-mode .home-rail-assistant-lock-btn{
-        background:rgba(59,130,246,0.10);
-      }
       .home-rail-assistant-pane{
         display:none;
         border-radius:18px;
@@ -323,18 +274,6 @@
     `;
   }
 
-  function buildLockedMarkup(host, activeSystem) {
-    host.innerHTML = `
-      <div class="home-rail-assistant-lock">
-        <h3>AI 功能已上鎖</h3>
-        <p>第一次使用或短時間內使用太頻繁時，需要先輸入驗證碼。解鎖後即可使用 ${escapeHtml(SYSTEMS[activeSystem]?.label || "AI 助手")}。</p>
-        <div class="home-rail-assistant-lock-actions">
-          <button type="button" class="home-rail-assistant-lock-btn" data-ai-unlock="1">輸入驗證碼並解鎖</button>
-        </div>
-      </div>
-    `;
-  }
-
   function getPane(host, system) {
     return host.querySelector(`.home-rail-assistant-pane[data-system="${system}"]`);
   }
@@ -353,15 +292,6 @@
     host.querySelectorAll(".home-rail-assistant-pane").forEach((pane) => {
       pane.classList.toggle("active", pane.dataset.system === system);
     });
-  }
-
-  async function ensureParentAiAccess() {
-    if (!window.RailFeatureGate?.ensureAccess) return true;
-    try {
-      return await window.RailFeatureGate.ensureAccess("ai");
-    } catch (_) {
-      return false;
-    }
   }
 
   function markPaneReady(host, system) {
@@ -447,14 +377,9 @@
 
   function bindTabs(host) {
     host.querySelectorAll(".home-rail-assistant-tab").forEach((button) => {
-      button.addEventListener("click", async () => {
+      button.addEventListener("click", () => {
         const system = button.dataset.system;
         if (!system || !SYSTEMS[system]) return;
-        if (host.dataset.aiUnlocked !== "1") {
-          host.dataset.defaultSystem = system;
-          await unlockHost(host);
-          return;
-        }
         setActiveSystem(host, system);
         ensureFrame(host, system);
       });
@@ -462,30 +387,21 @@
   }
 
   function activateHost(host, activeSystem) {
-    const initialQuery = new URLSearchParams(location.search).get("q") || "";
     buildHostMarkup(host, activeSystem);
     bindTabs(host);
     ensureFrame(host, activeSystem);
     applyInitialQuery(host);
   }
 
-  async function unlockHost(host) {
-    const initialQuery = new URLSearchParams(location.search).get("q") || "";
-    const activeSystem = detectPreferredSystem(initialQuery) || host.dataset.defaultSystem || "tr";
-    const allowed = await ensureParentAiAccess();
-    if (!allowed) return false;
-    host.dataset.aiUnlocked = "1";
-    activateHost(host, activeSystem);
-    return true;
-  }
-
   function initHost(host) {
     const initialQuery = new URLSearchParams(location.search).get("q") || "";
     const activeSystem = detectPreferredSystem(initialQuery) || host.dataset.defaultSystem || "tr";
-    if (window.RailFeatureGate?.ensureAccess) {
-      buildLockedMarkup(host, activeSystem);
-      host.querySelector('[data-ai-unlock="1"]')?.addEventListener("click", () => {
-        unlockHost(host);
+    const requirement = window.RailFeatureGate?.getRequirement?.("ai");
+    if (requirement?.required && window.RailFeatureGate?.mountInlineChallenge) {
+      window.RailFeatureGate.mountInlineChallenge(host, "ai", {
+        onSuccess() {
+          activateHost(host, activeSystem);
+        },
       });
       return;
     }
