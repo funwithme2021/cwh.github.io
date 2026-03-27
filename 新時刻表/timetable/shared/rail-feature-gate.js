@@ -16,6 +16,14 @@
     { id: "seat", label: "座位", icon: "💺" },
     { id: "alert", label: "提醒", icon: "🔔" },
     { id: "bag", label: "行李", icon: "🧳" },
+    { id: "flower", label: "花卉", icon: "🌸" },
+    { id: "sun", label: "太陽", icon: "☀️" },
+    { id: "rain", label: "雨", icon: "🌧️" },
+    { id: "dog", label: "狗", icon: "🐶" },
+    { id: "cat", label: "貓", icon: "🐱" },
+    { id: "food", label: "食物", icon: "🍔" },
+    { id: "fruit", label: "水果", icon: "🍇" },
+    { id: "gay", label: " LGBTQ+ ", icon: "🏳️‍🌈" },
   ];
   const IMAGE_SELECTION_CATEGORIES = [
     {
