@@ -150,6 +150,21 @@
     return number % 2 === 0 ? "even" : "odd";
   }
 
+  function getTrainNoSortValue(trainNo) {
+    const digits = String(trainNo || "").match(/\d+/g);
+    if (!digits?.length) return Number.POSITIVE_INFINITY;
+    const number = Number(digits.join(""));
+    return Number.isFinite(number) ? number : Number.POSITIVE_INFINITY;
+  }
+
+  function sortSnapshotsByTrainNo(snapshots) {
+    return [...(snapshots || [])].sort(
+      (a, b) =>
+        getTrainNoSortValue(a?.trainNo) - getTrainNoSortValue(b?.trainNo) ||
+        String(a?.trainNo || "").localeCompare(String(b?.trainNo || ""), "en")
+    );
+  }
+
   function getDirectionKey(system, trainNo) {
     const parity = getTrainNoParity(trainNo);
     if (system === "thsr") return parity === "even" ? "north" : "south";
@@ -816,7 +831,7 @@
       nextTime,
       displayRoute,
       statusText,
-      boardLabel: `🚆${entry.trainNo}次 ${entry.type}`,
+      boardLabel: `🚆${entry.trainNo} ${entry.type}`,
       directionGlyph,
       soonStation,
       soonMinutes,
@@ -966,7 +981,7 @@
 
   function buildTrainTitleHTML(system, snapshot, withRoute) {
     const typeHtml = system === "tr" ? renderTraTypeHTML(snapshot.type) : `<span style="font-weight:700">${escapeHtml(snapshot.type || "高鐵")}</span>`;
-    return `🚆${escapeHtml(snapshot.trainNo)}次 ${typeHtml}${withRoute ? `（${escapeHtml(snapshot.displayRoute)}）` : ""}`;
+    return `🚆${escapeHtml(snapshot.trainNo)} ${typeHtml}${withRoute ? `（${escapeHtml(snapshot.displayRoute)}）` : ""}`;
   }
 
   function buildSnapshotBoardMeta(snapshot) {
@@ -1154,7 +1169,7 @@
         <span class="rail-live-train-anchor">${escapeHtml(snapshot.directionGlyph)}</span>
         <span class="rail-live-train-connector"></span>
         <span class="rail-live-train-copy">
-          <strong>🚆${escapeHtml(snapshot.trainNo)}次 ${state.system === "tr" ? renderTraTypeHTML(snapshot.type) : escapeHtml(snapshot.type || "高鐵")}</strong>
+          <strong>🚆${escapeHtml(snapshot.trainNo)} ${state.system === "tr" ? renderTraTypeHTML(snapshot.type) : escapeHtml(snapshot.type || "高鐵")}</strong>
         </span>
       `;
       marker.addEventListener("click", () => openTrainDetail(snapshot.trainNo, snapshot.originDate || snapshot.queryDate));
@@ -1210,7 +1225,7 @@
       state.snapshots = snapshots;
       state.segment = segment;
       state.stationEvents = buildStationEventMap(snapshots, segment.stations);
-      const visibleSnapshots = snapshots.filter((snapshot) => snapshot.state !== "arrived");
+      const visibleSnapshots = sortSnapshotsByTrainNo(snapshots.filter((snapshot) => snapshot.state !== "arrived"));
 
       const note =
         state.system === "tr" && getQueryDate() === todayDateStr()
