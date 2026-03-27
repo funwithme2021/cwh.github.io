@@ -2784,6 +2784,7 @@ td{ border-bottom: 1px solid rgba(255,255,255,0.06); }
 </div>
 
 <script charset="UTF-8" src="./train.real-schedule.js?v=20260319-utf8fix"></script>
+<script charset="UTF-8" src="../shared/rail-station-query-common.js?v=20260327-station1"></script>
 <script>
   // ===== 全域 =====
   let nameToId = {};
@@ -5471,6 +5472,43 @@ function renderTransferTable(){
         };
       
           selectedTrainTypesStation=getSelectedTypesSafe('station');
+
+          const sharedTraBuilder = window.RailStationQueryCommon?.buildTraStationRowsFromInstances;
+          if(typeof sharedTraBuilder === 'function'){
+            const sharedRows = sharedTraBuilder({
+              scheduleItems: scheduleKeyList,
+              stationName: station,
+              directionValue: dir,
+              queryDateStr: currentQueryDateStr,
+              splitArrDep,
+              buildAbsMinutes,
+              getStopDateStr,
+              getTrainStatusLabel,
+              getAdjustedTime,
+              renderTimeWithDelay,
+              isEvenTrainNo
+            }).filter(r => !selectedTrainTypesStation.length || selectedTrainTypesStation.includes(r.type));
+
+            if(!sharedRows.length){
+              const trEmpty = tbody.insertRow();
+              const tdEmpty = trEmpty.insertCell();
+              tdEmpty.colSpan = 4;
+              tdEmpty.style.textAlign = 'center';
+              tdEmpty.style.color = 'var(--text-muted)';
+              tdEmpty.textContent = '查無符合條件的班次';
+              return;
+            }
+
+            sharedRows.forEach(r=>{
+              let tr=tbody.insertRow();
+              tr.insertCell().innerHTML=String(r.trainNo).includes('A')?`<b>${r.trainNo}</b><span class="badge-sea">海</span>`:`<b>${r.trainNo}</b>`;
+              tr.insertCell().innerHTML=renderTraTypeCell(r.type, r.range);
+              tr.insertCell().innerHTML=highlightPeak(r.depHTML);
+              tr.insertCell().innerHTML=colorStatus(r.status);
+              tr.addEventListener('click',()=>showTrainDetails(r.trainNo, r.originDate));
+            });
+            return;
+          }
       
           const rows = [];
           scheduleKeyList.forEach(item=>{

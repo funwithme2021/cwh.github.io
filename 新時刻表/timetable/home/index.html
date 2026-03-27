@@ -647,7 +647,7 @@ select.setting-input[id*="pick"] {
         .content.home-shell{
             width: 100%;
             max-width: 1180px;
-            padding: 18px 24px calc(176px + env(safe-area-inset-bottom, 0px));
+            padding: 18px 24px 148px;
             text-align: left;
         }
         .hero-shell{
@@ -1034,7 +1034,6 @@ select.setting-input[id*="pick"] {
         }
         .summary-card{
             padding: 22px;
-            min-width: 0;
             border-radius: 24px;
             border: 1px solid rgba(255,255,255,0.08);
             background:
@@ -1231,14 +1230,11 @@ select.setting-input[id*="pick"] {
         }
         .home-toolbar-grid{
             display:grid;
-            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            grid-template-columns: minmax(0, 1fr);
             gap: 14px;
-            align-items: stretch;
         }
         .home-toolbar-card{
             min-height: 100%;
-            min-width: 0;
-            width: 100%;
         }
         .home-toolbar-card strong{
             display:block;
@@ -1304,310 +1300,6 @@ select.setting-input[id*="pick"] {
         body.light-mode .home-toolbar-pill{
             border-color: rgba(15,23,42,0.06);
             background: rgba(255,255,255,0.88);
-        }
-        .home-train-card{
-            display:flex;
-            flex-direction:column;
-        }
-        .home-train-card-head{
-            display:flex;
-            flex-direction: row;
-            flex-wrap: nowrap;
-            align-items:flex-start;
-            justify-content:space-between;
-            gap: 10px;
-        }
-        .home-train-head-main{
-            min-width: 0;
-            flex: 0 0 auto;
-            display:grid;
-            gap: 6px;
-        }
-        .home-train-head-controls{
-            min-width: 0;
-            flex: 1 1 auto;
-            display:grid;
-            grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-            gap: 6px;
-            align-items: end;
-        }
-        .home-train-toolbar{
-            display:grid;
-            gap: 6px;
-            margin-top: 6px;
-        }
-        .home-train-compact-row{
-            display:grid;
-            gap: 6px;
-            align-items:end;
-        }
-        .home-train-compact-row.controls{
-            grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-        }
-        .home-train-compact-row.station{
-            grid-template-columns: minmax(0, 1fr) auto;
-        }
-        .home-train-toggle-shell{
-            display:grid;
-            gap: 4px;
-        }
-        .home-train-toolbar-label{
-            color: var(--text-muted);
-            font-size: .72rem;
-            font-weight: 800;
-            letter-spacing: .06em;
-            text-transform: uppercase;
-        }
-        .home-train-toggle-group{
-            display:flex;
-            flex-wrap:wrap;
-            gap: 4px;
-            padding: 4px;
-            border-radius: 999px;
-            border: 1px solid rgba(255,255,255,0.08);
-            background: rgba(255,255,255,0.05);
-        }
-        body.light-mode .home-train-toggle-group{
-            border-color: rgba(15,23,42,0.06);
-            background: rgba(255,255,255,0.86);
-        }
-        .home-train-toggle{
-            display:inline-flex;
-            align-items:center;
-            justify-content:center;
-            gap: 4px;
-            min-height: 34px;
-            padding: 0 10px;
-            border: 0;
-            border-radius: 999px;
-            background: transparent;
-            color: var(--text-muted);
-            font: inherit;
-            font-size: .83rem;
-            font-weight: 800;
-            cursor: pointer;
-            transition: transform .18s ease, background .18s ease, color .18s ease, box-shadow .18s ease;
-        }
-        .home-train-toggle:hover{
-            transform: translateY(-1px);
-        }
-        .home-train-toggle.active{
-            color: #fff;
-            box-shadow: 0 10px 22px rgba(15,23,42,0.22);
-        }
-        .home-train-toggle[data-system="tr"].active{
-            background: linear-gradient(135deg, #2563eb, #0ea5e9);
-        }
-        .home-train-toggle[data-system="thsr"].active{
-            background: linear-gradient(135deg, #f97316, #fb923c);
-        }
-        .home-train-station-field{
-            display:grid;
-            gap: 4px;
-        }
-        .home-train-select{
-            width: 100%;
-            min-height: 38px;
-            border-radius: 12px;
-            border: 1px solid rgba(255,255,255,0.08);
-            background: rgba(255,255,255,0.06);
-            color: var(--text-main);
-            padding: 0 10px;
-            font: inherit;
-            font-size: .85rem;
-        }
-        body.light-mode .home-train-select{
-            border-color: rgba(15,23,42,0.06);
-            background: rgba(255,255,255,0.9);
-        }
-        .home-train-select:focus{
-            outline: none;
-            border-color: rgba(59,130,246,0.28);
-            box-shadow: 0 0 0 4px rgba(59,130,246,0.12);
-        }
-        .home-train-locate{
-            min-width: 100px;
-            min-height: 38px;
-            display:inline-flex;
-            align-items:center;
-            justify-content:center;
-            gap: 6px;
-            border-radius: 12px;
-            border: 1px solid rgba(255,255,255,0.08);
-            background: linear-gradient(135deg, rgba(59,130,246,0.16), rgba(14,165,233,0.14));
-            color: var(--text-main);
-            padding: 0 12px;
-            font: inherit;
-            font-size: .84rem;
-            font-weight: 800;
-            cursor: pointer;
-        }
-        body.light-mode .home-train-locate{
-            border-color: rgba(15,23,42,0.06);
-            background: linear-gradient(135deg, rgba(59,130,246,0.12), rgba(14,165,233,0.08));
-        }
-        .home-train-locate[disabled]{
-            opacity: 0.58;
-            cursor: not-allowed;
-        }
-        .home-train-board{
-            margin-top: 12px;
-            padding: 12px;
-            border-radius: 18px;
-            border: 1px solid rgba(255,255,255,0.08);
-            background: rgba(255,255,255,0.05);
-        }
-        body.light-mode .home-train-board{
-            border-color: rgba(15,23,42,0.06);
-            background: rgba(255,255,255,0.86);
-        }
-        .home-train-table-wrap{
-            overflow-x: auto;
-        }
-        .home-train-table{
-            width: 100%;
-            min-width: 0;
-            table-layout: fixed;
-            border-collapse: collapse;
-        }
-        .home-train-table th,
-        .home-train-table td{
-            width: 20%;
-            padding: 7px 4px;
-            text-align: left;
-            border-bottom: 1px solid rgba(148,163,184,0.16);
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            font-size: .8rem;
-            vertical-align: middle;
-            line-height: 1.18;
-        }
-        .home-train-table th{
-            color: var(--text-muted);
-            font-size: .68rem;
-            font-weight: 800;
-            letter-spacing: .04em;
-            text-transform: uppercase;
-        }
-        .home-train-table tr:last-child td{
-            border-bottom: none;
-        }
-        .home-train-table td:nth-child(1),
-        .home-train-table td:nth-child(4),
-        .home-train-table td:nth-child(5){
-            font-variant-numeric: tabular-nums;
-        }
-        .home-train-type{
-            font-weight: 700;
-        }
-        .home-train-type-text{
-            display:inline;
-            font-size: .78rem;
-            font-weight: 800;
-        }
-        .home-train-destination{
-            font-weight: 700;
-        }
-        .home-train-time{
-            display:flex;
-            flex-wrap:wrap;
-            align-items:baseline;
-            gap: 6px;
-            font-variant-numeric: tabular-nums;
-        }
-        .home-train-time-main{
-            font-weight: 800;
-        }
-        .home-train-time-old{
-            color: var(--text-muted);
-            text-decoration: line-through;
-            text-decoration-thickness: 2px;
-        }
-        .home-train-time-live{
-            color: #ef4444;
-            font-weight: 900;
-        }
-        .home-train-time-day{
-            color: var(--text-muted);
-            font-size: .7rem;
-            font-weight: 800;
-            letter-spacing: .03em;
-        }
-        .home-train-note-rotator{
-            position: relative;
-            display: inline-grid;
-            min-width: 64px;
-            min-height: 18px;
-            align-items: center;
-        }
-        .home-train-note-item{
-            grid-area: 1 / 1;
-            display:inline-block;
-            color: var(--text-main);
-            font-size: .74rem;
-            font-weight: 800;
-            line-height: 1;
-            opacity: 0;
-            transform: translateY(6px);
-            transition: opacity .26s ease, transform .26s ease;
-        }
-        .home-train-note-item.active{
-            opacity: 1;
-            transform: translateY(0);
-        }
-        .home-train-note-item.delay{
-            color: #ef4444;
-        }
-        .home-train-note-item.ontime{
-            color: #10b981;
-        }
-        .home-train-note-item.approach{
-            color: #d97706;
-        }
-        .home-train-note-item.dwell{
-            color: #2563eb;
-        }
-        .home-train-note-item.departing{
-            color: #0f766e;
-        }
-        .home-train-empty{
-            padding: 18px 12px;
-            text-align: center;
-            color: var(--text-muted);
-            line-height: 1.7;
-            font-size: .88rem;
-        }
-        .home-train-marquee{
-            margin-top: 12px;
-            padding: 12px 14px;
-            border-radius: 16px;
-            border: 1px solid rgba(255,255,255,0.08);
-            background: rgba(15,23,42,0.18);
-            overflow: hidden;
-            position: relative;
-        }
-        body.light-mode .home-train-marquee{
-            border-color: rgba(15,23,42,0.06);
-            background: rgba(248,250,252,0.96);
-        }
-        .home-train-marquee-track{
-            display: flex;
-            align-items: center;
-            gap: 28px;
-            min-width: 100%;
-            width: max-content;
-            white-space: nowrap;
-            font-size: .88rem;
-            font-weight: 700;
-        }
-        .home-train-marquee-track.animated{
-            padding-left: 100%;
-            animation: home-train-marquee-scroll 26s linear infinite;
-        }
-        @keyframes home-train-marquee-scroll{
-            0%{ transform: translateX(0); }
-            100%{ transform: translateX(-50%); }
         }
         .monitor-shell{
             margin-top: 20px;
@@ -2291,7 +1983,7 @@ select.setting-input[id*="pick"] {
             background: linear-gradient(135deg, #2563eb, #0ea5e9);
         }
         .dock-container{
-            bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+            bottom: 24px;
             gap: 12px;
         }
         .tools-popup{
@@ -2351,19 +2043,10 @@ select.setting-input[id*="pick"] {
                 text-align:center;
             }
             .content.home-shell{
-                padding: 14px 16px calc(236px + env(safe-area-inset-bottom, 0px));
+                padding: 14px 16px 138px;
             }
             .home-toolbar-grid{
                 grid-template-columns: 1fr;
-            }
-            .home-train-card-head{
-                flex-direction: column;
-                align-items: stretch;
-                gap: 8px;
-            }
-            .home-train-head-controls{
-                grid-template-columns: 1fr 1fr;
-                gap: 4px;
             }
             .entry-grid.system-grid{
                 grid-template-columns: 1fr;
@@ -2410,30 +2093,6 @@ select.setting-input[id*="pick"] {
             }
             .monitor-item{
                 grid-template-columns: 1fr;
-            }
-            .home-train-compact-row.controls{
-                grid-template-columns: 1fr 1fr;
-                gap: 4px;
-            }
-            .home-train-compact-row.station{
-                grid-template-columns: minmax(0, 1fr) auto;
-                gap: 4px;
-            }
-            .home-train-toolbar{
-                gap: 4px;
-                margin-top: 4px;
-            }
-            .home-train-locate{
-                min-width: 88px;
-                padding: 0 10px;
-            }
-            .home-train-table th,
-            .home-train-table td{
-                padding: 6px 3px;
-                font-size: .75rem;
-            }
-            .home-train-note-rotator{
-                min-width: 56px;
             }
             .summary-card{
                 padding: 18px;
@@ -2546,66 +2205,6 @@ select.setting-input[id*="pick"] {
                         <button class="home-tool-btn" type="button" onclick="openPreferredHome('tr')">臺鐵首頁站</button>
                         <button class="home-tool-btn" type="button" onclick="openPreferredHome('thsr')">高鐵首頁站</button>
                         <button class="home-tool-btn" type="button" onclick="toggleSettings(true)">設定 / 監控</button>
-                    </div>
-                </article>
-                <article class="summary-card home-toolbar-card home-train-card">
-                    <div class="summary-card-head home-train-card-head">
-                        <div class="home-train-head-main">
-                            <span class="summary-eyebrow">Departures</span>
-                            <h3>列車資訊</h3>
-                        </div>
-                        <div class="home-train-head-controls">
-                            <div class="home-train-toggle-shell">
-                                <span class="home-train-toolbar-label">系統</span>
-                                <div id="homeTrainSystemGroup" class="home-train-toggle-group" data-kind="system">
-                                    <button type="button" class="home-train-toggle" data-home-train-system="tr" data-system="tr">🚆 臺鐵</button>
-                                    <button type="button" class="home-train-toggle" data-home-train-system="thsr" data-system="thsr">🚅 高鐵</button>
-                                </div>
-                            </div>
-                            <div class="home-train-toggle-shell">
-                                <span class="home-train-toolbar-label">方向</span>
-                                <div id="homeTrainDirectionGroup" class="home-train-toggle-group" data-kind="direction"></div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="home-train-toolbar">
-                        <div class="home-train-compact-row station">
-                            <label class="home-train-station-field">
-                                <span class="home-train-toolbar-label">車站</span>
-                                <select id="homeTrainStationSelect" class="home-train-select">
-                                    <option value="">載入車站資料中...</option>
-                                </select>
-                            </label>
-                            <button id="homeTrainLocateBtn" class="home-train-locate" type="button">
-                                <span>📍</span>
-                                <span>最近車站</span>
-                            </button>
-                        </div>
-                    </div>
-                    <div class="home-train-board">
-                        <div class="home-train-table-wrap">
-                            <table class="home-train-table" aria-label="最近 3 班列車資訊">
-                                <thead>
-                                    <tr>
-                                        <th>車次</th>
-                                        <th>車種</th>
-                                        <th>開往</th>
-                                        <th>時間</th>
-                                        <th>備註</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="homeTrainTableBody">
-                                    <tr>
-                                        <td colspan="5" class="home-train-empty">正在準備車站資料...</td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
-                        <div class="home-train-marquee" id="homeTrainMarquee" aria-live="polite" title="最近一班列車資訊">
-                            <div class="home-train-marquee-track" id="homeTrainMarqueeTrack">
-                                <span>請先選擇車站，這裡會顯示最近一班列車的完整摘要。</span>
-                            </div>
-                        </div>
                     </div>
                 </article>
             </div>
@@ -3485,67 +3084,14 @@ select.setting-input[id*="pick"] {
         let lastNotificationStates = {};
         let cachedTrainList = { tra: null, thsr: null }; 
         let systemAlertState = { tr: null, thsr: null };
-        let systemAlertFetchState = { tr: 'idle', thsr: 'idle' };
         const rotatingTextTimers = {};
         let assistantRouteCache = { date: '', tra: null, thsr: null };
         let assistantSeatCache = {};
         let assistantTrainLiveCache = {};
         const STATION_CACHE_KEY = 'rail_station_cache_v2';
-        const HOME_TRAIN_PANEL_STORAGE_KEY = 'home_train_panel_v1';
-        const HOME_TRAIN_REFRESH_MS = 30000;
-        const HOME_TRAIN_PREV_DAY_WINDOW_MINUTES = 480;
-        const HOME_THSR_STATION_ORDER = ['南港', '台北', '板橋', '桃園', '新竹', '苗栗', '台中', '彰化', '雲林', '嘉義', '台南', '左營'];
-        let homeTraLiveBoardCache = { savedAt: 0, map: {} };
-        let homeTrainPanelRenderSeq = 0;
-        let homeTrainPanelLocateBusy = false;
-        let homeTrainPanelAutoRefreshTimer = null;
-        let homeTrainNoteRotateTimer = null;
-        let routeDatasetCache = { tr: {}, thsr: {} };
-        let routeDatasetPending = { tr: {}, thsr: {} };
-        const HOME_TRA_TYPE_COLORS = {
-            '新自強': '#7c3aed',
-            '普悠瑪': '#db2777',
-            '太魯閣': '#2563eb',
-            '自強號': '#e11d48',
-            '莒光號': '#ea580c',
-            '區間快': '#16a34a',
-            '區間車': '#475569',
-            '普快車': '#0f766e',
-            '柴油客車': '#92400e',
-            '普通車': '#1d4ed8',
-            '列車': '#64748b'
-        };
 
         function normalizeTRA(str) { return str ? str.replace(/台/g, '臺') : ''; }
         function normalizeTHSR(str) { return str ? str.replace(/臺/g, '台') : ''; }
-        function getHomeTrainDefaultDirection(sys) {
-            return sys === 'thsr' ? 'south' : 'even';
-        }
-        function loadHomeTrainPanelState() {
-            let parsed = {};
-            try {
-                parsed = JSON.parse(localStorage.getItem(HOME_TRAIN_PANEL_STORAGE_KEY) || '{}') || {};
-            } catch (_) {
-                parsed = {};
-            }
-            return {
-                system: parsed.system === 'thsr' ? 'thsr' : 'tr',
-                stationBySystem: {
-                    tr: normalizeTRA(parsed.stationBySystem?.tr || localStorage.getItem('tr_home') || ''),
-                    thsr: normalizeTHSR(parsed.stationBySystem?.thsr || localStorage.getItem('thsr_home') || '')
-                },
-                directionBySystem: {
-                    tr: parsed.directionBySystem?.tr === 'odd' ? 'odd' : 'even',
-                    thsr: parsed.directionBySystem?.thsr === 'north' ? 'north' : 'south'
-                }
-            };
-        }
-        const homeTrainPanelState = loadHomeTrainPanelState();
-        function saveHomeTrainPanelState() {
-            try {
-                localStorage.setItem(HOME_TRAIN_PANEL_STORAGE_KEY, JSON.stringify(homeTrainPanelState));
-            } catch (_) { }
-        }
         function uniqueTexts(list) {
             const seen = new Set();
             const out = [];
@@ -3701,22 +3247,17 @@ select.setting-input[id*="pick"] {
                     'https://tdx.transportdata.tw/api/basic/v2/Rail/THSR/AlertInfo?$format=JSON'
                 ];
             const collected = [];
-            let successCount = 0;
             for (const url of urls) {
                 try {
                     const res = await fetch(url, { headers });
                     if (!res.ok) continue;
-                    successCount += 1;
                     const data = await res.json();
                     const records = normalizeAlertRecords(data);
                     if (!records) continue;
                     collected.push(...records.map(buildAlertMessage));
                 } catch (e) {}
             }
-            return {
-                messages: uniqueTexts(collected),
-                successCount
-            };
+            return uniqueTexts(collected);
         }
         function summarizeMessages(messages, maxItems = 2) {
             const unique = uniqueTexts(messages);
@@ -3763,24 +3304,6 @@ select.setting-input[id*="pick"] {
             }
             return unique;
         }
-        function setStatusUnavailable(prefix, textEl, wrapEl, dotEl, message = '資料暫時無法更新') {
-            const displayItems = [`${prefix}: ${message}`];
-            const titleText = displayItems.join('\n');
-            rotateTextMessages(textEl?.id || `${prefix}-unavailable`, displayItems, (current) => {
-                if (textEl) {
-                    textEl.innerText = current;
-                    textEl.title = titleText;
-                    textEl.style.color = '#f97316';
-                }
-                if (wrapEl) {
-                    wrapEl.classList.toggle('alert-scroll', current.length > 28);
-                    wrapEl.title = titleText;
-                }
-            });
-            if (dotEl) {
-                dotEl.className = 'status-dot warn';
-            }
-        }
         function readStationCache() {
             try {
                 const raw = JSON.parse(localStorage.getItem(STATION_CACHE_KEY) || 'null');
@@ -3810,65 +3333,15 @@ select.setting-input[id*="pick"] {
                 document.getElementById('thsrGeoBtn').classList.remove('loading');
                 document.getElementById('thsrGeoBtn').querySelector('span').innerText = '📍 定位並查看最近車站';
             }
-            if (typeof window.refreshHomePanels === 'function') window.refreshHomePanels();
         }
         function todayDateStr() {
             const d = new Date();
             return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
         }
-        function shiftDateStr(dateStr, dayOffset) {
-            if (!dateStr) return '';
-            const [year, month, day] = String(dateStr).split('-').map(value => Number(value) || 0);
-            const date = new Date(year, Math.max(0, month - 1), day || 1, 0, 0, 0, 0);
-            date.setDate(date.getDate() + (Number(dayOffset) || 0));
-            return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
-        }
         function timeToMinutes(t) {
             if (!t || !/^\d{1,2}:\d{2}$/.test(String(t))) return null;
             const [h, m] = String(t).split(':').map(Number);
             return h * 60 + m;
-        }
-        function buildDateFromDateStrAndMinute(dateStr, minuteValue) {
-            if (!dateStr || !Number.isFinite(minuteValue)) return null;
-            const [year, month, day] = String(dateStr).split('-').map(value => Number(value) || 0);
-            const date = new Date(year, Math.max(0, month - 1), day || 1, 0, 0, 0, 0);
-            date.setMinutes(Math.round(minuteValue));
-            return date;
-        }
-        function getDateLabelMMDD(dateStr) {
-            if (!/^\d{4}-\d{2}-\d{2}$/.test(String(dateStr || ''))) return '';
-            return String(dateStr).slice(5).replace('-', '/');
-        }
-        function getDateStrFromAbsoluteMinute(originDateStr, absoluteMinute) {
-            if (!originDateStr || !Number.isFinite(absoluteMinute)) return '';
-            return shiftDateStr(originDateStr, Math.floor(absoluteMinute / 1440));
-        }
-        function buildAbsoluteStopTimes(stops) {
-            let previousAbsoluteMinute = null;
-            const resolveAbsoluteMinute = (rawMinute) => {
-                if (rawMinute === null) return null;
-                let absoluteMinute = rawMinute;
-                while (previousAbsoluteMinute !== null && absoluteMinute < previousAbsoluteMinute) {
-                    absoluteMinute += 1440;
-                }
-                previousAbsoluteMinute = absoluteMinute;
-                return absoluteMinute;
-            };
-            return (stops || []).map(stop => {
-                const arrRawMinute = timeToMinutes(String(stop?.arr || '').trim());
-                const depRawMinute = timeToMinutes(String(stop?.dep || '').trim());
-                return {
-                    ...stop,
-                    arrAbsMinute: resolveAbsoluteMinute(arrRawMinute),
-                    depAbsMinute: resolveAbsoluteMinute(depRawMinute)
-                };
-            });
-        }
-        function getStopArrivalAbsoluteMinute(stop) {
-            return stop?.arrAbsMinute ?? stop?.depAbsMinute ?? null;
-        }
-        function getStopDepartureAbsoluteMinute(stop) {
-            return stop?.depAbsMinute ?? stop?.arrAbsMinute ?? null;
         }
         function durationTextByClock(dep, arr) {
             const depMin = timeToMinutes(dep);
@@ -3900,56 +3373,6 @@ select.setting-input[id*="pick"] {
             else if (name.includes("太魯閣")) name = "太魯閣";
             else if (name.includes("莒光")) name = "莒光號";
             return name || '列車';
-        }
-        function mapTraRouteDataset(data) {
-            return (data.TrainTimetables || []).map(item => ({
-                trainNo: item.TrainInfo?.TrainNo || '',
-                type: simplifyTraTypeName(item.TrainInfo?.TrainTypeName?.Zh_tw || ''),
-                stops: (item.StopTimes || []).map(stop => ({
-                    name: stop.StationName?.Zh_tw || '',
-                    dep: stop.DepartureTime || stop.ArrivalTime || '',
-                    arr: stop.ArrivalTime || stop.DepartureTime || ''
-                }))
-            }));
-        }
-        function mapThsrRouteDataset(data) {
-            return (Array.isArray(data) ? data : []).map(item => ({
-                trainNo: item.DailyTrainInfo?.TrainNo || item.TrainDate?.TrainNo || '',
-                type: item.DailyTrainInfo?.TrainTypeName?.Zh_tw || '高鐵',
-                stops: (item.StopTimes || []).map(stop => ({
-                    name: stop.StationName?.Zh_tw || '',
-                    dep: stop.DepartureTime || stop.ArrivalTime || '',
-                    arr: stop.ArrivalTime || stop.DepartureTime || ''
-                }))
-            }));
-        }
-        async function fetchRouteDatasetForDate(sys, dateStr) {
-            const cacheBucket = routeDatasetCache[sys] || (routeDatasetCache[sys] = {});
-            if (Array.isArray(cacheBucket[dateStr])) return cacheBucket[dateStr];
-            const pendingBucket = routeDatasetPending[sys] || (routeDatasetPending[sys] = {});
-            if (pendingBucket[dateStr]) return pendingBucket[dateStr];
-            if (!tdxToken) await getTdxToken();
-            if (!tdxToken) return [];
-
-            const headers = { 'Authorization': `Bearer ${tdxToken}` };
-            const url = sys === 'tr'
-                ? `https://tdx.transportdata.tw/api/basic/v3/Rail/TRA/DailyTrainTimetable/TrainDate/${dateStr}?%24format=JSON`
-                : `https://tdx.transportdata.tw/api/basic/v2/Rail/THSR/DailyTimetable/TrainDate/${dateStr}?$format=JSON`;
-
-            pendingBucket[dateStr] = fetch(url, { headers })
-                .then(res => {
-                    if (!res.ok) throw new Error(`route fetch failed: ${res.status}`);
-                    return res.json();
-                })
-                .then(data => sys === 'tr' ? mapTraRouteDataset(data) : mapThsrRouteDataset(data))
-                .catch(() => [])
-                .then(dataset => {
-                    cacheBucket[dateStr] = dataset;
-                    delete pendingBucket[dateStr];
-                    return dataset;
-                });
-
-            return pendingBucket[dateStr];
         }
         function resolveStationName(raw, sys) {
             const list = (stationDB[sys] || []).map(item => item.name);
@@ -3991,18 +3414,41 @@ select.setting-input[id*="pick"] {
             if (assistantRouteCache.date !== dateStr) {
                 assistantRouteCache = { date: dateStr, tra: null, thsr: null };
             }
+            const headers = { 'Authorization': `Bearer ${tdxToken}` };
             const tasks = [];
             if (wanted.includes('tr') && !assistantRouteCache.tra) {
                 tasks.push(
-                    fetchRouteDatasetForDate('tr', dateStr)
-                        .then(data => { assistantRouteCache.tra = data; })
+                    fetch(`https://tdx.transportdata.tw/api/basic/v3/Rail/TRA/DailyTrainTimetable/TrainDate/${dateStr}?%24format=JSON`, { headers })
+                        .then(res => res.json())
+                        .then(data => {
+                            assistantRouteCache.tra = (data.TrainTimetables || []).map(item => ({
+                                trainNo: item.TrainInfo?.TrainNo || '',
+                                type: simplifyTraTypeName(item.TrainInfo?.TrainTypeName?.Zh_tw || ''),
+                                stops: (item.StopTimes || []).map(stop => ({
+                                    name: stop.StationName?.Zh_tw || '',
+                                    dep: stop.DepartureTime || stop.ArrivalTime || '',
+                                    arr: stop.ArrivalTime || stop.DepartureTime || ''
+                                }))
+                            }));
+                        })
                         .catch(() => { assistantRouteCache.tra = []; })
                 );
             }
             if (wanted.includes('thsr') && !assistantRouteCache.thsr) {
                 tasks.push(
-                    fetchRouteDatasetForDate('thsr', dateStr)
-                        .then(data => { assistantRouteCache.thsr = data; })
+                    fetch(`https://tdx.transportdata.tw/api/basic/v2/Rail/THSR/DailyTimetable/TrainDate/${dateStr}?$format=JSON`, { headers })
+                        .then(res => res.json())
+                        .then(data => {
+                            assistantRouteCache.thsr = (Array.isArray(data) ? data : []).map(item => ({
+                                trainNo: item.DailyTrainInfo?.TrainNo || item.TrainDate?.TrainNo || '',
+                                type: '直達',
+                                stops: (item.StopTimes || []).map(stop => ({
+                                    name: stop.StationName?.Zh_tw || '',
+                                    dep: stop.DepartureTime || stop.ArrivalTime || '',
+                                    arr: stop.ArrivalTime || stop.DepartureTime || ''
+                                }))
+                            }));
+                        })
                         .catch(() => { assistantRouteCache.thsr = []; })
                 );
             }
@@ -4142,549 +3588,6 @@ select.setting-input[id*="pick"] {
                 displayEnd: intent.endRaw
             }, results);
         }
-
-        function getHomeTrainSystemLabel(sys) {
-            return sys === 'thsr' ? '高鐵' : '臺鐵';
-        }
-        function getHomeTrainDirectionOptions(sys) {
-            return sys === 'thsr'
-                ? [
-                    { value: 'south', label: '南下', detailLabel: '南下(奇數車次)' },
-                    { value: 'north', label: '北上', detailLabel: '北上(偶數車次)' }
-                ]
-                : [
-                    { value: 'even', label: '順行', detailLabel: '順行(偶數車次)' },
-                    { value: 'odd', label: '逆行', detailLabel: '逆行(奇數車次)' }
-                ];
-        }
-        function getHomeTrainDirectionLabel(sys, value) {
-            const item = getHomeTrainDirectionOptions(sys).find(option => option.value === value);
-            return item?.detailLabel || item?.label || '';
-        }
-        function getTrainNoNumericValue(trainNo) {
-            const digits = String(trainNo || '').match(/\d+/g);
-            if (!digits || !digits.length) return Number.POSITIVE_INFINITY;
-            const value = Number(digits.join(''));
-            return Number.isFinite(value) ? value : Number.POSITIVE_INFINITY;
-        }
-        function formatMinuteOfDay(minuteValue) {
-            if (!Number.isFinite(minuteValue)) return '--';
-            const normalized = ((Math.round(minuteValue) % 1440) + 1440) % 1440;
-            const hour = Math.floor(normalized / 60);
-            const minute = normalized % 60;
-            return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
-        }
-        function getHomeTrainDirectionKey(sys, trainNo) {
-            const numeric = getTrainNoNumericValue(trainNo);
-            if (!Number.isFinite(numeric)) return '';
-            if (sys === 'thsr') return numeric % 2 === 0 ? 'north' : 'south';
-            return numeric % 2 === 0 ? 'even' : 'odd';
-        }
-        function getHomeThsrDirectionFromStops(stops, trainNo) {
-            const stopList = Array.isArray(stops) ? stops : [];
-            const firstStation = normalizeTHSR(stopList[0]?.name || '');
-            const lastStation = normalizeTHSR(stopList[stopList.length - 1]?.name || '');
-            const firstIndex = HOME_THSR_STATION_ORDER.indexOf(firstStation);
-            const lastIndex = HOME_THSR_STATION_ORDER.indexOf(lastStation);
-            if (firstIndex >= 0 && lastIndex >= 0 && firstIndex !== lastIndex) {
-                return firstIndex < lastIndex ? 'south' : 'north';
-            }
-            return getHomeTrainDirectionKey('thsr', trainNo);
-        }
-        function matchesHomeTrainDirection(sys, trainNo, directionValue, stops) {
-            if (!directionValue) return true;
-            if (sys === 'thsr') {
-                return getHomeThsrDirectionFromStops(stops, trainNo) === directionValue;
-            }
-            return getHomeTrainDirectionKey(sys, trainNo) === directionValue;
-        }
-        function simplifyHomeTrainTypeForTable(typeName) {
-            const text = String(typeName || '列車').trim();
-            if (!text) return '列車';
-            if (text === '區間車') return '區間';
-            if (text === '普通車') return '普通';
-            if (text === '普快車') return '普快';
-            return text.replace(/號$/g, '').trim() || '列車';
-        }
-        function getHomeTrainTypeColor(sys, typeName, trainNo, directionKey) {
-            if (sys === 'thsr') {
-                return (directionKey || getHomeTrainDirectionKey(sys, trainNo)) === 'north' ? '#2563eb' : '#f97316';
-            }
-            const normalized = String(typeName || '').trim() || '列車';
-            const simplified = simplifyTraTypeName(normalized);
-            if (simplified === '區間車' && !document.body.classList.contains('light-mode')) {
-                return '#f8fafc';
-            }
-            return HOME_TRA_TYPE_COLORS[normalized] || HOME_TRA_TYPE_COLORS[simplified] || '#64748b';
-        }
-        function clearHomeTrainNoteRotation() {
-            if (!homeTrainNoteRotateTimer) return;
-            clearInterval(homeTrainNoteRotateTimer);
-            homeTrainNoteRotateTimer = null;
-        }
-        function startHomeTrainNoteRotation() {
-            clearHomeTrainNoteRotation();
-            const rotators = Array.from(document.querySelectorAll('.home-train-note-rotator'));
-            if (!rotators.length) return;
-
-            let hasMulti = false;
-            rotators.forEach((rotator) => {
-                const items = Array.from(rotator.querySelectorAll('.home-train-note-item'));
-                rotator.dataset.noteIndex = '0';
-                items.forEach((item, index) => item.classList.toggle('active', index === 0));
-                if (items.length > 1) hasMulti = true;
-            });
-            if (!hasMulti) return;
-
-            homeTrainNoteRotateTimer = window.setInterval(() => {
-                document.querySelectorAll('.home-train-note-rotator').forEach((rotator) => {
-                    const items = Array.from(rotator.querySelectorAll('.home-train-note-item'));
-                    if (items.length <= 1) return;
-                    const nextIndex = (Number(rotator.dataset.noteIndex || 0) + 1) % items.length;
-                    rotator.dataset.noteIndex = String(nextIndex);
-                    items.forEach((item, index) => item.classList.toggle('active', index === nextIndex));
-                });
-            }, 2800);
-        }
-        function getHomeTrainPreferredStation(sys) {
-            const current = resolveStationName(homeTrainPanelState.stationBySystem[sys] || '', sys);
-            if (current) return current;
-            const home = resolveStationName(localStorage.getItem(`${sys}_home`) || '', sys);
-            if (home) return home;
-            const fallback = resolveStationName(sys === 'thsr' ? '台北' : '臺北', sys);
-            if (fallback) return fallback;
-            return stationDB[sys]?.[0]?.name || '';
-        }
-        function getHomeTrainActiveStation(sys) {
-            const resolved = resolveStationName(homeTrainPanelState.stationBySystem[sys] || '', sys) || getHomeTrainPreferredStation(sys);
-            if (resolved) {
-                homeTrainPanelState.stationBySystem[sys] = resolved;
-                saveHomeTrainPanelState();
-            }
-            return resolved;
-        }
-        function buildHomeTrainStationOptionsHTML(sys) {
-            return (stationDB[sys] || [])
-                .map(item => `<option value="${escapeHtml(item.name)}">${escapeHtml(item.name)}</option>`)
-                .join('');
-        }
-        function syncHomeTrainPanelControls() {
-            const systemGroup = document.getElementById('homeTrainSystemGroup');
-            const directionGroup = document.getElementById('homeTrainDirectionGroup');
-            const stationSelect = document.getElementById('homeTrainStationSelect');
-            const locateBtn = document.getElementById('homeTrainLocateBtn');
-            if (!systemGroup || !directionGroup || !stationSelect || !locateBtn) return null;
-
-            const sys = homeTrainPanelState.system === 'thsr' ? 'thsr' : 'tr';
-            systemGroup.querySelectorAll('[data-home-train-system]').forEach((button) => {
-                button.classList.toggle('active', button.getAttribute('data-home-train-system') === sys);
-            });
-
-            const directionOptions = getHomeTrainDirectionOptions(sys);
-            directionGroup.innerHTML = directionOptions
-                .map(option => `
-                    <button
-                        type="button"
-                        class="home-train-toggle${(homeTrainPanelState.directionBySystem[sys] || getHomeTrainDefaultDirection(sys)) === option.value ? ' active' : ''}"
-                        data-home-train-direction="${escapeHtml(option.value)}"
-                        data-system="${escapeHtml(sys)}"
-                    >${escapeHtml(option.label)}</button>
-                `)
-                .join('');
-            let directionValue = homeTrainPanelState.directionBySystem[sys] || getHomeTrainDefaultDirection(sys);
-            if (!directionOptions.some(option => option.value === directionValue)) {
-                directionValue = getHomeTrainDefaultDirection(sys);
-                homeTrainPanelState.directionBySystem[sys] = directionValue;
-            }
-            directionGroup.querySelectorAll('[data-home-train-direction]').forEach((button) => {
-                button.classList.toggle('active', button.getAttribute('data-home-train-direction') === directionValue);
-            });
-
-            const stations = stationDB[sys] || [];
-            if (stations.length) {
-                stationSelect.disabled = false;
-                stationSelect.innerHTML = buildHomeTrainStationOptionsHTML(sys);
-                let stationValue = getHomeTrainActiveStation(sys) || stations[0].name;
-                stationSelect.value = stationValue;
-                if (stationSelect.value !== stationValue) {
-                    stationValue = stations[0].name;
-                    stationSelect.value = stationValue;
-                }
-                homeTrainPanelState.stationBySystem[sys] = stationValue;
-            } else {
-                stationSelect.disabled = true;
-                stationSelect.innerHTML = `<option value="">${escapeHtml(tdxToken ? '載入車站資料中...' : '等待連線 TDX...' )}</option>`;
-            }
-
-            locateBtn.disabled = homeTrainPanelLocateBusy || !stations.length;
-            locateBtn.innerHTML = homeTrainPanelLocateBusy
-                ? '<span>🛰️</span><span>定位中</span>'
-                : stations.length
-                    ? '<span>📍</span><span>最近車站</span>'
-                    : '<span>⌛</span><span>車站載入中</span>';
-            saveHomeTrainPanelState();
-
-            return {
-                system: sys,
-                direction: directionValue,
-                station: homeTrainPanelState.stationBySystem[sys] || ''
-            };
-        }
-        function setHomeTrainPanelLoading() {
-            const tbody = document.getElementById('homeTrainTableBody');
-            if (tbody) {
-                tbody.innerHTML = '<tr><td colspan="5" class="home-train-empty">正在整理本站最近班次...</td></tr>';
-            }
-            clearHomeTrainNoteRotation();
-            renderHomeTrainMarquee('正在整理最近一班列車資訊...');
-        }
-        function renderHomeTrainPanelError(message) {
-            const tbody = document.getElementById('homeTrainTableBody');
-            if (tbody) {
-                tbody.innerHTML = `<tr><td colspan="5" class="home-train-empty">${escapeHtml(message)}</td></tr>`;
-            }
-            clearHomeTrainNoteRotation();
-            renderHomeTrainMarquee(message);
-        }
-        function renderHomeTrainMarquee(text) {
-            const marquee = document.getElementById('homeTrainMarquee');
-            const track = document.getElementById('homeTrainMarqueeTrack');
-            if (!track) return;
-            const safeText = String(text || '請先選擇車站，這裡會顯示最近一班列車的完整摘要。').trim();
-            const animate = safeText.length > 42;
-            track.className = `home-train-marquee-track${animate ? ' animated' : ''}`;
-            track.innerHTML = animate
-                ? `<span>${escapeHtml(safeText)}</span><span aria-hidden="true">${escapeHtml(safeText)}</span>`
-                : `<span>${escapeHtml(safeText)}</span>`;
-            if (marquee) marquee.title = safeText;
-        }
-        async function ensureHomeTraLiveBoard() {
-            if (!tdxToken) await getTdxToken();
-            if (!tdxToken) return {};
-            if (homeTraLiveBoardCache.savedAt && (Date.now() - homeTraLiveBoardCache.savedAt) < 60000) {
-                return homeTraLiveBoardCache.map || {};
-            }
-            try {
-                const res = await fetch('https://tdx.transportdata.tw/api/basic/v3/Rail/TRA/TrainLiveBoard?%24format=JSON', {
-                    headers: { 'Authorization': `Bearer ${tdxToken}` }
-                });
-                const data = await res.json();
-                const map = {};
-                (data.TrainLiveBoards || []).forEach(item => {
-                    const trainNo = String(item.TrainNo || '').trim();
-                    if (!trainNo) return;
-                    map[trainNo] = {
-                        delay: Math.max(0, Number(item.DelayTime) || 0),
-                        station: item.StationName?.Zh_tw || ''
-                    };
-                });
-                homeTraLiveBoardCache = { savedAt: Date.now(), map };
-                return map;
-            } catch (_) {
-                return homeTraLiveBoardCache.map || {};
-            }
-        }
-        function buildHomeTrainNoteItems(stateItem, delayMinutes) {
-            const punctualityItem = delayMinutes > 0
-                ? { text: `晚${delayMinutes}分`, kind: 'delay' }
-                : { text: '準點', kind: 'ontime' };
-            return stateItem ? [stateItem, punctualityItem] : [punctualityItem];
-        }
-        function buildHomeTrainTypeHTML(sys, row) {
-            const color = getHomeTrainTypeColor(sys, row.type, row.trainNo, row.directionKey);
-            return `<span class="home-train-type-text" style="color:${escapeHtml(color)}">${escapeHtml(simplifyHomeTrainTypeForTable(row.type))}</span>`;
-        }
-        function buildHomeTrainTimeHTML(row) {
-            const dayHintHTML = row.actualDayHint
-                ? `<span class="home-train-time-day">${escapeHtml(row.actualDayHint)}</span>`
-                : '';
-            if (row.delayMinutes > 0) {
-                return `
-                    <div class="home-train-time">
-                        <span class="home-train-time-old">${escapeHtml(row.dep)}</span>
-                        <span class="home-train-time-live">${escapeHtml(row.actualDepText)}</span>
-                        ${dayHintHTML}
-                    </div>
-                `;
-            }
-            return `<div class="home-train-time"><span class="home-train-time-main">${escapeHtml(row.dep)}</span></div>`;
-        }
-        function buildHomeTrainNoteHTML(noteItems) {
-            return `
-                <div class="home-train-note-rotator">
-                    ${noteItems.map((item, index) => `<span class="home-train-note-item ${escapeHtml(item.kind)}${index === 0 ? ' active' : ''}">${escapeHtml(item.text)}</span>`).join('')}
-                </div>
-            `;
-        }
-        function buildHomeTrainRowsFromSources(sys, stationName, directionValue, sources, liveMap, nowTs) {
-            return (sources || [])
-                .flatMap(source => ((source?.dataset || []).map(train => {
-                    const stops = Array.isArray(train.stops) ? train.stops : [];
-                    const directionKey = sys === 'thsr'
-                        ? getHomeThsrDirectionFromStops(stops, train.trainNo)
-                        : getHomeTrainDirectionKey(sys, train.trainNo);
-                    if (!matchesHomeTrainDirection(sys, train.trainNo, directionValue, stops)) return null;
-                    const stationIndex = stops.findIndex(stop => stop.name === stationName);
-                    if (stationIndex < 0) return null;
-
-                    const absoluteStops = buildAbsoluteStopTimes(stops);
-                    const stationStop = absoluteStops[stationIndex] || {};
-                    const baseArrAbsMin = getStopArrivalAbsoluteMinute(stationStop);
-                    const baseDepAbsMin = getStopDepartureAbsoluteMinute(stationStop);
-                    if (!Number.isFinite(baseDepAbsMin)) return null;
-
-                    const destination = stops[stops.length - 1]?.name || '';
-                    if (!destination) return null;
-
-                    const liveInfo = liveMap[String(train.trainNo)] || {};
-                    const delayMinutes = sys === 'tr' ? Math.max(0, Number(liveInfo.delay || 0)) : 0;
-                    const actualArrAbsMin = Number.isFinite(baseArrAbsMin) ? baseArrAbsMin + delayMinutes : baseDepAbsMin + delayMinutes;
-                    const actualDepAbsMin = baseDepAbsMin + delayMinutes;
-                    const scheduledDepTs = buildDateFromDateStrAndMinute(source.originDate, baseDepAbsMin)?.getTime();
-                    const actualArrTs = buildDateFromDateStrAndMinute(source.originDate, actualArrAbsMin)?.getTime();
-                    const actualDepTs = buildDateFromDateStrAndMinute(source.originDate, actualDepAbsMin)?.getTime();
-                    if (!Number.isFinite(actualDepTs)) return null;
-
-                    let stateItem = null;
-                    const liveStationName = sys === 'tr' ? normalizeTRA(liveInfo.station || '') : '';
-                    if (sys === 'tr' && liveStationName && liveStationName === normalizeTRA(stationName) && nowTs <= actualDepTs + 60000) {
-                        stateItem = { text: '停靠中', kind: 'dwell' };
-                    } else if (Number.isFinite(actualArrTs) && nowTs >= actualArrTs && nowTs <= actualDepTs) {
-                        stateItem = { text: '停靠中', kind: 'dwell' };
-                    } else if (actualDepTs > nowTs && (actualDepTs - nowTs) <= 60000) {
-                        stateItem = { text: '即將開車', kind: 'departing' };
-                    } else if (Number.isFinite(actualArrTs) && actualArrTs > nowTs && (actualArrTs - nowTs) <= 180000) {
-                        stateItem = { text: '即將進站', kind: 'approach' };
-                    }
-
-                    const scheduledDepDateStr = getDateStrFromAbsoluteMinute(source.originDate, baseDepAbsMin);
-                    const actualDepDateStr = getDateStrFromAbsoluteMinute(source.originDate, actualDepAbsMin);
-                    return {
-                        trainNo: String(train.trainNo || ''),
-                        type: sys === 'tr' ? (train.type || '列車') : (train.type || '高鐵'),
-                        directionKey,
-                        destination,
-                        dep: formatMinuteOfDay(baseDepAbsMin),
-                        depMin: baseDepAbsMin,
-                        depTs: Number.isFinite(scheduledDepTs) ? scheduledDepTs : actualDepTs,
-                        actualArrMin: actualArrAbsMin,
-                        actualDepMin: actualDepAbsMin,
-                        actualDepTs,
-                        actualDepText: formatMinuteOfDay(actualDepAbsMin),
-                        actualDayHint: actualDepDateStr && scheduledDepDateStr && actualDepDateStr !== scheduledDepDateStr
-                            ? getDateLabelMMDD(actualDepDateStr)
-                            : '',
-                        delayMinutes,
-                        noteItems: buildHomeTrainNoteItems(stateItem, delayMinutes),
-                        afterStops: stops.slice(stationIndex + 1).map(stop => stop.name).filter(Boolean)
-                    };
-                })))
-                .filter(Boolean)
-                .sort((a, b) =>
-                    a.actualDepTs - b.actualDepTs ||
-                    a.depTs - b.depTs ||
-                    getTrainNoNumericValue(a.trainNo) - getTrainNoNumericValue(b.trainNo) ||
-                    String(a.trainNo).localeCompare(String(b.trainNo), 'en')
-                );
-        }
-        async function buildHomeTrainDepartures(sys, stationName, directionValue) {
-            const liveMap = sys === 'tr' ? await ensureHomeTraLiveBoard() : {};
-            const now = new Date();
-            const nowTs = now.getTime();
-            const nowMin = now.getHours() * 60 + now.getMinutes();
-            const todayStr = todayDateStr();
-            await ensureAssistantRouteData(todayStr, [sys]);
-            const todayDataset = sys === 'tr' ? assistantRouteCache.tra : assistantRouteCache.thsr;
-            const sources = [{
-                originDate: todayStr,
-                dataset: (Array.isArray(todayDataset) && todayDataset.length)
-                    ? todayDataset
-                    : await fetchRouteDatasetForDate(sys, todayStr)
-            }];
-            if (nowMin < HOME_TRAIN_PREV_DAY_WINDOW_MINUTES) {
-                sources.unshift({
-                    originDate: shiftDateStr(todayStr, -1),
-                    dataset: await fetchRouteDatasetForDate(sys, shiftDateStr(todayStr, -1))
-                });
-            }
-
-            let rows = buildHomeTrainRowsFromSources(sys, stationName, directionValue, sources, liveMap, nowTs);
-            let upcoming = rows.filter(row => row.actualDepTs >= (nowTs - 60000));
-
-            if (upcoming.length < 3) {
-                const tomorrowStr = shiftDateStr(todayStr, 1);
-                if (!sources.some(source => source.originDate === tomorrowStr)) {
-                    sources.push({
-                        originDate: tomorrowStr,
-                        dataset: await fetchRouteDatasetForDate(sys, tomorrowStr)
-                    });
-                    rows = buildHomeTrainRowsFromSources(sys, stationName, directionValue, sources, liveMap, nowTs);
-                    upcoming = rows.filter(row => row.actualDepTs >= (nowTs - 60000));
-                }
-            }
-
-            return {
-                rows: upcoming.slice(0, 3),
-                first: upcoming[0] || null,
-                totalUpcoming: upcoming.length
-            };
-        }
-        function buildHomeTrainMarqueeText(sys, stationName, row) {
-            if (!row) {
-                return `${stationName} 站目前沒有更晚的班次。`;
-            }
-            const stopText = row.afterStops.length ? row.afterStops.join('、') : '本站後無其他停靠站';
-            const noteText = row.noteItems.map(item => item.text).join(' / ');
-            const actualWithDay = `${row.actualDepText}${row.actualDayHint ? `（${row.actualDayHint}）` : ''}`;
-            const departText = row.delayMinutes > 0 ? `原定 ${row.dep}，預計 ${actualWithDay}` : row.dep;
-            return `${departText} 開往 ${row.destination} ${row.trainNo}次${row.type}，${noteText}，沿途停靠：${stopText}`;
-        }
-        async function renderHomeTrainPanel() {
-            const controlState = syncHomeTrainPanelControls();
-            if (!controlState) return;
-
-            const { system, direction } = controlState;
-            let stationName = controlState.station || getHomeTrainPreferredStation(system);
-            const systemLabel = getHomeTrainSystemLabel(system);
-
-            setHomeTrainPanelLoading();
-
-            const renderSeq = ++homeTrainPanelRenderSeq;
-            try {
-                if (!tdxToken) await getTdxToken();
-                if (!tdxToken) {
-                    if (renderSeq === homeTrainPanelRenderSeq) renderHomeTrainPanelError('目前無法連線 TDX 取得班次資料。');
-                    return;
-                }
-                if (!stationDB[system].length) await fetchAllStations();
-                if (renderSeq !== homeTrainPanelRenderSeq) return;
-
-                stationName = getHomeTrainActiveStation(system);
-                if (!stationName) {
-                    renderHomeTrainPanelError(`目前拿不到${systemLabel}車站資料，請稍後再試。`);
-                    return;
-                }
-                syncHomeTrainPanelControls();
-
-                const result = await buildHomeTrainDepartures(system, stationName, direction);
-                if (renderSeq !== homeTrainPanelRenderSeq) return;
-
-                const tbody = document.getElementById('homeTrainTableBody');
-                if (tbody) {
-                    tbody.innerHTML = result.rows.length
-                        ? result.rows.map(row => `
-                            <tr>
-                                <td>${escapeHtml(row.trainNo)}</td>
-                                <td class="home-train-type">${buildHomeTrainTypeHTML(system, row)}</td>
-                                <td class="home-train-destination">${escapeHtml(row.destination)}</td>
-                                <td>${buildHomeTrainTimeHTML(row)}</td>
-                                <td>${buildHomeTrainNoteHTML(row.noteItems)}</td>
-                            </tr>
-                        `).join('')
-                        : '<tr><td colspan="5" class="home-train-empty">目前沒有符合條件的接下來班次。</td></tr>';
-                }
-                startHomeTrainNoteRotation();
-                renderHomeTrainMarquee(buildHomeTrainMarqueeText(system, stationName, result.first));
-            } catch (error) {
-                console.error('home train panel render failed', error);
-                if (renderSeq === homeTrainPanelRenderSeq) {
-                    renderHomeTrainPanelError('整理列車資訊時發生錯誤，請稍後再試。');
-                }
-            }
-        }
-        async function locateHomeTrainNearestStation() {
-            const sys = homeTrainPanelState.system === 'thsr' ? 'thsr' : 'tr';
-            if (homeTrainPanelLocateBusy) return;
-            if (!navigator.geolocation) {
-                alert('瀏覽器不支援定位');
-                return;
-            }
-            if (!stationDB[sys].length) {
-                if (!tdxToken) await getTdxToken();
-                await fetchAllStations();
-                if (!stationDB[sys].length) {
-                    alert('車站資料尚未就緒，請稍後再試。');
-                    return;
-                }
-            }
-            homeTrainPanelLocateBusy = true;
-            syncHomeTrainPanelControls();
-            navigator.geolocation.getCurrentPosition((pos) => {
-                let nearest = '';
-                let minDist = Number.POSITIVE_INFINITY;
-                (stationDB[sys] || []).forEach(station => {
-                    const dist = Math.hypot(
-                        Number(station.lat) - Number(pos.coords.latitude),
-                        Number(station.lon) - Number(pos.coords.longitude)
-                    );
-                    if (dist < minDist) {
-                        minDist = dist;
-                        nearest = station.name;
-                    }
-                });
-                homeTrainPanelLocateBusy = false;
-                if (nearest) {
-                    homeTrainPanelState.stationBySystem[sys] = nearest;
-                    saveHomeTrainPanelState();
-                }
-                syncHomeTrainPanelControls();
-                renderHomeTrainPanel();
-            }, () => {
-                homeTrainPanelLocateBusy = false;
-                syncHomeTrainPanelControls();
-                alert('無法取得位置');
-            }, {
-                enableHighAccuracy: true,
-                timeout: 10000,
-                maximumAge: 60000
-            });
-        }
-        function initHomeTrainPanel() {
-            const systemGroup = document.getElementById('homeTrainSystemGroup');
-            const directionGroup = document.getElementById('homeTrainDirectionGroup');
-            const stationSelect = document.getElementById('homeTrainStationSelect');
-            const locateBtn = document.getElementById('homeTrainLocateBtn');
-            if (!systemGroup || !directionGroup || !stationSelect || !locateBtn || systemGroup.dataset.bound === '1') return;
-
-            systemGroup.dataset.bound = '1';
-            systemGroup.addEventListener('click', (event) => {
-                const button = event.target.closest('[data-home-train-system]');
-                if (!button) return;
-                homeTrainPanelState.system = button.getAttribute('data-home-train-system') === 'thsr' ? 'thsr' : 'tr';
-                saveHomeTrainPanelState();
-                syncHomeTrainPanelControls();
-                renderHomeTrainPanel();
-            });
-            directionGroup.addEventListener('click', (event) => {
-                const button = event.target.closest('[data-home-train-direction]');
-                if (!button) return;
-                const sys = homeTrainPanelState.system === 'thsr' ? 'thsr' : 'tr';
-                homeTrainPanelState.directionBySystem[sys] = button.getAttribute('data-home-train-direction') || getHomeTrainDefaultDirection(sys);
-                saveHomeTrainPanelState();
-                syncHomeTrainPanelControls();
-                renderHomeTrainPanel();
-            });
-            stationSelect.addEventListener('change', () => {
-                const sys = homeTrainPanelState.system === 'thsr' ? 'thsr' : 'tr';
-                homeTrainPanelState.stationBySystem[sys] = stationSelect.value || '';
-                saveHomeTrainPanelState();
-                renderHomeTrainPanel();
-            });
-            locateBtn.addEventListener('click', () => {
-                locateHomeTrainNearestStation();
-            });
-
-            if (!homeTrainPanelAutoRefreshTimer) {
-                homeTrainPanelAutoRefreshTimer = window.setInterval(() => {
-                    if (document.visibilityState === 'hidden') return;
-                    renderHomeTrainPanel();
-                }, HOME_TRAIN_REFRESH_MS);
-            }
-
-            syncHomeTrainPanelControls();
-            renderHomeTrainPanel();
-        }
-
         function parseMonitorLineForHome(line) {
             const text = String(line || '').trim();
             const isTHSR = text.includes('高鐵');
@@ -4751,7 +3654,6 @@ select.setting-input[id*="pick"] {
         }
 
         async function getTdxToken() {
-            if (tdxToken) return true;
             try {
                 const params = new URLSearchParams();
                 params.append('grant_type', 'client_credentials');
@@ -4824,40 +3726,24 @@ select.setting-input[id*="pick"] {
                 const trText = document.getElementById('trStatusText');
                 const trWrap = document.getElementById('trStatusTextWrap');
                 const trDot = document.getElementById('trStatusDot');
-                const trResult = await fetchAlertMessages('tr', headers);
-                if (trResult.successCount > 0) {
-                    systemAlertFetchState.tr = 'ok';
-                    systemAlertState.tr = setStatusTicker('臺鐵', trResult.messages, trText, trWrap, trDot);
-                } else {
-                    systemAlertFetchState.tr = 'error';
-                    systemAlertState.tr = null;
-                    setStatusUnavailable('臺鐵', trText, trWrap, trDot);
-                }
+                const trMessages = await fetchAlertMessages('tr', headers);
+                systemAlertState.tr = setStatusTicker('臺鐵', trMessages, trText, trWrap, trDot);
             } catch(e) {
                 console.log(e);
-                systemAlertFetchState.tr = 'error';
-                systemAlertState.tr = null;
-                setStatusUnavailable('臺鐵', document.getElementById('trStatusText'), document.getElementById('trStatusTextWrap'), document.getElementById('trStatusDot'));
+                systemAlertState.tr = [];
+                setStatusTicker('臺鐵', [], document.getElementById('trStatusText'), document.getElementById('trStatusTextWrap'), document.getElementById('trStatusDot'));
             }
 
             try {
                 const thsrText = document.getElementById('thsrStatusText');
                 const thsrWrap = document.getElementById('thsrStatusTextWrap');
                 const thsrDot = document.getElementById('thsrStatusDot');
-                const thsrResult = await fetchAlertMessages('thsr', headers);
-                if (thsrResult.successCount > 0) {
-                    systemAlertFetchState.thsr = 'ok';
-                    systemAlertState.thsr = setStatusTicker('高鐵', thsrResult.messages, thsrText, thsrWrap, thsrDot);
-                } else {
-                    systemAlertFetchState.thsr = 'error';
-                    systemAlertState.thsr = null;
-                    setStatusUnavailable('高鐵', thsrText, thsrWrap, thsrDot);
-                }
+                const thsrMessages = await fetchAlertMessages('thsr', headers);
+                systemAlertState.thsr = setStatusTicker('高鐵', thsrMessages, thsrText, thsrWrap, thsrDot);
             } catch(e) {
                 console.log(e);
-                systemAlertFetchState.thsr = 'error';
-                systemAlertState.thsr = null;
-                setStatusUnavailable('高鐵', document.getElementById('thsrStatusText'), document.getElementById('thsrStatusTextWrap'), document.getElementById('thsrStatusDot'));
+                systemAlertState.thsr = [];
+                setStatusTicker('高鐵', [], document.getElementById('thsrStatusText'), document.getElementById('thsrStatusTextWrap'), document.getElementById('thsrStatusDot'));
             }
             if(typeof window.refreshHomePanels === 'function') window.refreshHomePanels();
         }
@@ -5633,13 +4519,10 @@ function toggleSettings(show) {
             setText('heroMonitorState', monitorState);
             setText('heroMonitorHint', monitorHint);
             renderMonitorBoard(monitorOn, pushOn, monitorTargets, monitorText);
-            renderHomeTrainPanel();
 
             {
                 const trAlerts = Array.isArray(systemAlertState.tr) ? systemAlertState.tr : null;
                 const thsrAlerts = Array.isArray(systemAlertState.thsr) ? systemAlertState.thsr : null;
-                const trAlertFetchState = systemAlertFetchState.tr;
-                const thsrAlertFetchState = systemAlertFetchState.thsr;
                 let opsSummary = '讀取營運訊息中';
                 let opsDetail = '正在同步臺鐵與高鐵的最新營運狀態。';
                 let opsMessages = [];
@@ -5655,13 +4538,6 @@ function toggleSettings(show) {
                         ? abnormalItems[0]
                         : '目前沒有新的營運異常公告。';
                     opsMessages = abnormalItems;
-                } else if (trAlertFetchState === 'error' || thsrAlertFetchState === 'error') {
-                    const unavailableSystems = [
-                        trAlertFetchState === 'error' ? '臺鐵' : '',
-                        thsrAlertFetchState === 'error' ? '高鐵' : ''
-                    ].filter(Boolean);
-                    opsSummary = '營運訊息暫時不完整';
-                    opsDetail = `${unavailableSystems.join('、')} 營運異常資料暫時無法更新。`;
                 }
                 setText('heroOpsSummary', opsSummary);
                 const heroOpsDetailEl = document.getElementById('heroOpsDetail');
@@ -5682,8 +4558,6 @@ function toggleSettings(show) {
 
             const trAlerts = Array.isArray(systemAlertState.tr) ? systemAlertState.tr : null;
             const thsrAlerts = Array.isArray(systemAlertState.thsr) ? systemAlertState.thsr : null;
-            const trAlertFetchState = systemAlertFetchState.tr;
-            const thsrAlertFetchState = systemAlertFetchState.thsr;
             let opsSummary = '讀取營運訊息中';
             let opsDetail = '正在同步臺鐵與高鐵的最新營運狀態。';
             if (trAlerts && thsrAlerts) {
@@ -5697,13 +4571,6 @@ function toggleSettings(show) {
                 opsDetail = abnormalItems.length
                     ? abnormalItems.join('\n')
                     : '目前沒有新的營運異常公告。';
-            } else if (trAlertFetchState === 'error' || thsrAlertFetchState === 'error') {
-                const unavailableSystems = [
-                    trAlertFetchState === 'error' ? '臺鐵' : '',
-                    thsrAlertFetchState === 'error' ? '高鐵' : ''
-                ].filter(Boolean);
-                opsSummary = '營運訊息暫時不完整';
-                opsDetail = `${unavailableSystems.join('、')} 營運異常資料暫時無法更新。`;
             }
             setText('heroOpsSummary', opsSummary);
             setText('heroOpsDetail', opsDetail);
@@ -5887,7 +4754,6 @@ function toggleSettings(show) {
     showHomeNoticeOnce();
     initTilt();
     initRouteAssistant();
-    initHomeTrainPanel();
     renderFavs();
     const cachedStations = readStationCache();
     if (cachedStations) applyStationData(cachedStations);

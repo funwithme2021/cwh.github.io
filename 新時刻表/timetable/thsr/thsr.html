@@ -2193,6 +2193,7 @@
 </div>
 
 <script charset="UTF-8" src="./thsr.real-schedule.js?v=20260319-utf8fix"></script>
+<script charset="UTF-8" src="../shared/rail-station-query-common.js?v=20260327-station1"></script>
 <script>
   let nameToId = {};
   let stationListSorted = [];
@@ -2830,7 +2831,31 @@
   function filterTrainScheduleByStationName(){
     const st = extractStationNameFromInput(document.getElementById('stationNameInput').value); document.getElementById('stationNameInput').value = st;
     const dir = document.getElementById('directionSelect').value; if(!st) return;
-    lastStationQuery = { station: st, dir }; const list = [];
+    lastStationQuery = { station: st, dir };
+    const sharedThsrBuilder = window.RailStationQueryCommon?.buildThsrStationRowsFromSources;
+    if(typeof sharedThsrBuilder === 'function'){
+      currentStationList = sharedThsrBuilder({
+        sources: [{ map: baseSchedule, origin: currentQueryDateStr }, { map: prevSchedule, origin: addDays(currentQueryDateStr, -1) }],
+        stationName: st,
+        directionValue: dir,
+        queryDateStr: currentQueryDateStr,
+        splitArrDep,
+        stopDisplayDate,
+        getStatusLabel,
+        thsrStationIndex,
+        sameStation
+      }).map(row => ({
+        trainNo: row.trainNo,
+        range: row.range,
+        time: row.dep || '--',
+        status: row.status,
+        originDate: row.originDate
+      }));
+      renderStationTable();
+      applyTHSRMobileTableLayouts();
+      return;
+    }
+    const list = [];
     const sources = [{ map: baseSchedule, origin: currentQueryDateStr }, { map: prevSchedule, origin: addDays(currentQueryDateStr, -1) }];
     sources.forEach(src=>{
       const sch = src.map || {}; const origin = src.origin;
