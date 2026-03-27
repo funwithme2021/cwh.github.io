@@ -3494,6 +3494,7 @@ select.setting-input[id*="pick"] {
         const HOME_TRAIN_PANEL_STORAGE_KEY = 'home_train_panel_v1';
         const HOME_TRAIN_REFRESH_MS = 30000;
         const HOME_TRAIN_PREV_DAY_WINDOW_MINUTES = 480;
+        const HOME_THSR_STATION_ORDER = ['南港', '台北', '板橋', '桃園', '新竹', '苗栗', '台中', '彰化', '雲林', '嘉義', '台南', '左營'];
         let homeTraLiveBoardCache = { savedAt: 0, map: {} };
         let homeTrainPanelRenderSeq = 0;
         let homeTrainPanelLocateBusy = false;
@@ -4179,8 +4180,23 @@ select.setting-input[id*="pick"] {
             if (sys === 'thsr') return numeric % 2 === 0 ? 'north' : 'south';
             return numeric % 2 === 0 ? 'even' : 'odd';
         }
-        function matchesHomeTrainDirection(sys, trainNo, directionValue) {
-            return !directionValue || getHomeTrainDirectionKey(sys, trainNo) === directionValue;
+        function getHomeThsrDirectionFromStops(stops, trainNo) {
+            const stopList = Array.isArray(stops) ? stops : [];
+            const firstStation = normalizeTHSR(stopList[0]?.name || '');
+            const lastStation = normalizeTHSR(stopList[stopList.length - 1]?.name || '');
+            const firstIndex = HOME_THSR_STATION_ORDER.indexOf(firstStation);
+            const lastIndex = HOME_THSR_STATION_ORDER.indexOf(lastStation);
+            if (firstIndex >= 0 && lastIndex >= 0 && firstIndex !== lastIndex) {
+                return firstIndex < lastIndex ? 'south' : 'north';
+            }
+            return getHomeTrainDirectionKey('thsr', trainNo);
+        }
+        function matchesHomeTrainDirection(sys, trainNo, directionValue, stops) {
+            if (!directionValue) return true;
+            if (sys === 'thsr') {
+                return getHomeThsrDirectionFromStops(stops, trainNo) === directionValue;
+            }
+            return getHomeTrainDirectionKey(sys, trainNo) === directionValue;
         }
         function simplifyHomeTrainTypeForTable(typeName) {
             const text = String(typeName || '列車').trim();
@@ -4190,9 +4206,9 @@ select.setting-input[id*="pick"] {
             if (text === '普快車') return '普快';
             return text.replace(/號$/g, '').trim() || '列車';
         }
-        function getHomeTrainTypeColor(sys, typeName, trainNo) {
+        function getHomeTrainTypeColor(sys, typeName, trainNo, directionKey) {
             if (sys === 'thsr') {
-                return getHomeTrainDirectionKey(sys, trainNo) === 'north' ? '#2563eb' : '#f97316';
+                return (directionKey || getHomeTrainDirectionKey(sys, trainNo)) === 'north' ? '#2563eb' : '#f97316';
             }
             const normalized = String(typeName || '').trim() || '列車';
             const simplified = simplifyTraTypeName(normalized);
@@ -4375,7 +4391,7 @@ select.setting-input[id*="pick"] {
             return stateItem ? [stateItem, punctualityItem] : [punctualityItem];
         }
         function buildHomeTrainTypeHTML(sys, row) {
-            const color = getHomeTrainTypeColor(sys, row.type, row.trainNo);
+            const color = getHomeTrainTypeColor(sys, row.type, row.trainNo, row.directionKey);
             return `<span class="home-train-type-text" style="color:${escapeHtml(color)}">${escapeHtml(simplifyHomeTrainTypeForTable(row.type))}</span>`;
         }
         function buildHomeTrainTimeHTML(row) {
@@ -4403,8 +4419,11 @@ select.setting-input[id*="pick"] {
         function buildHomeTrainRowsFromSources(sys, stationName, directionValue, sources, liveMap, nowTs) {
             return (sources || [])
                 .flatMap(source => ((source?.dataset || []).map(train => {
-                    if (!matchesHomeTrainDirection(sys, train.trainNo, directionValue)) return null;
                     const stops = Array.isArray(train.stops) ? train.stops : [];
+                    const directionKey = sys === 'thsr'
+                        ? getHomeThsrDirectionFromStops(stops, train.trainNo)
+                        : getHomeTrainDirectionKey(sys, train.trainNo);
+                    if (!matchesHomeTrainDirection(sys, train.trainNo, directionValue, stops)) return null;
                     const stationIndex = stops.findIndex(stop => stop.name === stationName);
                     if (stationIndex < 0) return null;
 
@@ -4415,7 +4434,7 @@ select.setting-input[id*="pick"] {
                     if (!Number.isFinite(baseDepAbsMin)) return null;
 
                     const destination = stops[stops.length - 1]?.name || '';
-                    if (!destination || destination === stationName) return null;
+                    if (!destination) return null;
 
                     const liveInfo = liveMap[String(train.trainNo)] || {};
                     const delayMinutes = sys === 'tr' ? Math.max(0, Number(liveInfo.delay || 0)) : 0;
@@ -4443,6 +4462,7 @@ select.setting-input[id*="pick"] {
                     return {
                         trainNo: String(train.trainNo || ''),
                         type: sys === 'tr' ? (train.type || '列車') : (train.type || '高鐵'),
+                        directionKey,
                         destination,
                         dep: formatMinuteOfDay(baseDepAbsMin),
                         depMin: baseDepAbsMin,
