@@ -123,12 +123,8 @@
     return max - min <= 18;
   }
 
-  function isRailDarkTheme() {
-    return document.body.classList.contains("dark-mode") || !document.body.classList.contains("light-mode");
-  }
-
   function getReadableRailColor(color) {
-    return isRailDarkTheme() && needsDarkModeNeutralSwap(color) ? "#f8fafc" : color;
+    return document.body.classList.contains("dark-mode") && needsDarkModeNeutralSwap(color) ? "#f8fafc" : color;
   }
 
   function parseMinutes(time) {
@@ -195,7 +191,6 @@
 
   function getTraTypeColor(type) {
     const normalized = normalizeTraType(type);
-    if (normalized === "區間車" && isRailDarkTheme()) return "#f8fafc";
     if (TRA_TYPE_COLORS[normalized]) return getReadableRailColor(TRA_TYPE_COLORS[normalized]);
     if (typeof window.getTrainTypeColor === "function") {
       try {
