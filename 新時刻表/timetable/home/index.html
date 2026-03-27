@@ -4449,22 +4449,27 @@ select.setting-input[id*="pick"] {
             const nowTs = now.getTime();
             const nowMin = now.getHours() * 60 + now.getMinutes();
             const todayStr = todayDateStr();
-            const sourceDates = [todayStr];
+            await ensureAssistantRouteData(todayStr, [sys]);
+            const todayDataset = sys === 'tr' ? assistantRouteCache.tra : assistantRouteCache.thsr;
+            const sources = [{
+                originDate: todayStr,
+                dataset: (Array.isArray(todayDataset) && todayDataset.length)
+                    ? todayDataset
+                    : await fetchRouteDatasetForDate(sys, todayStr)
+            }];
             if (nowMin < HOME_TRAIN_PREV_DAY_WINDOW_MINUTES) {
-                sourceDates.unshift(shiftDateStr(todayStr, -1));
+                sources.unshift({
+                    originDate: shiftDateStr(todayStr, -1),
+                    dataset: await fetchRouteDatasetForDate(sys, shiftDateStr(todayStr, -1))
+                });
             }
-
-            const sources = await Promise.all(sourceDates.map(async originDate => ({
-                originDate,
-                dataset: await fetchRouteDatasetForDate(sys, originDate)
-            })));
 
             let rows = buildHomeTrainRowsFromSources(sys, stationName, directionValue, sources, liveMap, nowTs);
             let upcoming = rows.filter(row => row.actualDepTs >= (nowTs - 60000));
 
             if (upcoming.length < 3) {
                 const tomorrowStr = shiftDateStr(todayStr, 1);
-                if (!sourceDates.includes(tomorrowStr)) {
+                if (!sources.some(source => source.originDate === tomorrowStr)) {
                     sources.push({
                         originDate: tomorrowStr,
                         dataset: await fetchRouteDatasetForDate(sys, tomorrowStr)
