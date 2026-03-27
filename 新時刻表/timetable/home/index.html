@@ -3485,6 +3485,7 @@ select.setting-input[id*="pick"] {
         let lastNotificationStates = {};
         let cachedTrainList = { tra: null, thsr: null }; 
         let systemAlertState = { tr: null, thsr: null };
+        let systemAlertFetchState = { tr: 'idle', thsr: 'idle' };
         const rotatingTextTimers = {};
         let assistantRouteCache = { date: '', tra: null, thsr: null };
         let assistantSeatCache = {};
@@ -3699,17 +3700,22 @@ select.setting-input[id*="pick"] {
                     'https://tdx.transportdata.tw/api/basic/v2/Rail/THSR/AlertInfo?$format=JSON'
                 ];
             const collected = [];
+            let successCount = 0;
             for (const url of urls) {
                 try {
                     const res = await fetch(url, { headers });
                     if (!res.ok) continue;
+                    successCount += 1;
                     const data = await res.json();
                     const records = normalizeAlertRecords(data);
                     if (!records) continue;
                     collected.push(...records.map(buildAlertMessage));
                 } catch (e) {}
             }
-            return uniqueTexts(collected);
+            return {
+                messages: uniqueTexts(collected),
+                successCount
+            };
         }
         function summarizeMessages(messages, maxItems = 2) {
             const unique = uniqueTexts(messages);
@@ -3755,6 +3761,24 @@ select.setting-input[id*="pick"] {
                 dotEl.className = hasAlerts ? 'status-dot warn' : 'status-dot ok';
             }
             return unique;
+        }
+        function setStatusUnavailable(prefix, textEl, wrapEl, dotEl, message = '資料暫時無法更新') {
+            const displayItems = [`${prefix}: ${message}`];
+            const titleText = displayItems.join('\n');
+            rotateTextMessages(textEl?.id || `${prefix}-unavailable`, displayItems, (current) => {
+                if (textEl) {
+                    textEl.innerText = current;
+                    textEl.title = titleText;
+                    textEl.style.color = '#f97316';
+                }
+                if (wrapEl) {
+                    wrapEl.classList.toggle('alert-scroll', current.length > 28);
+                    wrapEl.title = titleText;
+                }
+            });
+            if (dotEl) {
+                dotEl.className = 'status-dot warn';
+            }
         }
         function readStationCache() {
             try {
@@ -4780,24 +4804,40 @@ select.setting-input[id*="pick"] {
                 const trText = document.getElementById('trStatusText');
                 const trWrap = document.getElementById('trStatusTextWrap');
                 const trDot = document.getElementById('trStatusDot');
-                const trMessages = await fetchAlertMessages('tr', headers);
-                systemAlertState.tr = setStatusTicker('臺鐵', trMessages, trText, trWrap, trDot);
+                const trResult = await fetchAlertMessages('tr', headers);
+                if (trResult.successCount > 0) {
+                    systemAlertFetchState.tr = 'ok';
+                    systemAlertState.tr = setStatusTicker('臺鐵', trResult.messages, trText, trWrap, trDot);
+                } else {
+                    systemAlertFetchState.tr = 'error';
+                    systemAlertState.tr = null;
+                    setStatusUnavailable('臺鐵', trText, trWrap, trDot);
+                }
             } catch(e) {
                 console.log(e);
-                systemAlertState.tr = [];
-                setStatusTicker('臺鐵', [], document.getElementById('trStatusText'), document.getElementById('trStatusTextWrap'), document.getElementById('trStatusDot'));
+                systemAlertFetchState.tr = 'error';
+                systemAlertState.tr = null;
+                setStatusUnavailable('臺鐵', document.getElementById('trStatusText'), document.getElementById('trStatusTextWrap'), document.getElementById('trStatusDot'));
             }
 
             try {
                 const thsrText = document.getElementById('thsrStatusText');
                 const thsrWrap = document.getElementById('thsrStatusTextWrap');
                 const thsrDot = document.getElementById('thsrStatusDot');
-                const thsrMessages = await fetchAlertMessages('thsr', headers);
-                systemAlertState.thsr = setStatusTicker('高鐵', thsrMessages, thsrText, thsrWrap, thsrDot);
+                const thsrResult = await fetchAlertMessages('thsr', headers);
+                if (thsrResult.successCount > 0) {
+                    systemAlertFetchState.thsr = 'ok';
+                    systemAlertState.thsr = setStatusTicker('高鐵', thsrResult.messages, thsrText, thsrWrap, thsrDot);
+                } else {
+                    systemAlertFetchState.thsr = 'error';
+                    systemAlertState.thsr = null;
+                    setStatusUnavailable('高鐵', thsrText, thsrWrap, thsrDot);
+                }
             } catch(e) {
                 console.log(e);
-                systemAlertState.thsr = [];
-                setStatusTicker('高鐵', [], document.getElementById('thsrStatusText'), document.getElementById('thsrStatusTextWrap'), document.getElementById('thsrStatusDot'));
+                systemAlertFetchState.thsr = 'error';
+                systemAlertState.thsr = null;
+                setStatusUnavailable('高鐵', document.getElementById('thsrStatusText'), document.getElementById('thsrStatusTextWrap'), document.getElementById('thsrStatusDot'));
             }
             if(typeof window.refreshHomePanels === 'function') window.refreshHomePanels();
         }
@@ -5578,6 +5618,8 @@ function toggleSettings(show) {
             {
                 const trAlerts = Array.isArray(systemAlertState.tr) ? systemAlertState.tr : null;
                 const thsrAlerts = Array.isArray(systemAlertState.thsr) ? systemAlertState.thsr : null;
+                const trAlertFetchState = systemAlertFetchState.tr;
+                const thsrAlertFetchState = systemAlertFetchState.thsr;
                 let opsSummary = '讀取營運訊息中';
                 let opsDetail = '正在同步臺鐵與高鐵的最新營運狀態。';
                 let opsMessages = [];
@@ -5593,6 +5635,13 @@ function toggleSettings(show) {
                         ? abnormalItems[0]
                         : '目前沒有新的營運異常公告。';
                     opsMessages = abnormalItems;
+                } else if (trAlertFetchState === 'error' || thsrAlertFetchState === 'error') {
+                    const unavailableSystems = [
+                        trAlertFetchState === 'error' ? '臺鐵' : '',
+                        thsrAlertFetchState === 'error' ? '高鐵' : ''
+                    ].filter(Boolean);
+                    opsSummary = '營運訊息暫時不完整';
+                    opsDetail = `${unavailableSystems.join('、')} 營運異常資料暫時無法更新。`;
                 }
                 setText('heroOpsSummary', opsSummary);
                 const heroOpsDetailEl = document.getElementById('heroOpsDetail');
@@ -5613,6 +5662,8 @@ function toggleSettings(show) {
 
             const trAlerts = Array.isArray(systemAlertState.tr) ? systemAlertState.tr : null;
             const thsrAlerts = Array.isArray(systemAlertState.thsr) ? systemAlertState.thsr : null;
+            const trAlertFetchState = systemAlertFetchState.tr;
+            const thsrAlertFetchState = systemAlertFetchState.thsr;
             let opsSummary = '讀取營運訊息中';
             let opsDetail = '正在同步臺鐵與高鐵的最新營運狀態。';
             if (trAlerts && thsrAlerts) {
@@ -5626,6 +5677,13 @@ function toggleSettings(show) {
                 opsDetail = abnormalItems.length
                     ? abnormalItems.join('\n')
                     : '目前沒有新的營運異常公告。';
+            } else if (trAlertFetchState === 'error' || thsrAlertFetchState === 'error') {
+                const unavailableSystems = [
+                    trAlertFetchState === 'error' ? '臺鐵' : '',
+                    thsrAlertFetchState === 'error' ? '高鐵' : ''
+                ].filter(Boolean);
+                opsSummary = '營運訊息暫時不完整';
+                opsDetail = `${unavailableSystems.join('、')} 營運異常資料暫時無法更新。`;
             }
             setText('heroOpsSummary', opsSummary);
             setText('heroOpsDetail', opsDetail);
