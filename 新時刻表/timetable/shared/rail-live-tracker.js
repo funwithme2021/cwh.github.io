@@ -845,6 +845,138 @@
     };
   }
 
+  function buildSharedStationOnlySnapshots(entries, segment, system, queryDate) {
+    if (system !== "tr" || !segment?.stations?.length) return [];
+    const routeStations = segment.stations || [];
+
+    return (entries || [])
+      .map((entry) => {
+        const overlapStations = routeStations.filter((station) => entry.fullPathSet?.has(station));
+        if (overlapStations.length !== 1) return null;
+
+        const sharedStation = overlapStations[0];
+        const routeIndex = routeStations.indexOf(sharedStation);
+        if (!Number.isFinite(routeIndex) || routeIndex < 0) return null;
+
+        const delayMinutes = getDelayMinutes(system, entry.trainNo, queryDate);
+        const fullTimedStops = buildTimedStops(entry.stops, delayMinutes);
+        if (!fullTimedStops.length) return null;
+
+        const sharedStopIndex = fullTimedStops.findIndex((stop) => !stop.isPassOnly && stop.name === sharedStation);
+        if (sharedStopIndex < 0) return null;
+
+        const sharedStop = fullTimedStops[sharedStopIndex];
+        const arrivalMinute = getStopArrivalMinute(sharedStop);
+        const departureMinute = getStopDepartureMinute(sharedStop);
+        const eventMinute = getStopEventMinute(sharedStop);
+        const fullFirstMinute = getStopDepartureMinute(fullTimedStops[0]);
+        const fullLastMinute = getStopArrivalMinute(fullTimedStops[fullTimedStops.length - 1]);
+        const nowMinute = getRelativeNowMinute(entry.originDate, queryDate);
+
+        if (!Number.isFinite(eventMinute) || !Number.isFinite(fullFirstMinute) || !Number.isFinite(fullLastMinute) || !Number.isFinite(nowMinute)) return null;
+
+        const isOriginStation = sharedStation === entry.firstStation;
+        const isTerminalStation = sharedStation === entry.lastStation;
+        const nextStop = fullTimedStops
+          .slice(sharedStopIndex + 1)
+          .find((stop) => !stop.isPassOnly && Number.isFinite(getStopArrivalMinute(stop)));
+
+        let state = "";
+        let stateLabel = "";
+        let statusText = "";
+        let nextTime = formatMinute(eventMinute);
+        let nextStation = sharedStation;
+        let nextEventKind = "arrival";
+        let nextStopStation = nextStop?.name || "";
+        let nextStopTime = nextStop ? formatMinute(getStopArrivalMinute(nextStop)) : "";
+        let soonMinutes = Number.POSITIVE_INFINITY;
+        let soonKind = "";
+        let originEventMinute = isOriginStation ? departureMinute : null;
+
+        if (isOriginStation && Number.isFinite(departureMinute) && nowMinute < departureMinute && departureMinute - nowMinute <= UPCOMING_WINDOW) {
+          state = "upcoming";
+          stateLabel = "即將發車";
+          statusText = `即將發車·${buildPunctualityText(system, queryDate, delayMinutes)}`;
+          nextTime = formatMinute(departureMinute);
+          nextStation = sharedStation;
+          nextEventKind = "departure";
+          nextStopStation = sharedStation;
+          nextStopTime = nextTime;
+          soonMinutes = departureMinute - nowMinute;
+          soonKind = "stop";
+        } else if (Number.isFinite(arrivalMinute) && Number.isFinite(departureMinute) && nowMinute >= arrivalMinute && nowMinute <= departureMinute) {
+          state = "dwell";
+          stateLabel = "停靠中";
+          statusText = isTerminalStation ? "已到終點" : `停靠中·${buildPunctualityText(system, queryDate, delayMinutes)}`;
+          nextTime = isTerminalStation ? formatMinute(arrivalMinute) : formatMinute(nextStop ? getStopArrivalMinute(nextStop) : departureMinute);
+          nextStation = isTerminalStation ? sharedStation : (nextStop?.name || sharedStation);
+          nextEventKind = isTerminalStation ? "terminal" : "arrival";
+          soonMinutes = 0;
+          soonKind = "stop";
+        } else if (isTerminalStation && Number.isFinite(arrivalMinute) && nowMinute >= arrivalMinute && nowMinute <= arrivalMinute + 10) {
+          state = "arrived";
+          stateLabel = "已到終點";
+          statusText = "已到終點";
+          nextTime = formatMinute(arrivalMinute);
+          nextStation = sharedStation;
+          nextEventKind = "terminal";
+          soonMinutes = 0;
+          soonKind = "stop";
+        } else {
+          return null;
+        }
+
+        const totalMinutes = Math.max(0, fullLastMinute - fullFirstMinute);
+        const elapsedMinutes = clamp(nowMinute - fullFirstMinute, 0, totalMinutes);
+        const remainingMinutes = clamp(fullLastMinute - nowMinute, 0, totalMinutes);
+        const completionRatio = totalMinutes > 0 ? elapsedMinutes / totalMinutes : state === "arrived" ? 1 : 0;
+
+        return {
+          ...entry,
+          queryDate,
+          delayMinutes,
+          fullTimedStops,
+          points: [{ station: sharedStation, routeIndex, minute: eventMinute, isStop: true, sequenceIndex: 0 }],
+          stopDetails: [{ ...sharedStop, routeIndex }],
+          firstMinute: eventMinute,
+          lastMinute: eventMinute,
+          journeyFirstMinute: fullFirstMinute,
+          journeyLastMinute: fullLastMinute,
+          totalMinutes,
+          elapsedMinutes,
+          remainingMinutes,
+          completionRatio,
+          state,
+          stateLabel,
+          positionIndex: routeIndex,
+          currentFrom: sharedStation,
+          currentTo: sharedStation,
+          nextStation,
+          nextTime,
+          displayRoute: `${entry.firstStation} ➝ ${entry.lastStation}`,
+          statusText,
+          boardLabel: `🚆${entry.trainNo} ${entry.type}`,
+          directionGlyph: "●",
+          soonStation: sharedStation,
+          soonMinutes,
+          soonKind,
+          nextEventKind,
+          nextStopStation,
+          nextStopTime,
+          originEventMinute,
+          nowMinute,
+          isSoonStop: soonKind === "stop" && Number.isFinite(soonMinutes) && soonMinutes <= STATION_SOON_WINDOW,
+          locationText: state === "upcoming" ? `即將由 ${sharedStation} 發車` : state === "arrived" ? `已到 ${sharedStation}` : `${sharedStation} 停靠中`,
+          startsAtJourneyOrigin: isOriginStation,
+          sharedStationOnly: true,
+          sharedStationName: sharedStation,
+          sharedStationMode: isOriginStation ? "origin" : (isTerminalStation ? "terminal" : "stop"),
+          projectionKey: `${entry.key || entry.trainNo}|shared|${sharedStation}`,
+        };
+      })
+      .filter(Boolean);
+  }
+
   function isCircularSnapshot(snapshot) {
     return Boolean(snapshot?.firstStation) && snapshot.firstStation === snapshot.lastStation;
   }
@@ -923,6 +1055,25 @@
     snapshots.forEach((snapshot) => {
       const stopDetails = snapshot.stopDetails || [];
       if (
+        snapshot.sharedStationOnly &&
+        snapshot.state === "arrived" &&
+        snapshot.sharedStationName &&
+        Number.isFinite(snapshot.lastMinute) &&
+        snapshot.nowMinute <= snapshot.lastMinute + STATION_ALERT_WINDOW
+      ) {
+        pushStationEvent(map, snapshot.sharedStationName, {
+          trainNo: snapshot.trainNo,
+          originDate: snapshot.originDate,
+          type: snapshot.type,
+          kind: "已到終點",
+          station: snapshot.sharedStationName,
+          timeMinute: snapshot.lastMinute,
+          timeText: formatMinute(snapshot.lastMinute),
+          minutesAway: 0,
+          snapshot,
+        });
+      }
+      if (
         snapshot.state === "upcoming" &&
         snapshot.startsAtJourneyOrigin &&
         Number.isFinite(snapshot.originEventMinute) &&
@@ -989,6 +1140,11 @@
   }
 
   function buildSnapshotLocationLine(snapshot) {
+    if (snapshot.sharedStationOnly) {
+      if (snapshot.state === "arrived") return `目前在 ${snapshot.currentTo}（共用站終點）`;
+      if (snapshot.state === "upcoming") return `目前在 ${snapshot.currentFrom}（共用站），等待發車`;
+      return `目前停靠 ${snapshot.currentFrom}（共用站）`;
+    }
     if (snapshot.state === "running") return `目前在 ${snapshot.currentFrom} ➝ ${snapshot.currentTo} 間`;
     if (snapshot.state === "dwell") return `目前停靠 ${snapshot.currentFrom}`;
     if (snapshot.state === "upcoming") return `目前在 ${snapshot.currentFrom}，等待發車`;
@@ -996,6 +1152,13 @@
   }
 
   function buildSnapshotNextLine(snapshot) {
+    if (snapshot.sharedStationOnly) {
+      if (snapshot.state === "arrived") return `終點站：${snapshot.currentTo}（共用站）`;
+      if (snapshot.state === "upcoming") return `預計 ${snapshot.nextTime} 由 ${snapshot.currentFrom} 發車，離站後即離開此路線`;
+      if (snapshot.nextEventKind === "terminal") return `終點站：${snapshot.currentTo}（共用站）`;
+      const departureText = snapshot.nextStopTime || snapshot.nextTime;
+      return `預計 ${departureText} 離開 ${snapshot.currentFrom}，離站後即離開此路線`;
+    }
     if (snapshot.state === "arrived") return `終點站：${snapshot.currentTo}`;
     if (snapshot.state === "upcoming") return `預計 ${snapshot.nextTime} 由 ${snapshot.currentFrom} 發車`;
     if (snapshot.nextEventKind === "pass") {
@@ -1144,7 +1307,7 @@
       );
       const button = document.createElement("button");
       button.type = "button";
-      button.className = `rail-live-station ${events.length ? "has-alert" : ""} ${events.some((event) => event.kind === "停靠中") ? "is-busy" : ""} ${isSoon ? "is-soon" : ""} ${state.activeStation === station ? "active" : ""}`;
+      button.className = `rail-live-station ${events.length ? "has-alert" : ""} ${events.some((event) => event.kind === "停靠中" || event.kind === "已到終點") ? "is-busy" : ""} ${isSoon ? "is-soon" : ""} ${state.activeStation === station ? "active" : ""}`;
       button.style.top = `${top}px`;
       button.dataset.station = station;
       button.innerHTML = `
@@ -1155,7 +1318,7 @@
       map.appendChild(button);
     });
 
-    const visibleSnapshots = snapshots.filter((snapshot) => snapshot.state !== "arrived");
+    const visibleSnapshots = snapshots.filter((snapshot) => snapshot.state !== "arrived" || snapshot.sharedStationOnly);
     visibleSnapshots.forEach((snapshot) => {
       const anchorY = getBoardY(snapshot.positionIndex, denominator, mapHeight);
       const side = getDirectionKey(state.system, snapshot.trainNo) === "even" || getDirectionKey(state.system, snapshot.trainNo) === "north" ? "left" : "right";
@@ -1214,10 +1377,12 @@
       const directionalEntries = buildEntries(state.system, scheduleSources).filter((entry) => matchesDirection(state.system, entry.trainNo, directionValue));
       const routeEntries = directionalEntries.filter((entry) => matchesSegmentEntry(entry, segment));
       const projectedEntries = routeEntries.flatMap((entry) => buildRouteProjections(entry, segment.stations, state.system, getQueryDate()));
+      const sharedStationSnapshots = buildSharedStationOnlySnapshots(directionalEntries, segment, state.system, getQueryDate());
 
       const snapshots = dedupeCircularSnapshots(
         projectedEntries
         .map((entry) => buildSnapshot(entry, state.system, getQueryDate()))
+        .concat(sharedStationSnapshots)
         .filter(Boolean)
         .filter((snapshot) => !queryText || snapshot.trainNo.includes(queryText) || snapshot.type.includes(queryText) || snapshot.firstStation.includes(queryText) || snapshot.lastStation.includes(queryText))
       );
@@ -1225,7 +1390,7 @@
       state.snapshots = snapshots;
       state.segment = segment;
       state.stationEvents = buildStationEventMap(snapshots, segment.stations);
-      const visibleSnapshots = sortSnapshotsByTrainNo(snapshots.filter((snapshot) => snapshot.state !== "arrived"));
+      const visibleSnapshots = sortSnapshotsByTrainNo(snapshots.filter((snapshot) => snapshot.state !== "arrived" || snapshot.sharedStationOnly));
 
       const note =
         state.system === "tr" && getQueryDate() === todayDateStr()
