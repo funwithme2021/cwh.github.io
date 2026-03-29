@@ -291,6 +291,19 @@
     return offsetDays * 1440 + now.getHours() * 60 + now.getMinutes();
   }
 
+  function getRelativeNowExactMinute(originDate, queryDate) {
+    const now = new Date();
+    const today = todayDateStr();
+    const offsetDays = diffDateDays(originDate || today, today);
+    return (
+      offsetDays * 1440 +
+      now.getHours() * 60 +
+      now.getMinutes() +
+      now.getSeconds() / 60 +
+      now.getMilliseconds() / 60000
+    );
+  }
+
   async function ensureScheduleReady(system) {
     const dateStr = getQueryDate();
     let baseSchedule = readPageValue("baseSchedule") || window.trainSchedule || {};
@@ -334,7 +347,26 @@
     return names.slice();
   }
 
-  function buildJourneyPathPoints(timedStops, fullPathStations) {
+  function getJourneyInterpolationRatio(system, fullPathStations, startPathIndex, endPathIndex, currentPathIndex) {
+    const totalSteps = Math.abs(endPathIndex - startPathIndex);
+    const fallbackRatio = totalSteps > 0 ? Math.abs(currentPathIndex - startPathIndex) / totalSteps : 0;
+    if (system !== "thsr") return fallbackRatio;
+    const getMileage = getRailNetwork()?.getThsrStationMileage;
+    if (typeof getMileage !== "function") return fallbackRatio;
+    const startStation = fullPathStations?.[startPathIndex];
+    const endStation = fullPathStations?.[endPathIndex];
+    const currentStation = fullPathStations?.[currentPathIndex];
+    const startKm = Number(getMileage(startStation));
+    const endKm = Number(getMileage(endStation));
+    const currentKm = Number(getMileage(currentStation));
+    if (![startKm, endKm, currentKm].every(Number.isFinite)) return fallbackRatio;
+    const totalDistance = endKm - startKm;
+    if (!totalDistance) return fallbackRatio;
+    const ratio = (currentKm - startKm) / totalDistance;
+    return Number.isFinite(ratio) ? clamp(ratio, 0, 1) : fallbackRatio;
+  }
+
+  function buildJourneyPathPoints(system, timedStops, fullPathStations) {
     let searchStart = 0;
     const resolvePathIndex = (stationName) => {
       for (let index = searchStart; index < (fullPathStations || []).length; index += 1) {
@@ -413,7 +445,11 @@
         pushPoint({
           station,
           pathIndex,
-          minute: Math.round(travelStart + ((travelEnd - travelStart) * step) / steps),
+          minute: Math.round(
+            travelStart +
+              (travelEnd - travelStart) *
+                getJourneyInterpolationRatio(system, fullPathStations, current.pathIndex, next.pathIndex, pathIndex)
+          ),
           kind: "pass",
           isStop: false,
         });
@@ -583,7 +619,7 @@
     const routeIndexMap = new Map((routeStations || []).map((name, index) => [name, index]));
     const delayMinutes = getDelayMinutes(system, entry.trainNo, queryDate);
     const fullTimedStops = buildTimedStops(entry.stops, delayMinutes);
-    const fullPathPoints = buildJourneyPathPoints(fullTimedStops, entry.fullPathStations);
+    const fullPathPoints = buildJourneyPathPoints(system, fullTimedStops, entry.fullPathStations);
     const points = (fullPathPoints || [])
       .filter((point) => routeIndexMap.has(point.station))
       .map((point) => ({
@@ -1174,6 +1210,80 @@
     return `狀態：${snapshot.statusText}`;
   }
 
+  function easeInSine(value) {
+    return 1 - Math.cos((clamp(value, 0, 1) * Math.PI) / 2);
+  }
+
+  function easeOutSine(value) {
+    return Math.sin((clamp(value, 0, 1) * Math.PI) / 2);
+  }
+
+  function easeInOutSine(value) {
+    return -(Math.cos(Math.PI * clamp(value, 0, 1)) - 1) / 2;
+  }
+
+  function mixProgress(linear, eased, weight) {
+    return linear + (eased - linear) * clamp(weight, 0, 1);
+  }
+
+  function getAnimatedSegmentProgress(progress, fromPoint, toPoint) {
+    const linear = clamp(progress, 0, 1);
+    const fromStop = Boolean(fromPoint?.isStop);
+    const toStop = Boolean(toPoint?.isStop);
+    if (fromStop && !toStop) return mixProgress(linear, easeInSine(linear), 0.72);
+    if (!fromStop && toStop) return mixProgress(linear, easeOutSine(linear), 0.72);
+    if (fromStop && toStop) return mixProgress(linear, easeInOutSine(linear), 0.58);
+    return linear;
+  }
+
+  function getAnimatedSnapshotPosition(snapshot, queryDate) {
+    const points = snapshot?.points || [];
+    const stopDetails = snapshot?.stopDetails || [];
+    const firstPoint = points[0] || null;
+    const lastPoint = points[points.length - 1] || null;
+    const firstMinute = snapshot?.firstMinute ?? firstPoint?.minute;
+    const lastMinute = snapshot?.lastMinute ?? lastPoint?.minute;
+    if (!points.length || !Number.isFinite(firstMinute) || !Number.isFinite(lastMinute)) {
+      return Number(snapshot?.positionIndex) || 0;
+    }
+    if (snapshot?.sharedStationOnly || points.length === 1) {
+      return Number.isFinite(snapshot?.positionIndex) ? snapshot.positionIndex : firstPoint?.routeIndex ?? 0;
+    }
+
+    const nowMinute = getRelativeNowExactMinute(snapshot.originDate, queryDate || snapshot.queryDate || getQueryDate());
+    if (!Number.isFinite(nowMinute)) return Number(snapshot?.positionIndex) || 0;
+    if (nowMinute <= firstMinute) return firstPoint?.routeIndex ?? (Number(snapshot?.positionIndex) || 0);
+    if (nowMinute >= lastMinute) return lastPoint?.routeIndex ?? (Number(snapshot?.positionIndex) || 0);
+
+    for (let index = 0; index < stopDetails.length; index += 1) {
+      const current = stopDetails[index];
+      const arrivalMinute = getStopArrivalMinute(current);
+      const departureMinute = getStopDepartureMinute(current);
+      if (!Number.isFinite(arrivalMinute) || !Number.isFinite(departureMinute) || !Number.isFinite(current?.routeIndex)) continue;
+      if (nowMinute >= arrivalMinute && nowMinute < departureMinute) {
+        return current.routeIndex;
+      }
+    }
+
+    for (let index = 0; index < points.length - 1; index += 1) {
+      const current = points[index];
+      const next = points[index + 1];
+      if (!Number.isFinite(current?.minute) || !Number.isFinite(next?.minute)) continue;
+      if (nowMinute < current.minute || nowMinute > next.minute) continue;
+      if (!Number.isFinite(current?.routeIndex) || !Number.isFinite(next?.routeIndex)) {
+        return Number(snapshot?.positionIndex) || 0;
+      }
+      if (current.routeIndex === next.routeIndex) return current.routeIndex;
+      const duration = next.minute - current.minute;
+      if (duration <= 0) return next.routeIndex;
+      const progress = (nowMinute - current.minute) / duration;
+      const animatedProgress = getAnimatedSegmentProgress(progress, current, next);
+      return current.routeIndex + (next.routeIndex - current.routeIndex) * animatedProgress;
+    }
+
+    return Number.isFinite(snapshot?.positionIndex) ? snapshot.positionIndex : lastPoint?.routeIndex ?? 0;
+  }
+
   function makeTrainKey(trainNo, originDate) {
     return `${trainNo}|${originDate || ""}`;
   }
@@ -1295,6 +1405,7 @@
   function renderBoard(state, segment, snapshots) {
     const map = state.output.querySelector(".rail-live-map");
     if (!map) return;
+    state.markerBindings = [];
     const stations = segment.stations || [];
     const denominator = Math.max(1, stations.length - 1);
     const mapHeight = map.clientHeight || getBoardHeight(stations);
@@ -1337,6 +1448,7 @@
       `;
       marker.addEventListener("click", () => openTrainDetail(snapshot.trainNo, snapshot.originDate || snapshot.queryDate));
       map.appendChild(marker);
+      state.markerBindings.push({ marker, snapshot });
     });
 
     if (!visibleSnapshots.length) {
@@ -1347,9 +1459,43 @@
     }
   }
 
+  function stopBoardAnimation(state) {
+    if (state.animationFrame) {
+      window.cancelAnimationFrame(state.animationFrame);
+      state.animationFrame = 0;
+    }
+  }
+
+  function runBoardAnimation(state) {
+    stopBoardAnimation(state);
+    const tick = () => {
+      if (state.panel.classList.contains("hidden")) {
+        state.animationFrame = 0;
+        return;
+      }
+      const map = state.output.querySelector(".rail-live-map");
+      const stations = state.segment?.stations || [];
+      if (!map || !stations.length || !state.markerBindings?.length) {
+        state.animationFrame = 0;
+        return;
+      }
+      const denominator = Math.max(1, stations.length - 1);
+      const mapHeight = map.clientHeight || getBoardHeight(stations);
+      state.markerBindings.forEach(({ marker, snapshot }) => {
+        if (!marker?.isConnected || !snapshot) return;
+        const anchorY = getBoardY(getAnimatedSnapshotPosition(snapshot, state.renderedQueryDate), denominator, mapHeight);
+        marker.style.top = `${anchorY}px`;
+      });
+      state.animationFrame = window.requestAnimationFrame(tick);
+    };
+    tick();
+  }
+
   async function renderTracker(state) {
+    stopBoardAnimation(state);
     if (!(await ensureLiveTrackerAccess())) return;
     try {
+      state.renderedQueryDate = getQueryDate();
       const scheduleSources = await ensureScheduleReady(state.system);
       if (!scheduleSources.length) {
         state.output.innerHTML = `<div class="rail-live-empty">${escapeHtml(state.system === "tr" ? "台鐵" : "高鐵")}真實班表尚未就緒，請先更新頁面資料後再試。</div>`;
@@ -1424,6 +1570,7 @@
 
       renderBoard(state, segment, snapshots);
       bindRenderedOutput(state);
+      runBoardAnimation(state);
     } catch (error) {
       console.error("rail-live-tracker render failed", error);
       state.output.innerHTML = `<div class="rail-live-empty">即時動態建立失敗，請稍後再試。</div>`;
@@ -1504,7 +1651,7 @@
       .rail-live-station.is-busy .rail-live-station-node{border-color:#ef4444;}
       .rail-live-station.is-soon .rail-live-station-name{color:#f97316;}
       .rail-live-station.active .rail-live-station-name{color:#2563eb;}
-      .rail-live-train-label{position:absolute; left:50%; width:0; transform:translateY(-50%); background:none; border:none; padding:0; cursor:pointer;}
+      .rail-live-train-label{position:absolute; left:50%; width:0; transform:translateY(-50%); background:none; border:none; padding:0; cursor:pointer; will-change:top;}
       .rail-live-train-anchor{position:absolute; top:-10px; left:-9px; width:18px; height:18px; display:flex; align-items:center; justify-content:center; color:var(--rail-live-color); font-size:16px; font-weight:900; line-height:1;}
       .rail-live-train-connector{position:absolute; top:0; width:20px; border-top:1px solid color-mix(in srgb, var(--rail-live-color) 70%, #64748b);}
       .rail-live-train-copy{position:absolute; top:-12px; width:210px; min-height:24px; display:flex; align-items:center;}
@@ -1575,6 +1722,9 @@
       stationEvents: new Map(),
       snapshots: [],
       segment: null,
+      markerBindings: [],
+      animationFrame: 0,
+      renderedQueryDate: "",
     };
   }
 

@@ -120,6 +120,20 @@
   ];
 
   const THSR_FALLBACK_ORDER = ["南港", "台北", "板橋", "桃園", "新竹", "苗栗", "台中", "彰化", "雲林", "嘉義", "台南", "左營"];
+  const THSR_FALLBACK_MILEAGE_KM = {
+    "南港": -3.2,
+    "臺北": 6.1,
+    "板橋": 13.1,
+    "桃園": 42.3,
+    "新竹": 72.2,
+    "苗栗": 104.9,
+    "臺中": 165.7,
+    "彰化": 193.9,
+    "雲林": 218.5,
+    "嘉義": 251.6,
+    "臺南": 313.9,
+    "左營": 345.2,
+  };
   const TRA_TYPE_COLORS = {
     新自強: "#7c3aed",
     普悠瑪: "#db2777",
@@ -203,6 +217,35 @@
       ? window.THSR_STATION_ORDER
       : THSR_FALLBACK_ORDER;
     return unique(liveOrder.map((name) => normalizeThsrStation(name)));
+  }
+
+  function buildThsrMileageMap(source) {
+    const map = new Map();
+    Object.entries(source || {}).forEach(([name, km]) => {
+      const normalizedName = normalizeThsrStation(name);
+      const value = Number(km);
+      if (!normalizedName || !Number.isFinite(value)) return;
+      map.set(normalizedName, value);
+    });
+    return map;
+  }
+
+  const THSR_FALLBACK_MILEAGE_MAP = buildThsrMileageMap(THSR_FALLBACK_MILEAGE_KM);
+
+  function getThsrStationMileageMap() {
+    const liveMap = window.THSR_STATION_MILEAGE_KM;
+    if (liveMap && typeof liveMap === "object" && !Array.isArray(liveMap)) {
+      const normalizedMap = buildThsrMileageMap(liveMap);
+      if (normalizedMap.size) return normalizedMap;
+    }
+    return new Map(THSR_FALLBACK_MILEAGE_MAP);
+  }
+
+  function getThsrStationMileage(stationName) {
+    const normalizedName = normalizeThsrStation(stationName);
+    if (!normalizedName) return null;
+    const mileage = getThsrStationMileageMap().get(normalizedName);
+    return Number.isFinite(mileage) ? mileage : null;
   }
 
   function buildGraph(segments) {
@@ -367,6 +410,8 @@
     getTraSegments,
     getTraStationCatalog,
     getThsrStationOrder,
+    getThsrStationMileageMap,
+    getThsrStationMileage,
     findTraRoutePath,
     findThsrRoutePath,
     findRoutePath,

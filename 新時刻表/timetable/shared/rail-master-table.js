@@ -764,7 +764,26 @@
     return getStopDepartureMinute(stop) ?? getStopArrivalMinute(stop);
   }
 
-  function buildJourneyPathPoints(timedStops, fullPathStations) {
+  function getJourneyInterpolationRatio(system, fullPathStations, startPathIndex, endPathIndex, currentPathIndex) {
+    const totalSteps = Math.abs(endPathIndex - startPathIndex);
+    const fallbackRatio = totalSteps > 0 ? Math.abs(currentPathIndex - startPathIndex) / totalSteps : 0;
+    if (system !== "thsr") return fallbackRatio;
+    const getMileage = getRailNetwork()?.getThsrStationMileage;
+    if (typeof getMileage !== "function") return fallbackRatio;
+    const startStation = fullPathStations?.[startPathIndex];
+    const endStation = fullPathStations?.[endPathIndex];
+    const currentStation = fullPathStations?.[currentPathIndex];
+    const startKm = Number(getMileage(startStation));
+    const endKm = Number(getMileage(endStation));
+    const currentKm = Number(getMileage(currentStation));
+    if (![startKm, endKm, currentKm].every(Number.isFinite)) return fallbackRatio;
+    const totalDistance = endKm - startKm;
+    if (!totalDistance) return fallbackRatio;
+    const ratio = (currentKm - startKm) / totalDistance;
+    return Number.isFinite(ratio) ? Math.min(1, Math.max(0, ratio)) : fallbackRatio;
+  }
+
+  function buildJourneyPathPoints(system, timedStops, fullPathStations) {
     let searchStart = 0;
     const resolvePathIndex = (stationName) => {
       for (let index = searchStart; index < (fullPathStations || []).length; index += 1) {
@@ -843,7 +862,11 @@
         pushPoint({
           station,
           pathIndex,
-          minute: Math.round(travelStart + ((travelEnd - travelStart) * step) / steps),
+          minute: Math.round(
+            travelStart +
+              (travelEnd - travelStart) *
+                getJourneyInterpolationRatio(system, fullPathStations, current.pathIndex, next.pathIndex, pathIndex)
+          ),
           kind: "pass",
           isStop: false,
         });
@@ -969,7 +992,7 @@
   function buildMasterProjections(entry, routeStations, queryDate) {
     const routeIndexMap = new Map((routeStations || []).map((name, index) => [name, index]));
     const fullTimedStops = buildTimedStops(entry.stops || []);
-    const fullPathPoints = buildJourneyPathPoints(fullTimedStops, entry.fullPathStations || []);
+    const fullPathPoints = buildJourneyPathPoints(system, fullTimedStops, entry.fullPathStations || []);
     const points = (fullPathPoints || [])
       .filter((point) => routeIndexMap.has(point.station))
       .map((point) => ({
