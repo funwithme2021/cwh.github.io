@@ -3122,10 +3122,37 @@
         primaryText,
         secondaryText,
         secondaryPrefix,
+        arrAbs: entry.arrAbs,
+        depAbs: entry.depAbs,
         eventAbs: entry.eventAbs,
         descriptor,
       };
     });
+  }
+
+  function getThsrDetailCurrentLocation(timelineRows, nowAbs, originDateStr, todayStr, isActiveWindow, fallbackStation){
+    if(originDateStr > todayStr) return '未發車';
+    if(!isActiveWindow) return '已到終點';
+    if(!Array.isArray(timelineRows) || !timelineRows.length) return fallbackStation || '--';
+    const nextTimelineIndex = timelineRows.findIndex((row)=>{
+      const eventAbs = row?.eventAbs;
+      return Number.isFinite(eventAbs) && eventAbs >= nowAbs;
+    });
+    if(nextTimelineIndex < 0) return fallbackStation || timelineRows[timelineRows.length - 1]?.station || '--';
+    const nextRow = timelineRows[nextTimelineIndex] || null;
+    if(!nextRow) return fallbackStation || '--';
+    if(nextTimelineIndex === 0) return nextRow.station || fallbackStation || '--';
+    const isDwellingAtStation =
+      nextRow.kind !== 'pass' &&
+      Number.isFinite(nextRow.arrAbs) &&
+      Number.isFinite(nextRow.depAbs) &&
+      nowAbs >= nextRow.arrAbs &&
+      nowAbs <= nextRow.depAbs;
+    if(isDwellingAtStation) return nextRow.station || fallbackStation || '--';
+    const prevRow = timelineRows[nextTimelineIndex - 1] || null;
+    const fromStation = prevRow?.station || nextRow.station || fallbackStation || '--';
+    const toStation = nextRow.station || fallbackStation || '--';
+    return fromStation === toStation ? fromStation : `${fromStation} ➝ ${toStation}`;
   }
 
   function renderDetailedTimeline(stops, originDateStr, showPassStops){
@@ -3143,6 +3170,7 @@
     const arrAbs = absAD.absArr[stops.length - 1] ?? absAD.absDep[stops.length - 1];
     const travel = (Number.isFinite(depAbs) && Number.isFinite(arrAbs)) ? durationText(0, Math.max(0, arrAbs - depAbs)).replace('0h ', '') : '--';
     const timelineRows = buildThsrTimelineRows(stops, showPassStops);
+    const locationTimelineRows = buildThsrTimelineRows(stops, true);
     const crosses = Number.isFinite(arrAbs) && arrAbs >= 1440;
     const isActiveWindow =
       (originDateStr === todayStr) ||
@@ -3163,10 +3191,7 @@
         ? timelineRows.findIndex((row, index)=>index > nextTimelineIndex && row.kind !== 'pass')
         : -1;
 
-    let currentLocation = '依時刻表顯示';
-    if(originDateStr > todayStr) currentLocation = '未發車';
-    else if(!isActiveWindow) currentLocation = '已到終點';
-    else currentLocation = nextTimelineIndex >= 0 ? (timelineRows[nextTimelineIndex]?.station || '--') : (lastStop[0] || '--');
+    const currentLocation = getThsrDetailCurrentLocation(locationTimelineRows, nowAbs, originDateStr, todayStr, isActiveWindow, lastStop[0] || '--');
 
     const html = timelineRows.map((row, i)=>{
       const isPassed = isActiveWindow && Number.isFinite(row.eventAbs) && row.eventAbs < nowAbs;
@@ -3831,7 +3856,7 @@
 <script charset="UTF-8" src="../shared/rail-network.js?v=20260329-thsrkm1"></script>
 <script charset="UTF-8" src="../shared/rail-master-table.js?v=20260329-thsrkm1"></script>
 <script charset="UTF-8" src="../shared/rail-operation-diagram.js?v=20260329-thsrkm1"></script>
-<script charset="UTF-8" src="../shared/rail-live-tracker.js?v=20260329-liveanim1"></script>
+<script charset="UTF-8" src="../shared/rail-live-tracker.js?v=20260329-livepanel8"></script>
 <script charset="UTF-8" src="../shared/rail-usage-footer.js?v=20260326-footer3"></script>
 <script>
 window.addEventListener('load', () => {
