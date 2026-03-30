@@ -1,4 +1,4 @@
-(function () {
+﻿(function () {
   const STYLE_ID = "rail-operation-diagram-styles";
   const TAB_ID = "tab-operation-diagram";
   const PANEL_ID = "panel-operation-diagram";

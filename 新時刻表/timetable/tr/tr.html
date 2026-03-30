@@ -2722,28 +2722,8 @@ td{ border-bottom: 1px solid rgba(255,255,255,0.06); }
       </div>
     </section>
 
-    <section id="panel-trainno" class="card query-panel hidden">
-      <div class="section-title">車次查詢</div>
-
-      <datalist id="trainNumberList"></datalist>
-
-      <div class="form-row">
-        <div class="input-group">
-          <label>車次</label>
-          <input id="trainNumberInput" list="trainNumberList" placeholder="請輸入車次">
-        </div>
-        <button class="btn-primary" id="trainNumberBtn">查詢</button>
-      </div>
-
-      <div class="table-wrapper">
-        <table id="scheduleTableByNumber">
-          <thead>
-            <tr><th>車次</th><th>車種 (區間)</th><th>狀態</th></tr>
-          </thead>
-          <tbody></tbody>
-        </table>
-      </div>
-    </section>
+    <datalist id="trainNumberList"></datalist>
+    <section id="panel-trainno" class="card query-panel hidden"></section>
 
   </div>
 </main>
@@ -2809,6 +2789,7 @@ td{ border-bottom: 1px solid rgba(255,255,255,0.06); }
 
 <script charset="UTF-8" src="./train.real-schedule.js?v=20260319-utf8fix"></script>
 <script charset="UTF-8" src="../shared/rail-station-query-common.js?v=20260327-station1"></script>
+<script charset="UTF-8" src="../shared/rail-train-query-v2.js?v=20260329-trainquery2"></script>
 <script>
   // ===== 全域 =====
   let nameToId = {};
@@ -2822,7 +2803,9 @@ td{ border-bottom: 1px solid rgba(255,255,255,0.06); }
 let lastStartEndQuery = null;   // {st, ed, accept}
 let lastStationQuery  = null;   // {station, dir}
 let lastTrainQuery    = null;   // {trainNo}
+let lastTrainQueryV2  = null;   // {trainNo}
 let modalCtx = null;            // {trainNo, originDate}
+let trainQuery2Controller = null;
 
 // ===== Loading Overlay (避免看起來像當機) =====
 let __loadingCount = 0;
@@ -3472,11 +3455,13 @@ function splitArrDep(stopRow){
     if(!dateEl || !modeEl || !summaryEl) return;
 
     const activeMode = document.querySelector('.query-tab.active')?.textContent?.trim() || '起訖站 / 轉乘';
+    const activePanelId = document.querySelector('.query-panel:not(.hidden)')?.id || '';
     const dateText = document.getElementById('mainQueryDate')?.value || currentQueryDateStr || '--';
     const start = extractStationNameFromInput(document.getElementById('startStation')?.value || '') || '出發';
     const end = extractStationNameFromInput(document.getElementById('endStation')?.value || '') || '到達';
     const station = extractStationNameFromInput(document.getElementById('stationNameInput')?.value || '') || '車站';
-    const trainNo = extractTrainNoFromInput(document.getElementById('trainNumberInput')?.value || '') || '車次';
+    const activeTrainInputId = 'trainNumberInput';
+    const trainNo = extractTrainNoFromInput(document.getElementById(activeTrainInputId)?.value || '') || '車次';
     const accept = !!document.getElementById('acceptTransfers')?.checked;
     const directionText = document.getElementById('directionSelect')?.selectedOptions?.[0]?.textContent?.trim() || '';
 
@@ -4127,6 +4112,8 @@ function renderHistory(){
     buildTrainTypeChips('trainTypeChipsStationMobile', ()=>{}, 'list');
     
     renderHistory();
+    trainQuery2Controller?.refreshChrome?.();
+    if(lastTrainQuery?.trainNo) filterTrainScheduleByNumber(lastTrainQuery.trainNo);
     updateHeroSnapshot();
 
     }finally{
@@ -4143,6 +4130,7 @@ function renderHistory(){
     updateHeroSnapshot();
     setupThemeToggle();
     setupHomeBtn();
+    initTrainQuery2Panel();
 
     // 手機版篩選按鈕事件 (起訖)
     const mFilterBtn = document.getElementById('mobileFilterBtn');
@@ -4190,6 +4178,7 @@ function renderHistory(){
     // 只在「查詢日=今天」每分鐘更新即時誤點
     window.rerenderVisibleResults = async function(){
   // 依照最後一次查詢條件，把畫面「用同樣條件」重跑一次
+  trainQuery2Controller?.refreshChrome?.();
   if(lastStartEndQuery){
     // 自動判斷目前是手機或桌機的篩選狀態
     selectedTrainTypesStartEnd = getSelectedTypesSafe('startend');
@@ -5624,51 +5613,381 @@ function renderTransferTable(){
   // ===== 車次查詢（以查詢日 currentQueryDateStr 的發車資料為主） =====
   
 function filterTrainScheduleByNumber(){
-  showLoading('查詢中...');
-  requestAnimationFrame(()=>{ setTimeout(()=>{ try{
-        const num = extractTrainNoFromInput(document.getElementById('trainNumberInput').value);
-        lastTrainQuery = { trainNo: num };
-      
-        document.getElementById('trainNumberInput').value = num;
-      
-        const tbody=document.querySelector('#scheduleTableByNumber tbody');
-        tbody.innerHTML='';
-      
-        // ✅ 車次查詢：完全以「使用者選的顯示日期 currentQueryDateStr」作為發車日
-        // 也就是：你選 2/3 就查 2/3 發車的 181；不自動切到前一日跨日車 instance
-        //（起迄站/車站查詢那邊的跨日呈現保持原樣，不在這裡動）
-        const originDateStr = currentQueryDateStr;
-        const t = baseSchedule[num] || null;
-      
-        if (!t) {
-          let tr = tbody.insertRow();
-          let td = tr.insertCell();
-          td.colSpan = 3;
-          td.style.textAlign = 'center';
-          td.style.padding = '20px';
-          td.innerHTML = `<span style="color:#ef4444; font-weight:700;">❌ 查無${num}車次，請確認輸入車次或發車日期是否正確。</span>`;
-          return;
-        }
-      
-        const arr=t['車站時間']||[];
-        const status = getTrainStatusLabel(
-          num,
-          originDateStr,
-          (arr[0]?.[2]||arr[0]?.[1]||''),
-          (arr.slice(-1)[0]?.[1]||arr.slice(-1)[0]?.[2]||'')
-        );
-      
-        let tr=tbody.insertRow();
-        tr.insertCell().innerHTML=String(num).includes('A')?`<b>${num}</b><span class="badge-sea">海</span>`:`<b>${num}</b>`;
-        tr.insertCell().innerHTML=`${colorType(t['車種'])} <span class="train-route">(${arr[0][0]}➝${arr.slice(-1)[0][0]})</span>`;
-        tr.insertCell().innerHTML=colorStatus(status);
-        tr.addEventListener('click',()=>showTrainDetails(num, originDateStr));
-      
-    }finally{
-      hideLoading();
+  const num = extractTrainNoFromInput(document.getElementById('trainNumberInput')?.value || '');
+  if(!num) return Promise.resolve(null);
+  lastTrainQuery = { trainNo: num };
+  lastTrainQueryV2 = lastTrainQuery;
+  return filterTrainScheduleByNumberV2(num);
+}
+
+function getTraDirectionLabel(trainNo){
+  const digits = String(trainNo || '').match(/\d+/);
+  if(!digits) return '';
+  return (Number(digits[0]) % 2 === 0) ? '順行 / 偶數車次' : '逆行 / 奇數車次';
+}
+
+function getTrainQueryToneByStatus(label){
+  const text = String(label || '');
+  if(/取消|停駛|異常|查無/.test(text)) return 'danger';
+  if(/晚|延遲|誤點/.test(text)) return 'warning';
+  if(/提早|準點|下一站|下一停靠|即將通過|停靠中|即將發車/.test(text)) return 'success';
+  if(/已過站|已到終點/.test(text)) return 'muted';
+  return 'neutral';
+}
+
+function formatTrainQueryStopTime(kind, arrText, depText){
+  const arr = String(arrText || '').trim();
+  const dep = String(depText || '').trim();
+  if(kind === 'origin') return dep || arr || '--';
+  if(kind === 'terminal') return arr || dep || '--';
+  if(arr && dep && arr !== dep) return `${arr} / ${dep}`;
+  return dep || arr || '--';
+}
+
+function formatTrainQueryDelayLabel(delayMin, fallback){
+  const value = Number(delayMin);
+  if(Number.isFinite(value) && value > 0) return `晚${value}分`;
+  if(Number.isFinite(value) && value < 0) return `提早${Math.abs(value)}分`;
+  return fallback || '表定';
+}
+
+function escapeTrainQueryHtml(value){
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function buildTraTrainQueryDisplayHtml(trainNo, typeLabel){
+  return `<span>${escapeTrainQueryHtml(trainNo)}${colorType(typeLabel)}</span>`;
+}
+
+function formatTrainQueryDurationCompact(totalMinutes){
+  const mins = Number(totalMinutes);
+  if(!Number.isFinite(mins) || mins < 0) return '--';
+  const hours = Math.floor(mins / 60);
+  const remain = mins % 60;
+  if(hours > 0 && remain > 0) return `${hours}小時${remain}分`;
+  if(hours > 0) return `${hours}小時`;
+  return `${remain}分`;
+}
+
+function buildTrainQueryProgressText(elapsedMinutes, totalMinutes, progressPercent){
+  if(!Number.isFinite(totalMinutes) || totalMinutes < 0) return `${Math.round(progressPercent)}%`;
+  return `${formatTrainQueryDurationCompact(elapsedMinutes)}/${formatTrainQueryDurationCompact(totalMinutes)} (${Math.round(progressPercent)}%)`;
+}
+
+function getTraTrainQueryProgress(runtimeCtx, originDateStr){
+  const startAbs = Number.isFinite(runtimeCtx?.firstAbsEff) ? runtimeCtx.firstAbsEff : runtimeCtx?.firstAbs;
+  const lastAbs = Number.isFinite(runtimeCtx?.lastAbsEff) ? runtimeCtx.lastAbsEff : runtimeCtx?.lastAbs;
+  let progressPercent = 0;
+  if(originDateStr > runtimeCtx?.todayStr){
+    progressPercent = 0;
+  }else if(originDateStr < runtimeCtx?.todayStr && !runtimeCtx?.isActiveWindow){
+    progressPercent = 100;
+  }else if(Number.isFinite(startAbs) && Number.isFinite(lastAbs) && lastAbs > startAbs){
+    progressPercent = ((Number(runtimeCtx?.nowAbs) - startAbs) / (lastAbs - startAbs)) * 100;
+  }
+  return Math.max(0, Math.min(100, progressPercent));
+}
+
+function findTraNextTimelineIndex(rows, nowAbs, delayMin, canNext){
+  if(!canNext || !Array.isArray(rows) || !rows.length) return -1;
+  const positiveDelay = Math.max(0, Number(delayMin) || 0);
+  for(let i = 0; i < rows.length; i++){
+    const eventAbs = rows[i]?.eventAbs;
+    if(Number.isFinite(eventAbs) && Number.isFinite(nowAbs) && (eventAbs + positiveDelay) >= nowAbs){
+      return i;
     }
-  },0);
-  });}
+  }
+  return rows.length ? rows.length - 1 : -1;
+}
+
+function getNextTraStopIndex(rows, fromIndex){
+  if(!Array.isArray(rows) || fromIndex < 0) return -1;
+  if(rows[fromIndex]?.kind !== 'pass') return fromIndex;
+  for(let i = fromIndex + 1; i < rows.length; i++){
+    if(rows[i]?.kind !== 'pass') return i;
+  }
+  return -1;
+}
+
+function buildTraTrainQueryV2StopRows(trainNo, originDateStr, stops, runtimeCtx, trainStatus, showPassStops){
+  const firstStop = stops?.[0] || [];
+  const lastStop = stops?.[stops.length - 1] || [];
+  const firstTimeStr = (firstStop?.[2] || firstStop?.[1] || '');
+  const lastTimeStr  = (lastStop?.[1] || lastStop?.[2] || '');
+  const nowAbs = runtimeCtx?.nowAbs;
+  const positiveDelay = Math.max(0, Number(runtimeCtx?.delayMin) || 0);
+  const canNext =
+    runtimeCtx?.isActiveWindow &&
+    (!Number.isFinite(runtimeCtx?.lastAbsEff) || !Number.isFinite(nowAbs) || nowAbs <= (runtimeCtx.lastAbsEff + 5));
+  const locationRows = buildTraTimelineRows(stops || [], true);
+  const visibleRows = buildTraTimelineRows(stops || [], showPassStops);
+  const nextLocationIndex = findTraNextTimelineIndex(locationRows, nowAbs, runtimeCtx?.delayMin || 0, canNext);
+  const nextVisibleIndex = findTraNextTimelineIndex(visibleRows, nowAbs, runtimeCtx?.delayMin || 0, canNext);
+  const nextVisibleStopIndex = getNextTraStopIndex(visibleRows, nextVisibleIndex);
+  const nextLocationStopIndex = getNextTraStopIndex(locationRows, nextLocationIndex);
+  const nextLocationRow = nextLocationIndex >= 0 ? (locationRows[nextLocationIndex] || null) : null;
+  const nextLocationStopRow = nextLocationStopIndex >= 0 ? (locationRows[nextLocationStopIndex] || null) : null;
+  const currentLocation = getCurrentLocationText(stops, locationRows, nextLocationIndex, trainStatus, canNext, nowAbs, runtimeCtx?.delayMin || 0);
+
+  const ended =
+    trainStatus === '已到終點' ||
+    trainStatus === '已到終點站' ||
+    (originDateStr && originDateStr < runtimeCtx?.todayStr && !runtimeCtx?.isActiveWindow);
+
+  let nextHint = currentLocation || '--';
+  if(trainStatus === '未發車'){
+    const firstEventAbs = locationRows[0]?.primaryAbs ?? locationRows[0]?.secondaryAbs ?? locationRows[0]?.eventAbs ?? null;
+    const firstEventEff = Number.isFinite(firstEventAbs) ? (firstEventAbs + positiveDelay) : null;
+    const soonToDepart =
+      Number.isFinite(firstEventEff) &&
+      Number.isFinite(nowAbs) &&
+      nowAbs >= (firstEventEff - 10) &&
+      nowAbs <= firstEventEff;
+    nextHint = `${soonToDepart ? '即將發車' : '尚未發車'} · ${firstStop?.[0] || '--'}`;
+  }else if(trainStatus === '已到終點' || trainStatus === '已到終點站'){
+    nextHint = `已抵達 ${lastStop?.[0] || '--'}`;
+  }else if(nextLocationRow){
+    const arrivalAbsRaw =
+      Number.isFinite(nextLocationRow.secondaryAbs)
+        ? nextLocationRow.secondaryAbs
+        : (nextLocationRow.kind === 'terminal' ? nextLocationRow.primaryAbs : null);
+    const departureAbsRaw =
+      Number.isFinite(nextLocationRow.primaryAbs)
+        ? nextLocationRow.primaryAbs
+        : nextLocationRow.secondaryAbs;
+    const arrivalAbs = Number.isFinite(arrivalAbsRaw) ? (arrivalAbsRaw + positiveDelay) : null;
+    const departureAbs = Number.isFinite(departureAbsRaw) ? (departureAbsRaw + positiveDelay) : null;
+    const isDwellingAtStation =
+      nextLocationRow.kind !== 'pass' &&
+      Number.isFinite(nowAbs) &&
+      Number.isFinite(arrivalAbs) &&
+      Number.isFinite(departureAbs) &&
+      arrivalAbs <= nowAbs &&
+      nowAbs <= departureAbs;
+
+    if(isDwellingAtStation){
+      nextHint = `停靠中 ${nextLocationRow.station || '--'}`;
+    }else if(nextLocationRow.kind === 'pass'){
+        nextHint = nextLocationStopRow?.station
+        ? `即將通過 ${nextLocationRow.station} · 下一停靠 ${nextLocationStopRow.station}`
+        : `即將通過 ${nextLocationRow.station}`;
+    }else{
+      nextHint = `下一停靠 ${nextLocationRow.station || '--'}`;
+    }
+  }
+
+  const stopRows = visibleRows.map((row, index) => {
+    const rowStatus = getTrainDetailStatusLabel(trainNo, originDateStr, firstTimeStr, lastTimeStr, row.eventAbs, runtimeCtx);
+    const isPassed = ended || rowStatus === '已過站' || (row.kind === 'terminal' && rowStatus === '已到終點');
+    const arrivalAbsRaw =
+      Number.isFinite(row.secondaryAbs)
+        ? row.secondaryAbs
+        : (row.kind === 'terminal' ? row.primaryAbs : null);
+    const departureAbsRaw =
+      Number.isFinite(row.primaryAbs)
+        ? row.primaryAbs
+        : row.secondaryAbs;
+    const arrivalAbs = Number.isFinite(arrivalAbsRaw) ? (arrivalAbsRaw + positiveDelay) : null;
+    const departureAbs = Number.isFinite(departureAbsRaw) ? (departureAbsRaw + positiveDelay) : null;
+    const isCurrent =
+      !isPassed &&
+      row.kind !== 'pass' &&
+      Number.isFinite(nowAbs) &&
+      Number.isFinite(arrivalAbs) &&
+      Number.isFinite(departureAbs) &&
+      arrivalAbs <= nowAbs &&
+      nowAbs <= departureAbs;
+    const isNext = !isPassed && !isCurrent && nextVisibleIndex === index;
+    const isNextStop = !isPassed && !isCurrent && !isNext && nextVisibleStopIndex === index;
+
+    let arrHtml = '--';
+    let depHtml = '--';
+
+    if(row.kind === 'pass'){
+      const passSched = row.secondaryText || '--';
+      const passHtml = isPassed
+        ? escapeTrainQueryHtml(passSched)
+        : renderTimeWithDelayForTrainDetail(passSched, currentQueryDateStr, { stackVertical: true }, row.eventAbs, originDateStr, runtimeCtx?.delayMin || 0);
+      arrHtml = passHtml;
+      depHtml = passHtml;
+    }else if(row.kind === 'origin'){
+      const depSched = row.primaryText || row.secondaryText || '--';
+      const depTimeHtml = isPassed
+        ? escapeTrainQueryHtml(depSched)
+        : renderTimeWithDelayForTrainDetail(depSched, currentQueryDateStr, { stackVertical: true }, departureAbsRaw, originDateStr, runtimeCtx?.delayMin || 0);
+      arrHtml = depTimeHtml;
+      depHtml = depTimeHtml;
+    }else if(row.kind === 'terminal'){
+      const arrSched = row.primaryText || row.secondaryText || '--';
+      const arrTimeHtml = isPassed
+        ? escapeTrainQueryHtml(arrSched)
+        : renderTimeWithDelayForTrainDetail(arrSched, currentQueryDateStr, { stackVertical: true }, arrivalAbsRaw, originDateStr, runtimeCtx?.delayMin || 0);
+      arrHtml = arrTimeHtml;
+      depHtml = arrTimeHtml;
+    }else{
+      const arrSched = row.secondaryText || row.primaryText || '--';
+      const depSched = row.primaryText || row.secondaryText || '--';
+      arrHtml = isPassed
+        ? escapeTrainQueryHtml(arrSched)
+        : renderTimeWithDelayForTrainDetail(arrSched, currentQueryDateStr, { stackVertical: true }, arrivalAbsRaw, originDateStr, runtimeCtx?.delayMin || 0);
+      depHtml = isPassed
+        ? escapeTrainQueryHtml(depSched)
+        : renderTimeWithDelayForTrainDetail(depSched, currentQueryDateStr, { stackVertical: true }, departureAbsRaw, originDateStr, runtimeCtx?.delayMin || 0);
+    }
+
+    let stateText = row.kind === 'pass' ? '通過' : '停靠';
+    if(isCurrent){
+      stateText = '停靠中';
+    }else if(isPassed){
+      stateText = row.kind === 'pass' ? '已通過' : (row.kind === 'terminal' && ended ? '已到終點' : '已過站');
+    }else if(trainStatus === '未發車' && row.kind === 'origin'){
+      const originEventAbs = departureAbs;
+      const soonToDepart =
+        Number.isFinite(originEventAbs) &&
+        Number.isFinite(nowAbs) &&
+        nowAbs >= (originEventAbs - 10) &&
+        nowAbs <= originEventAbs;
+      stateText = soonToDepart ? '即將發車' : '尚未發車';
+    }else if(isNext){
+      stateText = row.kind === 'pass' ? '即將通過' : '下一停靠';
+    }else if(isNextStop){
+      stateText = '下一停靠';
+    }
+
+    const tone = /已過站|已通過|^通過$/.test(stateText)
+      ? 'muted'
+      : (/下一停靠|即將通過|即將發車|尚未發車|停靠中/.test(stateText) ? 'success' : 'neutral');
+
+    return {
+      seq: index + 1,
+      station: row.station || '--',
+      arrHtml,
+      depHtml,
+      stateText,
+      stateTone: tone,
+      isPassed,
+      isCurrent,
+      isNext,
+      isPass: row.kind === 'pass'
+    };
+  });
+
+  return { stopRows, currentLocation, nextHint };
+}
+
+function buildTraTrainQueryV2Data(trainNo, options){
+  const opts = options || {};
+  const showPassStops = !!opts.showPassStops;
+  const t = baseSchedule[trainNo] || null;
+  if(!t) return null;
+  const stops = t['車站時間'] || [];
+  if(!stops.length) return null;
+  const firstStop = stops[0] || [];
+  const lastStop = stops[stops.length - 1] || [];
+  const first = splitArrDep(firstStop);
+  const last = splitArrDep(lastStop);
+  const depTime = first.dep || first.arr || '';
+  const arrTime = last.arr || last.dep || '';
+  const typeLabel = normalizeTraTypeDisplay(t['車種']);
+  const directionLabel = getTraDirectionLabel(trainNo);
+  const absAD = buildAbsArrDep(stops);
+  const firstHeroAbs = absAD.absDep[0] ?? absAD.absArr[0] ?? null;
+  const lastHeroAbs = absAD.absArr[stops.length - 1] ?? absAD.absDep[stops.length - 1] ?? null;
+  const runtimeCtx = getTrainDetailRuntimeContext(
+    trainNo,
+    currentQueryDateStr,
+    firstStop?.[2] || firstStop?.[1] || '',
+    lastStop?.[1] || lastStop?.[2] || ''
+  );
+  const statusLabel = Number(runtimeCtx?.delayMin) < 0
+    ? `提早${Math.abs(Number(runtimeCtx.delayMin))}分`
+    : getTrainStatusLabel(
+        trainNo,
+        currentQueryDateStr,
+        firstStop?.[2] || firstStop?.[1] || '',
+        lastStop?.[1] || lastStop?.[2] || ''
+      );
+  const board = buildTraTrainQueryV2StopRows(trainNo, currentQueryDateStr, stops, runtimeCtx, statusLabel, showPassStops);
+  const progressPercent = getTraTrainQueryProgress(runtimeCtx, currentQueryDateStr);
+  const totalRunMinutes =
+    Number.isFinite(runtimeCtx?.firstAbsEff) && Number.isFinite(runtimeCtx?.lastAbsEff)
+      ? Math.max(0, runtimeCtx.lastAbsEff - runtimeCtx.firstAbsEff)
+      : (Number.isFinite(runtimeCtx?.firstAbs) && Number.isFinite(runtimeCtx?.lastAbs)
+          ? Math.max(0, runtimeCtx.lastAbs - runtimeCtx.firstAbs)
+          : null);
+  const startProgressAbs = Number.isFinite(runtimeCtx?.firstAbsEff) ? runtimeCtx.firstAbsEff : runtimeCtx?.firstAbs;
+  const elapsedRunMinutes =
+    Number.isFinite(totalRunMinutes) && Number.isFinite(startProgressAbs) && Number.isFinite(runtimeCtx?.nowAbs)
+      ? Math.max(0, Math.min(totalRunMinutes, runtimeCtx.nowAbs - startProgressAbs))
+      : 0;
+
+  return {
+    trainNo,
+    systemLabel: '台鐵',
+    displayTrainHtml: buildTraTrainQueryDisplayHtml(trainNo, typeLabel),
+    typeLabel,
+    directionLabel,
+    metaHtml: `<span>發車日 ${currentQueryDateStr || '--'}</span>`,
+    statusLabel,
+    statusTone: getTrainQueryToneByStatus(statusLabel),
+    queryDate: currentQueryDateStr,
+    originDate: currentQueryDateStr,
+    routeLabel: `${firstStop[0] || '--'} → ${lastStop[0] || '--'}`,
+    heroSignals: [
+      { label: '目前位置', value: board.currentLocation || '--' },
+      { label: '提示', value: board.nextHint || '--', tone: /即將通過|下一停靠|停靠中|即將發車/.test(board.nextHint || '') ? 'success' : 'neutral' }
+    ],
+    progressPercent,
+    progressLabel: '行駛進度',
+    progressText: buildTrainQueryProgressText(elapsedRunMinutes, totalRunMinutes, progressPercent),
+    summaryItems: [],
+    stopRows: board.stopRows,
+    stopTableTitle: '停靠站',
+    stopTableSubtitle: showPassStops ? '含通過站顯示' : '只顯示實際停靠站',
+    showPassStops,
+    showPassStopsLabel: '顯示通過站',
+    hidePassStopsLabel: '隱藏通過站',
+    detailActionLabel: '完整資訊'
+  };
+}
+
+function initTrainQuery2Panel(){
+  if(!window.RailTrainQueryV2?.create) return;
+  trainQuery2Controller = window.RailTrainQueryV2.create({
+    rootId: 'panel-trainno',
+    inputId: 'trainNumberInput',
+    buttonId: 'trainNumberBtn',
+    datalistId: 'trainNumberList',
+    placeholder: '請輸入台鐵車次',
+    placeholderText: '輸入車次查詢',
+    buttonText: '查詢',
+    notFoundMessage: '請確認輸入車次或發車日期是否正確。',
+    normalizeTrainNo: extractTrainNoFromInput,
+    query: buildTraTrainQueryV2Data,
+    onOpenDetail: (result) => showTrainDetails(result.trainNo, result.originDate, { showPassStops: !!result.showPassStops }),
+    onStateChange: (state) => {
+      lastTrainQuery = state && state.trainNo ? { trainNo: state.trainNo } : null;
+      lastTrainQueryV2 = lastTrainQuery;
+      updateHeroSnapshot();
+    }
+  });
+
+  const query2Input = trainQuery2Controller?.getInput?.();
+  if(query2Input){
+    query2Input.addEventListener('input', updateHeroSnapshot);
+    query2Input.addEventListener('change', updateHeroSnapshot);
+  }
+}
+
+function filterTrainScheduleByNumberV2(trainNo){
+  if(!trainQuery2Controller) return Promise.resolve(null);
+  return trainQuery2Controller.search(trainNo);
+}
 
 // ===== Modal: 列車詳情（顯示站別用開車優先，並且跨日顯示正確日期）（顯示站別用開車優先，並且跨日顯示正確日期） =====
   const modal=document.getElementById('trainModal');
@@ -5780,6 +6099,7 @@ function filterTrainScheduleByNumber(){
     if(!t.hasDelay) return (schedHHMM || '--');
 
     const suppress = !!(opts && opts.suppressStrike);
+    const stackVertical = !!(opts && opts.stackVertical);
     if(suppress){
       return (t.sched || schedHHMM || '--');
     }
@@ -5788,6 +6108,19 @@ function filterTrainScheduleByNumber(){
     if(t.adjDateStr && t.schedDateStr && t.adjDateStr !== t.schedDateStr){
       const md = t.adjDateStr.slice(5).replace('-', '/');
       dayHint = `<span style="margin-left:6px;color:var(--text-muted);font-weight:700;font-size:.78em;">${md}</span>`;
+    }
+
+    if(stackVertical){
+      return `
+        <span style="display:grid;gap:2px;justify-items:start;text-align:left;">
+          <span style="text-decoration:line-through;color:var(--text-muted);font-size:.92em;">
+            ${t.sched}
+          </span>
+          <span style="font-weight:800;color:var(--text-main);">
+            ${t.adj}${dayHint ? ` ${dayHint}` : ''}
+          </span>
+        </span>
+      `;
     }
 
     return `
