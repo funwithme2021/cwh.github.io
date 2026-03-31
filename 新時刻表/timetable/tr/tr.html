@@ -3826,6 +3826,27 @@ function openTraExternalBookingUrl(jumpUrl) {
   return true;
 }
 
+function shouldUseTraWebFallbackForBookingError(statusCode, errorText) {
+  const text = String(errorText || '').trim();
+  if (statusCode === 401 || statusCode === 403) return true;
+  return /Missing required realm role|required scope\/role|Access key not found/i.test(text);
+}
+
+async function maybeFallbackTraBookingToWeb(trainNo, startStationName, endStationName, dateStr, errorText) {
+  const msg = [
+    '台鐵 App 訂票連結目前無法取得。',
+    errorText ? `TDX 回應：${errorText}` : 'TDX 目前拒絕這筆 App deeplink 請求。',
+    '是否改用台鐵官網訂票？'
+  ].join('\n');
+  if (!window.confirm(msg)) return false;
+
+  const seatQty = await showTraSeatQuantityDialog(1);
+  if (!seatQty) return true;
+
+  openTraBookingWeb(trainNo, startStationName, endStationName, dateStr, seatQty);
+  return true;
+}
+
 async function openTraBookingDeepLink(trainNo, startStationName, endStationName, dateStr) {
   try {
     const buildBookingHeaders = (token) => {
@@ -3879,6 +3900,10 @@ async function openTraBookingDeepLink(trainNo, startStationName, endStationName,
     if (!response?.ok) {
       const errorText = await readErrorText(response);
       if (response?.status === 401 || response?.status === 403) {
+        if (shouldUseTraWebFallbackForBookingError(response.status, errorText)) {
+          const fallbackUsed = await maybeFallbackTraBookingToWeb(trainNo, startStationName, endStationName, dateStr, errorText);
+          if (fallbackUsed) return;
+        }
         alert(`TDX 訂票授權失敗（HTTP ${response.status}）。${errorText ? `\n${errorText}` : '\n請重新整理後再試；若仍失敗，再確認 MaaS API 權限與訂閱設定。'}`);
         return;
       }

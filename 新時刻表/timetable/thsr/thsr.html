@@ -4098,6 +4098,31 @@
   return true;
  }
 
+ function shouldUseTHSRWebFallbackForBookingError(statusCode, errorText){
+  const text = String(errorText || '').trim();
+  if(statusCode === 401 || statusCode === 403) return true;
+  return /Missing required realm role|required scope\/role|Access key not found/i.test(text);
+ }
+
+ function maybeFallbackTHSRBookingToWeb(options, errorText){
+  const msg = [
+    '高鐵 App 訂票連結目前無法取得。',
+    errorText ? `TDX 回應：${errorText}` : 'TDX 目前拒絕這筆 App deeplink 請求。',
+    '是否改用高鐵官網訂票？'
+  ].join('\n');
+  if(!window.confirm(msg)) return false;
+  openTHSRBookingWeb({
+    ...options,
+    seatPreference: 0,
+    adult: 1,
+    child: 0,
+    disabled: 0,
+    senior: 0,
+    student: 0,
+  });
+  return true;
+ }
+
  async function openTHSRBookingDeepLink(trainNo, dateStr, timeStr, startStationName, endStationName){ 
   const isMobile = !isDesktopDevice();
   if (!isMobile) { 
@@ -4166,8 +4191,19 @@
 
     if(!res.ok) { 
       const errorText = await readErrorText(res);
-      if(res.status === 401 || res.status === 403) alert(`TDX 訂票授權失敗（HTTP ${res.status}）。${errorText ? `\n${errorText}` : '\n請重新整理後再試；若仍失敗，再確認 MaaS API 權限與訂閱設定。'}`); 
-      else alert(`訂票連結取得失敗: HTTP ${res.status}${errorText ? `\n${errorText}` : ''}`); 
+      if(res.status === 401 || res.status === 403) {
+        if(shouldUseTHSRWebFallbackForBookingError(res.status, errorText)){
+          const fallbackUsed = maybeFallbackTHSRBookingToWeb({
+            trainNo,
+            dateStr,
+            timeStr,
+            startStation: st,
+            endStation: ed,
+          }, errorText);
+          if(fallbackUsed) return;
+        }
+        alert(`TDX 訂票授權失敗（HTTP ${res.status}）。${errorText ? `\n${errorText}` : '\n請重新整理後再試；若仍失敗，再確認 MaaS API 權限與訂閱設定。'}`);
+      } else alert(`訂票連結取得失敗: HTTP ${res.status}${errorText ? `\n${errorText}` : ''}`); 
       return; 
     }
 
