@@ -1991,7 +1991,7 @@
 
     <div class="query-tabs" role="tablist" aria-label="查詢模式">
       <button class="query-tab active" id="tab-startend" type="button" data-target="panel-startend">起訖站查詢</button>
-      <button class="query-tab" id="tab-station" type="button" data-target="panel-station">車站時刻表</button>
+      <button class="query-tab" id="tab-station" type="button" data-target="panel-station2">車站時刻表</button>
       <button class="query-tab" id="tab-trainno" type="button" data-target="panel-trainno">車次查詢</button>
     </div>
 
@@ -2092,6 +2092,8 @@
       </div>
     </section>
 
+    <section id="panel-station2" class="card query-panel hidden"></section>
+
     <datalist id="trainNumberList"></datalist>
     <section id="panel-trainno" class="card query-panel hidden"></section>
 
@@ -2178,6 +2180,7 @@
 
 <script charset="UTF-8" src="./thsr.real-schedule.js?v=20260319-utf8fix"></script>
 <script charset="UTF-8" src="../shared/rail-station-query-common.js?v=20260327-station1"></script>
+<script charset="UTF-8" src="../shared/rail-station-timetable-v2.js?v=20260330-stationv2"></script>
 <script charset="UTF-8" src="../shared/rail-train-query-v2.js?v=20260329-trainquery2"></script>
 <script>
   let nameToId = {};
@@ -2187,12 +2190,14 @@
   let prevSchedule = {};
   let lastStartEndQuery = null;
   let lastStationQuery  = null;
+  let lastStationQueryV2 = null;
   let lastTrainQuery    = null;
   let lastTrainQueryV2  = null;
   let modalCtx = null;
   let currentSeatMap = {}; 
   let currentStartEndList = [];
   let currentStationList = [];
+  let stationQuery2Controller = null;
   let trainQuery2Controller = null;
 
   function fmtDate(d){ return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
@@ -2366,6 +2371,7 @@
     window.trainSchedule = structuredClone(baseSchedule);
     buildStationIndex(); fillStationDatalist(''); fillTrainDatalist(''); renderHistory();
     document.getElementById('loading-overlay').style.display = 'none';
+    stationQuery2Controller?.refreshChrome?.();
     trainQuery2Controller?.refreshChrome?.();
     rerenderVisibleResults();
   }
@@ -2876,6 +2882,144 @@
       tbody.appendChild(tr);
     });
     if(!currentStationList.length){ tbody.innerHTML = `<tr style="text-align:center;"><td colspan="4" style="color:var(--text-muted)">查無資料</td></tr>`; }
+  }
+
+  function getThsrStationDirectionLabel(dir){
+    return dir === 'north' ? '北上' : '南下';
+  }
+
+  function getThsrStationStatusTone(label){
+    const text = String(label || '');
+    if(/取消|停駛|異常|查無/.test(text)) return 'danger';
+    if(/晚|延遲|誤點/.test(text)) return 'warning';
+    if(/未發車|即將|行駛中|準點/.test(text)) return 'success';
+    if(/已過站|已到終點/.test(text)) return 'muted';
+    return 'neutral';
+  }
+
+  function buildThsrStationQueryV2Rows(station, dir){
+    const list = [];
+    const sources = [{ map: baseSchedule, origin: currentQueryDateStr }, { map: prevSchedule, origin: addDays(currentQueryDateStr, -1) }];
+    sources.forEach(src=>{
+      const sch = src.map || {};
+      const origin = src.origin;
+      Object.keys(sch || {}).forEach(trainNo=>{
+        const t = sch[trainNo];
+        const stops = t?.['車站時間'] || [];
+        const idx = stops.findIndex(x => sameStation(x[0], station));
+        if(idx < 0) return;
+        const displayDate = stopDisplayDate(origin, stops, idx);
+        if(displayDate !== currentQueryDateStr) return;
+        const first = stops[0]?.[0] || '';
+        const last = stops.slice(-1)[0]?.[0] || '';
+        const fi = thsrStationIndex(first);
+        const li = thsrStationIndex(last);
+        const isSouth = (fi >= 0 && li >= 0) ? (fi < li) : ((first && last) ? (first.localeCompare(last,'zh-Hant') < 0) : true);
+        if(dir === 'south' && !isSouth) return;
+        if(dir === 'north' && isSouth) return;
+        const ad = splitArrDep(stops[idx]);
+        const time = ad.dep || ad.arr || '';
+        const lastArr = (splitArrDep(stops[stops.length - 1] || []).arr || splitArrDep(stops[stops.length - 1] || []).dep || '');
+        const firstDep = splitArrDep(stops[0] || []).dep || '';
+        const status = getStatusLabel(origin, time, lastArr, firstDep, 'list');
+        list.push({
+          trainNo,
+          range: `${first} → ${last}`,
+          time: time || '--',
+          status,
+          originDate: origin,
+          depMin: parseTime(time) ?? 9999,
+          isCrossDay: origin !== currentQueryDateStr
+        });
+      });
+    });
+    list.sort((a,b)=>{
+      if(a.depMin === b.depMin) return String(a.trainNo).localeCompare(String(b.trainNo),'en');
+      return a.depMin - b.depMin;
+    });
+    return list;
+  }
+
+  function buildThsrStationQueryV2Data(station, dir){
+    const rows = buildThsrStationQueryV2Rows(station, dir);
+    const directionLabel = getThsrStationDirectionLabel(dir);
+    const upcoming = rows.find(row => !/已過站|已到終點/.test(row.status));
+    return {
+      title: station,
+      subtitle: '',
+      kickerHtml: `<span class="rsv2-brand-thsr">高鐵</span><strong>${directionLabel}</strong><span>查詢日 ${currentQueryDateStr || '--'}</span>`,
+      countValue: rows.length,
+      countLabel: '總班次',
+      stats: [
+        {
+          label: '下一班',
+          html: upcoming
+            ? `<span style="color:var(--text-main);">${upcoming.time}</span><span style="color:var(--text-main);"> · <span class="rsv2-brand-thsr">高鐵</span>${upcoming.trainNo} · </span><span class="rsv2-tone-${getThsrStationStatusTone(upcoming.status)}">${upcoming.status}</span>`
+            : `<span class="rsv2-tone-muted">今日已無班次</span>`,
+          tone: 'neutral',
+          openDetail: upcoming ? { trainNo: upcoming.trainNo, originDate: upcoming.originDate } : null,
+          wideMobile: true
+        }
+      ],
+      headings: {
+        time: '出發時間',
+        train: '列車',
+        route: '行駛區間',
+        status: '狀態'
+      },
+      mobileHeadings: {
+        meta: '狀態/區間'
+      },
+      emptyMessage: '查無符合條件的班次',
+      rows: rows.map(row => ({
+        trainNo: row.trainNo,
+        originDate: row.originDate,
+        timeText: row.time || '--',
+        trainHtml: `<span class="rsv2-train-no">${row.trainNo}</span><span class="rsv2-train-type rsv2-brand-thsr">高鐵</span>`,
+        mobileTrainPrimaryText: row.trainNo,
+        mobileTrainSecondaryHtml: '<span class="rsv2-brand-thsr">高鐵</span>',
+        routeText: row.range,
+        statusText: row.status,
+        statusTone: getThsrStationStatusTone(row.status),
+        isPassed: /已過站|已到終點/.test(row.status),
+        isRunning: /已過站|已到終點/.test(row.status) === false
+      }))
+    };
+  }
+
+  function initStationQuery2Panel(){
+    if(!window.RailStationTimetableV2?.create) return null;
+    stationQuery2Controller = window.RailStationTimetableV2.create({
+      rootId: 'panel-station2',
+      inputId: 'stationNameInput2',
+      buttonId: 'stationSearchBtn2',
+      datalistId: 'stationList',
+      inputLabel: '車站',
+      placeholder: '請輸入站名或站碼',
+      placeholderText: '',
+      buttonText: '查詢',
+      directionLabel: '方向',
+      directionOptions: [
+        { value: 'south', label: '南下' },
+        { value: 'north', label: '北上' }
+      ],
+      defaultDirection: 'south',
+      normalizeStation: extractStationNameFromInput,
+      query({ station, direction }){
+        return buildThsrStationQueryV2Data(station, direction);
+      },
+      onOpenDetail(row){
+        showTrainDetails(row.trainNo, row.originDate || currentQueryDateStr);
+      },
+      onMounted(){
+        bindStationInput('stationNameInput2');
+      },
+      onStateChange(state){
+        lastStationQueryV2 = state?.station ? { station: state.station, dir: state.direction } : null;
+        if(typeof updateHeroSnapshot === 'function') updateHeroSnapshot();
+      }
+    });
+    return stationQuery2Controller;
   }
 
   function filterTrainScheduleByNumber(){
@@ -3626,8 +3770,15 @@
   }
   
   function rerenderVisibleResults(){ 
+    stationQuery2Controller?.refreshChrome?.();
     trainQuery2Controller?.refreshChrome?.();
-    if(lastStartEndQuery) runStartEndSearch(); if(lastStationQuery) filterTrainScheduleByStationName(); if(lastTrainQuery?.trainNo) filterTrainScheduleByNumber();
+    if(lastStartEndQuery) runStartEndSearch();
+    if(lastStationQuery) filterTrainScheduleByStationName();
+    if(lastStationQueryV2?.station){
+      stationQuery2Controller?.setState?.({ station: lastStationQueryV2.station, direction: lastStationQueryV2.dir });
+      stationQuery2Controller?.rerender?.();
+    }
+    if(lastTrainQuery?.trainNo) filterTrainScheduleByNumber();
   }
 
   let sortState = { key:'dep', dir:1 };
@@ -3924,8 +4075,13 @@
         document.getElementById('endStation').value = pEnd;
         setTimeout(runStartEndSearch, 600);
     } else if (pStation) {
-        document.getElementById('startStation').value = pStation;
-        document.getElementById('stationNameInput').value = pStation;
+        const stationValue = extractStationNameFromInput(pStation) || pStation;
+        document.getElementById('startStation').value = stationValue;
+        document.getElementById('stationNameInput').value = stationValue;
+        document.getElementById('stationNameInput2').value = stationValue;
+        switchQueryPanel('panel-station2');
+        stationQuery2Controller?.setState?.({ station: stationValue });
+        setTimeout(()=>stationQuery2Controller?.search?.(stationValue, { updateInput: true }), 300);
     }
   }
 
@@ -3986,6 +4142,7 @@
     bindStationInput('startStation');
     bindStationInput('endStation');
     bindStationInput('stationNameInput');
+    initStationQuery2Panel();
     bindTrainInput('trainNumberInput');
     initTrainQuery2Panel();
     initStartEndSorting();

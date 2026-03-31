@@ -2587,7 +2587,7 @@ td{ border-bottom: 1px solid rgba(255,255,255,0.06); }
 
     <div class="query-tabs" role="tablist" aria-label="查詢模式">
       <button class="query-tab active" id="tab-startend" type="button" data-target="panel-startend">起訖站 / 轉乘</button>
-      <button class="query-tab" id="tab-station" type="button" data-target="panel-station">車站時刻表</button>
+      <button class="query-tab" id="tab-station" type="button" data-target="panel-station2">車站時刻表</button>
       <button class="query-tab" id="tab-trainno" type="button" data-target="panel-trainno">車次查詢</button>
     </div>
 
@@ -2722,6 +2722,8 @@ td{ border-bottom: 1px solid rgba(255,255,255,0.06); }
       </div>
     </section>
 
+    <section id="panel-station2" class="card query-panel hidden"></section>
+
     <datalist id="trainNumberList"></datalist>
     <section id="panel-trainno" class="card query-panel hidden"></section>
 
@@ -2789,6 +2791,7 @@ td{ border-bottom: 1px solid rgba(255,255,255,0.06); }
 
 <script charset="UTF-8" src="./train.real-schedule.js?v=20260319-utf8fix"></script>
 <script charset="UTF-8" src="../shared/rail-station-query-common.js?v=20260327-station1"></script>
+<script charset="UTF-8" src="../shared/rail-station-timetable-v2.js?v=20260330-stationv2"></script>
 <script charset="UTF-8" src="../shared/rail-train-query-v2.js?v=20260329-trainquery2"></script>
 <script>
   // ===== 全域 =====
@@ -2802,9 +2805,11 @@ td{ border-bottom: 1px solid rgba(255,255,255,0.06); }
   // ===== 自動更新：記住最後一次查詢 =====
 let lastStartEndQuery = null;   // {st, ed, accept}
 let lastStationQuery  = null;   // {station, dir}
+let lastStationQueryV2 = null;  // {station, dir, selectedTypes}
 let lastTrainQuery    = null;   // {trainNo}
 let lastTrainQueryV2  = null;   // {trainNo}
 let modalCtx = null;            // {trainNo, originDate}
+let stationQuery2Controller = null;
 let trainQuery2Controller = null;
 
 // ===== Loading Overlay (避免看起來像當機) =====
@@ -3459,11 +3464,14 @@ function splitArrDep(stopRow){
     const dateText = document.getElementById('mainQueryDate')?.value || currentQueryDateStr || '--';
     const start = extractStationNameFromInput(document.getElementById('startStation')?.value || '') || '出發';
     const end = extractStationNameFromInput(document.getElementById('endStation')?.value || '') || '到達';
-    const station = extractStationNameFromInput(document.getElementById('stationNameInput')?.value || '') || '車站';
+    const stationInputId = activePanelId === 'panel-station2' ? 'stationNameInput2' : 'stationNameInput';
+    const station = extractStationNameFromInput(document.getElementById(stationInputId)?.value || '') || '車站';
     const activeTrainInputId = 'trainNumberInput';
     const trainNo = extractTrainNoFromInput(document.getElementById(activeTrainInputId)?.value || '') || '車次';
     const accept = !!document.getElementById('acceptTransfers')?.checked;
-    const directionText = document.getElementById('directionSelect')?.selectedOptions?.[0]?.textContent?.trim() || '';
+    const directionText = activePanelId === 'panel-station2'
+      ? getTraStationDirectionLabel(stationQuery2Controller?.getState?.()?.direction || 'even')
+      : (document.getElementById('directionSelect')?.selectedOptions?.[0]?.textContent?.trim() || '');
 
     let focusText = `${start} → ${end}${accept ? ' · 轉乘' : ' · 直達'}`;
     if(activeMode.includes('車站')){
@@ -3482,6 +3490,7 @@ function splitArrDep(stopRow){
       'startStation',
       'endStation',
       'stationNameInput',
+      'stationNameInput2',
       'trainNumberInput',
       'mainQueryDate',
       'acceptTransfers',
@@ -3887,6 +3896,12 @@ function hexToRgb(hex){
       const sharedColor = window.RailNetwork.getTraTypeColor(type);
       if(sharedColor) return type === '區間車' && document.body.classList.contains('dark-mode') ? '#a3a3a3' : sharedColor;
     }
+    const baseType = normalizeTraTypeDisplay(
+      String(type || '')
+        .replace(/[（(].*$/, '')
+        .replace(/\u5c08\u958b\u5217\u8eca/g, '')
+        .trim()
+    );
     const map={
       太魯閣:'#2563eb',
       莒光號:'#ea580c',
@@ -3903,13 +3918,29 @@ function hexToRgb(hex){
       普通車:'#1d4ed8',
       加班車:'#0ea5e9'
     };
-    return map[type]||'#64748b';
+    return map[type]||map[baseType]||'#64748b';
   }
 
   function colorType(t){
     const type = normalizeTraTypeDisplay(t);
     const c = getTrainTypeColor(type);
     return `<span style="color:${c};font-weight:700">${type}</span>`;
+  }
+
+  function getTraBaseTypeName(t){
+    const type = normalizeTraTypeDisplay(t);
+    return type.replace(/[（(].*$/, '').trim() || type;
+  }
+
+  function getTraMobileTypeLabel(t){
+    const type = normalizeTraTypeDisplay(t);
+    return type.replace(/[（(][^）)]*專[^）)]*[）)]/g, '(\u5c08\u8eca)');
+  }
+
+  function colorMobileType(t){
+    const label = getTraMobileTypeLabel(t);
+    const color = getTrainTypeColor(getTraBaseTypeName(t));
+    return `<span style="color:${color};font-weight:700">${label}</span>`;
   }
 
   function renderTrainTypeText(t){
@@ -4112,7 +4143,16 @@ function renderHistory(){
     buildTrainTypeChips('trainTypeChipsStationMobile', ()=>{}, 'list');
     
     renderHistory();
+    stationQuery2Controller?.refreshChrome?.();
     trainQuery2Controller?.refreshChrome?.();
+    if(lastStationQueryV2?.station){
+      stationQuery2Controller?.setState?.({
+        station: lastStationQueryV2.station,
+        direction: lastStationQueryV2.dir,
+        selectedFilters: lastStationQueryV2.selectedTypes || []
+      });
+      stationQuery2Controller?.rerender?.();
+    }
     if(lastTrainQuery?.trainNo) filterTrainScheduleByNumber(lastTrainQuery.trainNo);
     updateHeroSnapshot();
 
@@ -4130,6 +4170,7 @@ function renderHistory(){
     updateHeroSnapshot();
     setupThemeToggle();
     setupHomeBtn();
+    initStationQuery2Panel();
     initTrainQuery2Panel();
 
     // 手機版篩選按鈕事件 (起訖)
@@ -4166,6 +4207,8 @@ function renderHistory(){
 
     const dateInput = document.getElementById('mainQueryDate');
     await refreshData(dateInput?.value);
+    buildFavDropdown();
+    await applyTraHomeLinkedState();
 
     // 你原本的更新資料按鈕：保持存在
     const refreshBtn = document.getElementById('refreshBtn');
@@ -4178,6 +4221,7 @@ function renderHistory(){
     // 只在「查詢日=今天」每分鐘更新即時誤點
     window.rerenderVisibleResults = async function(){
   // 依照最後一次查詢條件，把畫面「用同樣條件」重跑一次
+  stationQuery2Controller?.refreshChrome?.();
   trainQuery2Controller?.refreshChrome?.();
   if(lastStartEndQuery){
     // 自動判斷目前是手機或桌機的篩選狀態
@@ -4194,6 +4238,15 @@ function renderHistory(){
   if(lastStationQuery){
     // 站名查詢本身會讀 input / dir / chips，直接呼叫即可
     filterTrainScheduleByStationName();
+  }
+
+  if(lastStationQueryV2?.station){
+    stationQuery2Controller?.setState?.({
+      station: lastStationQueryV2.station,
+      direction: lastStationQueryV2.dir,
+      selectedFilters: lastStationQueryV2.selectedTypes || []
+    });
+    stationQuery2Controller?.rerender?.();
   }
 
   if(lastTrainQuery && lastTrainQuery.trainNo){
@@ -5610,6 +5663,307 @@ function renderTransferTable(){
   },0);
   });}
 
+  function getTraStationDirectionLabel(dir){
+    return dir === 'odd' ? '逆行 / 奇數車次' : '順行 / 偶數車次';
+  }
+
+  function getTraStationStatusTone(label){
+    const text = String(label || '');
+    if(/停駛|取消|暫停|終止|截短|折返|部分停駛|異常/.test(text)) return 'danger';
+    if(/晚|延遲|誤點/.test(text)) return 'warning';
+    if(/準點/.test(text)) return 'success';
+    if(/已過站|已到終點|已到終點站/.test(text)) return 'muted';
+    return 'neutral';
+  }
+
+  function getTraStationQueryV2FilterOptions(){
+    const types = new Set(
+      Object.keys(baseSchedule || {})
+        .map(key => normalizeTraTypeDisplay(baseSchedule[key]?.['車種']))
+        .filter(Boolean)
+    );
+    return Array.from(types)
+      .sort((a,b)=>String(a).localeCompare(String(b),'zh-Hant'))
+      .map(type => ({ value: type, html: colorType(type) }));
+  }
+
+  const traViaBranchMatchers = [
+    { label: '六家線', stations: ['六家'] },
+    { label: '沙崙線', stations: ['沙崙', '長榮大學'] },
+    { label: '內灣線', stations: ['內灣', '富貴', '合興', '九讚頭', '橫山', '榮華', '上員', '竹東'] },
+    { label: '集集線', stations: ['車埕', '水里', '集集', '濁水', '龍泉'] },
+    { label: '平溪線', stations: ['菁桐', '平溪', '嶺腳', '望古', '十分', '大華'] },
+    { label: '深澳線', stations: ['八斗子', '海科館'] }
+  ];
+  const traYilanLineStations = ['八堵', '暖暖', '四腳亭', '瑞芳', '猴硐', '三貂嶺', '牡丹', '雙溪', '貢寮', '福隆', '石城', '大里', '大溪', '龜山', '外澳', '頭城', '頂埔', '礁溪', '四城', '宜蘭', '二結', '中里', '羅東', '冬山', '新馬', '蘇澳新', '蘇澳'];
+  const traNorthLinkStations = ['蘇澳新', '永樂', '東澳', '南澳', '武塔', '漢本', '和平', '和仁', '崇德', '新城', '景美', '北埔', '花蓮'];
+  const traTaitungLineStations = ['花蓮', '吉安', '志學', '平和', '壽豐', '豐田', '林榮新光', '南平', '鳳林', '萬榮', '光復', '大富', '富源', '瑞穗', '三民', '玉里', '東里', '東竹', '富里', '池上', '海端', '關山', '瑞和', '瑞源', '鹿野', '山里', '臺東'];
+  const traSouthLinkStations = ['臺東', '康樂', '知本', '太麻里', '金崙', '瀧溪', '大武', '古莊', '枋山', '內獅', '加祿', '枋寮'];
+  const traWestSouthStations = ['枋寮', '東海', '佳冬', '林邊', '鎮安', '南州', '崁頂', '潮州', '竹田', '西勢', '麟洛', '歸來', '屏東', '六塊厝', '九曲堂', '後庄', '鳳山', '高雄', '新左營', '左營'];
+  const traSeaLineStations = ['新埔', '白沙屯', '通霄', '苑裡', '日南', '大甲', '台中港', '清水', '沙鹿', '龍井', '大肚'];
+  const traMountainLineStations = ['造橋', '豐富', '苗栗', '南勢', '銅鑼', '三義', '泰安', '后里', '豐原', '栗林', '潭子', '頭家厝', '松竹', '太原', '精武'];
+  const traWestBranchBoundaryStations = ['竹南', '彰化'];
+
+  function getTraWestBranchByTripLine(tripLine){
+    const value = String(tripLine || '').trim();
+    if(!value) return '';
+    if(/[海]/.test(value) || /^2$/.test(value) || /sea/i.test(value)) return 'sea';
+    if(/[山]/.test(value) || /^1$/.test(value) || /mountain/i.test(value)) return 'mountain';
+    return '';
+  }
+
+  function getTraViaLabelFromStops(stops, options = {}){
+    const rawStopNames = (Array.isArray(stops) ? stops : [])
+      .map(stop => normTW(stop?.[0] || ''))
+      .filter(Boolean);
+    if(!rawStopNames.length) return '';
+
+    const rawNameSet = new Set(rawStopNames);
+    let expandedStopPath = rawStopNames.slice();
+    try{
+      const expanded = window.RailNetwork?.expandTraStopPath?.(stops);
+      const normalizedExpanded = (Array.isArray(expanded) ? expanded : [])
+        .map(name => normTW(name))
+        .filter(Boolean);
+      if(normalizedExpanded.length) expandedStopPath = normalizedExpanded;
+    }catch(_){}
+
+    const getFirstIndex = (stationList, sourceList = rawStopNames) => {
+      const normalizedSet = new Set(stationList.map(name => normTW(name)));
+      return sourceList.findIndex(name => normalizedSet.has(name));
+    };
+    const getWestBranchFirstIndex = () => {
+      const boundaryIndex = getFirstIndex(traWestBranchBoundaryStations, rawStopNames);
+      return boundaryIndex >= 0 ? boundaryIndex : 0;
+    };
+    const buildLineUsage = (stationList, options = {}) => {
+      const sourceList = Array.isArray(options.sourceList) && options.sourceList.length
+        ? options.sourceList
+        : rawStopNames;
+      const orderSourceList = Array.isArray(options.orderSourceList) && options.orderSourceList.length
+        ? options.orderSourceList
+        : rawStopNames;
+      const boundaryAware = !!options.boundaryAware;
+      const normalizedLine = stationList.map(name => normTW(name));
+      const lineIndexMap = new Map(normalizedLine.map((name, idx) => [name, idx]));
+      const hits = [];
+      sourceList.forEach((name, sourceIndex) => {
+        const lineIndex = lineIndexMap.get(name);
+        if(lineIndex == null) return;
+        hits.push({ sourceIndex, lineIndex });
+      });
+      if(!hits.length) return null;
+      const interiorHits = hits.filter(hit => hit.lineIndex > 0 && hit.lineIndex < normalizedLine.length - 1);
+      if(boundaryAware && interiorHits.length === 0 && hits.length < 2) return null;
+      let firstIndex = getFirstIndex(stationList, orderSourceList);
+      if(firstIndex < 0) firstIndex = hits[0].sourceIndex;
+      return { firstIndex };
+    };
+
+    const matchedLabels = [];
+    const pushLabel = (label, usage) => {
+      if(!usage || matchedLabels.some(item => item.label === label)) return;
+      matchedLabels.push({ label, firstIndex: usage.firstIndex });
+    };
+
+    traViaBranchMatchers.forEach(item => {
+      pushLabel(item.label, buildLineUsage(item.stations));
+    });
+
+    if(rawNameSet.has(normTW('成功')) && rawNameSet.has(normTW('追分'))){
+      pushLabel('成追線', { firstIndex: Math.min(getFirstIndex(['成功']), getFirstIndex(['追分'])) });
+    }
+
+    const westBranchHint = (() => {
+      if(traSeaLineStations.some(name => rawNameSet.has(normTW(name)))) return 'sea';
+      if(traMountainLineStations.some(name => rawNameSet.has(normTW(name)))) return 'mountain';
+      const tripLineBranch = getTraWestBranchByTripLine(options.tripLine);
+      if(tripLineBranch) return tripLineBranch;
+      if(/A/i.test(String(options.trainNo || '').trim())) return 'sea';
+      return '';
+    })();
+    if(westBranchHint === 'sea'){
+      pushLabel('海線', { firstIndex: getWestBranchFirstIndex() });
+    }else if(westBranchHint === 'mountain'){
+      pushLabel('山線', { firstIndex: getWestBranchFirstIndex() });
+    }
+
+    pushLabel('北迴線', buildLineUsage(traNorthLinkStations, {
+      sourceList: expandedStopPath,
+      orderSourceList: rawStopNames,
+      boundaryAware: true
+    }));
+    pushLabel('南迴線', buildLineUsage(traSouthLinkStations, {
+      sourceList: expandedStopPath,
+      orderSourceList: rawStopNames,
+      boundaryAware: true
+    }));
+    if(!westBranchHint){
+      pushLabel('海線', buildLineUsage(traSeaLineStations));
+      pushLabel('山線', buildLineUsage(traMountainLineStations));
+    }
+
+    return matchedLabels
+      .sort((a, b) => a.firstIndex - b.firstIndex)
+      .map(item => item.label)
+      .join('／');
+  }
+
+  function buildTraStationQueryV2Rows(station, dir, selectedTypes){
+    const selectedSet = new Set((selectedTypes || []).map(type => String(type || '')));
+    const rows = [];
+
+    scheduleKeyList.forEach(item=>{
+      const { trainNo, originDate, data } = item;
+      if(!data) return;
+
+      const typeLabel = normalizeTraTypeDisplay(data['車種']);
+      if(selectedSet.size && !selectedSet.has(typeLabel)) return;
+
+      const arr = data['車站時間'] || [];
+      const idx = arr.findIndex(stop => stop[0] === station);
+      if(idx < 0) return;
+
+      const ev = isEvenTrainNo(trainNo);
+      if(dir === 'even' && ev !== true) return;
+      if(dir === 'odd' && ev !== false) return;
+
+      const dep = splitArrDep(arr[idx]).dep || '--';
+      const abs = buildAbsMinutes(arr);
+      const absMin = abs[idx]?.abs;
+      if(absMin === null || absMin === undefined) return;
+
+      const depAdj = getAdjustedTime(trainNo, dep, currentQueryDateStr, absMin, originDate);
+      const stopDate = getDisplayStopDateStr(depAdj, originDate, absMin);
+      if(stopDate !== currentQueryDateStr) return;
+
+      const status = getTrainStatusLabel(
+        trainNo,
+        originDate,
+        (arr[0]?.[2] || arr[0]?.[1] || ''),
+        (arr.slice(-1)[0]?.[1] || arr.slice(-1)[0]?.[2] || ''),
+        absMin
+      );
+
+      rows.push({
+        trainNo,
+        originDate,
+        type: typeLabel,
+        range: `${arr[0][0]} → ${arr.slice(-1)[0][0]}`,
+        viaLabel: getTraViaLabelFromStops(arr, {
+          tripLine: data['行別'] || data['路線'] || data['TripLine'] || data['銵'] || '',
+          trainNo
+        }),
+        depHTML: highlightPeak(renderTimeWithDelay(trainNo, dep, currentQueryDateStr, { suppressStrike: status === '已過站' }, absMin, originDate)),
+        displayTime: status === '已過站' ? (dep || '--') : (depAdj.adj || dep || '--'),
+        depMin: status === '已過站' ? (parseTime(dep) ?? 9999) : (depAdj.adjMin ?? 9999),
+        status,
+        isCrossDay: originDate !== currentQueryDateStr,
+        isSea: String(trainNo).includes('A')
+      });
+    });
+
+    rows.sort((a,b)=>{
+      if(a.depMin === b.depMin) return String(a.trainNo).localeCompare(String(b.trainNo),'en');
+      return a.depMin - b.depMin;
+    });
+    return rows;
+  }
+
+  function buildTraStationQueryV2Data(station, dir, selectedTypes){
+    const rows = buildTraStationQueryV2Rows(station, dir, selectedTypes);
+    const directionLabel = getTraStationDirectionLabel(dir);
+    const upcoming = rows.find(row => !/已過站|已到終點|已到終點站/.test(row.status));
+    return {
+      title: station,
+      subtitle: '',
+      kickerHtml: `<span>台鐵</span><strong>${directionLabel}</strong><span>查詢日 ${currentQueryDateStr || '--'}</span>`,
+      countValue: rows.length,
+      countLabel: '總班次',
+      stats: [
+        {
+          label: '下一班',
+          html: upcoming
+            ? `${upcoming.depHTML}<span style="color:var(--text-main);"> · </span><span style="color:var(--text-main);">${upcoming.trainNo}</span><span class="rsv2-train-type">${colorType(upcoming.type)}</span><span style="color:var(--text-main);"> · </span><span class="rsv2-tone-${getTraStationStatusTone(upcoming.status)}">${upcoming.status}</span>`
+            : `<span class="rsv2-tone-muted">今日已無班次</span>`,
+          tone: 'neutral',
+          openDetail: upcoming ? { trainNo: upcoming.trainNo, originDate: upcoming.originDate } : null,
+          wideMobile: true
+        }
+      ],
+      headings: {
+        time: '出發時間',
+        train: '列車 / 車種',
+        route: '行駛區間',
+        via: '經由',
+        status: '狀態'
+      },
+      mobileHeadings: {
+        meta: '狀態/區間'
+      },
+      emptyMessage: '查無符合條件的班次',
+      rows: rows.map(row => ({
+        trainNo: row.trainNo,
+        originDate: row.originDate,
+        timeHtml: row.depHTML || '--',
+        trainHtml: row.isSea
+          ? `<span class="rsv2-train-no">${row.trainNo}</span><span class="badge-sea">海</span><span class="rsv2-train-type">${colorType(row.type)}</span>`
+          : `<span class="rsv2-train-no">${row.trainNo}</span><span class="rsv2-train-type">${colorType(row.type)}</span>`,
+        mobileTrainPrimaryText: row.trainNo,
+        mobileTrainSecondaryHtml: row.isSea
+          ? `<span class="badge-sea">海</span><span class="rsv2-train-type">${colorMobileType(row.type)}</span>`
+          : colorMobileType(row.type),
+        routeText: row.range,
+        viaText: row.viaLabel,
+        statusText: row.status,
+        statusTone: getTraStationStatusTone(row.status),
+        isPassed: /已過站|已到終點|已到終點站/.test(row.status),
+        isRunning: /已過站|已到終點|已到終點站/.test(row.status) === false
+      }))
+    };
+  }
+
+  function initStationQuery2Panel(){
+    if(!window.RailStationTimetableV2?.create) return null;
+    stationQuery2Controller = window.RailStationTimetableV2.create({
+      rootId: 'panel-station2',
+      inputId: 'stationNameInput2',
+      buttonId: 'stationSearchBtn2',
+      datalistId: 'stationList',
+      inputLabel: '車站',
+      placeholder: '請輸入站名或站碼',
+      placeholderText: '',
+      buttonText: '查詢',
+      directionLabel: '方向',
+      directionOptions: [
+        { value: 'even', label: '順行' },
+        { value: 'odd', label: '逆行' }
+      ],
+      defaultDirection: 'even',
+      mobileFilterLabel: '車種篩選',
+      getFilterOptions(){
+        return getTraStationQueryV2FilterOptions();
+      },
+      normalizeStation: extractStationNameFromInput,
+      query({ station, direction, selectedFilters }){
+        return buildTraStationQueryV2Data(station, direction, selectedFilters);
+      },
+      onOpenDetail(row){
+        showTrainDetails(row.trainNo, row.originDate || currentQueryDateStr);
+      },
+      onMounted(){
+        bindStationInput('stationNameInput2');
+      },
+      onStateChange(state){
+        lastStationQueryV2 = state?.station
+          ? { station: state.station, dir: state.direction, selectedTypes: state.selectedFilters || [] }
+          : null;
+        if(typeof updateHeroSnapshot === 'function') updateHeroSnapshot();
+      }
+    });
+    return stationQuery2Controller;
+  }
+
   // ===== 車次查詢（以查詢日 currentQueryDateStr 的發車資料為主） =====
   
 function filterTrainScheduleByNumber(){
@@ -6686,78 +7040,105 @@ function initStartEndSorting(){
   document.getElementById('stationSearchBtn').addEventListener('click', filterTrainScheduleByStationName);
   document.getElementById('trainNumberBtn').addEventListener('click', filterTrainScheduleByNumber);
 
-  document.getElementById('swapBtn').addEventListener('click', ()=>{
+ document.getElementById('swapBtn').addEventListener('click', ()=>{
     const a=document.getElementById('startStation');
     const b=document.getElementById('endStation');
     const t=a.value; a.value=b.value; b.value=t;
   });
 
- // ===== 整合首頁連動邏輯 =====
-window.addEventListener('load', async () => {
-    // 1. 同步主題配色
-    const savedTheme = localStorage.getItem('theme');
-    if (savedTheme === 'light') {
-        document.body.classList.add('light-mode');
-    }
-
-    const urlParams = new URLSearchParams(window.location.search);
-    const startParam = urlParams.get('start');
-    const endParam = urlParams.get('end');
-    const stationParam = urlParams.get('station');
-
-
-if (stationParam) {
-    switchQueryPanel('panel-station'); 
-    document.getElementById('stationNameInput').value = stationParam;
-    filterTrainScheduleByStationName();
-}
-
-    // 確保資料載入後的檢查函式
-    const checkDataReady = () => {
-        return window.trainSchedule && Object.keys(window.trainSchedule).length > 0;
-    };
-
-    // 等待資料準備就緒（最多等 3 秒）
-    let retryCount = 0;
-    while (!checkDataReady() && retryCount < 30) {
-        await new Promise(resolve => setTimeout(resolve, 100));
-        retryCount++;
-    }
-
-    // A. 處理「常用行程」帶入 (起訖站)
-    if (startParam && endParam) {
-        switchQueryPanel('panel-startend'); // 切換到起訖站面板
-        document.getElementById('startStation').value = startParam;
-        document.getElementById('endStation').value = endParam;
-        
-        console.log("自動執行起訖站查詢:", startParam, "->", endParam);
-        runStartEndSearch();
-    } 
-    // B. 處理「常用車站」帶入 (車站時刻)
-    else if (stationParam) {
-        switchQueryPanel('panel-station'); // 切換到車站時刻面板
-        const stationInput = document.getElementById('stationName');
-        if (stationInput) {
-            stationInput.value = stationParam;
-            console.log("自動執行車站查詢:", stationParam);
-            filterTrainScheduleByStationName();
-        }
-    }
-    // 在 tr.html 底部腳本的 window.addEventListener('load', ... ) 內加入：
-
-// ===== 常用行程選單邏輯 =====
 const favBtn = document.getElementById('favMenuBtn');
 const favDropdown = document.getElementById('favDropdown');
+const TRA_LAST_NEAREST_KEY = 'tr_last_nearest_station';
 
-// 1. 生成選單內容
+function normalizeTraLinkedStation(raw) {
+    const value = String(raw || '').trim();
+    if (!value) return '';
+    return extractStationNameFromInput(value) || normTW(value);
+}
+
+function getStoredTraHomeStation() {
+    return normalizeTraLinkedStation(localStorage.getItem('tr_home') || '');
+}
+
+function getStoredNearestTraStation() {
+    return normalizeTraLinkedStation(localStorage.getItem(TRA_LAST_NEAREST_KEY) || '');
+}
+
+function getStoredTraFavoriteRoute(index = 1) {
+    const start = normalizeTraLinkedStation(localStorage.getItem(`tr_s${index}`) || '');
+    const end = normalizeTraLinkedStation(localStorage.getItem(`tr_e${index}`) || '');
+    if (!start || !end) return null;
+    return { start, end };
+}
+
+function fillTraStartEndInputs(start, end) {
+    const startValue = normalizeTraLinkedStation(start);
+    const endValue = normalizeTraLinkedStation(end);
+    const startInput = document.getElementById('startStation');
+    const endInput = document.getElementById('endStation');
+    if (startInput && startValue) startInput.value = startValue;
+    if (endInput && endValue) endInput.value = endValue;
+}
+
+function fillTraStationInputs(rawStation, options = {}) {
+    const station = normalizeTraLinkedStation(rawStation);
+    if (!station) return '';
+    const stationInputLegacy = document.getElementById('stationNameInput');
+    const stationInputV2 = document.getElementById('stationNameInput2');
+    if (stationInputLegacy) stationInputLegacy.value = station;
+    if (stationInputV2) stationInputV2.value = station;
+    if (options.syncController) {
+        stationQuery2Controller?.setState?.({ station });
+    }
+    return station;
+}
+
+async function applyTraHomeLinkedState() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const startParam = normalizeTraLinkedStation(urlParams.get('start'));
+    const endParam = normalizeTraLinkedStation(urlParams.get('end'));
+    const stationParam = normalizeTraLinkedStation(urlParams.get('station'));
+    const defaultRoute = getStoredTraFavoriteRoute(1);
+    const defaultStation = getStoredTraHomeStation() || getStoredNearestTraStation();
+
+    if (defaultRoute) {
+        fillTraStartEndInputs(defaultRoute.start, defaultRoute.end);
+    }
+    if (defaultStation) {
+        fillTraStationInputs(defaultStation);
+    }
+
+    if (startParam && endParam) {
+        await switchQueryPanel('panel-startend');
+        fillTraStartEndInputs(startParam, endParam);
+        updateHeroSnapshot();
+        runStartEndSearch();
+        return true;
+    }
+
+    if (stationParam) {
+        await switchQueryPanel('panel-station2');
+        const stationValue = fillTraStationInputs(stationParam, { syncController: true });
+        if (stationValue) {
+            updateHeroSnapshot();
+            stationQuery2Controller?.search?.(stationValue, { updateInput: true });
+            return true;
+        }
+    }
+
+    updateHeroSnapshot();
+    return false;
+}
+
 function buildFavDropdown() {
+    if (!favDropdown) return;
     favDropdown.innerHTML = ''; // 清空
     let hasFav = false;
 
     // 讀取 localStorage (與 index.html 儲存鍵值一致)
     for (let i = 1; i <= 3; i++) {
-        const s = localStorage.getItem(`tr_s${i}`);
-        const e = localStorage.getItem(`tr_e${i}`);
+        const s = normalizeTraLinkedStation(localStorage.getItem(`tr_s${i}`));
+        const e = normalizeTraLinkedStation(localStorage.getItem(`tr_e${i}`));
 
         if (s && e) {
             hasFav = true;
@@ -6771,9 +7152,9 @@ function buildFavDropdown() {
             
             // 點擊事件：帶入並查詢
             item.onclick = () => {
-                document.getElementById('startStation').value = s;
-                document.getElementById('endStation').value = e;
+                fillTraStartEndInputs(s, e);
                 favDropdown.style.display = 'none';
+                updateHeroSnapshot();
                 runStartEndSearch(); // 自動執行查詢
             };
             favDropdown.appendChild(item);
@@ -6785,7 +7166,6 @@ function buildFavDropdown() {
     }
 }
 
-// 2. 綁定開關事件
 if (favBtn) {
     favBtn.onclick = (e) => {
         e.stopPropagation();
@@ -6795,13 +7175,8 @@ if (favBtn) {
     };
 }
 
-// 3. 點擊外部關閉選單
 document.addEventListener('click', () => {
     if (favDropdown) favDropdown.style.display = 'none';
-});
-
-// 執行生成
-renderQuickFavs();
 });
 
 </script>

@@ -16,6 +16,7 @@ function normalizeTraTypeName(typeName) {
     if (window.RailNetwork?.normalizeTraDisplayType) {
         return window.RailNetwork.normalizeTraDisplayType(text);
     }
+    if (/[（(][^）)]*專[^）)]*[）)]/.test(text)) return text.replace(/[（(][^）)]*專[^）)]*[）)]/g, '(\u5c08\u8eca)');
     if (/專開列車/.test(text)) return text;
     if (/自強.*3000|3000|新自強|騰雲/.test(text)) return '新自強';
     if (/普悠瑪/.test(text)) return '普悠瑪';

@@ -4646,6 +4646,8 @@ function toggleSettings(show) {
                     if(d < minDist) { minDist = d; nearest = st.name; }
                 });
                 if (nearest) {
+                    localStorage.setItem(`${sys}_last_nearest_station`, nearest);
+                    localStorage.setItem(`${sys}_last_nearest_at`, String(Date.now()));
                     targetSpan.innerText = `📍 最近: ${nearest}`;
                     setTimeout(() => {
                         openAppOverlay(sys, { station: nearest });

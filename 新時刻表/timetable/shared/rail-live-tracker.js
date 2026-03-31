@@ -204,7 +204,15 @@
 
   function getTraTypeColor(type) {
     const normalized = normalizeTraType(type);
+    const baseCandidate = normalized
+      .replace(/[（(].*$/, "")
+      .replace(/\u5c08\u958b\u5217\u8eca/g, "")
+      .trim();
+    const baseNormalized = baseCandidate && baseCandidate !== normalized
+      ? normalizeTraType(baseCandidate)
+      : normalized;
     if (TRA_TYPE_COLORS[normalized]) return getReadableRailColor(TRA_TYPE_COLORS[normalized]);
+    if (TRA_TYPE_COLORS[baseNormalized]) return getReadableRailColor(TRA_TYPE_COLORS[baseNormalized]);
     if (typeof window.getTrainTypeColor === "function") {
       try {
         return getReadableRailColor(window.getTrainTypeColor(normalized) || "#64748b");

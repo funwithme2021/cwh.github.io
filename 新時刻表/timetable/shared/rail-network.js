@@ -166,6 +166,7 @@
   function normalizeTraDisplayType(type) {
     const text = String(type || "").trim();
     if (!text) return "列車";
+    if (/[（(][^）)]*專[^）)]*[）)]/.test(text)) return text.replace(/[（(][^）)]*專[^）)]*[）)]/g, "(\u5c08\u8eca)");
     if (/專開列車/.test(text)) return text;
     if (/自強.*3000|3000|新自強|騰雲/.test(text)) return "新自強";
     if (/普悠瑪/.test(text)) return "普悠瑪";
@@ -185,7 +186,14 @@
 
   function getTraTypeColor(type) {
     const normalized = normalizeTraDisplayType(type);
-    return TRA_TYPE_COLORS[normalized] || "#64748b";
+    const baseCandidate = normalized
+      .replace(/[（(].*$/, "")
+      .replace(/\u5c08\u958b\u5217\u8eca/g, "")
+      .trim();
+    const baseNormalized = baseCandidate && baseCandidate !== normalized
+      ? normalizeTraDisplayType(baseCandidate)
+      : normalized;
+    return TRA_TYPE_COLORS[normalized] || TRA_TYPE_COLORS[baseNormalized] || "#64748b";
   }
 
   function normalizeSegment(segment, normalize) {
