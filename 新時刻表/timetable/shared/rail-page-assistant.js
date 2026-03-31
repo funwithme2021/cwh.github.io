@@ -1281,9 +1281,12 @@
       return;
     }
 
-    const statusText = typeof window.getStatusForModal === "function"
+    const traTrainSummary = typeof window.buildTraTrainQueryV2Data === "function"
+      ? window.buildTraTrainQueryV2Data(trainNo, { showPassStops: !!intent.showStops })
+      : null;
+    const statusText = traTrainSummary?.statusLabel || (typeof window.getStatusForModal === "function"
       ? window.getStatusForModal(trainNo, match.originDate, stops)
-      : "--";
+      : "--");
     const abs = window.buildAbsMinutes?.(stops) || [];
     const lastAbs = abs[abs.length - 1]?.abs;
     const nowAbs = typeof window.getNowAbsFromOrigin === "function" ? window.getNowAbsFromOrigin(match.originDate) : null;
@@ -1318,8 +1321,8 @@
       ? `${targetStation} 之前共 ${targetIndex + 1} 站；沿途停靠：${stops.slice(0, Math.min(targetIndex + 1, 8)).map((stop) => stop[0]).join("、")}${targetIndex + 1 > 8 ? " 等" : ""}`
       : `沿途停靠共 ${stops.length} 站：${stops.slice(0, 8).map((stop) => stop[0]).join("、")}${stops.length > 8 ? " 等" : ""}`;
     const crossDay = typeof window.getCrossDayInfo === "function" ? window.getCrossDayInfo(stops) : { label: "當日車" };
-    const currentLocation = typeof window.getCurrentLocationText === "function"
-      ? window.getCurrentLocationText(stops, nextIndex, statusText, canNext)
+    const currentLocation = Array.isArray(traTrainSummary?.heroSignals) && traTrainSummary.heroSignals[0]?.value
+      ? traTrainSummary.heroSignals[0].value
       : (stops[nextIndex]?.[0] || "--");
 
     renderTraTrain(state, intent, {
@@ -1488,6 +1491,7 @@
       return;
     }
 
+    state.lastIntentDate = intent.dateStr || "";
     const button = state.runButton;
     const previousLabel = button.textContent;
     button.disabled = true;
@@ -1668,6 +1672,8 @@
       answer: panel.querySelector("#railAssistantAnswer"),
       actions: [],
       lastPrompt: "",
+      lastIntentDate: "",
+      autoRefreshInFlight: false,
       renderState: null,
       view: { route: { direct: 0, transfer: 0 }, station: 0 },
     };
@@ -1687,6 +1693,21 @@
       if (!prompt) return;
       runAssistant(state, prompt);
     });
+
+    window.refreshRailPageAssistant = async function () {
+      const prompt = String(state.lastPrompt || state.input.value || "").trim();
+      const todayStr = window.RailAssistantCommon?.getTodayDateStr?.() || new Date().toISOString().slice(0, 10);
+      if (!prompt || !state.lastIntentDate || state.lastIntentDate !== todayStr) return false;
+      if (state.runButton?.disabled) return false;
+      if (state.autoRefreshInFlight) return false;
+      state.autoRefreshInFlight = true;
+      try {
+        await runAssistant(state, prompt);
+        return true;
+      } finally {
+        state.autoRefreshInFlight = false;
+      }
+    };
 
     renderEmpty(state);
     setupEmbeddedAssistantBridge(state);

@@ -2188,7 +2188,7 @@
   let currentQueryDateStr = '';
   let baseSchedule = {};
   let prevSchedule = {};
-  let lastStartEndQuery = null;
+  let lastStartEndQuery = null; // { st, ed, onlyDirect }
   let lastStationQuery  = null;
   let lastStationQueryV2 = null;
   let lastTrainQuery    = null;
@@ -2295,7 +2295,7 @@
   function extractStationNameFromInput(raw){ 
     const v=String(raw||'').trim(); if(!v) return ''; 
     const m=v.match(/^(\d{3,6})\s*-\s*(.+)$/); 
-    if(m&&window.stationMap&&window.stationMap[m[1]]) return window.stationMap[m[1]]; 
+    if(m) return (window.stationMap&&window.stationMap[m[1]]) ? window.stationMap[m[1]] : normTW(m[2]); 
     if(window.stationMap&&window.stationMap[v]) return window.stationMap[v]; 
     const asTai=normTW(v); 
     if(asTai==='高雄'||asTai==='新左營') return '左營'; 
@@ -2359,27 +2359,35 @@
     });
   }
 
-  async function refreshData(dateStr){
+  async function refreshData(dateStr, options){
+    const opts = options || {};
+    const silent = !!opts.silent;
     currentQueryDateStr = dateStr || '';
-    document.getElementById('loading-overlay').style.display = 'flex';
-    document.getElementById('loading-text').textContent = `正在獲取 ${dateStr} 資料...`;
-    await fetchRealData(dateStr);
-    baseSchedule = (typeof structuredClone==='function') ? structuredClone(window.trainSchedule) : JSON.parse(JSON.stringify(window.trainSchedule||{}));
-    const prevDateStr = addDays(dateStr, -1);
-    await fetchRealData(prevDateStr);
-    prevSchedule = (typeof structuredClone==='function') ? structuredClone(window.trainSchedule) : JSON.parse(JSON.stringify(window.trainSchedule||{}));
-    window.trainSchedule = structuredClone(baseSchedule);
-    buildStationIndex(); fillStationDatalist(''); fillTrainDatalist(''); renderHistory();
-    document.getElementById('loading-overlay').style.display = 'none';
-    stationQuery2Controller?.refreshChrome?.();
-    trainQuery2Controller?.refreshChrome?.();
-    rerenderVisibleResults();
+    if(!silent){
+      document.getElementById('loading-overlay').style.display = 'flex';
+      document.getElementById('loading-text').textContent = `正在獲取 ${dateStr} 資料...`;
+    }
+    try{
+      await fetchRealData(dateStr);
+      baseSchedule = (typeof structuredClone==='function') ? structuredClone(window.trainSchedule) : JSON.parse(JSON.stringify(window.trainSchedule||{}));
+      const prevDateStr = addDays(dateStr, -1);
+      await fetchRealData(prevDateStr);
+      prevSchedule = (typeof structuredClone==='function') ? structuredClone(window.trainSchedule) : JSON.parse(JSON.stringify(window.trainSchedule||{}));
+      window.trainSchedule = structuredClone(baseSchedule);
+      buildStationIndex(); fillStationDatalist(''); fillTrainDatalist(''); renderHistory();
+      await rerenderVisibleResults();
+    }finally{
+      if(!silent){
+        document.getElementById('loading-overlay').style.display = 'none';
+      }
+    }
   }
 
   async function runStartEndSearch() {
     const dateInput = document.getElementById('mainQueryDate');
     const queryDate = dateInput ? dateInput.value : fmtDate(new Date());
     const todayStr = fmtDate(new Date());
+    const onlyDirect = !!document.getElementById('onlyDirect')?.checked;
     const stInput = document.getElementById('startStation').value;
     const edInput = document.getElementById('endStation').value;
     const st = extractStationNameFromInput(stInput);
@@ -2393,7 +2401,7 @@
     // 手機版會隱藏標頭，這裡主要是給桌面版
     document.querySelectorAll('.seat-col-header').forEach(th => { th.style.display = isPastDate ? 'none' : ''; });
     
-    lastStartEndQuery = { st, ed };
+    lastStartEndQuery = { st, ed, onlyDirect };
     buildDirectList(st, ed);
     renderStartEndTable();
     if (queryDate >= todayStr) { await refreshSeatForCurrentOD(st, ed); } else { currentSeatMap = {}; renderStartEndTable(); }
@@ -2432,6 +2440,16 @@
       });
     });
     currentStartEndList = list.sort((a,b) => parseTime(a.dep) - parseTime(b.dep));
+    if(sortState?.key){
+      const dir = sortState.dir || 1;
+      const key = sortState.key;
+      currentStartEndList.sort((a,b)=>{
+        if(key === 'dur') return ((a.durMin||0) - (b.durMin||0)) * dir;
+        const ta = parseTime(key === 'dep' ? a.dep : a.arr);
+        const tb = parseTime(key === 'dep' ? b.dep : b.arr);
+        return ((ta ?? 9999) - (tb ?? 9999)) * dir;
+      });
+    }
   }
 
   async function refreshSeatForCurrentOD(st, ed){
@@ -3769,16 +3787,70 @@
       </section>`;
   }
   
-  function rerenderVisibleResults(){ 
+  function restoreLastStartEndQueryState(){
+    if(!lastStartEndQuery) return;
+    const startInput = document.getElementById('startStation');
+    const endInput = document.getElementById('endStation');
+    const onlyDirectInput = document.getElementById('onlyDirect');
+    if(startInput) startInput.value = lastStartEndQuery.st || '';
+    if(endInput) endInput.value = lastStartEndQuery.ed || '';
+    if(onlyDirectInput) onlyDirectInput.checked = !!lastStartEndQuery.onlyDirect;
+    if(typeof updateTripSummary === 'function') updateTripSummary();
+  }
+
+  async function rerenderVisibleResults(){ 
     stationQuery2Controller?.refreshChrome?.();
     trainQuery2Controller?.refreshChrome?.();
-    if(lastStartEndQuery) runStartEndSearch();
+    if(lastStartEndQuery){
+      restoreLastStartEndQueryState();
+      await runStartEndSearch();
+    }
     if(lastStationQuery) filterTrainScheduleByStationName();
     if(lastStationQueryV2?.station){
       stationQuery2Controller?.setState?.({ station: lastStationQueryV2.station, direction: lastStationQueryV2.dir });
-      stationQuery2Controller?.rerender?.();
+      await stationQuery2Controller?.rerender?.();
     }
-    if(lastTrainQuery?.trainNo) filterTrainScheduleByNumber();
+    if(lastTrainQuery?.trainNo) await filterTrainScheduleByNumber();
+  }
+
+  let autoRefreshInFlight = false;
+
+  function hasRememberedQueryState(){
+    return !!(
+      lastStartEndQuery ||
+      lastStationQuery ||
+      lastStationQueryV2?.station ||
+      lastTrainQuery?.trainNo
+    );
+  }
+
+  async function autoRefreshActiveQueries(){
+    const cur = document.getElementById('mainQueryDate')?.value;
+    if(cur !== fmtDate(new Date())) return;
+    if(!hasRememberedQueryState()) return;
+    if(autoRefreshInFlight) return;
+
+    autoRefreshInFlight = true;
+    try{
+      await refreshData(cur, { silent: true });
+      await window.refreshRailPageAssistant?.({ silent: true });
+    }catch(error){
+      console.warn('高鐵自動更新失敗', error);
+    }finally{
+      autoRefreshInFlight = false;
+    }
+  }
+
+  function startThsrAlignedAutoRefresh(){
+    const startAlignedPolling = window.RailAssistantCommon?.startAlignedPolling;
+    if(typeof startAlignedPolling === 'function'){
+      window.__thsrAutoRefreshLoop?.stop?.();
+      window.__thsrAutoRefreshLoop = startAlignedPolling(() => autoRefreshActiveQueries(), {
+        getIntervalMs: () => 60000
+      });
+      return;
+    }
+    setInterval(()=>{ autoRefreshActiveQueries(); }, 60000);
   }
 
   let sortState = { key:'dep', dir:1 };
@@ -3991,6 +4063,41 @@
     await openTHSRBookingDeepLink(payloadBase.trainNo, payloadBase.dateStr, payloadBase.timeStr, payloadBase.startStation, payloadBase.endStation);
   }
 
+ function openTHSRExternalBookingUrl(jumpUrl){
+  const href = String(jumpUrl || '').trim();
+  if(!href) return false;
+
+  let targetWindow = window;
+  try{
+    if(window.top && window.top !== window) targetWindow = window.top;
+  }catch(_){
+    targetWindow = window;
+  }
+
+  try{
+    const anchor = document.createElement('a');
+    anchor.href = href;
+    anchor.rel = 'noopener';
+    anchor.target = targetWindow === window ? '_self' : '_top';
+    anchor.style.display = 'none';
+    (document.body || document.documentElement).appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+  }catch(_){}
+
+  window.setTimeout(() => {
+    if(document.visibilityState === 'hidden') return;
+    try{
+      if(typeof targetWindow.location.assign === 'function') targetWindow.location.assign(href);
+      else targetWindow.location.href = href;
+    }catch(_){
+      window.location.href = href;
+    }
+  }, 180);
+
+  return true;
+ }
+
  async function openTHSRBookingDeepLink(trainNo, dateStr, timeStr, startStationName, endStationName){ 
   const isMobile = !isDesktopDevice();
   if (!isMobile) { 
@@ -4021,17 +4128,46 @@
     }
 
     const apiUrl = `https://tdx.transportdata.tw/api/maas-thsr/booking/deeplink/direct/hsr?start_station=${encodeURIComponent(st)}&end_station=${encodeURIComponent(ed)}&train_date=${dateStr}&train_time=${encodeURIComponent(timeStr)}&train_number=${trainNo}`;
-    const res = await fetch(apiUrl, { 
-      method: 'GET', 
-      headers: { 
-        'Authorization': `Bearer ${token}`, 
-        'Accept': 'application/json' 
-      } 
-    });
+    const buildBookingHeaders = (authToken) => {
+      if (typeof window.buildTdxAuthHeaders === 'function') {
+        return window.buildTdxAuthHeaders(authToken);
+      }
+      const headers = {
+        'Accept': 'application/json'
+      };
+      if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+      if (window.TDX_CONFIG?.clientId || TDX_CONFIG?.clientId) {
+        headers['x-api-key'] = window.TDX_CONFIG?.clientId || TDX_CONFIG.clientId;
+      }
+      return headers;
+    };
+    const readErrorText = async (response) => {
+      try {
+        const raw = await response.text();
+        return String(raw || '').trim();
+      } catch (_) {
+        return '';
+      }
+    };
+    const requestDeepLink = async (forceRefresh = false) => {
+      const authToken = await getAccessToken(forceRefresh);
+      if (!authToken) return { ok: false, reason: 'no-token' };
+      const response = await fetch(apiUrl, { 
+        method: 'GET', 
+        headers: buildBookingHeaders(authToken)
+      });
+      return { ok: response.ok, response };
+    };
+
+    let { response: res } = await requestDeepLink(false);
+    if ((res?.status === 401 || res?.status === 403) && typeof getAccessToken === 'function') {
+      ({ response: res } = await requestDeepLink(true));
+    }
 
     if(!res.ok) { 
-      if(res.status === 401) alert("API 存取被拒 (401): Access key not found"); 
-      else alert(`訂票連結取得失敗: HTTP ${res.status}`); 
+      const errorText = await readErrorText(res);
+      if(res.status === 401 || res.status === 403) alert(`TDX 訂票授權失敗（HTTP ${res.status}）。${errorText ? `\n${errorText}` : '\n請重新整理後再試；若仍失敗，再確認 MaaS API 權限與訂閱設定。'}`); 
+      else alert(`訂票連結取得失敗: HTTP ${res.status}${errorText ? `\n${errorText}` : ''}`); 
       return; 
     }
 
@@ -4039,17 +4175,7 @@
     const jumpUrl = result.url || (result.data && result.data.deeplink) || result.DeepLinkUrl;
 
     if (jumpUrl) {
-      // ✅ A：訂票一定跳到最外層（避免 iframe 內被擋/卡住）
-      try {
-        if (window.top && window.top !== window) {
-          window.top.location.href = jumpUrl;
-        } else {
-          window.location.href = jumpUrl;
-        }
-      } catch (err) {
-        // 保底：如果 top 被限制存取，退回當前視窗跳
-        window.location.href = jumpUrl;
-      }
+      openTHSRExternalBookingUrl(jumpUrl);
     } else {
       console.error("API 回傳結構異常:", result);
       alert("無法取得 App 喚醒連結");
@@ -4159,7 +4285,7 @@
 
     handleUrlParams();
 
-    setInterval(()=>{ if(document.getElementById('mainQueryDate').value === fmtDate(new Date())) rerenderVisibleResults(); }, 60000);
+    startThsrAlignedAutoRefresh();
   });
   
   window.fetchCollegeDiscount = async function(){ return {}; };

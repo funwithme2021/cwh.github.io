@@ -45,6 +45,66 @@
     return dateToStr(base);
   }
 
+  function startAlignedPolling(callback, options = {}) {
+    const task = typeof callback === "function" ? callback : () => {};
+    const readInterval = typeof options.getIntervalMs === "function"
+      ? options.getIntervalMs
+      : () => Number(options.intervalMs) || 60000;
+    let timer = 0;
+    let stopped = false;
+    let running = false;
+
+    function getDelayMs() {
+      const intervalMs = Math.max(1000, Number(readInterval()) || 60000);
+      const now = Date.now();
+      const remainder = now % intervalMs;
+      return remainder === 0 ? intervalMs : (intervalMs - remainder);
+    }
+
+    function clearTimer() {
+      if (timer) {
+        clearTimeout(timer);
+        timer = 0;
+      }
+    }
+
+    function scheduleNext() {
+      if (stopped) return;
+      clearTimer();
+      timer = window.setTimeout(run, getDelayMs());
+    }
+
+    async function run() {
+      if (stopped || running) {
+        scheduleNext();
+        return;
+      }
+      running = true;
+      try {
+        await task();
+      } catch (error) {
+        console.warn("aligned polling failed", error);
+      } finally {
+        running = false;
+        scheduleNext();
+      }
+    }
+
+    scheduleNext();
+
+    return {
+      run,
+      stop() {
+        stopped = true;
+        clearTimer();
+      },
+      restart() {
+        stopped = false;
+        scheduleNext();
+      },
+    };
+  }
+
   function normalizeText(raw) {
     return String(raw || "")
       .replace(/[０-９]/g, (char) => String.fromCharCode(char.charCodeAt(0) - 65248))
@@ -489,6 +549,7 @@
     parseFlexibleDate,
     parseFlexibleTimeWindow,
     setLang,
+    startAlignedPolling,
     translateStationName,
     translateTraType,
   };

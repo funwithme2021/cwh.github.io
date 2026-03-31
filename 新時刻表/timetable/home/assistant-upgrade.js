@@ -12,6 +12,9 @@
 
   let assistantRenderState = null;
   let assistantRenderStateSeq = 0;
+  let assistantLastQueryText = "";
+  let assistantAutoRefreshLoop = null;
+  let assistantAutoRefreshInFlight = false;
 
   function pad2(value) {
     return String(value).padStart(2, "0");
@@ -24,6 +27,40 @@
     if (section === "transfer") return wide ? 3 : RESULT_PAGE_SIZE.transfer;
     if (section === "station") return wide ? 8 : (desktop ? 7 : RESULT_PAGE_SIZE.station);
     return RESULT_PAGE_SIZE[section] || 3;
+  }
+
+  function getAssistantTodayDateStr() {
+    return window.RailAssistantCommon?.getTodayDateStr?.() || new Date().toISOString().slice(0, 10);
+  }
+
+  function shouldAutoRefreshAssistantState() {
+    const intentDate = String(assistantRenderState?.intent?.dateStr || "");
+    return !!assistantLastQueryText && !!intentDate && intentDate === getAssistantTodayDateStr();
+  }
+
+  async function autoRefreshAssistantState() {
+    if (!shouldAutoRefreshAssistantState()) return;
+    if (assistantAutoRefreshInFlight) return;
+    assistantAutoRefreshInFlight = true;
+    try {
+      await window.handleAssistantQuery?.(assistantLastQueryText, { silent: true });
+    } catch (error) {
+      console.warn("首頁 AI 自動更新失敗", error);
+    } finally {
+      assistantAutoRefreshInFlight = false;
+    }
+  }
+
+  function initAssistantAutoRefresh() {
+    if (assistantAutoRefreshLoop) return;
+    const startAlignedPolling = window.RailAssistantCommon?.startAlignedPolling;
+    if (typeof startAlignedPolling === "function") {
+      assistantAutoRefreshLoop = startAlignedPolling(() => autoRefreshAssistantState(), {
+        getIntervalMs: () => 60000,
+      });
+      return;
+    }
+    assistantAutoRefreshLoop = window.setInterval(() => autoRefreshAssistantState(), 60000);
   }
 
   function ensureAssistantUpgradeStyles() {
@@ -964,9 +1001,19 @@
   function buildStopMap(stops) {
     const map = {};
     (stops || []).forEach((stop, index) => {
-      if (stop && stop.name) map[stop.name] = index;
+      if (stop && stop.name) {
+        map[stop.name] = index;
+        map[normalizeLoose(stop.name)] = index;
+      }
     });
     return map;
+  }
+
+  function getStopMapIndex(stopMap, stationName) {
+    if (!stopMap || !stationName) return -1;
+    if (Number.isInteger(stopMap[stationName])) return stopMap[stationName];
+    const normalized = normalizeLoose(stationName);
+    return Number.isInteger(stopMap[normalized]) ? stopMap[normalized] : -1;
   }
 
   function getStopAbs(stop, kind) {
@@ -1184,8 +1231,8 @@
     const useNow = options.dateStr === getTodayDateStr() && !options.hasTimeFilter;
     const nowTs = Date.now();
     const all = (dataset || []).map((train) => {
-      const startIdx = train.stopMap ? train.stopMap[startName] : undefined;
-      const endIdx = train.stopMap ? train.stopMap[endName] : undefined;
+      const startIdx = getStopMapIndex(train.stopMap, startName);
+      const endIdx = getStopMapIndex(train.stopMap, endName);
       if (!Number.isInteger(startIdx) || !Number.isInteger(endIdx) || endIdx <= startIdx) return null;
       if (options.sys === "tr" && options.typePreference && !matchesTraType(train.type, options.typePreference)) return null;
 
@@ -1236,7 +1283,7 @@
 
     (dataset || []).forEach((firstTrain) => {
       if (options.typePreference && !matchesTraType(firstTrain.type, options.typePreference)) return;
-      const startIdx = firstTrain.stopMap ? firstTrain.stopMap[startName] : undefined;
+      const startIdx = getStopMapIndex(firstTrain.stopMap, startName);
       if (!Number.isInteger(startIdx) || startIdx >= firstTrain.stops.length - 1) return;
 
       const startStop = firstTrain.stops[startIdx];
@@ -1251,12 +1298,12 @@
 
       (dataset || []).forEach((secondTrain) => {
         if (secondTrain.trainNo === firstTrain.trainNo && secondTrain.originDate === firstTrain.originDate) return;
-        const endIdx = secondTrain.stopMap ? secondTrain.stopMap[endName] : undefined;
+        const endIdx = getStopMapIndex(secondTrain.stopMap, endName);
         if (!Number.isInteger(endIdx) || endIdx <= 0) return;
 
         for (let midFirstIdx = startIdx + 1; midFirstIdx < firstTrain.stops.length; midFirstIdx += 1) {
           const transfer = firstTrain.stops[midFirstIdx].name;
-          const midSecondIdx = secondTrain.stopMap ? secondTrain.stopMap[transfer] : undefined;
+          const midSecondIdx = getStopMapIndex(secondTrain.stopMap, transfer);
           if (!Number.isInteger(midSecondIdx) || midSecondIdx >= endIdx) continue;
 
           const firstMid = firstTrain.stops[midFirstIdx];
@@ -1311,7 +1358,7 @@
     const useNow = options.dateStr === getTodayDateStr() && !options.hasTimeFilter;
     const nowTs = Date.now();
     const all = (dataset || []).map((train) => {
-      const idx = train.stopMap ? train.stopMap[stationName] : undefined;
+      const idx = getStopMapIndex(train.stopMap, stationName);
       if (!Number.isInteger(idx)) return null;
       const stop = train.stops[idx];
       const time = stop.dep || stop.arr || "";
@@ -1411,7 +1458,7 @@
         statusText = delayMin > 0 ? `晚 ${delayMin} 分` : "準點";
         if (liveStation) {
           currentLocation = `目前位置 ${liveStation}`;
-          const liveIndex = train.stopMap ? train.stopMap[liveStation] : -1;
+          const liveIndex = getStopMapIndex(train.stopMap, liveStation);
           if (Number.isInteger(liveIndex) && liveIndex < stops.length - 1) nextIndex = Math.max(nextIndex, liveIndex + 1);
         } else if (nextIndex > 0 && stops[nextIndex]) {
           currentLocation = `行駛於 ${stops[nextIndex - 1].name} 與 ${stops[nextIndex].name} 之間`;
@@ -1423,7 +1470,7 @@
       }
     }
 
-    const targetIndex = targetStation && train.stopMap ? train.stopMap[targetStation] : -1;
+    const targetIndex = getStopMapIndex(train.stopMap, targetStation);
     const targetStop = Number.isInteger(targetIndex) ? stops[targetIndex] : null;
     const targetClock = targetStop ? targetStop.arr || targetStop.dep || "--" : "";
     const targetAbs = targetStop ? getStopAbs(targetStop, "arr") : null;
@@ -1482,7 +1529,7 @@
       }
     }
 
-    const targetIndex = targetStation && train.stopMap ? train.stopMap[targetStation] : -1;
+    const targetIndex = getStopMapIndex(train.stopMap, targetStation);
     const targetStop = Number.isInteger(targetIndex) ? stops[targetIndex] : null;
     const targetClock = targetStop ? targetStop.arr || targetStop.dep || "--" : "";
     const targetAbs = targetStop ? getStopAbs(targetStop, "arr") : null;
@@ -2314,6 +2361,41 @@
     });
   }
 
+  function assistantOpenExternalBookingUrl(jumpUrl) {
+    const href = String(jumpUrl || "").trim();
+    if (!href) return false;
+
+    let targetWindow = window;
+    try {
+      if (window.top && window.top !== window) targetWindow = window.top;
+    } catch (_) {
+      targetWindow = window;
+    }
+
+    try {
+      const anchor = document.createElement("a");
+      anchor.href = href;
+      anchor.rel = "noopener";
+      anchor.target = targetWindow === window ? "_self" : "_top";
+      anchor.style.display = "none";
+      (document.body || document.documentElement).appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+    } catch (_) {}
+
+    window.setTimeout(() => {
+      if (document.visibilityState === "hidden") return;
+      try {
+        if (typeof targetWindow.location.assign === "function") targetWindow.location.assign(href);
+        else targetWindow.location.href = href;
+      } catch (_) {
+        window.location.href = href;
+      }
+    }, 180);
+
+    return true;
+  }
+
   async function assistantOpenTraBooking(trainNo, startStationName, endStationName, dateStr) {
     if (assistantIsDesktopDevice()) {
       const seatQty = await assistantAskTraSeatQuantity(1);
@@ -2349,8 +2431,7 @@
         alert("目前拿不到臺鐵訂票連結。");
         return;
       }
-      if (window.top && window.top !== window) window.top.location.href = jumpUrl;
-      else window.location.href = jumpUrl;
+      assistantOpenExternalBookingUrl(jumpUrl);
     } catch (_) {
       alert("臺鐵訂票連結建立失敗，請稍後再試。");
     }
@@ -2385,8 +2466,7 @@
         alert("目前拿不到高鐵訂票連結。");
         return;
       }
-      if (window.top && window.top !== window) window.top.location.href = jumpUrl;
-      else window.location.href = jumpUrl;
+      assistantOpenExternalBookingUrl(jumpUrl);
     } catch (_) {
       alert("高鐵訂票連結建立失敗，請稍後再試。");
     }
@@ -2447,16 +2527,17 @@
     rerenderAssistantState();
   };
   window.ensureAssistantRouteData = ensureData;
-  window.handleAssistantQuery = async function (rawText) {
+  window.handleAssistantQuery = async function (rawText, options = {}) {
     ensureAssistantUpgradeStyles();
     const text = String(rawText || "").trim();
+    const silent = !!options?.silent;
     if (!text) {
       renderError("請直接輸入問題，例如：今天 7:30 台北到台中、215 車次到花蓮、板橋站晚上有什麼車。");
       return;
     }
 
     if ((!stationDB.tr || !stationDB.tr.length) || (!stationDB.thsr || !stationDB.thsr.length)) {
-      renderLoading("正在讀取車站資料", "第一次查詢時會先載入臺鐵與高鐵站名資料。");
+      if (!silent) renderLoading("正在讀取車站資料", "第一次查詢時會先載入臺鐵與高鐵站名資料。");
       if (typeof fetchAllStations === "function") await fetchAllStations();
     }
     await window.RailAssistantCommon?.ensureStationLocaleData?.();
@@ -2466,8 +2547,9 @@
       renderError("目前還無法判斷你的問題，請試試：台北到左營、215 車次到花蓮、板橋站 7 點後班次。");
       return;
     }
+    assistantLastQueryText = text;
 
-    renderLoading("正在分析問題", "正在整理最接近的班次、車次與車站結果。");
+    if (!silent) renderLoading("正在分析問題", "正在整理最接近的班次、車次與車站結果。");
 
     if (intent.kind === "route") {
       const systems = intent.preference ? [intent.preference] : (intent.typePreference ? ["tr"] : ["tr", "thsr"]);
@@ -2584,18 +2666,16 @@
   };
 
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", ensureAssistantUpgradeStyles, { once: true });
+    document.addEventListener("DOMContentLoaded", () => {
+      ensureAssistantUpgradeStyles();
+      initAssistantAutoRefresh();
+    }, { once: true });
   } else {
     ensureAssistantUpgradeStyles();
+    initAssistantAutoRefresh();
   }
 
   window.addEventListener("rail:languagechange", () => {
     rerenderAssistantState();
   });
 })();
-
-
-
-
-
-

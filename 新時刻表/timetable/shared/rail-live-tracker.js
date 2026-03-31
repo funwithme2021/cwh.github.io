@@ -5,6 +5,7 @@
   const ANCHOR_TAB_ID = "tab-operation-diagram";
   const ANCHOR_PANEL_ID = "panel-operation-diagram";
   const REFRESH_MS = 60000;
+  const DELAY_REFRESH_MS = 30000;
   const UPCOMING_WINDOW = 30;
   const STATION_ALERT_WINDOW = 10;
   const STATION_SOON_WINDOW = 3;
@@ -41,6 +42,31 @@
       anchorTabId: ANCHOR_TAB_ID,
       anchorPanelId: ANCHOR_PANEL_ID,
     };
+  }
+
+  function getTrackerRefreshIntervalMs(state) {
+    const hasModerateDelay = Array.isArray(state?.visibleSnapshots) && state.visibleSnapshots.some((snapshot) => {
+      const delayMinutes = Math.max(0, Number(snapshot?.delayMinutes) || 0);
+      return delayMinutes >= 5 && delayMinutes <= 10;
+    });
+    return hasModerateDelay ? DELAY_REFRESH_MS : REFRESH_MS;
+  }
+
+  function startTrackerRefreshLoop(state, run) {
+    const startAlignedPolling = window.RailAssistantCommon?.startAlignedPolling;
+    if (typeof startAlignedPolling === "function") {
+      state.refreshLoop?.stop?.();
+      state.refreshLoop = startAlignedPolling(() => {
+        if (!state.panel.classList.contains("hidden")) return run();
+      }, {
+        getIntervalMs: () => getTrackerRefreshIntervalMs(state),
+      });
+      return;
+    }
+    if (state.timer) window.clearInterval(state.timer);
+    state.timer = window.setInterval(() => {
+      if (!state.panel.classList.contains("hidden")) run();
+    }, REFRESH_MS);
   }
 
   function escapeHtml(value) {
@@ -2092,6 +2118,7 @@
       modal: panel.querySelector(`#${config.inputPrefix}Modal`),
       modalTitle: panel.querySelector(`#${config.inputPrefix}ModalTitle`),
       modalBody: panel.querySelector(`#${config.inputPrefix}ModalBody`),
+      refreshLoop: null,
       timer: null,
       focusTimer: null,
       activeStation: "",
@@ -2181,9 +2208,7 @@
     document.getElementById("mainQueryDate")?.addEventListener("change", () => {
       if (!state.panel.classList.contains("hidden")) run();
     });
-    state.timer = window.setInterval(() => {
-      if (!state.panel.classList.contains("hidden")) run();
-    }, REFRESH_MS);
+    startTrackerRefreshLoop(state, run);
   }
 
   function init() {

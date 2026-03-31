@@ -989,7 +989,7 @@
     );
   }
 
-  function buildMasterProjections(entry, routeStations, queryDate) {
+  function buildMasterProjections(system, entry, routeStations, queryDate) {
     const routeIndexMap = new Map((routeStations || []).map((name, index) => [name, index]));
     const fullTimedStops = buildTimedStops(entry.stops || []);
     const fullPathPoints = buildJourneyPathPoints(system, fullTimedStops, entry.fullPathStations || []);
@@ -1656,7 +1656,7 @@
     const direction = state.directionSelect?.value || "all";
     const query = String(state.searchInput.value || "").trim();
     const filtered = entries
-      .flatMap((entry) => buildMasterProjections(entry, range, queryDate))
+      .flatMap((entry) => buildMasterProjections("tr", entry, range, queryDate))
       .filter((entry) => {
         if (!entry) return false;
         if (entry.rangeDisplayDate !== queryDate) return false;
@@ -1748,7 +1748,7 @@
     const direction = state.directionSelect?.value || "all";
     const query = String(state.searchInput.value || "").trim();
     const filtered = entries
-      .flatMap((entry) => buildMasterProjections(entry, range, queryDate))
+      .flatMap((entry) => buildMasterProjections("thsr", entry, range, queryDate))
       .filter((entry) => {
         if (!entry) return false;
         if (entry.rangeDisplayDate !== queryDate) return false;
