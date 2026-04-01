@@ -2636,6 +2636,209 @@ td{ border-bottom: 1px solid rgba(255,255,255,0.06); }
     }
   </style>
 
+  <style>
+    /* TRA Query2 mobile direct-only refinements */
+    @media (max-width: 720px){
+      #panel-startend2 .rod2-sumhead{
+        position: relative;
+        display: block;
+        min-height: 42px;
+      }
+      #panel-startend2 .rod2-count{
+        position: absolute;
+        top: 0;
+        right: 0;
+        min-width: 74px;
+        padding: 8px 10px 7px;
+        border-radius: 16px;
+        margin: 0;
+      }
+      #panel-startend2 .rod2-sumhead > div:first-child{
+        min-width: 0;
+        padding-right: 88px;
+      }
+      #panel-startend2 .rod2-nextrow{
+        width: 100%;
+        margin-top: 8px;
+      }
+      #panel-startend2 .rod2-next,
+      #panel-startend2 .rod2-next-main{
+        width: 100%;
+        min-width: 0;
+      }
+      #panel-startend2 .rod2-mobiletools{
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        gap: 8px;
+        margin-top: 10px;
+      }
+      #panel-startend2 .rod2-mobiletool{
+        gap: 6px;
+      }
+      #panel-startend2 .rod2-mobiletools .rod2-mobiletool:first-child .rod2-wrap{
+        border: 1px solid rgba(37,99,235,.16);
+        background: linear-gradient(135deg, rgba(37,99,235,.10), rgba(255,255,255,.92));
+        box-shadow: 0 10px 22px rgba(37,99,235,.08);
+      }
+      #panel-startend2 .rod2-mobiletool .rod2-label{
+        font-size: .74rem;
+        line-height: 1.15;
+      }
+      #panel-startend2 .rod2-mobiletool .rod2-wrap{
+        min-height: 42px;
+        border-radius: 14px;
+        border: 1px solid rgba(148,163,184,.18);
+        background: rgba(255,255,255,.88);
+        box-shadow: inset 0 1px 0 rgba(255,255,255,.5);
+      }
+      #panel-startend2 .rod2-select-wrap{
+        padding: 0 36px 0 10px;
+      }
+      #panel-startend2 .rod2-select{
+        appearance: none;
+        -webkit-appearance: none;
+        -moz-appearance: none;
+        min-height: 42px;
+        font-size: .86rem;
+        font-weight: 900;
+        cursor: pointer;
+      }
+      #panel-startend2 .rod2-mobilefilter-toggle{
+        min-height: 42px;
+        padding: 0 12px;
+        font-size: .86rem;
+      }
+      #panel-startend2 .rod2-mobilefilter-menu{
+        gap: 1px;
+        padding: 5px;
+      }
+      #panel-startend2 .rod2-mobilefilter-item{
+        padding: 5px 8px;
+        border-radius: 12px;
+        font-size: .8rem;
+      }
+      #panel-startend2 .rod2-mobilefilter-text{
+        line-height: 1.1;
+      }
+      #panel-startend2 .rod2-mobilefilter-clear{
+        min-height: 30px;
+        font-size: .76rem;
+      }
+      #panel-startend2 .rod2-summary-label-line{
+        font-size: .74rem;
+        line-height: 1.15;
+      }
+      #panel-startend2 .rod2-summary-time .rsv2-time-main,
+      #panel-startend2 .rod2-summary-time .rsv2-time-sub,
+      #panel-startend2 .rod2-next .rsv2-summary-value{
+        font-size: .9rem;
+        line-height: 1.28;
+      }
+    }
+    @media (max-width: 720px){
+      #panel-startend2 .rod2-row-m-custom{
+        padding: 12px 10px 14px;
+      }
+      #panel-startend2 .traq2m-card{
+        display: grid;
+        grid-template-columns: 96px minmax(0, 1fr) 104px 72px;
+        gap: 8px;
+        align-items: center;
+        width: 100%;
+      }
+      #panel-startend2 .traq2m-time .rod2-timecell{
+        justify-items: start;
+        text-align: left;
+        gap: 2px;
+      }
+      #panel-startend2 .traq2m-time .rsv2-time-main,
+      #panel-startend2 .traq2m-time .rsv2-time-sub{
+        font-size: .92rem;
+        line-height: 1.15;
+      }
+      #panel-startend2 .traq2m-traincol{
+        display: grid;
+        gap: 3px;
+        min-width: 0;
+      }
+      #panel-startend2 .traq2m-route{
+        color: var(--text-muted);
+        font-size: .78rem;
+        font-weight: 800;
+        line-height: 1.25;
+        word-break: break-word;
+      }
+      #panel-startend2 .traq2m-route-sep{
+        color: var(--text-muted);
+        font-weight: 800;
+      }
+      #panel-startend2 .traq2m-trainline{
+        display: flex;
+        align-items: baseline;
+        gap: 4px 6px;
+        flex-wrap: wrap;
+        min-width: 0;
+      }
+      #panel-startend2 .traq2m-trainline .rsv2-train-no,
+      #panel-startend2 .traq2m-trainline .rsv2-train-type{
+        font-size: .9rem;
+        line-height: 1.2;
+      }
+      #panel-startend2 .traq2m-dur{
+        display: grid;
+        justify-items: center;
+      }
+      #panel-startend2 .traq2m-side{
+        display: grid;
+        justify-items: center;
+        align-content: center;
+        gap: 8px;
+      }
+      #panel-startend2 .traq2m-side .rod2-status{
+        justify-content: center;
+      }
+      #panel-startend2 .traq2m-side .rod2-ticket{
+        min-width: 66px;
+        justify-content: center;
+      }
+    }
+    @media (max-width: 520px){
+      #panel-startend2 .traq2m-card{
+        grid-template-columns: 92px minmax(0, 1fr) 96px 68px;
+        gap: 8px;
+      }
+      #panel-startend2 .traq2m-time .rsv2-time-main,
+      #panel-startend2 .traq2m-time .rsv2-time-sub{
+        font-size: .88rem;
+      }
+      #panel-startend2 .traq2m-route{
+        font-size: .76rem;
+      }
+      #panel-startend2 .traq2m-trainline .rsv2-train-no,
+      #panel-startend2 .traq2m-trainline .rsv2-train-type{
+        font-size: .86rem;
+      }
+      #panel-startend2 .traq2m-side .rod2-status{
+        font-size: .76rem;
+        white-space: nowrap;
+      }
+      #panel-startend2 .traq2m-side .rod2-ticket{
+        min-height: 28px;
+        padding: 0 8px;
+        font-size: .7rem;
+      }
+    }
+  </style>
+
+  <style>
+    @media (min-width: 721px){
+      #panel-startend2 [data-role="results"]{
+        display: grid;
+        gap: 14px;
+      }
+    }
+  </style>
+
 </head>
 
 <body class="light-mode">
@@ -2756,6 +2959,8 @@ td{ border-bottom: 1px solid rgba(255,255,255,0.06); }
       </div>
     </section>
 
+    <section id="panel-startend2" class="card query-panel hidden"></section>
+
     <section id="panel-station" class="card query-panel hidden">
       <div class="section-title">車站時刻表</div>
       <div class="form-row">
@@ -2868,6 +3073,7 @@ td{ border-bottom: 1px solid rgba(255,255,255,0.06); }
 <script charset="UTF-8" src="../shared/rail-station-query-common.js?v=20260327-station1"></script>
 <script charset="UTF-8" src="../shared/rail-station-timetable-v2.js?v=20260330-stationv2"></script>
 <script charset="UTF-8" src="../shared/rail-train-query-v2.js?v=20260329-trainquery2"></script>
+<script charset="UTF-8" src="../shared/rail-origin-destination-query-v2.js?v=20260402-odquery2darkhead"></script>
 <script>
   // ===== 全域 =====
   let nameToId = {};
@@ -2886,6 +3092,7 @@ let lastTrainQueryV2  = null;   // {trainNo}
 let modalCtx = null;            // {trainNo, originDate}
 let stationQuery2Controller = null;
 let trainQuery2Controller = null;
+let startEndQuery2Controller = null;
 
 // ===== Loading Overlay (避免看起來像當機) =====
 let __loadingCount = 0;
@@ -3394,9 +3601,9 @@ function splitArrDep(stopRow){
   function colorStatus(label){
     const s = String(label||'');
     if(s === '準點') return `<span style="color:#16a34a;font-weight:700">${s}</span>`;
-    if(s === '已過站') return `<span style="color:#94a3b8;font-weight:700">${s}</span>`;
-    if(s === '未發車' || s === '已到終點' || s === '已到終點站') return `<span style="color:var(--text-main);font-weight:700">${s}</span>`;
-    return `<span style="color:#dc2626;font-weight:700">${s}</span>`;
+    if(s === '已過站' || s === '已到終點' || s === '已到終點站') return `<span style="color:#94a3b8;font-weight:700">${s}</span>`;
+    if(s === '未發車') return `<span style="color:var(--text-main);font-weight:700">${s}</span>`;
+    return `<span style="color:#c2410c;font-weight:700">${s}</span>`;
   }
 
   // ===== 詳細視窗用狀態（不顯示「已過站」） =====
@@ -3435,8 +3642,8 @@ function splitArrDep(stopRow){
     if(!Number.isFinite(mins) || mins < 0) return '--';
     const h = Math.floor(mins / 60);
     const m = mins % 60;
-    if(h > 0 && m > 0) return `${h} 小時 ${m} 分`;
-    if(h > 0) return `${h} 小時`;
+    if(h > 0 && m > 0) return `${h} 時 ${m} 分`;
+    if(h > 0) return `${h} 時`;
     return `${m} 分`;
   }
 
@@ -4355,6 +4562,7 @@ function renderHistory(){
   }
 
   window.rerenderVisibleResults = async function(){
+    startEndQuery2Controller?.refreshChrome?.();
     stationQuery2Controller?.refreshChrome?.();
     trainQuery2Controller?.refreshChrome?.();
 
@@ -4367,6 +4575,13 @@ function renderHistory(){
         buildDirectList(lastStartEndQuery.st, lastStartEndQuery.ed);
         renderStartEndTable();
       }
+      startEndQuery2Controller?.setState?.({
+        start: lastStartEndQuery.st,
+        end: lastStartEndQuery.ed,
+        modeEnabled: !!lastStartEndQuery.accept,
+        selectedFilters: lastStartEndQuery.selectedTypes || []
+      });
+      await startEndQuery2Controller?.rerender?.();
     }
 
     if(lastStationQuery){
@@ -4439,6 +4654,7 @@ function renderHistory(){
   // ===== 初始化 =====
   window.addEventListener('load', async ()=>{
     bindQueryTabs();
+    bindResponsiveStartEndPanelSwitch();
     bindHeroSnapshot();
     switchQueryPanel('panel-startend');
     initDatePickerWindow();
@@ -4446,6 +4662,7 @@ function renderHistory(){
     setupThemeToggle();
     setupHomeBtn();
     bindTraButtons();
+    initTraStartEndQuery2Panel();
     initStationQuery2Panel();
     initTrainQuery2Panel();
 
@@ -4567,36 +4784,42 @@ function renderHistory(){
   let currentTransferList=[];
 
   function runStartEndSearch(){
-  showLoading('查詢中...');
-  requestAnimationFrame(()=>{
-    setTimeout(()=>{ try{
-          const st = extractStationNameFromInput(document.getElementById('startStation').value);
-          const ed = extractStationNameFromInput(document.getElementById('endStation').value);
-          document.getElementById('startStation').value=st;
-          document.getElementById('endStation').value=ed;
-          if(!st || !ed) return;
-      
-          const accept=document.getElementById('acceptTransfers').checked;
-          const h=loadHistory().filter(x=>!(x.s===st && x.e===ed && x.t===accept));
-          h.unshift({s:st,e:ed,t:accept});
-          saveHistory(h);
-          renderHistory();
-      
-          // 根據目前裝置選擇讀取哪一組 Checkbox
-          selectedTrainTypesStartEnd = getSelectedTypesSafe('startend');
-          lastStartEndQuery = { st, ed, accept, selectedTypes: selectedTrainTypesStartEnd.slice() };
-      
-          if(accept){
-            buildTransferList(st, ed);
-            renderTransferTable();
-          }else{
-            buildDirectList(st, ed);
-            renderStartEndTable();
-          }
-    }finally{
-      hideLoading();
-    }
-  },0);
+  return new Promise((resolve)=>{
+    showLoading('查詢中...');
+    requestAnimationFrame(()=>{
+      setTimeout(()=>{ try{
+            const st = extractStationNameFromInput(document.getElementById('startStation').value);
+            const ed = extractStationNameFromInput(document.getElementById('endStation').value);
+            document.getElementById('startStation').value=st;
+            document.getElementById('endStation').value=ed;
+            if(!st || !ed){
+              resolve(null);
+              return;
+            }
+        
+            const accept=document.getElementById('acceptTransfers').checked;
+            const h=loadHistory().filter(x=>!(x.s===st && x.e===ed && x.t===accept));
+            h.unshift({s:st,e:ed,t:accept});
+            saveHistory(h);
+            renderHistory();
+        
+            // 根據目前裝置選擇讀取哪一組 Checkbox
+            selectedTrainTypesStartEnd = getSelectedTypesSafe('startend');
+            lastStartEndQuery = { st, ed, accept, selectedTypes: selectedTrainTypesStartEnd.slice() };
+        
+            if(accept){
+              buildTransferList(st, ed);
+              renderTransferTable();
+            }else{
+              buildDirectList(st, ed);
+              renderStartEndTable();
+            }
+            resolve({ st, ed, accept, selectedTypes: selectedTrainTypesStartEnd.slice() });
+      }finally{
+        hideLoading();
+      }
+    },0);
+    });
   });
 }
 
@@ -4676,6 +4899,7 @@ const stopsCount = ei - si - 1;
         num,
         originDate, // ★ 重要：點進詳情必須用發車日
         type: t['車種'],
+        rawType: t['原始車種'] || '',
         range: `${arr[0][0]}➝${arr[arr.length-1][0]}`,
         depSched,
         arrSched,
@@ -4746,19 +4970,15 @@ function isQueryToday(dateStr){
 // 回傳：{sched, adj, adjMin, hasDelay}
 function getAdjustedTime(trainNo, schedHHMM, queryDateStr, baseAbsMin=null, originDateStr=null){
   const sched = schedHHMM || '--';
-
-  // 非「今天 / 昨天仍在運行」：不套用誤點（維持原行為）
-  if(!isQueryToday(queryDateStr)) {
-    return {
-      sched, adj: sched,
-      adjMin: parseTime(sched),
-      hasDelay: false,
-      schedAbsMin: (baseAbsMin!=null ? baseAbsMin : parseTime(sched)),
-      adjAbsMin: (baseAbsMin!=null ? baseAbsMin : parseTime(sched)),
-      schedDateStr: (originDateStr && baseAbsMin!=null ? getStopDateStr(originDateStr, baseAbsMin) : null),
-      adjDateStr: (originDateStr && baseAbsMin!=null ? getStopDateStr(originDateStr, baseAbsMin) : null)
-    };
-  }
+  const noDelayResult = {
+    sched, adj: sched,
+    adjMin: parseTime(sched),
+    hasDelay: false,
+    schedAbsMin: (baseAbsMin!=null ? baseAbsMin : parseTime(sched)),
+    adjAbsMin: (baseAbsMin!=null ? baseAbsMin : parseTime(sched)),
+    schedDateStr: (originDateStr && baseAbsMin!=null ? getStopDateStr(originDateStr, baseAbsMin) : null),
+    adjDateStr: (originDateStr && baseAbsMin!=null ? getStopDateStr(originDateStr, baseAbsMin) : null)
+  };
 
   let dmin = 0;
   if(originDateStr){
@@ -4772,21 +4992,12 @@ function getAdjustedTime(trainNo, schedHHMM, queryDateStr, baseAbsMin=null, orig
       dmin = getDelayMinutes(trainNo);
     }
   }else{
+    if(!isQueryToday(queryDateStr)) return noDelayResult;
     dmin = getDelayMinutes(trainNo);
   }
 
   // 只有「真的有誤點/提早」才顯示雙時間；0 就保持單時間
-  if(!dmin) {
-    return {
-      sched, adj: sched,
-      adjMin: parseTime(sched),
-      hasDelay: false,
-      schedAbsMin: (baseAbsMin!=null ? baseAbsMin : parseTime(sched)),
-      adjAbsMin: (baseAbsMin!=null ? baseAbsMin : parseTime(sched)),
-      schedDateStr: (originDateStr && baseAbsMin!=null ? getStopDateStr(originDateStr, baseAbsMin) : null),
-      adjDateStr: (originDateStr && baseAbsMin!=null ? getStopDateStr(originDateStr, baseAbsMin) : null)
-    };
-  }
+  if(!dmin) return noDelayResult;
 
   const adj = addMinutesToHHMM(sched, dmin);
 
@@ -4835,10 +5046,12 @@ function getBookingEligibilityByRow(r){
   // r: currentStartEndList item
   if(!r) return { ok:false, reason:'無法取得列車資訊' };
 
-  const trainNo = String(r.num||'').trim();
-  const typeStr = String(r.type||'');
+  const trainNo = String(r.num || r.trainNo || '').trim();
+  const typeStr = String(r.type || '');
+  const rawTypeStr = String(r.rawType || r.originalType || r['原始車種'] || '');
+  const fullTypeText = `${typeStr} ${rawTypeStr}`;
 
-  if(isSpecialCharterTrainNo(trainNo) || typeStr.includes('專車')){
+  if(isSpecialCharterTrainNo(trainNo) || /專車/.test(fullTypeText) || /[（(][^）)]*專車[^）)]*[）)]/.test(fullTypeText)){
     return { ok:false, reason:'專車不提供訂票' };
   }
   if(isNonReservedLocalType(typeStr)){
@@ -5246,6 +5459,7 @@ function buildTransferList(st, ed){
               originDate2: null,
 
               type1: t1['車種'],
+              rawType1: t1['原始車種'] || '',
               type2: null,
               isDirect: true,
               startStation: st,
@@ -5349,7 +5563,9 @@ function buildTransferList(st, ed){
           originDate2,
 
           type1: t1['車種'],
+          rawType1: t1['原始車種'] || '',
           type2: t2['車種'],
+          rawType2: t2['原始車種'] || '',
           isDirect: false,
           startStation: st,
           endStation: ed,
@@ -5896,6 +6112,371 @@ function renderTransferTable(){
     return 'neutral';
   }
 
+  function setTraStartEndLegacyFilters(selectedTypes){
+    const selected = new Set((selectedTypes || []).map((value)=>String(value)));
+    ['trainTypeChipsStartEnd', 'trainTypeChipsMobile'].forEach((containerId)=>{
+      document.querySelectorAll(`#${containerId} input[type="checkbox"]`).forEach((inputEl)=>{
+        inputEl.checked = selected.has(String(inputEl.value || ''));
+      });
+    });
+    selectedTrainTypesStartEnd = Array.from(selected);
+  }
+
+  function syncTraStartEndQuery2LegacyState(state, options = {}){
+    const opts = options || {};
+    if(typeof state?.start === 'string' && document.getElementById('startStation')) document.getElementById('startStation').value = state.start;
+    if(typeof state?.end === 'string' && document.getElementById('endStation')) document.getElementById('endStation').value = state.end;
+    if(typeof state?.modeEnabled === 'boolean' && document.getElementById('acceptTransfers')) document.getElementById('acceptTransfers').checked = !!state.modeEnabled;
+    if(opts.syncFilters !== false && Array.isArray(state?.selectedFilters)) setTraStartEndLegacyFilters(state.selectedFilters);
+    if(typeof updateHeroSnapshot === 'function') updateHeroSnapshot();
+  }
+
+  function stripQuery2HtmlText(html){
+    return String(html || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+  }
+
+  function parseQuery2DisplayTime(html, fallbackText){
+    const raw = String(html || '');
+    const oldMatch = raw.match(/text-decoration:line-through[^>]*>\s*([^<]+)/i);
+    const newMatches = [...raw.matchAll(/font-weight:800[^>]*>\s*([^<]+)/ig)].map((item)=>String(item[1] || '').trim()).filter(Boolean);
+    if(oldMatch && newMatches.length){
+      return { oldText: String(oldMatch[1] || '').trim(), newText: newMatches[newMatches.length - 1] };
+    }
+    const text = stripQuery2HtmlText(raw) || String(fallbackText || '--');
+    return { oldText: '', newText: text };
+  }
+
+  function buildQuery2CombinedTimeHtml(depHtml, arrHtml, depFallback, arrFallback){
+    const dep = parseQuery2DisplayTime(depHtml, depFallback);
+    const arr = parseQuery2DisplayTime(arrHtml, arrFallback);
+    if(dep.oldText || arr.oldText){
+      return `<div class="rod2-timecell"><div class="rsv2-time-sub"><span class="rod2-time-original">${escapeTrainQueryHtml(dep.oldText || dep.newText || '--')} → ${escapeTrainQueryHtml(arr.oldText || arr.newText || '--')}</span></div><div class="rsv2-time-main">${escapeTrainQueryHtml(dep.newText || '--')} → ${escapeTrainQueryHtml(arr.newText || '--')}</div></div>`;
+    }
+    return `<div class="rod2-timecell"><div class="rsv2-time-main">${escapeTrainQueryHtml(dep.newText || '--')} → ${escapeTrainQueryHtml(arr.newText || '--')}</div></div>`;
+  }
+
+  function buildQuery2CombinedTimeText(depHtml, arrHtml, depFallback, arrFallback){
+    const dep = parseQuery2DisplayTime(depHtml, depFallback);
+    const arr = parseQuery2DisplayTime(arrHtml, arrFallback);
+    return `${dep.newText || '--'} → ${arr.newText || '--'}`;
+  }
+
+  function buildQuery2SummaryTimeHtml(depHtml, arrHtml, depFallback, arrFallback){
+    const dep = parseQuery2DisplayTime(depHtml, depFallback);
+    const arr = parseQuery2DisplayTime(arrHtml, arrFallback);
+    const hasOriginal = !!(dep.oldText || arr.oldText);
+    return `<span class="rod2-summary-time rod2-summary-time-tra rod2-summary-nowarp${hasOriginal ? ' has-old' : ''}">${hasOriginal ? `<span class="rsv2-time-sub"><span class="rod2-time-original">${escapeTrainQueryHtml(dep.oldText || dep.newText || '--')} → ${escapeTrainQueryHtml(arr.oldText || arr.newText || '--')}</span></span>` : ''}<span class="rsv2-time-main">${escapeTrainQueryHtml(dep.newText || '--')} → ${escapeTrainQueryHtml(arr.newText || '--')}</span></span>`;
+  }
+
+  function buildTraQuery2ViaHtml(viaText){
+    const parts = String(viaText || '').split(/[／/]/).map((part)=>String(part || '').trim()).filter(Boolean);
+    if(!parts.length) return '';
+    if(parts.length === 1) return escapeTrainQueryHtml(parts[0]);
+    return `<span class="rod2-via-lines">${parts.map((part)=>`<span>${escapeTrainQueryHtml(part)}</span>`).join('')}</span>`;
+  }
+
+  function getTraQuery2ViaParts(viaText){
+    return String(viaText || '').split(/[／/]/).map((part)=>String(part || '').trim()).filter(Boolean);
+  }
+
+  function getTraQuery2FirstViaText(viaText){
+    return getTraQuery2ViaParts(viaText)[0] || '';
+  }
+
+  function isTraQuery2MobileViewport(){
+    try{
+      return !!(window.matchMedia && window.matchMedia('(max-width: 720px)').matches);
+    }catch(_){
+      return false;
+    }
+  }
+
+  function buildTraStartEndQuery2DirectMobileCard(index, row){
+    const timeHtml = row?.timeHtml || `<div class="rod2-timecell"><div class="rsv2-time-main">${escapeTrainQueryHtml(row?.timeText || '--')}</div></div>`;
+    const trainHtml = row?.trainHtml || escapeTrainQueryHtml(row?.trainNo || '--');
+    const routeText = escapeTrainQueryHtml(row?.routeText || '--');
+    const viaText = escapeTrainQueryHtml(row?.mobileFirstViaText || '');
+    const statusTone = getTraStationStatusTone(row?.statusText || row?.status || '');
+    const statusHtml = row?.statusHtml || escapeTrainQueryHtml(row?.statusText || row?.status || '--');
+    const durClass = row?._durClass || row?.durationClass || 'rod2-dur-yellow';
+    const fill = Math.max(18, Math.min(100, Number(row?._durFill ?? row?.durationFill ?? 42)));
+    const rankLabel = row?._durRankLabel || row?.durationRankLabel || '';
+    const durationMetaParts = [];
+    if(row?.durationMetaText) durationMetaParts.push(escapeTrainQueryHtml(row.durationMetaText));
+    if(rankLabel) durationMetaParts.push(escapeTrainQueryHtml(rankLabel));
+    const durationMetaHtml = durationMetaParts.join(' · ');
+    const ticketHtml = row?.ticketHidden
+      ? ''
+      : `<button class="rod2-ticket traq2m-ticket" type="button" data-role="ticket" data-index="${index}">${escapeTrainQueryHtml(row?.ticketLabel || '訂票')}</button>`;
+    return `
+      <div class="traq2m-card">
+        <div class="traq2m-time">${timeHtml}</div>
+        <div class="traq2m-traincol">
+          <div class="traq2m-route">${routeText}${viaText ? `<span class="traq2m-route-sep"> · </span>${viaText}` : ''}</div>
+          <div class="traq2m-trainline">${trainHtml}</div>
+        </div>
+        <div class="traq2m-dur">
+          <div class="rod2-durwrap">
+            ${durationMetaHtml ? `<div class="rod2-durmeta">${durationMetaHtml}</div>` : ''}
+            <div class="rod2-durbox ${durClass}" style="--dur-fill:${fill}%">
+              <div class="rod2-durmain">${escapeTrainQueryHtml(row?.durationText || '--')}</div>
+            </div>
+          </div>
+        </div>
+        <div class="traq2m-side">
+          <div class="rod2-status rsv2-status rod2-tone-${statusTone}">${statusHtml}</div>
+          ${ticketHtml}
+        </div>
+      </div>
+    `;
+  }
+
+  function isTraQuery2PassedStatus(label){
+    return /已過站|已到終點|已到終點站/.test(String(label || ''));
+  }
+
+  function isTraQuery2ActiveStatus(label){
+    const text = String(label || '');
+    if(isTraQuery2PassedStatus(text)) return false;
+    if(/停駛|取消|暫停|終止|截短|折返|部分停駛|異常/.test(text)) return false;
+    return true;
+  }
+
+  function buildTraStartEndQuery2Summary(rows){
+    const nextRow = (rows || [])
+      .filter((row)=>!/已過站|已到終點|已到終點站/.test(String(row?.statusText || row?.status || '')))
+      .sort((a,b)=>(a?.sortDep ?? 9999) - (b?.sortDep ?? 9999))[0] || rows?.[0];
+    if(!nextRow) return { html:'', row:null };
+    const ticketHtml = nextRow.ticketHidden ? '' : `<button class="rod2-ticket rod2-summary-book" type="button" data-role="summary-ticket">${escapeTrainQueryHtml(nextRow.ticketLabel || '訂票')}</button>`;
+    if(nextRow.openKind === 'transfer'){
+      return {
+        row: nextRow,
+        html: `<span class="rod2-summary-rail rod2-summary-rail-transfer"><span class="rod2-summary-label-line">下一班</span><span class="rod2-summary-transfer-desktop"><span class="rod2-summary-nowarp">${nextRow.summaryTimeHtml || `<span class="rod2-summary-time rod2-summary-time-tra rod2-summary-nowarp"><span class="rsv2-time-main">${escapeTrainQueryHtml(nextRow.timeText || '--')}</span></span>`}</span><span class="rod2-summary-dot">·</span><span class="rsv2-summary-value rod2-summary-nowarp">${nextRow.summaryTrainHtml || nextRow.trainHtml || escapeTrainQueryHtml(nextRow.trainNo || '')}</span><span class="rod2-summary-dot">·</span><span class="rsv2-summary-value rod2-summary-nowarp rsv2-tone-muted">${escapeTrainQueryHtml(nextRow.summaryTransferText || nextRow.viaText || '')}</span><span class="rod2-summary-dot">·</span><span class="rsv2-summary-value rod2-summary-nowarp rsv2-tone-${getTraStationStatusTone(nextRow.statusText || nextRow.status || '')}">${nextRow.statusHtml || escapeTrainQueryHtml(nextRow.statusText || nextRow.status || '--')}</span></span><span class="rod2-summary-transfer-mobile"><span class="rod2-summary-transfer-top"><span class="rod2-summary-nowarp">${nextRow.summaryTimeHtml || `<span class="rod2-summary-time rod2-summary-time-tra rod2-summary-nowarp"><span class="rsv2-time-main">${escapeTrainQueryHtml(nextRow.timeText || '--')}</span></span>`}</span><span class="rod2-summary-dot">·</span><span class="rsv2-summary-value rod2-summary-nowarp rsv2-tone-${getTraStationStatusTone(nextRow.statusText || nextRow.status || '')}">${nextRow.statusHtml || escapeTrainQueryHtml(nextRow.statusText || nextRow.status || '--')}</span><span class="rod2-summary-dot">·</span><span class="rsv2-summary-value rod2-summary-nowarp rsv2-tone-muted">${escapeTrainQueryHtml(nextRow.summaryTransferText || nextRow.viaText || '')}</span></span><span class="rod2-summary-transfer-trains"><span class="rsv2-summary-value">${nextRow.summaryTrainHtml || nextRow.trainHtml || escapeTrainQueryHtml(nextRow.trainNo || '')}</span></span></span></span>`
+      };
+    }
+    return {
+      row: nextRow,
+      html: `<span class="rod2-summary-rail"><span class="rod2-summary-label-line">下一班</span><span class="rod2-summary-line rod2-summary-main rod2-summary-main-tra-direct"><span class="rod2-summary-nowarp">${nextRow.summaryTimeHtml || `<span class="rod2-summary-time rod2-summary-time-tra rod2-summary-nowarp"><span class="rsv2-time-main">${escapeTrainQueryHtml(nextRow.timeText || '--')}</span></span>`}</span><span class="rod2-summary-dot">·</span><span class="rsv2-summary-value rod2-summary-nowarp">${nextRow.summaryTrainHtml || nextRow.trainHtml || escapeTrainQueryHtml(nextRow.trainNo || '')}</span><span class="rod2-summary-dot">·</span><span class="rsv2-summary-value rod2-summary-nowarp rsv2-tone-${getTraStationStatusTone(nextRow.statusText || nextRow.status || '')}">${nextRow.statusHtml || escapeTrainQueryHtml(nextRow.statusText || nextRow.status || '--')}</span>${ticketHtml}</span></span>`
+    };
+  }
+
+  function sortTraStartEndQuery2Rows(rows, sortKey){
+    const key = sortKey === 'arr' || sortKey === 'dur' ? sortKey : 'dep';
+    return (rows || []).slice().sort((a,b)=>{
+      const av = key === 'arr' ? (a?.sortArr ?? 9999) : key === 'dur' ? (a?.sortDur ?? 999999) : (a?.sortDep ?? 9999);
+      const bv = key === 'arr' ? (b?.sortArr ?? 9999) : key === 'dur' ? (b?.sortDur ?? 999999) : (b?.sortDep ?? 9999);
+      if(av !== bv) return av - bv;
+      return String(a?.trainNo || '').localeCompare(String(b?.trainNo || ''),'en');
+    });
+  }
+
+  function buildTraStartEndQuery2Rows(modeEnabled, sortKey){
+    const sourceRows = modeEnabled ? (currentTransferList || []) : (currentStartEndList || []);
+    const rows = sourceRows.map((row)=>{
+      if(modeEnabled && !row.isDirect){
+        return {
+          trainNo: row.n1,
+          originDate: row.originDate1,
+          trainHtml: `<span class="rod2-train-stack"><span class="rod2-train-line"><span class="rsv2-train-no">${row.n1}</span><span class="rsv2-train-type">${colorType(row.type1)}</span></span><span class="rod2-train-line"><span class="rsv2-train-no">${row.n2}</span><span class="rsv2-train-type">${colorType(row.type2)}</span></span></span>`,
+          summaryTrainHtml: `<span class="rsv2-train-no">${row.n1}</span><span class="rsv2-train-type">${colorType(row.type1)}</span><span class="rod2-train-sep">→</span><span class="rsv2-train-no">${row.n2}</span><span class="rsv2-train-type">${colorType(row.type2)}</span>`,
+          timeHtml: buildQuery2CombinedTimeHtml(row.depHTML, row.arrHTML, row.depSched, row.arrSched),
+          summaryTimeHtml: buildQuery2SummaryTimeHtml(row.depHTML, row.arrHTML, row.depSched, row.arrSched),
+          timeText: buildQuery2CombinedTimeText(row.depHTML, row.arrHTML, row.depSched, row.arrSched),
+          routeText: `${row.startStation} → ${row.transferStation} → ${row.endStation}`,
+          durationText: formatDurationMinutes(row.travelMin),
+          durationMetaText: '轉乘1次',
+          viaText: '',
+          viaHtml: '',
+          summaryTransferText: `${row.transferStation}轉乘`,
+          metaHtml: `${row.transferStation}轉乘 · 等候 ${row.waitMin} 分`,
+          statusText: row.status,
+          statusTone: getTraStationStatusTone(row.status),
+          ticketHidden: true,
+          isPassed: isTraQuery2PassedStatus(row.status),
+          isRunning: isTraQuery2ActiveStatus(row.status),
+          sortDep: row.depSortMin ?? 9999,
+          sortArr: row.arrSortMin ?? 9999,
+          sortDur: row.travelMin ?? 999999,
+          legacyRow: row,
+          openKind: 'transfer'
+        };
+      }
+      const directRow = modeEnabled ? {
+        num: row.n1,
+        originDate: row.originDate1,
+        type: row.type1,
+        rawType: row.rawType1 || '',
+        range: `${row.startStation}→${row.endStation}`,
+        depSched: row.depSched,
+        arrSched: row.arrSched,
+        depAbs: row.stDepAbs,
+        arrAbs: row.arrAbs,
+        depHTML: row.depHTML,
+        arrHTML: row.arrHTML,
+        travelMin: row.travelMin,
+        stopsCount: 0,
+        status: row.status,
+        startStation: row.startStation,
+        endStation: row.endStation
+      } : row;
+      const schedule = getScheduleByOrigin(directRow.num, directRow.originDate || currentQueryDateStr);
+      const viaText = getTraViaLabelFromStops(schedule?.['車站時間'] || [], {
+        tripLine: schedule?.['行別'] || schedule?.['路線'] || schedule?.['TripLine'] || '',
+        trainNo: directRow.num
+      }) || '';
+      const viaHtml = modeEnabled ? '' : buildTraQuery2ViaHtml(viaText);
+      const firstViaText = modeEnabled ? '' : getTraQuery2FirstViaText(viaText);
+      const eligibility = getBookingEligibilityByRow(directRow);
+      const isSea = String(directRow.num || '').includes('A');
+      return {
+        trainNo: directRow.num,
+        originDate: directRow.originDate,
+        trainHtml: isSea
+          ? `<span class="rsv2-train-no">${directRow.num}</span><span class="badge-sea">海</span><span class="rsv2-train-type">${colorType(directRow.type)}</span>`
+          : `<span class="rsv2-train-no">${directRow.num}</span><span class="rsv2-train-type">${colorType(directRow.type)}</span>`,
+        summaryTrainHtml: isSea
+          ? `<span class="rsv2-train-no">${directRow.num}</span><span class="badge-sea">海</span><span class="rsv2-train-type">${colorType(directRow.type)}</span>`
+          : `<span class="rsv2-train-no">${directRow.num}</span><span class="rsv2-train-type">${colorType(directRow.type)}</span>`,
+        timeHtml: buildQuery2CombinedTimeHtml(directRow.depHTML, directRow.arrHTML, directRow.depSched, directRow.arrSched),
+        summaryTimeHtml: buildQuery2SummaryTimeHtml(directRow.depHTML, directRow.arrHTML, directRow.depSched, directRow.arrSched),
+        timeText: buildQuery2CombinedTimeText(directRow.depHTML, directRow.arrHTML, directRow.depSched, directRow.arrSched),
+        routeText: directRow.range,
+        viaText: modeEnabled ? '' : (viaText || ''),
+        viaHtml: modeEnabled ? '' : viaHtml,
+        mobileFirstViaText: firstViaText,
+        durationText: formatDurationMinutes(directRow.travelMin),
+        durationMetaText: directRow.stopsCount > 0 ? `停靠${directRow.stopsCount}站` : '直達',
+        metaHtml: '',
+        statusText: directRow.status,
+        statusTone: getTraStationStatusTone(directRow.status),
+        ticketHidden: !eligibility.ok,
+        ticketLabel: '訂票',
+        isPassed: isTraQuery2PassedStatus(directRow.status),
+        isRunning: isTraQuery2ActiveStatus(directRow.status),
+        sortDep: directRow.depSortMin ?? 9999,
+        sortArr: directRow.arrSortMin ?? 9999,
+        sortDur: directRow.travelMin ?? 999999,
+        mobileCardRenderer: (!modeEnabled && isTraQuery2MobileViewport()) ? buildTraStartEndQuery2DirectMobileCard : null,
+        legacyRow: directRow,
+        openKind: 'direct'
+      };
+    });
+    return sortTraStartEndQuery2Rows(rows, sortKey);
+  }
+
+  async function handleTraStartEndQuery2Booking(row){
+    const directRow = row?.legacyRow;
+    if(!directRow) return;
+    const eligibility = getBookingEligibilityByRow(directRow);
+    if(!eligibility.ok){
+      alert(eligibility.reason || '此班次目前不可訂票');
+      return;
+    }
+    if(isDesktopDevice()){
+      const seatQty = await showTraSeatQuantityDialog(1);
+      if(!seatQty) return;
+      openTraBookingWeb(directRow.num, directRow.startStation, directRow.endStation, currentQueryDateStr, seatQty);
+      return;
+    }
+    const bookingChoice = await showTraBookingChoiceDialog();
+    if(bookingChoice === 'cancel') return;
+    if(bookingChoice === 'web'){
+      const seatQty = await showTraSeatQuantityDialog(1);
+      if(!seatQty) return;
+      openTraBookingWeb(directRow.num, directRow.startStation, directRow.endStation, currentQueryDateStr, seatQty);
+      return;
+    }
+    await openTraBookingDeepLink(directRow.num, directRow.startStation, directRow.endStation, currentQueryDateStr);
+  }
+
+  async function buildTraStartEndQuery2Data(queryState){
+    syncTraStartEndQuery2LegacyState(queryState, { syncFilters: true });
+    await runStartEndSearch();
+    const sourceRows = !!queryState.modeEnabled ? (currentTransferList || []) : (currentStartEndList || []);
+    const rows = buildTraStartEndQuery2Rows(!!queryState.modeEnabled, queryState.sortKey);
+    const summary = buildTraStartEndQuery2Summary(rows);
+    return {
+      kickerHtml: `<span>台鐵</span><strong>${queryState.modeEnabled ? '接受轉乘' : '直達優先'}</strong><span>查詢日 ${currentQueryDateStr || '--'}</span>`,
+      titleHtml: `${escapeTrainQueryHtml(queryState.start)} <span style="opacity:.55">→</span> ${escapeTrainQueryHtml(queryState.end)}`,
+      countValue: rows.length,
+      countLabel: '總班次',
+      summaryHtml: summary.html,
+      summaryRow: summary.row,
+      hideMobileHead: !queryState.modeEnabled && isTraQuery2MobileViewport(),
+      swapDurationAndVia: !queryState.modeEnabled,
+      headings: {
+        time: '出發 / 抵達',
+        train: '車次 / 車種',
+        duration: queryState.modeEnabled ? '耗時' : '停靠 / 耗時',
+        route: '行駛區間',
+        via: queryState.modeEnabled ? '' : '經由',
+        status: queryState.modeEnabled ? '狀態' : '狀態 / 訂票'
+      },
+      emptyMessage: '查無符合條件的班次',
+      rows
+    };
+  }
+
+  function initTraStartEndQuery2Panel(){
+    if(!window.RailOriginDestinationQueryV2?.create) return null;
+    startEndQuery2Controller = window.RailOriginDestinationQueryV2.create({
+      rootId: 'panel-startend2',
+      startInputId: 'startStationInput2',
+      endInputId: 'endStationInput2',
+      buttonId: 'startEndSearchBtn2',
+      datalistId: 'stationList',
+      startLabel: '出發',
+      endLabel: '到達',
+      startPlaceholder: '請輸入站名或站碼',
+      endPlaceholder: '請輸入站名或站碼',
+      modeLabel: '查詢模式',
+      modeToggleText: '接受轉乘',
+      favoriteButtonText: '常用行程',
+      buttonText: '查詢',
+      defaultModeEnabled: false,
+      manualSearchOnly: true,
+      toolbarAutoSearch: true,
+      sortLabel: '排序',
+      filterLabel: '車種篩選',
+      filterAllLabel: '全部車種',
+      mobileFilterMulti: true,
+      sortOptions: [
+        { value: 'dep', label: '出發時間' },
+        { value: 'arr', label: '到達時間' },
+        { value: 'dur', label: '耗時' }
+      ],
+      defaultSortKey: 'dep',
+      placeholderText: '輸入起訖站後顯示新版起迄站查詢結果',
+      getHistoryItems(){
+        return loadHistory().map((item)=>({ start: item.s, end: item.e, modeEnabled: !!item.t }));
+      },
+      getFavoriteItems(){
+        return [1,2,3].map((index)=>getStoredTraFavoriteRoute(index)).filter(Boolean).map((item)=>({ start: item.start, end: item.end }));
+      },
+      getFilterOptions(){
+        return getTraStationQueryV2FilterOptions();
+      },
+      normalizeStation: extractStationNameFromInput,
+      formatMobileSummary(state){
+        return `行程 ${state.start || '出發'} → ${state.end || '到達'} · ${state.modeEnabled ? '可轉乘' : '直達'}`;
+      },
+      search: buildTraStartEndQuery2Data,
+      onOpenDetail(row){
+        if(row?.openKind === 'transfer' && row.legacyRow) showTransferDetails(row.legacyRow);
+        else if(row?.trainNo) showTrainDetails(row.trainNo, row.originDate || currentQueryDateStr);
+      },
+      onBook: handleTraStartEndQuery2Booking,
+      onMounted(){
+        bindStationInput('startStationInput2');
+        bindStationInput('endStationInput2');
+      },
+      onStateChange(state){
+        syncTraStartEndQuery2LegacyState(state, { syncFilters: true });
+      }
+    });
+    return startEndQuery2Controller;
+  }
+
   function getTraStationQueryV2FilterOptions(){
     const types = new Set(
       Object.keys(baseSchedule || {})
@@ -6243,8 +6824,8 @@ function formatTrainQueryDurationCompact(totalMinutes){
   if(!Number.isFinite(mins) || mins < 0) return '--';
   const hours = Math.floor(mins / 60);
   const remain = mins % 60;
-  if(hours > 0 && remain > 0) return `${hours}小時${remain}分`;
-  if(hours > 0) return `${hours}小時`;
+  if(hours > 0 && remain > 0) return `${hours}時${remain}分`;
+  if(hours > 0) return `${hours}時`;
   return `${remain}分`;
 }
 
@@ -6388,7 +6969,7 @@ function buildTraTrainQueryV2StopRows(trainNo, originDateStr, stops, runtimeCtx,
         ? escapeTrainQueryHtml(passSched)
         : renderTimeWithDelayForTrainDetail(passSched, currentQueryDateStr, { stackVertical: true }, row.eventAbs, originDateStr, runtimeCtx?.delayMin || 0);
       arrHtml = passHtml;
-      depHtml = passHtml;
+      depHtml = escapeTrainQueryHtml('-');
     }else if(row.kind === 'origin'){
       const depSched = row.primaryText || row.secondaryText || '--';
       const depTimeHtml = isPassed
@@ -6582,10 +7163,9 @@ function filterTrainScheduleByNumberV2(trainNo){
     const nowAbs = getNowAbsFromOrigin(originDateStr || todayStr);
     const isTodayOrigin = originDateStr === todayStr;
     const isYesterdayOrigin = originDateStr === yestStr;
-    const queryIsToday = isQueryToday(currentQueryDateStr);
 
     let rawDelayMin = 0;
-    if(queryIsToday && trainNo && (isTodayOrigin || isYesterdayOrigin)){
+    if(trainNo && (isTodayOrigin || isYesterdayOrigin)){
       try{ if(typeof getDelayMinutes==='function') rawDelayMin = Number(getDelayMinutes(String(trainNo)) || 0); }catch(e){ rawDelayMin = 0; }
     }
     if(!Number.isFinite(rawDelayMin)) rawDelayMin = 0;
@@ -6594,7 +7174,7 @@ function filterTrainScheduleByNumberV2(trainNo){
     const rawLastAbsEff = Number.isFinite(lastAbs) ? (lastAbs + rawPositiveDelay) : lastAbs;
 
     let prevCarryoverActive = false;
-    if(queryIsToday && isTodayOrigin){
+    if(isTodayOrigin){
       const prevOriginDate = addDays(todayStr, -1);
       const prevData = getScheduleByOrigin(trainNo, prevOriginDate);
       const prevStops = prevData?.['車站時間'] || [];
@@ -6615,7 +7195,6 @@ function filterTrainScheduleByNumberV2(trainNo){
     }
 
     const ownsLiveInfo =
-      queryIsToday &&
       (
         (isYesterdayOrigin && Number.isFinite(rawLastAbsEff) && rawLastAbsEff >= 1440 && Number.isFinite(nowAbs) && nowAbs <= (rawLastAbsEff + 360)) ||
         (isTodayOrigin && !prevCarryoverActive)
@@ -6648,7 +7227,7 @@ function filterTrainScheduleByNumberV2(trainNo){
 
   function getAdjustedTimeForTrainDetail(schedHHMM, queryDateStr, baseAbsMin=null, originDateStr=null, delayMin=0){
     const sched = schedHHMM || '--';
-    if(!isQueryToday(queryDateStr) || !delayMin){
+    if(!delayMin){
       return {
         sched, adj: sched,
         adjMin: parseTime(sched),
@@ -7219,14 +7798,30 @@ function initStartEndSorting(){
   }
 
   // ===== 查詢模式切換（互斥顯示） =====
+  function isDesktopStartEndOfficial(){
+    return !!(window.matchMedia && window.matchMedia('(min-width: 721px)').matches);
+  }
+
+  function resolveStartEndPanelId(panelId){
+    if(panelId !== 'panel-startend' && panelId !== 'panel-startend2') return panelId;
+    return isDesktopStartEndOfficial() ? 'panel-startend2' : 'panel-startend';
+  }
+
+  function resolveQueryTabTarget(panelId){
+    if(panelId === 'panel-startend' || panelId === 'panel-startend2') return 'panel-startend';
+    return panelId;
+  }
+
   async function switchQueryPanel(panelId){
+    const resolvedPanelId = resolveStartEndPanelId(panelId);
+    const activeTabTarget = resolveQueryTabTarget(panelId);
     const featureMap = {
       'panel-ai': 'ai',
       'panel-live-tracker': 'live-tracker',
       'panel-master-table': 'master-table',
       'panel-operation-diagram': 'operation-diagram'
     };
-    const feature = featureMap[panelId];
+    const feature = featureMap[resolvedPanelId];
     if(feature && window.RailFeatureGate?.ensureAccess){
       try{
         const allowed = await window.RailFeatureGate.ensureAccess(feature);
@@ -7237,11 +7832,20 @@ function initStartEndSorting(){
     }
     document.querySelectorAll('.query-panel').forEach(el=>{
       if(!el || !el.id) return;
-      el.classList.toggle('hidden', el.id !== panelId);
+      el.classList.toggle('hidden', el.id !== resolvedPanelId);
     });
     document.querySelectorAll('.query-tab').forEach(btn=>{
-      btn.classList.toggle('active', btn.dataset.target === panelId);
+      btn.classList.toggle('active', btn.dataset.target === activeTabTarget);
     });
+    if(resolvedPanelId === 'panel-startend2' && startEndQuery2Controller){
+      startEndQuery2Controller.setState({
+        start: lastStartEndQuery?.st || document.getElementById('startStation')?.value || '',
+        end: lastStartEndQuery?.ed || document.getElementById('endStation')?.value || '',
+        modeEnabled: !!lastStartEndQuery?.accept,
+        selectedFilters: lastStartEndQuery?.selectedTypes || selectedTrainTypesStartEnd || []
+      });
+      if(lastStartEndQuery?.st && lastStartEndQuery?.ed) await startEndQuery2Controller.rerender();
+    }
     updateHeroSnapshot();
     return true;
   }
@@ -7251,6 +7855,21 @@ function initStartEndSorting(){
       btn.addEventListener('click', ()=>{
         switchQueryPanel(btn.dataset.target);
       });
+    });
+  }
+
+  function bindResponsiveStartEndPanelSwitch(){
+    let resizeTimer = null;
+    window.addEventListener('resize', ()=>{
+      if(resizeTimer) clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(()=>{
+        const activeTarget = document.querySelector('.query-tab.active')?.dataset?.target;
+        if(activeTarget !== 'panel-startend') return;
+        const visiblePanelId = document.querySelector('.query-panel:not(.hidden)')?.id;
+        const desiredPanelId = resolveStartEndPanelId('panel-startend');
+        if(visiblePanelId === desiredPanelId) return;
+        switchQueryPanel('panel-startend');
+      }, 90);
     });
   }
 
@@ -7350,12 +7969,21 @@ function handleTraUrlParams() {
     const pStart = normalizeTraLinkedStation(p.get('start'));
     const pEnd = normalizeTraLinkedStation(p.get('end'));
     const pStation = normalizeTraLinkedStation(p.get('station'));
+    const startEndPanelId = resolveStartEndPanelId('panel-startend');
 
     if (pStart && pEnd) {
         document.getElementById('startStation').value = pStart;
         document.getElementById('endStation').value = pEnd;
         syncTraStartEndSummaryUI();
-        setTimeout(runStartEndSearch, 600);
+        if (startEndPanelId === 'panel-startend2') {
+            startEndQuery2Controller?.setState?.({
+                start: pStart,
+                end: pEnd
+            });
+            setTimeout(()=>startEndQuery2Controller?.search?.(pStart, pEnd, { updateInput: true }), 600);
+        } else {
+            setTimeout(runStartEndSearch, 600);
+        }
         return;
     }
 

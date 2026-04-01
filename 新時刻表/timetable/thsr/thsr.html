@@ -1958,6 +1958,14 @@
     }
   }
 </style>
+<style>
+  @media (min-width: 721px){
+    #panel-startend2 [data-role="results"]{
+      display: grid;
+      gap: 14px;
+    }
+  }
+</style>
 </head>
 <body class="light-mode">
 
@@ -2069,6 +2077,8 @@
         </table>
       </div>
     </section>
+
+    <section id="panel-startend2" class="card query-panel hidden"></section>
 
     <section id="panel-station" class="card query-panel hidden">
       <div class="section-title">車站時刻表</div>
@@ -2182,6 +2192,7 @@
 <script charset="UTF-8" src="../shared/rail-station-query-common.js?v=20260327-station1"></script>
 <script charset="UTF-8" src="../shared/rail-station-timetable-v2.js?v=20260330-stationv2"></script>
 <script charset="UTF-8" src="../shared/rail-train-query-v2.js?v=20260329-trainquery2"></script>
+<script charset="UTF-8" src="../shared/rail-origin-destination-query-v2.js?v=20260402-odquery2darkhead"></script>
 <script>
   let nameToId = {};
   let stationListSorted = [];
@@ -2199,6 +2210,7 @@
   let currentStationList = [];
   let stationQuery2Controller = null;
   let trainQuery2Controller = null;
+  let startEndQuery2Controller = null;
 
   function fmtDate(d){ return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
   function addDays(dateStr, delta){ const [y,m,d] = dateStr.split('-').map(Number); const dt = new Date(y, m-1, d); dt.setDate(dt.getDate()+delta); return fmtDate(dt); }
@@ -2406,7 +2418,7 @@
     renderStartEndTable();
     if (queryDate >= todayStr) { await refreshSeatForCurrentOD(st, ed); } else { currentSeatMap = {}; renderStartEndTable(); }
     const h = loadHistory().filter(x => !(x.s === st && x.e === ed));
-    h.unshift({ s: st, e: ed });
+    h.unshift({ s: st, e: ed, d: onlyDirect });
     saveHistory(h); renderHistory();
     // 行動版：查詢後自動收合查詢設定
     if (window.innerWidth <= 720) { try{ closeTripSheet(); }catch(e){} }
@@ -2910,9 +2922,176 @@
     const text = String(label || '');
     if(/取消|停駛|異常|查無/.test(text)) return 'danger';
     if(/晚|延遲|誤點/.test(text)) return 'warning';
-    if(/未發車|即將|行駛中|準點/.test(text)) return 'success';
+    if(/行駛中|準點/.test(text)) return 'success';
     if(/已過站|已到終點/.test(text)) return 'muted';
     return 'neutral';
+  }
+
+  function isThsrQuery2PassedStatus(label){
+    return /已過站|已到終點/.test(String(label || ''));
+  }
+
+  function isThsrQuery2ActiveStatus(label){
+    const text = String(label || '');
+    if(isThsrQuery2PassedStatus(text)) return false;
+    if(/取消|停駛|異常|查無/.test(text)) return false;
+    return true;
+  }
+
+  function syncThsrStartEndQuery2LegacyState(state){
+    if(typeof state?.start === 'string' && document.getElementById('startStation')) document.getElementById('startStation').value = state.start;
+    if(typeof state?.end === 'string' && document.getElementById('endStation')) document.getElementById('endStation').value = state.end;
+    if(typeof state?.modeEnabled === 'boolean' && document.getElementById('onlyDirect')) document.getElementById('onlyDirect').checked = !!state.modeEnabled;
+    if(typeof updateTripSummary === 'function') updateTripSummary();
+  }
+
+  function getThsrQuery2BookingState(row){
+    const depMin = parseTime(row?.dep || '');
+    const todayStr = fmtDate(new Date());
+    const nowMin = new Date().getHours() * 60 + new Date().getMinutes();
+    const ok = (row?.originDate > todayStr) || (row?.originDate === todayStr && depMin !== null && (depMin - nowMin) > 10);
+    return { ok, reason: ok ? '' : '停止預訂' };
+  }
+
+  function buildThsrQuery2CombinedTimeHtml(depText, arrText){
+    return `<div class="rod2-timecell"><div class="rsv2-time-main">${escapeTrainQueryHtml(depText || '--')} → ${escapeTrainQueryHtml(arrText || '--')}</div></div>`;
+  }
+
+  function buildThsrQuery2SummaryTimeHtml(depText, arrText){
+    return `<span class="rod2-summary-time"><span class="rsv2-time-main">${escapeTrainQueryHtml(depText || '--')} → ${escapeTrainQueryHtml(arrText || '--')}</span></span>`;
+  }
+
+  function buildThsrStartEndQuery2Summary(rows){
+    const nextRow = (rows || [])
+      .filter((row)=>!/已過站|已到終點/.test(String(row?.statusText || row?.status || '')))
+      .sort((a,b)=>(a?.sortDep ?? 9999) - (b?.sortDep ?? 9999))[0] || rows?.[0];
+    if(!nextRow) return { html:'', row:null };
+    const ticketHtml = nextRow.ticketHidden ? '' : `<button class="rod2-ticket rod2-summary-book" type="button" data-role="summary-ticket">${escapeTrainQueryHtml(nextRow.ticketLabel || '訂票')}</button>`;
+    const seatLineHtml = nextRow.summarySeatHtml ? `<span class="rod2-summary-seatline"><span class="rsv2-summary-value rsv2-tone-muted">${nextRow.summarySeatHtml}</span>${ticketHtml}</span>` : (ticketHtml ? `<span class="rod2-summary-seatline">${ticketHtml}</span>` : '');
+    return {
+      row: nextRow,
+      html: `<span class="rod2-summary-rail"><span class="rod2-summary-label-line">下一班</span><span class="rod2-summary-line rod2-summary-main">${nextRow.summaryTimeHtml || `<span class="rod2-summary-time"><span class="rsv2-time-main">${escapeTrainQueryHtml(nextRow.timeText || '--')}</span></span>`}<span class="rod2-summary-dot">·</span><span class="rsv2-summary-value">${nextRow.trainHtml || escapeTrainQueryHtml(nextRow.trainNo || '')}</span><span class="rod2-summary-dot">·</span><span class="rsv2-summary-value rsv2-tone-${getThsrStationStatusTone(nextRow.statusText || nextRow.status || '')}">${nextRow.statusHtml || escapeTrainQueryHtml(nextRow.statusText || nextRow.status || '--')}</span>${seatLineHtml}</span></span>`
+    };
+  }
+
+  function buildThsrStartEndQuery2Rows(sortKey){
+    const rows = (currentStartEndList || []).map((row)=>{
+      const booking = getThsrQuery2BookingState(row);
+      return {
+        trainNo: row.trainNo,
+        originDate: row.originDate,
+        trainHtml: `<span class="rsv2-train-no">${row.trainNo}</span><span class="rsv2-train-type rsv2-brand-thsr">高鐵</span>`,
+        timeHtml: buildThsrQuery2CombinedTimeHtml(row.dep, row.arr),
+        summaryTimeHtml: buildThsrQuery2SummaryTimeHtml(row.dep, row.arr),
+        timeText: `${row.dep || '--'} → ${row.arr || '--'}`,
+        routeText: row.range,
+        durationText: formatTrainQueryDurationCompact(row.durMin),
+        durationMetaText: row.stopBetween > 0 ? `停靠${row.stopBetween}站` : '直達',
+        metaHtml: '',
+        seatHtml: `<span class="rod2-seat-stack"><span>標準艙 ${getSeatIcon(row.trainNo, 'standard', row.originDate)}</span><span>商務艙 ${getSeatIcon(row.trainNo, 'business', row.originDate)}</span></span>`,
+        summarySeatHtml: `標準艙 ${getSeatIcon(row.trainNo, 'standard', row.originDate)} · 商務艙 ${getSeatIcon(row.trainNo, 'business', row.originDate)}`,
+        statusText: row.status,
+        statusTone: getThsrStationStatusTone(row.status),
+        ticketHidden: !booking.ok,
+        ticketLabel: '訂票',
+        isPassed: isThsrQuery2PassedStatus(row.status),
+        isRunning: isThsrQuery2ActiveStatus(row.status),
+        sortDep: parseTime(row.dep || '') ?? 9999,
+        sortArr: parseTime(row.arr || '') ?? 9999,
+        sortDur: row.durMin ?? 999999,
+        legacyRow: row
+      };
+    });
+    const key = sortKey === 'arr' || sortKey === 'dur' ? sortKey : 'dep';
+    return rows.sort((a,b)=>{
+      const av = key === 'arr' ? a.sortArr : key === 'dur' ? a.sortDur : a.sortDep;
+      const bv = key === 'arr' ? b.sortArr : key === 'dur' ? b.sortDur : b.sortDep;
+      if(av !== bv) return av - bv;
+      return String(a.trainNo || '').localeCompare(String(b.trainNo || ''),'en');
+    });
+  }
+
+  async function buildThsrStartEndQuery2Data(queryState){
+    syncThsrStartEndQuery2LegacyState(queryState);
+    await runStartEndSearch();
+    const rows = buildThsrStartEndQuery2Rows(queryState.sortKey);
+    const summary = buildThsrStartEndQuery2Summary(rows);
+    return {
+      kickerHtml: `<span>高鐵</span><strong>${queryState.modeEnabled ? '只顯示直達' : '全部班次'}</strong><span>查詢日 ${currentQueryDateStr || '--'}</span>`,
+      titleHtml: `${escapeTrainQueryHtml(queryState.start)} <span style="opacity:.55">→</span> ${escapeTrainQueryHtml(queryState.end)}`,
+      countValue: rows.length,
+      countLabel: '總班次',
+      summaryHtml: summary.html,
+      summaryRow: summary.row,
+      headings: {
+        time: '出發 / 抵達',
+        train: '車次',
+        duration: '停靠 / 耗時',
+        route: '行駛區間',
+        seat: '座位',
+        status: '狀態 / 訂票'
+      },
+      emptyMessage: '查無符合條件的班次',
+      rows
+    };
+  }
+
+  function initThsrStartEndQuery2Panel(){
+    if(!window.RailOriginDestinationQueryV2?.create) return null;
+    startEndQuery2Controller = window.RailOriginDestinationQueryV2.create({
+      rootId: 'panel-startend2',
+      startInputId: 'startStationInput2',
+      endInputId: 'endStationInput2',
+      buttonId: 'startEndSearchBtn2',
+      datalistId: 'stationList',
+      startLabel: '出發',
+      endLabel: '到達',
+      startPlaceholder: '請輸入站名或站碼',
+      endPlaceholder: '請輸入站名或站碼',
+      modeLabel: '查詢模式',
+      modeToggleText: '只顯示直達',
+      favoriteButtonText: '常用行程',
+      buttonText: '查詢',
+      defaultModeEnabled: false,
+      manualSearchOnly: true,
+      toolbarAutoSearch: true,
+      disableFilters: true,
+      sortLabel: '排序',
+      sortOptions: [
+        { value: 'dep', label: '出發時間' },
+        { value: 'arr', label: '到達時間' },
+        { value: 'dur', label: '耗時' }
+      ],
+      defaultSortKey: 'dep',
+      placeholderText: '輸入起訖站後顯示新版起迄站查詢結果',
+      getHistoryItems(){
+        return loadHistory().map((item)=>({ start: item.s, end: item.e, modeEnabled: !!item.d }));
+      },
+      getFavoriteItems(){
+        return [1,2,3].map((index)=>({ start: localStorage.getItem(`thsr_s${index}`) || '', end: localStorage.getItem(`thsr_e${index}`) || '' })).filter((item)=>item.start && item.end);
+      },
+      normalizeStation: extractStationNameFromInput,
+      formatMobileSummary(state){
+        return `行程 ${state.start || '出發'} → ${state.end || '到達'} · ${state.modeEnabled ? '只顯示直達' : '全部班次'}`;
+      },
+      search: buildThsrStartEndQuery2Data,
+      onOpenDetail(row){
+        if(row?.trainNo) showTrainDetails(row.trainNo, row.originDate || currentQueryDateStr);
+      },
+      onBook(row){
+        const legacyRow = row?.legacyRow;
+        if(!legacyRow) return;
+        handleTHSRBookingRequest(legacyRow.trainNo, legacyRow.originDate, legacyRow.dep, legacyRow.startStation, legacyRow.endStation);
+      },
+      onMounted(){
+        bindStationInput('startStationInput2');
+        bindStationInput('endStationInput2');
+      },
+      onStateChange(state){
+        syncThsrStartEndQuery2LegacyState(state);
+      }
+    });
+    return startEndQuery2Controller;
   }
 
   function buildThsrStationQueryV2Rows(station, dir){
@@ -3090,8 +3269,8 @@
     if(!Number.isFinite(mins) || mins < 0) return '--';
     const hours = Math.floor(mins / 60);
     const remain = mins % 60;
-    if(hours > 0 && remain > 0) return `${hours}小時${remain}分`;
-    if(hours > 0) return `${hours}小時`;
+    if(hours > 0 && remain > 0) return `${hours}時${remain}分`;
+    if(hours > 0) return `${hours}時`;
     return `${remain}分`;
   }
 
@@ -3212,13 +3391,18 @@
       const isNext = !isPassed && !isCurrent && nextVisibleIndex === index;
       const isNextStop = !isPassed && !isCurrent && !isNext && nextVisibleStopIndex === index;
 
+      const isPassRow = row.kind === 'pass';
       const singleTime = row.secondaryText || row.primaryText || '--';
-      const arrText = row.kind === 'stop'
-        ? (row.secondaryText || row.primaryText || '--')
-        : singleTime;
-      const depText = row.kind === 'stop'
-        ? (row.primaryText || row.secondaryText || '--')
-        : singleTime;
+      const arrText = isPassRow
+        ? singleTime
+        : (row.kind === 'stop'
+            ? (row.secondaryText || row.primaryText || '--')
+            : singleTime);
+      const depText = isPassRow
+        ? '-'
+        : (row.kind === 'stop'
+            ? (row.primaryText || row.secondaryText || '--')
+            : singleTime);
 
       let stateText = row.kind === 'pass' ? '通過' : '停靠';
       if(isCurrent){
@@ -3355,6 +3539,7 @@
         chip.addEventListener('click', ()=>{
           document.getElementById('startStation').value = item.s;
           document.getElementById('endStation').value = item.e;
+          if(typeof item.d === 'boolean' && document.getElementById('onlyDirect')) document.getElementById('onlyDirect').checked = !!item.d;
           updateTripSummary && updateTripSummary();
           if(!isMobile){
             runStartEndSearch();
@@ -3379,14 +3564,25 @@
   }
   
   function bindQueryTabs(){ document.querySelectorAll('.query-tab').forEach(btn=>{ btn.addEventListener('click',()=>switchQueryPanel(btn.dataset.target)); }); }
+  function isDesktopStartEndOfficial(){ return !!(window.matchMedia && window.matchMedia('(min-width: 721px)').matches); }
+  function resolveStartEndPanelId(panelId){
+    if(panelId !== 'panel-startend' && panelId !== 'panel-startend2') return panelId;
+    return isDesktopStartEndOfficial() ? 'panel-startend2' : 'panel-startend';
+  }
+  function resolveQueryTabTarget(panelId){
+    if(panelId === 'panel-startend' || panelId === 'panel-startend2') return 'panel-startend';
+    return panelId;
+  }
   async function switchQueryPanel(panelId){
+    const resolvedPanelId = resolveStartEndPanelId(panelId);
+    const activeTabTarget = resolveQueryTabTarget(panelId);
     const featureMap = {
       'panel-ai': 'ai',
       'panel-live-tracker': 'live-tracker',
       'panel-master-table': 'master-table',
       'panel-operation-diagram': 'operation-diagram'
     };
-    const feature = featureMap[panelId];
+    const feature = featureMap[resolvedPanelId];
     if(feature && window.RailFeatureGate?.ensureAccess){
       try{
         const allowed = await window.RailFeatureGate.ensureAccess(feature);
@@ -3397,11 +3593,34 @@
     }
     document.querySelectorAll('.query-tab').forEach(b=>b.classList.remove('active'));
     document.querySelectorAll('.query-panel').forEach(p=>p.classList.add('hidden'));
-    const tab = document.querySelector(`.query-tab[data-target="${panelId}"]`);
-    const panel = document.getElementById(panelId);
+    const tab = document.querySelector(`.query-tab[data-target="${activeTabTarget}"]`);
+    const panel = document.getElementById(resolvedPanelId);
     if(tab) tab.classList.add('active');
     if(panel) panel.classList.remove('hidden');
+    if(resolvedPanelId === 'panel-startend2' && startEndQuery2Controller){
+      startEndQuery2Controller.setState({
+        start: lastStartEndQuery?.st || document.getElementById('startStation')?.value || '',
+        end: lastStartEndQuery?.ed || document.getElementById('endStation')?.value || '',
+        modeEnabled: !!lastStartEndQuery?.onlyDirect
+      });
+      if(lastStartEndQuery?.st && lastStartEndQuery?.ed) await startEndQuery2Controller.rerender();
+    }
     return true;
+  }
+
+  function bindResponsiveStartEndPanelSwitch(){
+    let resizeTimer = null;
+    window.addEventListener('resize', ()=>{
+      if(resizeTimer) clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(()=>{
+        const activeTarget = document.querySelector('.query-tab.active')?.dataset?.target;
+        if(activeTarget !== 'panel-startend') return;
+        const visiblePanelId = document.querySelector('.query-panel:not(.hidden)')?.id;
+        const desiredPanelId = resolveStartEndPanelId('panel-startend');
+        if(visiblePanelId === desiredPanelId) return;
+        switchQueryPanel('panel-startend');
+      }, 90);
+    });
   }
 
   const modal = document.getElementById('trainModal');
@@ -3799,11 +4018,18 @@
   }
 
   async function rerenderVisibleResults(){ 
+    startEndQuery2Controller?.refreshChrome?.();
     stationQuery2Controller?.refreshChrome?.();
     trainQuery2Controller?.refreshChrome?.();
     if(lastStartEndQuery){
       restoreLastStartEndQueryState();
       await runStartEndSearch();
+      startEndQuery2Controller?.setState?.({
+        start: lastStartEndQuery.st,
+        end: lastStartEndQuery.ed,
+        modeEnabled: !!lastStartEndQuery.onlyDirect
+      });
+      await startEndQuery2Controller?.rerender?.();
     }
     if(lastStationQuery) filterTrainScheduleByStationName();
     if(lastStationQueryV2?.station){
@@ -4231,11 +4457,20 @@
     const pStart = p.get('start');
     const pEnd = p.get('end');
     const pStation = p.get('station');
+    const startEndPanelId = resolveStartEndPanelId('panel-startend');
 
     if (pStart && pEnd) {
         document.getElementById('startStation').value = pStart;
         document.getElementById('endStation').value = pEnd;
-        setTimeout(runStartEndSearch, 600);
+        if (startEndPanelId === 'panel-startend2') {
+            startEndQuery2Controller?.setState?.({
+                start: pStart,
+                end: pEnd
+            });
+            setTimeout(()=>startEndQuery2Controller?.search?.(pStart, pEnd, { updateInput: true }), 600);
+        } else {
+            setTimeout(runStartEndSearch, 600);
+        }
     } else if (pStation) {
         const stationValue = extractStationNameFromInput(pStation) || pStation;
         document.getElementById('startStation').value = stationValue;
@@ -4297,6 +4532,7 @@
 
   window.addEventListener('load', async ()=>{
     bindQueryTabs();
+    bindResponsiveStartEndPanelSwitch();
     switchQueryPanel('panel-startend');
     initDatePickerWindow();
     setupThemeToggle();
@@ -4304,6 +4540,7 @@
     bindStationInput('startStation');
     bindStationInput('endStation');
     bindStationInput('stationNameInput');
+    initThsrStartEndQuery2Panel();
     initStationQuery2Panel();
     bindTrainInput('trainNumberInput');
     initTrainQuery2Panel();

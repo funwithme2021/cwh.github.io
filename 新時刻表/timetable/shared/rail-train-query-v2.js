@@ -334,6 +334,13 @@
 .rtq2-table-row.is-pass{
   background:rgba(37,99,235,0.03);
 }
+.rtq2-table-row.is-pass .rtq2-col-no,
+.rtq2-table-row.is-pass .rtq2-station-name,
+.rtq2-table-row.is-pass .rtq2-time-main,
+.rtq2-table-row.is-pass .rtq2-time-sub,
+.rtq2-table-row.is-pass .rtq2-time-empty{
+  color:var(--text-muted, #64748b);
+}
 .rtq2-table-row.is-current{
   background:rgba(37,99,235,0.08);
   box-shadow:inset 3px 0 0 var(--primary, #2563eb);
