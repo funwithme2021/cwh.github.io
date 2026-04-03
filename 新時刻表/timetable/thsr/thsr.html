@@ -2276,6 +2276,53 @@
       }
     }
   </style>
+  <style>
+    .rail-geo-input-host{
+      gap: 8px !important;
+    }
+    .rail-geo-btn{
+      appearance: none;
+      border: none;
+      flex: 0 0 auto;
+      width: 32px;
+      height: 32px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 10px;
+      background: rgba(37,99,235,0.12);
+      color: var(--primary, #2563eb);
+      font-size: 14px;
+      font-weight: 900;
+      line-height: 1;
+      cursor: pointer;
+      transition: transform .16s ease, background .16s ease, opacity .16s ease;
+    }
+    .rail-geo-btn[data-kind="train"]{
+      background: rgba(16,185,129,0.12);
+      color: #0f766e;
+    }
+    .rail-geo-btn:hover{
+      transform: translateY(-1px);
+    }
+    .rail-geo-btn[disabled]{
+      opacity: .62;
+      cursor: wait;
+      transform: none;
+    }
+    .rail-geo-btn:focus-visible{
+      outline: 2px solid rgba(37,99,235,0.32);
+      outline-offset: 2px;
+    }
+    body.dark-mode .rail-geo-btn{
+      background: rgba(96,165,250,0.18);
+      color: #bfdbfe;
+    }
+    body.dark-mode .rail-geo-btn[data-kind="train"]{
+      background: rgba(45,212,191,0.18);
+      color: #99f6e4;
+    }
+  </style>
 </head>
 <body class="light-mode">
 
@@ -2498,7 +2545,7 @@
   </div>
 </div>
 
-<script charset="UTF-8" src="./thsr.real-schedule.js?v=20260319-utf8fix"></script>
+<script charset="UTF-8" src="./thsr.real-schedule.js?v=20260403-geo1"></script>
 <script charset="UTF-8" src="../shared/rail-station-query-common.js?v=20260327-station1"></script>
 <script charset="UTF-8" src="../shared/rail-station-timetable-v2.js?v=20260330-stationv2"></script>
 <script charset="UTF-8" src="../shared/rail-train-query-v2.js?v=20260329-trainquery2"></script>
@@ -4864,6 +4911,302 @@
 
   
 
+  const THSR_LAST_NEAREST_KEY = 'thsr_last_nearest_station';
+
+  function normalizeThsrLinkedStation(rawStation) {
+    const station = extractStationNameFromInput(rawStation);
+    return station ? normTHSRStationName(station) : '';
+  }
+
+  function getThsrStationGeoItem(rawStation) {
+    const station = normalizeThsrLinkedStation(rawStation);
+    if (!station) return null;
+    return window.stationGeoMap?.[station] || null;
+  }
+
+  function getGeoDistanceKm(lat1, lon1, lat2, lon2) {
+    const toRad = (value) => (Number(value) * Math.PI) / 180;
+    const R = 6371;
+    const dLat = toRad(lat2 - lat1);
+    const dLon = toRad(lon2 - lon1);
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+      Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    return 2 * R * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  }
+
+  function interpolateGeoPoint(fromPoint, toPoint, ratio) {
+    const r = Math.max(0, Math.min(1, Number(ratio) || 0));
+    return {
+      lat: fromPoint.lat + ((toPoint.lat - fromPoint.lat) * r),
+      lon: fromPoint.lon + ((toPoint.lon - fromPoint.lon) * r)
+    };
+  }
+
+  function getBrowserGeoPosition() {
+    return new Promise((resolve, reject) => {
+      if (!navigator.geolocation) {
+        reject(new Error('瀏覽器不支援定位'));
+        return;
+      }
+      navigator.geolocation.getCurrentPosition(
+        (position) => resolve(position),
+        () => reject(new Error('無法取得目前位置')),
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 }
+      );
+    });
+  }
+
+  function setGeoButtonBusy(button, busy) {
+    if (!button) return;
+    if (!button.dataset.idleLabel) button.dataset.idleLabel = button.textContent || '';
+    button.disabled = !!busy;
+    button.textContent = busy ? '…' : (button.dataset.idleLabel || button.textContent || '');
+  }
+
+  function ensureGeoInlineButton(inputId, options = {}) {
+    const input = document.getElementById(inputId);
+    if (!input) return null;
+    const wrap = input.closest('.rod2-wrap, .rsv2-input-wrap, .rtq2-input-wrap, .input-group');
+    if (!wrap) return null;
+    const key = String(options.key || inputId);
+    const existing = wrap.querySelector(`.rail-geo-btn[data-geo-key="${key}"]`);
+    if (existing) return existing;
+    wrap.classList.add('rail-geo-input-host');
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'rail-geo-btn';
+    button.dataset.geoKey = key;
+    button.dataset.kind = options.kind || 'station';
+    button.title = options.title || '定位';
+    button.setAttribute('aria-label', options.title || '定位');
+    button.textContent = options.icon || '📍';
+    button.addEventListener('click', async (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      setGeoButtonBusy(button, true);
+      try {
+        await Promise.resolve(options.onClick?.(button, input));
+      } catch (error) {
+        alert(error?.message || '定位失敗，請稍後再試');
+      } finally {
+        setGeoButtonBusy(button, false);
+      }
+    });
+    wrap.appendChild(button);
+    return button;
+  }
+
+  function persistThsrNearestStation(station) {
+    const normalized = normalizeThsrLinkedStation(station);
+    if (!normalized) return;
+    try {
+      localStorage.setItem(THSR_LAST_NEAREST_KEY, normalized);
+      localStorage.setItem('thsr_last_nearest_at', String(Date.now()));
+    } catch (_) {}
+  }
+
+  function fillThsrStartStationFromLocation(rawStation) {
+    const station = normalizeThsrLinkedStation(rawStation);
+    if (!station) return '';
+    const legacyStart = document.getElementById('startStation');
+    const query2Start = document.getElementById('startStationInput2');
+    if (legacyStart) legacyStart.value = station;
+    if (query2Start) query2Start.value = station;
+    const state = startEndQuery2Controller?.getState?.() || {};
+    startEndQuery2Controller?.setState?.({
+      start: station,
+      end: state.end || extractStationNameFromInput(document.getElementById('endStationInput2')?.value || document.getElementById('endStation')?.value || ''),
+      modeEnabled: !!state.modeEnabled,
+      sortKey: state.sortKey || 'dep'
+    });
+    if (typeof updateTripSummary === 'function') updateTripSummary();
+    if (typeof updateHeroSnapshot === 'function') updateHeroSnapshot();
+    return station;
+  }
+
+  function fillThsrStationQueryFromLocation(rawStation) {
+    const station = normalizeThsrLinkedStation(rawStation);
+    if (!station) return '';
+    ['stationNameInput', 'stationNameInput2'].forEach((id) => {
+      const input = document.getElementById(id);
+      if (input) input.value = station;
+    });
+    const state = stationQuery2Controller?.getState?.() || {};
+    stationQuery2Controller?.setState?.({
+      station,
+      direction: state.direction || document.getElementById('directionSelect')?.value || 'south'
+    });
+    if (typeof updateHeroSnapshot === 'function') updateHeroSnapshot();
+    return station;
+  }
+
+  async function locateNearestThsrStation(target) {
+    if (!Array.isArray(window.stationGeoList) || !window.stationGeoList.length) {
+      await initStationMap();
+    }
+    const position = await getBrowserGeoPosition();
+    const lat = Number(position?.coords?.latitude);
+    const lon = Number(position?.coords?.longitude);
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) throw new Error('無法取得目前位置');
+    let nearest = null;
+    let minDistance = Infinity;
+    (window.stationGeoList || []).forEach((station) => {
+      const distanceKm = getGeoDistanceKm(lat, lon, station.lat, station.lon);
+      if (distanceKm < minDistance) {
+        minDistance = distanceKm;
+        nearest = station;
+      }
+    });
+    if (!nearest?.name) throw new Error('找不到最近車站');
+    persistThsrNearestStation(nearest.name);
+    if (target === 'start') return fillThsrStartStationFromLocation(nearest.name);
+    return fillThsrStationQueryFromLocation(nearest.name);
+  }
+
+  function buildThsrAbsArrDep(stops) {
+    const absArr = [];
+    const absDep = [];
+    let day = 0;
+    let prevMinute = null;
+    const pushAbs = (timeStr) => {
+      const minute = parseTime(timeStr);
+      if (minute === null) return null;
+      if (prevMinute !== null && minute < prevMinute) day += 1;
+      prevMinute = minute;
+      return day * 1440 + minute;
+    };
+    (stops || []).forEach((stop) => {
+      const ad = splitArrDep(stop);
+      if (ad.arr && ad.dep && ad.arr === ad.dep) {
+        const abs = pushAbs(ad.dep || ad.arr);
+        absArr.push(abs);
+        absDep.push(abs);
+        return;
+      }
+      absArr.push(ad.arr ? pushAbs(ad.arr) : null);
+      absDep.push(ad.dep ? pushAbs(ad.dep) : null);
+    });
+    return { absArr, absDep };
+  }
+
+  function getThsrLocatedTrainPosition(entry) {
+    const stops = entry?.data?.['車站時間'] || [];
+    if (!Array.isArray(stops) || stops.length < 2) return null;
+    const absAD = buildThsrAbsArrDep(stops);
+    const nowAbs = getNowAbsFromOrigin(entry.originDate);
+    const firstAbs = absAD.absDep?.[0] ?? absAD.absArr?.[0];
+    const lastAbs = absAD.absArr?.[stops.length - 1] ?? absAD.absDep?.[stops.length - 1];
+    if (!Number.isFinite(firstAbs) || !Number.isFinite(lastAbs)) return null;
+    if (nowAbs < (firstAbs - 2) || nowAbs > (lastAbs + 5)) return null;
+
+    for (let i = 0; i < stops.length; i++) {
+      const stationGeo = getThsrStationGeoItem(stops[i]?.[0]);
+      if (!stationGeo) continue;
+      const arrAbs = absAD.absArr?.[i];
+      const depAbs = absAD.absDep?.[i];
+      const startAbs = Number.isFinite(arrAbs) ? arrAbs : depAbs;
+      const endAbs = Number.isFinite(depAbs) ? depAbs : arrAbs;
+      if (Number.isFinite(startAbs) && Number.isFinite(endAbs) && nowAbs >= Math.min(startAbs, endAbs) && nowAbs <= Math.max(startAbs, endAbs)) {
+        return { lat: stationGeo.lat, lon: stationGeo.lon };
+      }
+    }
+
+    for (let i = 0; i < stops.length - 1; i++) {
+      const fromGeo = getThsrStationGeoItem(stops[i]?.[0]);
+      const toGeo = getThsrStationGeoItem(stops[i + 1]?.[0]);
+      if (!fromGeo || !toGeo) continue;
+      const depAbs = absAD.absDep?.[i] ?? absAD.absArr?.[i];
+      const arrAbs = absAD.absArr?.[i + 1] ?? absAD.absDep?.[i + 1];
+      if (!Number.isFinite(depAbs) || !Number.isFinite(arrAbs) || arrAbs < depAbs) continue;
+      if (nowAbs < depAbs || nowAbs > arrAbs) continue;
+      const span = Math.max(1, arrAbs - depAbs);
+      return interpolateGeoPoint(fromGeo, toGeo, (nowAbs - depAbs) / span);
+    }
+
+    return null;
+  }
+
+  async function prepareThsrLiveLocateData() {
+    const todayStr = fmtDate(new Date());
+    if (currentQueryDateStr !== todayStr || !Object.keys(baseSchedule || {}).length) {
+      const dateInput = document.getElementById('mainQueryDate');
+      if (dateInput) dateInput.value = todayStr;
+      await refreshData(todayStr, { silent: true });
+    }
+  }
+
+  async function locateThsrRunningTrainByPosition() {
+    if (!Array.isArray(window.stationGeoList) || !window.stationGeoList.length) {
+      await initStationMap();
+    }
+    await prepareThsrLiveLocateData();
+    const position = await getBrowserGeoPosition();
+    const lat = Number(position?.coords?.latitude);
+    const lon = Number(position?.coords?.longitude);
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) throw new Error('無法取得目前位置');
+    let best = null;
+    const sources = [
+      { map: baseSchedule || {}, originDate: currentQueryDateStr },
+      { map: prevSchedule || {}, originDate: addDays(currentQueryDateStr, -1) }
+    ];
+    sources.forEach((source) => {
+      Object.keys(source.map || {}).forEach((trainNo) => {
+        const entry = { trainNo, originDate: source.originDate, data: source.map[trainNo] };
+        const geoPoint = getThsrLocatedTrainPosition(entry);
+        if (!geoPoint) return;
+        const distanceKm = getGeoDistanceKm(lat, lon, geoPoint.lat, geoPoint.lon);
+        if (!best || distanceKm < best.distanceKm) {
+          best = { entry, distanceKm };
+        }
+      });
+    });
+    if (!best || best.distanceKm > 18) {
+      throw new Error('附近沒有可判定的行駛中列車');
+    }
+    switchQueryPanel('panel-trainno');
+    const trainNo = String(best.entry.trainNo || '');
+    const input = document.getElementById('trainNumberInput');
+    if (input) input.value = trainNo;
+    if (typeof updateHeroSnapshot === 'function') updateHeroSnapshot();
+    return filterTrainScheduleByNumberV2(trainNo);
+  }
+
+  function initThsrGeolocationButtons() {
+    ensureGeoInlineButton('startStation', {
+      key: 'thsr-start-legacy',
+      title: '定位最近車站',
+      icon: '📍',
+      onClick: () => locateNearestThsrStation('start')
+    });
+    ensureGeoInlineButton('startStationInput2', {
+      key: 'thsr-start-v2',
+      title: '定位最近車站',
+      icon: '📍',
+      onClick: () => locateNearestThsrStation('start')
+    });
+    ensureGeoInlineButton('stationNameInput', {
+      key: 'thsr-station-legacy',
+      title: '定位最近車站',
+      icon: '📍',
+      onClick: () => locateNearestThsrStation('station')
+    });
+    ensureGeoInlineButton('stationNameInput2', {
+      key: 'thsr-station-v2',
+      title: '定位最近車站',
+      icon: '📍',
+      onClick: () => locateNearestThsrStation('station')
+    });
+    ensureGeoInlineButton('trainNumberInput', {
+      key: 'thsr-train-live',
+      kind: 'train',
+      title: '定位找車次',
+      icon: '🚆',
+      onClick: () => locateThsrRunningTrainByPosition()
+    });
+  }
+
   function handleUrlParams() {
     const p = new URLSearchParams(window.location.search);
     const pStart = p.get('start');
@@ -4957,6 +5300,7 @@
     initStationQuery2Panel();
     bindTrainInput('trainNumberInput');
     initTrainQuery2Panel();
+    initThsrGeolocationButtons();
     initStartEndSorting();
     
     initFavButton();

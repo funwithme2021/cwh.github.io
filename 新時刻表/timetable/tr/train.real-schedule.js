@@ -32,6 +32,8 @@ let accessToken = "";
 let accessTokenExpireAt = 0;
 let stationMap = {}; // ID 轉 中文名
 let liveDelayMap = {}; // 車次轉 誤點分鐘
+window.stationGeoList = [];
+window.stationGeoMap = {};
 window.TDX_CONFIG = { ...TDX_CONFIG };
 
 function applyTdxConfig(nextConfig) {
@@ -162,9 +164,21 @@ async function initStationMap() {
 
         // ✅ 重建並寫回 window.stationMap，確保 HTML 端拿得到
         window.stationMap = {};
+        window.stationGeoList = [];
+        window.stationGeoMap = {};
         data.Stations.forEach(s => {
-            window.stationMap[s.StationID] = s.StationName.Zh_tw;
+            const name = s?.StationName?.Zh_tw || '';
+            const lat = Number(s?.StationPosition?.PositionLat);
+            const lon = Number(s?.StationPosition?.PositionLon);
+            window.stationMap[s.StationID] = name;
+            if (name && Number.isFinite(lat) && Number.isFinite(lon)) {
+                const normalizedName = String(name).trim().replace(/台/g, '臺');
+                const item = { id: s.StationID, name, lat, lon };
+                window.stationGeoList.push(item);
+                window.stationGeoMap[normalizedName] = item;
+            }
         });
+        stationMap = window.stationMap;
     } catch (error) {
         console.error("車站資料抓取失敗:", error);
     }

@@ -30,6 +30,8 @@ window.trainSchedule = {};
 let accessToken = "";
 let accessTokenExpireAt = 0;
 window.stationMap = {}; 
+window.stationGeoList = [];
+window.stationGeoMap = {};
 window.TDX_CONFIG = { ...TDX_CONFIG };
 
 function applyTdxConfig(nextConfig) {
@@ -121,7 +123,20 @@ async function initStationMap() {
         });
         const data = await res.json();
         window.stationMap = {};
-        data.forEach(s => { window.stationMap[s.StationID] = s.StationName.Zh_tw; });
+        window.stationGeoList = [];
+        window.stationGeoMap = {};
+        data.forEach(s => {
+            const name = s?.StationName?.Zh_tw || '';
+            const lat = Number(s?.StationPosition?.PositionLat);
+            const lon = Number(s?.StationPosition?.PositionLon);
+            window.stationMap[s.StationID] = name;
+            if (name && Number.isFinite(lat) && Number.isFinite(lon)) {
+                const normalizedName = String(name).trim().replace(/台/g, '臺');
+                const item = { id: s.StationID, name, lat, lon };
+                window.stationGeoList.push(item);
+                window.stationGeoMap[normalizedName] = item;
+            }
+        });
     } catch (error) {
         console.error("車站資料抓取失敗:", error);
     }
