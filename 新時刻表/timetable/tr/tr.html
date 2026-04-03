@@ -2741,10 +2741,18 @@ td{ border-bottom: 1px solid rgba(255,255,255,0.06); }
       }
       #panel-startend2 .traq2m-card{
         display: grid;
-        grid-template-columns: 96px minmax(0, 1fr) 104px 72px;
+        grid-template-columns: 118px minmax(0, 1fr) 78px 70px;
         gap: 8px;
         align-items: center;
         width: 100%;
+      }
+      #panel-startend2 .traq2m-card.traq2m-transfercard{
+        grid-template-columns: 118px minmax(0, 1fr) 92px;
+      }
+      #panel-startend2 .traq2m-time{
+        display:grid;
+        gap:4px;
+        min-width:0;
       }
       #panel-startend2 .traq2m-time .rod2-timecell{
         justify-items: start;
@@ -2752,9 +2760,46 @@ td{ border-bottom: 1px solid rgba(255,255,255,0.06); }
         gap: 2px;
       }
       #panel-startend2 .traq2m-time .rsv2-time-main,
-      #panel-startend2 .traq2m-time .rsv2-time-sub{
+      #panel-startend2 .traq2m-time .rsv2-time-sub,
+      #panel-startend2 .traq2m-time .rod2-time-original{
         font-size: .92rem;
         line-height: 1.15;
+        white-space: nowrap;
+      }
+      #panel-startend2 .traq2m-timecell{
+        position:relative;
+        min-height: 18px;
+      }
+      #panel-startend2 .traq2m-time-track{
+        position:relative;
+        display:block;
+        min-height: 18px;
+      }
+      #panel-startend2 .traq2m-time-frame{
+        display:block;
+        white-space:nowrap;
+      }
+      #panel-startend2 .traq2m-timecell.is-rotating .traq2m-time-track{
+        min-height: 20px;
+      }
+      #panel-startend2 .traq2m-timecell.is-rotating .traq2m-time-frame{
+        position:absolute;
+        left:0;
+        top:0;
+        right:0;
+      }
+      #panel-startend2 .traq2m-timecell.is-rotating .traq2m-time-current{
+        animation: traq2mTimeCurrent 6s ease-in-out infinite;
+      }
+      #panel-startend2 .traq2m-timecell.is-rotating .traq2m-time-original{
+        animation: traq2mTimeOriginal 6s ease-in-out infinite;
+      }
+      #panel-startend2 .traq2m-duration-text{
+        color: var(--text-muted);
+        font-size: .72rem;
+        font-weight: 800;
+        line-height: 1.15;
+        white-space: nowrap;
       }
       #panel-startend2 .traq2m-traincol{
         display: grid;
@@ -2784,32 +2829,39 @@ td{ border-bottom: 1px solid rgba(255,255,255,0.06); }
         font-size: .9rem;
         line-height: 1.2;
       }
-      #panel-startend2 .traq2m-dur{
+      #panel-startend2 .traq2m-statuscol,
+      #panel-startend2 .traq2m-bookcol{
         display: grid;
         justify-items: center;
+        align-content:center;
       }
-      #panel-startend2 .traq2m-side{
-        display: grid;
-        justify-items: center;
-        align-content: center;
-        gap: 8px;
-      }
-      #panel-startend2 .traq2m-side .rod2-status{
+      #panel-startend2 .traq2m-statuscol .rod2-status{
         justify-content: center;
+        text-align:center;
+        white-space: nowrap;
       }
-      #panel-startend2 .traq2m-side .rod2-ticket{
-        min-width: 66px;
+      #panel-startend2 .traq2m-bookcol .rod2-ticket{
+        width:100%;
+        min-width: 0;
         justify-content: center;
+        padding: 0 8px;
       }
     }
     @media (max-width: 520px){
       #panel-startend2 .traq2m-card{
-        grid-template-columns: 92px minmax(0, 1fr) 96px 68px;
-        gap: 8px;
+        grid-template-columns: 104px minmax(0, 1fr) 72px 62px;
+        gap: 6px;
+      }
+      #panel-startend2 .traq2m-card.traq2m-transfercard{
+        grid-template-columns: 104px minmax(0, 1fr) 84px;
       }
       #panel-startend2 .traq2m-time .rsv2-time-main,
-      #panel-startend2 .traq2m-time .rsv2-time-sub{
+      #panel-startend2 .traq2m-time .rsv2-time-sub,
+      #panel-startend2 .traq2m-time .rod2-time-original{
         font-size: .88rem;
+      }
+      #panel-startend2 .traq2m-duration-text{
+        font-size: .68rem;
       }
       #panel-startend2 .traq2m-route{
         font-size: .76rem;
@@ -2818,15 +2870,24 @@ td{ border-bottom: 1px solid rgba(255,255,255,0.06); }
       #panel-startend2 .traq2m-trainline .rsv2-train-type{
         font-size: .86rem;
       }
-      #panel-startend2 .traq2m-side .rod2-status{
+      #panel-startend2 .traq2m-statuscol .rod2-status{
         font-size: .76rem;
         white-space: nowrap;
       }
-      #panel-startend2 .traq2m-side .rod2-ticket{
+      #panel-startend2 .traq2m-bookcol .rod2-ticket{
         min-height: 28px;
         padding: 0 8px;
         font-size: .7rem;
       }
+    }
+    @keyframes traq2mTimeCurrent{
+      0%,42%{ opacity:1; transform:translateY(0); }
+      48%,100%{ opacity:0; transform:translateY(-2px); }
+    }
+    @keyframes traq2mTimeOriginal{
+      0%,42%{ opacity:0; transform:translateY(2px); }
+      48%,90%{ opacity:1; transform:translateY(0); }
+      100%{ opacity:0; transform:translateY(-2px); }
     }
   </style>
 
@@ -2835,6 +2896,663 @@ td{ border-bottom: 1px solid rgba(255,255,255,0.06); }
       #panel-startend2 [data-role="results"]{
         display: grid;
         gap: 14px;
+      }
+      #tab-startend2-mobile{
+        display: none !important;
+      }
+    }
+  </style>
+
+  <style>
+    @media (max-width: 720px){
+      #panel-startend2 .traq2m-card{
+        display:grid;
+        grid-template-columns: 108px minmax(0,1fr) 92px 74px;
+        gap:8px;
+        align-items:center;
+        width:100%;
+      }
+      #panel-startend2 .traq2m-time{
+        min-width:0;
+      }
+      #panel-startend2 .traq2m-time .rod2-timecell{
+        justify-items:start;
+        text-align:left;
+        gap:4px;
+      }
+      #panel-startend2 .traq2m-time .rsv2-time-main,
+      #panel-startend2 .traq2m-time .rsv2-time-sub,
+      #panel-startend2 .traq2m-time .rod2-time-original{
+        white-space:nowrap;
+      }
+      #panel-startend2 .traq2m-traincol{
+        display:grid;
+        gap:5px;
+        min-width:0;
+      }
+      #panel-startend2 .traq2m-route{
+        display:grid;
+        gap:2px;
+        min-width:0;
+      }
+      #panel-startend2 .traq2m-route-main{
+        color:var(--text-muted);
+        font-size:.74rem;
+        font-weight:800;
+        line-height:1.2;
+        word-break:break-word;
+      }
+      #panel-startend2 .traq2m-route-via{
+        color:var(--text-light);
+        font-size:.68rem;
+        font-weight:800;
+        line-height:1.18;
+        word-break:break-word;
+      }
+      #panel-startend2 .traq2m-trainline{
+        display:flex;
+        align-items:baseline;
+        gap:4px 6px;
+        flex-wrap:wrap;
+        min-width:0;
+      }
+      #panel-startend2 .traq2m-trainstack,
+      #panel-startend2 .traq2m-transfercol .rod2-train-stack{
+        display:grid;
+        gap:3px;
+        min-width:0;
+      }
+      #panel-startend2 .traq2m-transfercol .rod2-train-line{
+        display:flex;
+        align-items:baseline;
+        gap:4px 6px;
+        flex-wrap:wrap;
+      }
+      #panel-startend2 .traq2m-dur{
+        display:grid;
+        justify-items:center;
+      }
+      #panel-startend2 .traq2m-dur .rod2-durmeta{
+        text-align:center;
+      }
+      #panel-startend2 .traq2m-side{
+        display:grid;
+        justify-items:center;
+        align-content:center;
+        gap:6px;
+      }
+      #panel-startend2 .traq2m-side .rod2-status{
+        justify-content:center;
+        text-align:center;
+        white-space:nowrap;
+      }
+      #panel-startend2 .traq2m-side .rod2-ticket{
+        width:100%;
+        min-width:0;
+        padding:0 8px;
+        justify-content:center;
+      }
+    }
+    @media (max-width: 520px){
+      #panel-startend2 .traq2m-card{
+        grid-template-columns: 100px minmax(0,1fr) 84px 64px;
+        gap:6px;
+      }
+      #panel-startend2 .traq2m-time .rsv2-time-main,
+      #panel-startend2 .traq2m-time .rsv2-time-sub,
+      #panel-startend2 .traq2m-time .rod2-time-original{
+        font-size:.84rem;
+      }
+      #panel-startend2 .traq2m-route-main{
+        font-size:.71rem;
+      }
+      #panel-startend2 .traq2m-route-via{
+        font-size:.66rem;
+      }
+      #panel-startend2 .traq2m-trainline .rsv2-train-no,
+      #panel-startend2 .traq2m-trainline .rsv2-train-type,
+      #panel-startend2 .traq2m-transfercol .rsv2-train-no,
+      #panel-startend2 .traq2m-transfercol .rsv2-train-type{
+        font-size:.82rem;
+        line-height:1.15;
+      }
+      #panel-startend2 .traq2m-dur .rod2-durmeta{
+        font-size:.66rem;
+      }
+      #panel-startend2 .traq2m-side .rod2-status{
+        font-size:.74rem;
+      }
+      #panel-startend2 .traq2m-side .rod2-ticket{
+        min-height:28px;
+        font-size:.7rem;
+      }
+    }
+  </style>
+
+  <style>
+    @media (min-width: 901px){
+      #panel-startend2 .rod2-list-card{
+        --g: minmax(0, 1.04fr) minmax(0, .92fr) minmax(0, 1.08fr) minmax(0, .9fr) minmax(0, .92fr);
+      }
+      #panel-startend2 .rod2-list-card.has-via{
+        --g: minmax(0, 1.02fr) minmax(0, .92fr) minmax(0, 1.06fr) minmax(0, .84fr) minmax(0, .78fr) minmax(0, .92fr);
+      }
+      #panel-startend2 .rod2-head,
+      #panel-startend2 .rod2-row-d{
+        gap: clamp(12px, 1.3vw, 18px);
+      }
+    }
+    @media (max-width: 720px){
+      #panel-startend2 .rod2-mobilesort-menu{
+        gap: 2px;
+        padding: 6px;
+      }
+      #panel-startend2 .rod2-mobilesort-option{
+        min-height: 30px;
+        padding: 0 10px;
+        border-radius: 10px;
+        font-size: .78rem;
+      }
+      #panel-startend2 .rod2-mobilefilter-menu{
+        gap: 2px;
+        padding: 6px;
+      }
+      #panel-startend2 .rod2-mobilefilter-item{
+        padding: 4px 8px;
+      }
+      #panel-startend2 .rod2-row-m-custom{
+        padding: 12px 10px 14px;
+      }
+      #panel-startend2 .traq2m-card{
+        display: grid;
+        grid-template-columns: minmax(0, 1.08fr) minmax(0, 1.42fr) minmax(0, .94fr);
+        gap: clamp(6px, 2.4vw, 10px);
+        align-items: center;
+        width: 100%;
+      }
+      #panel-startend2 .traq2m-card.traq2m-transfercard{
+        grid-template-columns: minmax(0, 1.08fr) minmax(0, 1.46fr) minmax(0, .94fr);
+      }
+      #panel-startend2 .traq2m-time{
+        display: grid;
+        gap: 4px;
+        min-width: 0;
+      }
+      #panel-startend2 .traq2m-time .rod2-timecell{
+        justify-items: start;
+        text-align: left;
+        gap: 2px;
+      }
+      #panel-startend2 .traq2m-time .rsv2-time-main,
+      #panel-startend2 .traq2m-time .rsv2-time-sub,
+      #panel-startend2 .traq2m-time .rod2-time-original{
+        font-size: .86rem;
+        line-height: 1.14;
+        white-space: nowrap;
+      }
+      #panel-startend2 .traq2m-timecell{
+        position: relative;
+        min-height: 18px;
+      }
+      #panel-startend2 .traq2m-time-track{
+        position: relative;
+        display: block;
+        min-height: 18px;
+      }
+      #panel-startend2 .traq2m-time-frame{
+        display: block;
+        white-space: nowrap;
+      }
+      #panel-startend2 .traq2m-timecell.is-rotating .traq2m-time-track{
+        min-height: 20px;
+      }
+      #panel-startend2 .traq2m-timecell.is-rotating .traq2m-time-frame{
+        position: absolute;
+        left: 0;
+        top: 0;
+        right: 0;
+      }
+      #panel-startend2 .traq2m-timecell.is-rotating .traq2m-time-current{
+        animation: traq2mTimeCurrent 6s ease-in-out infinite;
+      }
+      #panel-startend2 .traq2m-timecell.is-rotating .traq2m-time-original{
+        animation: traq2mTimeOriginal 6s ease-in-out infinite;
+      }
+      #panel-startend2 .traq2m-duration-text{
+        color: var(--text-muted);
+        font-size: .7rem;
+        font-weight: 800;
+        line-height: 1.12;
+        white-space: nowrap;
+      }
+      #panel-startend2 .traq2m-traincol{
+        display: grid;
+        gap: 4px;
+        min-width: 0;
+      }
+      #panel-startend2 .traq2m-route{
+        display: grid;
+        gap: 2px;
+        min-width: 0;
+      }
+      #panel-startend2 .traq2m-route-main{
+        color: var(--text-muted);
+        font-size: .74rem;
+        font-weight: 800;
+        line-height: 1.2;
+        word-break: break-word;
+      }
+      #panel-startend2 .traq2m-route-via{
+        color: var(--text-light);
+        font-size: .67rem;
+        font-weight: 800;
+        line-height: 1.16;
+        word-break: break-word;
+      }
+      #panel-startend2 .traq2m-trainline{
+        display: flex;
+        align-items: baseline;
+        gap: 4px 6px;
+        flex-wrap: wrap;
+        min-width: 0;
+      }
+      #panel-startend2 .traq2m-trainstack,
+      #panel-startend2 .traq2m-transfercol .rod2-train-stack{
+        display: grid;
+        gap: 3px;
+        min-width: 0;
+      }
+      #panel-startend2 .traq2m-transfercol .rod2-train-line{
+        display: flex;
+        align-items: baseline;
+        gap: 4px 6px;
+        flex-wrap: wrap;
+        min-width: 0;
+      }
+      #panel-startend2 .traq2m-trainline .rsv2-train-no,
+      #panel-startend2 .traq2m-trainline .rsv2-train-type,
+      #panel-startend2 .traq2m-transfercol .rsv2-train-no,
+      #panel-startend2 .traq2m-transfercol .rsv2-train-type{
+        font-size: .88rem;
+        line-height: 1.18;
+      }
+      #panel-startend2 .traq2m-side{
+        display: grid;
+        justify-items: center;
+        align-content: center;
+        gap: 6px;
+        min-width: 0;
+      }
+      #panel-startend2 .traq2m-state{
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        text-align: center;
+        white-space: nowrap;
+        font-size: .74rem;
+        line-height: 1.14;
+        font-weight: 900;
+      }
+      #panel-startend2 .traq2m-state::before{
+        content: "";
+        width: 7px;
+        height: 7px;
+        border-radius: 999px;
+        background: currentColor;
+        flex: 0 0 auto;
+      }
+      #panel-startend2 .traq2m-state.rod2-tone-success{
+        color: #15803d;
+      }
+      #panel-startend2 .traq2m-state.rod2-tone-warning{
+        color: #c2410c;
+      }
+      #panel-startend2 .traq2m-state.rod2-tone-danger{
+        color: #b91c1c;
+      }
+      #panel-startend2 .traq2m-state.rod2-tone-muted{
+        color: #64748b;
+      }
+      #panel-startend2 .traq2m-state.rod2-tone-neutral{
+        color: var(--text-main);
+      }
+      #panel-startend2 .traq2m-side .rod2-ticket{
+        width: 100%;
+        max-width: 70px;
+        min-width: 0;
+        min-height: 28px;
+        justify-content: center;
+        padding: 0 8px;
+        font-size: .7rem;
+      }
+    }
+    @media (max-width: 520px){
+      #panel-startend2 .traq2m-card{
+        grid-template-columns: minmax(0, 1.02fr) minmax(0, 1.36fr) minmax(0, .96fr);
+        gap: 6px;
+      }
+      #panel-startend2 .traq2m-card.traq2m-transfercard{
+        grid-template-columns: minmax(0, 1.02fr) minmax(0, 1.4fr) minmax(0, .98fr);
+      }
+      #panel-startend2 .traq2m-time .rsv2-time-main,
+      #panel-startend2 .traq2m-time .rsv2-time-sub,
+      #panel-startend2 .traq2m-time .rod2-time-original{
+        font-size: .82rem;
+      }
+      #panel-startend2 .traq2m-duration-text{
+        font-size: .68rem;
+      }
+      #panel-startend2 .traq2m-route-main{
+        font-size: .72rem;
+      }
+      #panel-startend2 .traq2m-route-via{
+        font-size: .65rem;
+      }
+      #panel-startend2 .traq2m-trainline .rsv2-train-no,
+      #panel-startend2 .traq2m-trainline .rsv2-train-type,
+      #panel-startend2 .traq2m-transfercol .rsv2-train-no,
+      #panel-startend2 .traq2m-transfercol .rsv2-train-type{
+        font-size: .84rem;
+      }
+      #panel-startend2 .traq2m-state{
+        font-size: .72rem;
+      }
+    }
+  </style>
+
+  <style>
+    @media (max-width: 720px){
+      #panel-startend2 .rod2-mhead{
+        grid-template-columns: minmax(0, 1.08fr) minmax(0, 1.42fr) minmax(0, .94fr);
+        gap: clamp(6px, 2.4vw, 10px);
+        padding: 0 10px 8px;
+      }
+      #panel-startend2 .rod2-mhead.via{
+        grid-template-columns: minmax(0, 1.08fr) minmax(0, .96fr) minmax(0, 1.24fr) minmax(0, .94fr);
+        gap: clamp(6px, 2.4vw, 10px);
+      }
+      #panel-startend2 .rod2-mhead > div,
+      #panel-startend2 .rod2-mhead.via > div{
+        text-align: center;
+      }
+      #panel-startend2 .traq2m-card{
+        grid-template-columns: minmax(0, 1.08fr) minmax(0, .96fr) minmax(0, 1.24fr) minmax(0, .94fr);
+      }
+      #panel-startend2 .traq2m-time{
+        justify-items: center;
+      }
+      #panel-startend2 .traq2m-time .rod2-timecell{
+        justify-items: center;
+        text-align: center;
+      }
+      #panel-startend2 .traq2m-duration-text{
+        justify-self: center;
+        text-align: center;
+      }
+      #panel-startend2 .traq2m-traincol{
+        justify-items: center;
+        text-align: center;
+      }
+      #panel-startend2 .traq2m-trainline{
+        display: grid;
+        gap: 2px;
+        justify-items: center;
+        text-align: center;
+      }
+      #panel-startend2 .traq2m-trainno{
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 4px;
+        color: var(--text-main);
+        font-size: .92rem;
+        font-weight: 900;
+        line-height: 1.14;
+        font-family: 'Inter', sans-serif;
+        font-feature-settings: "tnum" 1, "lnum" 1;
+        font-variant-numeric: lining-nums tabular-nums;
+        white-space: nowrap;
+      }
+      #panel-startend2 .traq2m-trainline .badge-sea{
+        margin-left: 0;
+        padding: 1px 5px;
+        font-size: .62rem;
+      }
+      #panel-startend2 .traq2m-traintype{
+        color: var(--text-main);
+        font-size: .8rem;
+        font-weight: 800;
+        line-height: 1.12;
+      }
+      #panel-startend2 .traq2m-viacol{
+        display: grid;
+        gap: 2px;
+        align-content: center;
+        min-width: 0;
+        text-align: center;
+      }
+      #panel-startend2 .traq2m-route-main{
+        color: var(--text-main);
+        font-size: .76rem;
+        font-weight: 800;
+        line-height: 1.16;
+        word-break: break-word;
+      }
+      #panel-startend2 .traq2m-route-via{
+        color: var(--text-muted);
+        font-size: .68rem;
+        font-weight: 800;
+        line-height: 1.12;
+        word-break: break-word;
+      }
+      #panel-startend2 .traq2m-via-empty{
+        display: block;
+        min-height: 1px;
+      }
+      #panel-startend2 .traq2m-side{
+        width: 86px;
+        justify-self: center;
+      }
+      #panel-startend2 .traq2m-state,
+      #panel-startend2 .traq2m-side .rod2-ticket{
+        width: 86px;
+      }
+      #panel-startend2 .traq2m-state{
+        min-height: 24px;
+        justify-content: center;
+      }
+    }
+    @media (max-width: 520px){
+      #panel-startend2 .rod2-mhead{
+        grid-template-columns: minmax(0, 1.04fr) minmax(0, 1.36fr) minmax(0, .98fr);
+        gap: 6px;
+      }
+      #panel-startend2 .rod2-mhead.via{
+        grid-template-columns: minmax(0, 1.04fr) minmax(0, .94fr) minmax(0, 1.28fr) minmax(0, .98fr);
+      }
+      #panel-startend2 .traq2m-card{
+        grid-template-columns: minmax(0, 1.04fr) minmax(0, .94fr) minmax(0, 1.28fr) minmax(0, .98fr);
+      }
+      #panel-startend2 .traq2m-trainno{
+        font-size: .88rem;
+      }
+      #panel-startend2 .traq2m-traintype{
+        font-size: .76rem;
+      }
+      #panel-startend2 .traq2m-route-main{
+        font-size: .72rem;
+      }
+      #panel-startend2 .traq2m-route-via{
+        font-size: .66rem;
+      }
+      #panel-startend2 .traq2m-side,
+      #panel-startend2 .traq2m-state,
+      #panel-startend2 .traq2m-side .rod2-ticket{
+        width: 80px;
+      }
+    }
+  </style>
+
+  <style>
+    @media (max-width: 720px){
+      #panel-startend2 .rod2-item{
+        overflow: hidden;
+      }
+      #panel-startend2 .traq2m-card{
+        display:grid;
+        grid-template-columns:116px 92px minmax(0,1fr) 72px;
+        column-gap:clamp(4px,1.9vw,10px);
+        align-items:center;
+        justify-content:space-between;
+        width:100%;
+      }
+      #panel-startend2 .traq2m-card.traq2m-transfercard{
+        grid-template-columns:116px 92px minmax(0,1fr) 72px;
+      }
+      #panel-startend2 .traq2m-time{
+        width:116px;
+        min-width:116px;
+        justify-items:start;
+      }
+      #panel-startend2 .traq2m-time .rod2-timecell,
+      #panel-startend2 .traq2m-timecell,
+      #panel-startend2 .traq2m-time-track,
+      #panel-startend2 .traq2m-time-frame{
+        width:100%;
+      }
+      #panel-startend2 .traq2m-time-frame{
+        text-align:left;
+      }
+      #panel-startend2 .traq2m-time .rsv2-time-main,
+      #panel-startend2 .traq2m-time .rsv2-time-sub,
+      #panel-startend2 .traq2m-time .rod2-time-original,
+      #panel-startend2 .traq2m-time-frame,
+      #panel-startend2 .traq2m-time-current,
+      #panel-startend2 .traq2m-time-original,
+      #panel-startend2 .traq2m-time-original .rod2-time-original{
+        font-size:.86rem !important;
+        font-weight:900 !important;
+        line-height:1.14 !important;
+        white-space:nowrap !important;
+        font-family:'Inter','Noto Sans TC',sans-serif !important;
+      }
+      #panel-startend2 .traq2m-duration-text{
+        display:flex;
+        align-items:center;
+        justify-content:center;
+        width:100%;
+        text-align:center;
+        justify-self:stretch;
+        white-space:nowrap;
+      }
+      #panel-startend2 .traq2m-traincol{
+        min-width:92px;
+        justify-items:center;
+        align-content:center;
+        text-align:center;
+      }
+      #panel-startend2 .traq2m-trainline{
+        justify-content:center;
+        align-items:center;
+        gap:2px;
+        flex-direction:column;
+        text-align:center;
+      }
+      #panel-startend2 .traq2m-trainno,
+      #panel-startend2 .traq2m-traintype{
+        font-size:.86rem;
+        font-weight:900;
+        line-height:1.12;
+      }
+      #panel-startend2 .traq2m-traintype span{
+        font-size:inherit !important;
+        font-weight:inherit !important;
+        line-height:inherit !important;
+      }
+      #panel-startend2 .traq2m-transfercol,
+      #panel-startend2 .traq2m-transfercol .traq2m-trainstack,
+      #panel-startend2 .traq2m-transfercol .rod2-train-stack{
+        justify-items:center;
+        text-align:center;
+      }
+      #panel-startend2 .traq2m-transfercol .rod2-train-stack{
+        display:grid;
+        gap:2px;
+      }
+      #panel-startend2 .traq2m-transfercol .rod2-train-line{
+        display:flex;
+        align-items:baseline;
+        justify-content:center;
+        gap:4px;
+        flex-wrap:wrap;
+      }
+      #panel-startend2 .traq2m-transfercol .rsv2-train-no{
+        font-weight:900 !important;
+      }
+      #panel-startend2 .traq2m-route{
+        justify-items:center;
+        text-align:center;
+      }
+      #panel-startend2 .traq2m-route-main,
+      #panel-startend2 .traq2m-route-via{
+        word-break:keep-all;
+        white-space:nowrap;
+        overflow:hidden;
+        text-overflow:ellipsis;
+        width:100%;
+        text-align:center;
+      }
+      #panel-startend2 .traq2m-side{
+        justify-items:center;
+        width:72px;
+        min-width:72px;
+        text-align:center;
+        gap:4px;
+      }
+      #panel-startend2 .traq2m-state{
+        display:flex;
+        align-items:center;
+        justify-content:center;
+        text-align:center;
+        width:100%;
+      }
+      #panel-startend2 .traq2m-state::before{
+        display:none !important;
+        content:none !important;
+      }
+      #panel-startend2 .traq2m-side .rod2-ticket{
+        width:48px;
+        max-width:48px;
+        min-width:48px;
+        min-height:22px;
+        padding:0 3px;
+        line-height:1;
+      }
+    }
+    @media (max-width: 520px){
+      #panel-startend2 .traq2m-card{
+        grid-template-columns:108px 82px minmax(0,1fr) 68px;
+        column-gap:clamp(4px,1.8vw,8px);
+      }
+      #panel-startend2 .traq2m-card.traq2m-transfercard{
+        grid-template-columns:108px 82px minmax(0,1fr) 68px;
+      }
+      #panel-startend2 .traq2m-time{
+        width:108px;
+        min-width:108px;
+      }
+      #panel-startend2 .traq2m-traincol{
+        min-width:82px;
+      }
+      #panel-startend2 .traq2m-side{
+        width:68px;
+        min-width:68px;
+      }
+      #panel-startend2 .traq2m-side .rod2-ticket{
+        width:44px;
+        max-width:44px;
+        min-width:44px;
       }
     }
   </style>
@@ -3073,7 +3791,7 @@ td{ border-bottom: 1px solid rgba(255,255,255,0.06); }
 <script charset="UTF-8" src="../shared/rail-station-query-common.js?v=20260327-station1"></script>
 <script charset="UTF-8" src="../shared/rail-station-timetable-v2.js?v=20260330-stationv2"></script>
 <script charset="UTF-8" src="../shared/rail-train-query-v2.js?v=20260329-trainquery2"></script>
-<script charset="UTF-8" src="../shared/rail-origin-destination-query-v2.js?v=20260402-odquery2darkhead"></script>
+<script charset="UTF-8" src="../shared/rail-origin-destination-query-v2.js?v=20260403-odquery2mobilecards10"></script>
 <script>
   // ===== 全域 =====
   let nameToId = {};
@@ -4607,6 +5325,12 @@ function renderHistory(){
   };
 
   let autoRefreshInFlight = false;
+  let lastTraAutoRefreshAt = 0;
+
+  function getTraAutoRefreshIntervalMs(){
+    // 接受轉乘需要重算組合，降頻避免使用者一直感覺在等待。
+    return lastStartEndQuery?.accept ? 180000 : 60000;
+  }
 
   function hasRememberedQueryState(){
     return !!(
@@ -4623,11 +5347,14 @@ function renderHistory(){
     if(cur !== todayStr) return;
     if(!hasRememberedQueryState()) return;
     if(autoRefreshInFlight) return;
+    const now = Date.now();
+    if(lastTraAutoRefreshAt && (now - lastTraAutoRefreshAt) < getTraAutoRefreshIntervalMs()) return;
 
     autoRefreshInFlight = true;
     try{
       await refreshData(cur, { silent: true });
       await window.refreshRailPageAssistant?.({ silent: true });
+      lastTraAutoRefreshAt = Date.now();
     }catch(error){
       console.warn('台鐵自動更新失敗', error);
     }finally{
@@ -4640,7 +5367,7 @@ function renderHistory(){
     if(typeof startAlignedPolling === 'function'){
       window.__traAutoRefreshLoop?.stop?.();
       window.__traAutoRefreshLoop = startAlignedPolling(() => autoRefreshActiveQueries(), {
-        getIntervalMs: () => 60000
+        getIntervalMs: () => getTraAutoRefreshIntervalMs()
       });
       return;
     }
@@ -4663,6 +5390,7 @@ function renderHistory(){
     setupHomeBtn();
     bindTraButtons();
     initTraStartEndQuery2Panel();
+    placeTraMobilePreviewTabAfterLiveTracker();
     initStationQuery2Panel();
     initTrainQuery2Panel();
 
@@ -4815,6 +5543,11 @@ function renderHistory(){
               renderStartEndTable();
             }
             resolve({ st, ed, accept, selectedTypes: selectedTrainTypesStartEnd.slice() });
+      }catch(error){
+        console.error('TRA start/end search failed', error);
+        currentStartEndList = [];
+        currentTransferList = [];
+        resolve(null);
       }finally{
         hideLoading();
       }
@@ -5395,15 +6128,19 @@ function buildTransferList(st, ed){
   // 轉乘模式：同一個「出發班次 n1」只保留「耗時最短」的一個方案（可能是直達，也可能是轉乘）
   // 顯示日期判斷：以「出發站 st 的時刻」落在哪一天為準（比照高鐵版）
   const insts = scheduleKeyList || [];
+  const selectedTypes = new Set((selectedTrainTypesStartEnd || []).map((value)=>String(value || '')));
+  // 先依車種縮小候選池，再從候選池重新組轉乘方案，避免只是對既有結果做後篩選。
+  const candidateInsts = selectedTypes.size
+    ? insts.filter((inst)=>inst?.data && selectedTypes.has(String(inst.data['車種'] || '')))
+    : insts.slice();
   const plans = []; // {n1, n2?, ...}
 
-  insts.forEach(inst1=>{
+  candidateInsts.forEach(inst1=>{
     const n1 = String(inst1.trainNo);
     const t1 = inst1.data;
     const originDate1 = inst1.originDate;
 
     if(!t1) return;
-    if(selectedTrainTypesStartEnd.length && !selectedTrainTypesStartEnd.includes(t1['車種'])) return;
 
     const a1 = t1['車站時間']||[];
     if(a1.length < 2) return;
@@ -5489,14 +6226,13 @@ function buildTransferList(st, ed){
     }
 
     // 試算「轉乘方案」：n1 (st -> mid) + n2 (mid -> ed)
-    insts.forEach(inst2=>{
+    candidateInsts.forEach(inst2=>{
       const n2 = String(inst2.trainNo);
       if(n2 === n1) return;
 
       const t2 = inst2.data;
       const originDate2 = inst2.originDate;
       if(!t2) return;
-      if(selectedTrainTypesStartEnd.length && !selectedTrainTypesStartEnd.includes(t2['車種'])) return;
 
       const a2 = t2['車站時間']||[];
       if(a2.length < 2) return;
@@ -6191,40 +6927,84 @@ function renderTransferTable(){
     }
   }
 
+  function parseQuery2CombinedDisplayTime(html, fallbackText){
+    const raw = String(html || '');
+    const oldMatch = raw.match(/rod2-time-original[^>]*>\s*([^<]+)/i);
+    const currentMatch = raw.match(/rsv2-time-main[^>]*>\s*([^<]+)/i);
+    const currentText = currentMatch ? String(currentMatch[1] || '').trim() : (stripQuery2HtmlText(raw) || String(fallbackText || '--'));
+    return {
+      oldText: oldMatch ? String(oldMatch[1] || '').trim() : '',
+      newText: currentText || String(fallbackText || '--')
+    };
+  }
+
+  function buildTraStartEndQuery2MobileTimeHtml(row){
+    const parsed = parseQuery2CombinedDisplayTime(row?.timeHtml, row?.timeText);
+    if(parsed.oldText){
+      return `<div class="rod2-timecell traq2m-timecell is-rotating"><span class="traq2m-time-track"><span class="traq2m-time-frame traq2m-time-current">${escapeTrainQueryHtml(parsed.newText || '--')}</span><span class="traq2m-time-frame traq2m-time-original"><span class="rod2-time-original">${escapeTrainQueryHtml(parsed.oldText || '--')}</span></span></span></div>`;
+    }
+    return `<div class="rod2-timecell traq2m-timecell"><span class="traq2m-time-frame traq2m-time-current">${escapeTrainQueryHtml(parsed.newText || '--')}</span></div>`;
+  }
+
   function buildTraStartEndQuery2DirectMobileCard(index, row){
-    const timeHtml = row?.timeHtml || `<div class="rod2-timecell"><div class="rsv2-time-main">${escapeTrainQueryHtml(row?.timeText || '--')}</div></div>`;
-    const trainHtml = row?.trainHtml || escapeTrainQueryHtml(row?.trainNo || '--');
-    const routeText = escapeTrainQueryHtml(row?.routeText || '--');
+    const timeHtml = buildTraStartEndQuery2MobileTimeHtml(row);
+    const rawTrainNo = escapeTrainQueryHtml(row?.trainNo || '--');
+    const rawTypeHtml = colorType(row?.legacyRow?.type || '');
+    const routeDisplay = escapeTrainQueryHtml(String(row?.routeText || '--').replace(/→/g, ' → '));
     const viaText = escapeTrainQueryHtml(row?.mobileFirstViaText || '');
+    const isSea = String(row?.trainNo || '').includes('A');
     const statusTone = getTraStationStatusTone(row?.statusText || row?.status || '');
-    const statusHtml = row?.statusHtml || escapeTrainQueryHtml(row?.statusText || row?.status || '--');
-    const durClass = row?._durClass || row?.durationClass || 'rod2-dur-yellow';
-    const fill = Math.max(18, Math.min(100, Number(row?._durFill ?? row?.durationFill ?? 42)));
+    const statusText = escapeTrainQueryHtml(row?.statusText || row?.status || '--');
     const rankLabel = row?._durRankLabel || row?.durationRankLabel || '';
-    const durationMetaParts = [];
-    if(row?.durationMetaText) durationMetaParts.push(escapeTrainQueryHtml(row.durationMetaText));
-    if(rankLabel) durationMetaParts.push(escapeTrainQueryHtml(rankLabel));
-    const durationMetaHtml = durationMetaParts.join(' · ');
+    const durationText = [escapeTrainQueryHtml(row?.durationText || '--'), rankLabel ? escapeTrainQueryHtml(rankLabel) : ''].filter(Boolean).join(' · ');
     const ticketHtml = row?.ticketHidden
       ? ''
       : `<button class="rod2-ticket traq2m-ticket" type="button" data-role="ticket" data-index="${index}">${escapeTrainQueryHtml(row?.ticketLabel || '訂票')}</button>`;
     return `
       <div class="traq2m-card">
-        <div class="traq2m-time">${timeHtml}</div>
+        <div class="traq2m-time">${timeHtml}<div class="traq2m-duration-text">${durationText}</div></div>
         <div class="traq2m-traincol">
-          <div class="traq2m-route">${routeText}${viaText ? `<span class="traq2m-route-sep"> · </span>${viaText}` : ''}</div>
-          <div class="traq2m-trainline">${trainHtml}</div>
-        </div>
-        <div class="traq2m-dur">
-          <div class="rod2-durwrap">
-            ${durationMetaHtml ? `<div class="rod2-durmeta">${durationMetaHtml}</div>` : ''}
-            <div class="rod2-durbox ${durClass}" style="--dur-fill:${fill}%">
-              <div class="rod2-durmain">${escapeTrainQueryHtml(row?.durationText || '--')}</div>
-            </div>
+          <div class="traq2m-trainline">
+            <span class="traq2m-trainno">${rawTrainNo}${isSea ? '<span class="badge-sea">海</span>' : ''}</span>
+            <span class="traq2m-traintype">${rawTypeHtml}</span>
           </div>
         </div>
+        <div class="traq2m-viacol">
+          ${viaText ? `<span class="traq2m-route-via">${viaText}</span>` : ''}
+          <span class="traq2m-route-main">${routeDisplay}</span>
+        </div>
         <div class="traq2m-side">
-          <div class="rod2-status rsv2-status rod2-tone-${statusTone}">${statusHtml}</div>
+          <div class="traq2m-state rod2-tone-${statusTone}">${statusText}</div>
+          ${ticketHtml}
+        </div>
+      </div>
+    `;
+  }
+
+  function buildTraStartEndQuery2TransferMobileCard(index, row){
+    const timeHtml = buildTraStartEndQuery2MobileTimeHtml(row);
+    const trainHtml = row?.trainHtml || escapeTrainQueryHtml(row?.trainNo || '--');
+    const statusTone = getTraStationStatusTone(row?.statusText || row?.status || '');
+    const statusText = escapeTrainQueryHtml(row?.statusText || row?.status || '--');
+    const rankLabel = row?._durRankLabel || row?.durationRankLabel || '';
+    const transferLine1 = escapeTrainQueryHtml(row?.mobileTransferLine1 || '');
+    const transferLine2 = escapeTrainQueryHtml(row?.mobileTransferLine2 || '');
+    const durationText = [escapeTrainQueryHtml(row?.durationText || '--'), rankLabel ? escapeTrainQueryHtml(rankLabel) : ''].filter(Boolean).join(' · ');
+    const ticketHtml = row?.ticketHidden
+      ? ''
+      : `<button class="rod2-ticket traq2m-ticket" type="button" data-role="ticket" data-index="${index}">${escapeTrainQueryHtml(row?.ticketLabel || '訂票')}</button>`;
+    return `
+      <div class="traq2m-card traq2m-transfercard">
+        <div class="traq2m-time">${timeHtml}<div class="traq2m-duration-text">${durationText}</div></div>
+        <div class="traq2m-traincol traq2m-transfercol">
+          <div class="traq2m-trainstack">${trainHtml}</div>
+        </div>
+        <div class="traq2m-viacol">
+          ${transferLine1 ? `<span class="traq2m-route-via">${transferLine1}</span>` : ''}
+          ${transferLine2 ? `<span class="traq2m-route-main">${transferLine2}</span>` : ''}
+        </div>
+        <div class="traq2m-side">
+          <div class="traq2m-state rod2-tone-${statusTone}">${statusText}</div>
           ${ticketHtml}
         </div>
       </div>
@@ -6283,6 +7063,8 @@ function renderTransferTable(){
           summaryTimeHtml: buildQuery2SummaryTimeHtml(row.depHTML, row.arrHTML, row.depSched, row.arrSched),
           timeText: buildQuery2CombinedTimeText(row.depHTML, row.arrHTML, row.depSched, row.arrSched),
           routeText: `${row.startStation} → ${row.transferStation} → ${row.endStation}`,
+          mobileTransferLine1: `${row.transferStation}轉乘`,
+          mobileTransferLine2: `等候${row.waitMin}分`,
           durationText: formatDurationMinutes(row.travelMin),
           durationMetaText: '轉乘1次',
           viaText: '',
@@ -6297,6 +7079,7 @@ function renderTransferTable(){
           sortDep: row.depSortMin ?? 9999,
           sortArr: row.arrSortMin ?? 9999,
           sortDur: row.travelMin ?? 999999,
+          mobileCardRenderer: isTraQuery2MobileViewport() ? buildTraStartEndQuery2TransferMobileCard : null,
           legacyRow: row,
           openKind: 'transfer'
         };
@@ -6314,6 +7097,8 @@ function renderTransferTable(){
         depHTML: row.depHTML,
         arrHTML: row.arrHTML,
         travelMin: row.travelMin,
+        depSortMin: row.depSortMin,
+        arrSortMin: row.arrSortMin,
         stopsCount: 0,
         status: row.status,
         startStation: row.startStation,
@@ -6324,7 +7109,7 @@ function renderTransferTable(){
         tripLine: schedule?.['行別'] || schedule?.['路線'] || schedule?.['TripLine'] || '',
         trainNo: directRow.num
       }) || '';
-      const viaHtml = modeEnabled ? '' : buildTraQuery2ViaHtml(viaText);
+      const viaHtml = modeEnabled ? '' : (viaText ? buildTraQuery2ViaHtml(viaText) : '<span class="traq2m-via-empty"></span>');
       const firstViaText = modeEnabled ? '' : getTraQuery2FirstViaText(viaText);
       const eligibility = getBookingEligibilityByRow(directRow);
       const isSea = String(directRow.num || '').includes('A');
@@ -6341,11 +7126,13 @@ function renderTransferTable(){
         summaryTimeHtml: buildQuery2SummaryTimeHtml(directRow.depHTML, directRow.arrHTML, directRow.depSched, directRow.arrSched),
         timeText: buildQuery2CombinedTimeText(directRow.depHTML, directRow.arrHTML, directRow.depSched, directRow.arrSched),
         routeText: directRow.range,
-        viaText: modeEnabled ? '' : (viaText || ''),
+        viaText: modeEnabled ? '' : (viaText || ' '),
         viaHtml: modeEnabled ? '' : viaHtml,
         mobileFirstViaText: firstViaText,
         durationText: formatDurationMinutes(directRow.travelMin),
         durationMetaText: directRow.stopsCount > 0 ? `停靠${directRow.stopsCount}站` : '直達',
+        mobileTransferLine1: modeEnabled ? '直達' : '',
+        mobileTransferLine2: modeEnabled ? '不須轉乘' : '',
         metaHtml: '',
         statusText: directRow.status,
         statusTone: getTraStationStatusTone(directRow.status),
@@ -6356,7 +7143,7 @@ function renderTransferTable(){
         sortDep: directRow.depSortMin ?? 9999,
         sortArr: directRow.arrSortMin ?? 9999,
         sortDur: directRow.travelMin ?? 999999,
-        mobileCardRenderer: (!modeEnabled && isTraQuery2MobileViewport()) ? buildTraStartEndQuery2DirectMobileCard : null,
+        mobileCardRenderer: isTraQuery2MobileViewport() ? (modeEnabled ? buildTraStartEndQuery2TransferMobileCard : buildTraStartEndQuery2DirectMobileCard) : null,
         legacyRow: directRow,
         openKind: 'direct'
       };
@@ -6402,16 +7189,29 @@ function renderTransferTable(){
       countLabel: '總班次',
       summaryHtml: summary.html,
       summaryRow: summary.row,
-      hideMobileHead: !queryState.modeEnabled && isTraQuery2MobileViewport(),
+      hideMobileHead: false,
       swapDurationAndVia: !queryState.modeEnabled,
       headings: {
         time: '出發 / 抵達',
-        train: '車次 / 車種',
+        train: '列車',
         duration: queryState.modeEnabled ? '耗時' : '停靠 / 耗時',
         route: '行駛區間',
         via: queryState.modeEnabled ? '' : '經由',
-        status: queryState.modeEnabled ? '狀態' : '狀態 / 訂票'
+        status: '狀態'
       },
+      mobileHeadings: queryState.modeEnabled
+        ? {
+            time: '時間',
+            train: '列車',
+            via: '轉乘',
+            status: '狀態'
+          }
+        : {
+            time: '時間',
+            train: '列車',
+            via: '經由',
+            status: '狀態'
+          },
       emptyMessage: '查無符合條件的班次',
       rows
     };
@@ -7798,17 +8598,13 @@ function initStartEndSorting(){
   }
 
   // ===== 查詢模式切換（互斥顯示） =====
-  function isDesktopStartEndOfficial(){
-    return !!(window.matchMedia && window.matchMedia('(min-width: 721px)').matches);
-  }
-
   function resolveStartEndPanelId(panelId){
-    if(panelId !== 'panel-startend' && panelId !== 'panel-startend2') return panelId;
-    return isDesktopStartEndOfficial() ? 'panel-startend2' : 'panel-startend';
+    if(panelId !== 'panel-startend') return panelId;
+    return 'panel-startend2';
   }
 
   function resolveQueryTabTarget(panelId){
-    if(panelId === 'panel-startend' || panelId === 'panel-startend2') return 'panel-startend';
+    if(panelId === 'panel-startend') return 'panel-startend';
     return panelId;
   }
 
@@ -7864,13 +8660,42 @@ function initStartEndSorting(){
       if(resizeTimer) clearTimeout(resizeTimer);
       resizeTimer = setTimeout(()=>{
         const activeTarget = document.querySelector('.query-tab.active')?.dataset?.target;
-        if(activeTarget !== 'panel-startend') return;
-        const visiblePanelId = document.querySelector('.query-panel:not(.hidden)')?.id;
-        const desiredPanelId = resolveStartEndPanelId('panel-startend');
-        if(visiblePanelId === desiredPanelId) return;
-        switchQueryPanel('panel-startend');
+        if(activeTarget === 'panel-startend'){
+          const visiblePanelId = document.querySelector('.query-panel:not(.hidden)')?.id;
+          const desiredPanelId = resolveStartEndPanelId('panel-startend');
+          if(visiblePanelId === desiredPanelId) return;
+          switchQueryPanel('panel-startend');
+          return;
+        }
+        if(activeTarget === 'panel-startend2'){
+          switchQueryPanel('panel-startend');
+        }
       }, 90);
     });
+  }
+
+  function placeTraMobilePreviewTabAfterLiveTracker(){
+    const grid = document.querySelector('main .grid');
+    const tabs = grid?.querySelector('.query-tabs');
+    const tab = document.getElementById('tab-startend2-mobile');
+    const panel = document.getElementById('panel-startend2');
+    if(!tabs || !tab || !panel || !grid) return;
+    const anchorTab =
+      document.getElementById('tab-live-tracker') ||
+      document.getElementById('tab-operation-diagram') ||
+      document.getElementById('tab-master-table') ||
+      document.getElementById('tab-trainno');
+    const anchorPanel =
+      document.getElementById('panel-live-tracker') ||
+      document.getElementById('panel-operation-diagram') ||
+      document.getElementById('panel-master-table') ||
+      document.getElementById('panel-trainno');
+    if(anchorTab?.parentElement === tabs && anchorTab.nextElementSibling !== tab){
+      anchorTab.insertAdjacentElement('afterend', tab);
+    }
+    if(anchorPanel?.parentElement === grid && anchorPanel.nextElementSibling !== panel){
+      anchorPanel.insertAdjacentElement('afterend', panel);
+    }
   }
 
   // ===== 事件綁定 =====

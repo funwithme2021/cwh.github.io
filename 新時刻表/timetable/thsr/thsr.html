@@ -1964,8 +1964,318 @@
       display: grid;
       gap: 14px;
     }
+    #tab-startend2-mobile{
+      display: none !important;
+    }
   }
 </style>
+
+<style>
+  @media (min-width: 901px){
+    #panel-startend2 .rod2-list-card.has-seat{
+      --g: minmax(0, 1.02fr) minmax(0, .92fr) minmax(0, 1.06fr) minmax(0, .9fr) minmax(0, .88fr) minmax(0, .92fr);
+    }
+    #panel-startend2 .rod2-head,
+    #panel-startend2 .rod2-row-d{
+      gap: clamp(12px, 1.3vw, 18px);
+    }
+  }
+  @media (max-width: 720px){
+    #panel-startend2 .thsrq2m-card{
+      display: grid;
+      grid-template-columns: minmax(0, 1.08fr) minmax(0, 1.26fr) minmax(0, .96fr) minmax(0, .84fr);
+      gap: clamp(6px, 2.3vw, 10px);
+      align-items: center;
+      width: 100%;
+    }
+    #panel-startend2 .thsrq2m-time{
+      display: grid;
+      gap: 4px;
+      min-width: 0;
+    }
+    #panel-startend2 .thsrq2m-time .rod2-timecell{
+      justify-items: start;
+      text-align: left;
+      gap: 2px;
+    }
+    #panel-startend2 .thsrq2m-time .rsv2-time-main,
+    #panel-startend2 .thsrq2m-time .rsv2-time-sub,
+    #panel-startend2 .thsrq2m-time .rod2-time-original{
+      font-size: .88rem;
+      line-height: 1.14;
+      white-space: nowrap;
+    }
+    #panel-startend2 .thsrq2m-timecell{
+      position: relative;
+      min-height: 18px;
+    }
+    #panel-startend2 .thsrq2m-time-track{
+      position: relative;
+      display: block;
+      min-height: 18px;
+    }
+    #panel-startend2 .thsrq2m-time-frame{
+      display: block;
+      white-space: nowrap;
+    }
+    #panel-startend2 .thsrq2m-timecell.is-rotating .thsrq2m-time-track{
+      min-height: 20px;
+    }
+    #panel-startend2 .thsrq2m-timecell.is-rotating .thsrq2m-time-frame{
+      position: absolute;
+      left: 0;
+      top: 0;
+      right: 0;
+    }
+    #panel-startend2 .thsrq2m-timecell.is-rotating .thsrq2m-time-current{
+      animation: thsrq2mTimeCurrent 6s ease-in-out infinite;
+    }
+    #panel-startend2 .thsrq2m-timecell.is-rotating .thsrq2m-time-original{
+      animation: thsrq2mTimeOriginal 6s ease-in-out infinite;
+    }
+    #panel-startend2 .thsrq2m-duration-text{
+      color: var(--text-muted);
+      font-size: .72rem;
+      font-weight: 800;
+      line-height: 1.12;
+      white-space: nowrap;
+    }
+    #panel-startend2 .thsrq2m-traincol{
+      display: grid;
+      gap: 4px;
+      min-width: 0;
+    }
+    #panel-startend2 .thsrq2m-route{
+      color: var(--text-muted);
+      font-size: .78rem;
+      font-weight: 800;
+      line-height: 1.22;
+      word-break: break-word;
+    }
+    #panel-startend2 .thsrq2m-trainline{
+      display: flex;
+      align-items: baseline;
+      gap: 4px 6px;
+      flex-wrap: wrap;
+      min-width: 0;
+    }
+    #panel-startend2 .thsrq2m-trainline .rsv2-train-no,
+    #panel-startend2 .thsrq2m-trainline .rsv2-train-type{
+      font-size: .9rem;
+      line-height: 1.2;
+    }
+    #panel-startend2 .thsrq2m-seatcol{
+      display: grid;
+      gap: 4px;
+      align-content: center;
+      min-width: 0;
+    }
+    #panel-startend2 .thsrq2m-seatline{
+      color: var(--text-muted);
+      font-size: .74rem;
+      font-weight: 800;
+      line-height: 1.14;
+      text-align: center;
+      white-space: nowrap;
+    }
+    #panel-startend2 .thsrq2m-side{
+      display: grid;
+      gap: 6px;
+      justify-items: center;
+      align-content: center;
+      min-width: 0;
+    }
+    #panel-startend2 .thsrq2m-state{
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      white-space: nowrap;
+      font-size: .74rem;
+      line-height: 1.14;
+      font-weight: 900;
+    }
+    #panel-startend2 .thsrq2m-side .rod2-ticket{
+      width: 100%;
+      max-width: 72px;
+      min-width: 0;
+      min-height: 28px;
+      justify-content: center;
+      padding: 0 8px;
+      font-size: .7rem;
+    }
+  }
+  @media (max-width: 520px){
+    #panel-startend2 .thsrq2m-card{
+      grid-template-columns: minmax(0, 1.06fr) minmax(0, 1.22fr) minmax(0, .98fr) minmax(0, .82fr);
+      gap: 6px;
+    }
+    #panel-startend2 .thsrq2m-time .rsv2-time-main,
+    #panel-startend2 .thsrq2m-time .rsv2-time-sub,
+    #panel-startend2 .thsrq2m-time .rod2-time-original{
+      font-size: .82rem;
+    }
+    #panel-startend2 .thsrq2m-duration-text{
+      font-size: .68rem;
+    }
+    #panel-startend2 .thsrq2m-route{
+      font-size: .74rem;
+    }
+    #panel-startend2 .thsrq2m-trainline .rsv2-train-no,
+    #panel-startend2 .thsrq2m-trainline .rsv2-train-type{
+      font-size: .84rem;
+    }
+    #panel-startend2 .thsrq2m-seatline,
+    #panel-startend2 .thsrq2m-state{
+      font-size: .72rem;
+    }
+  }
+  @keyframes thsrq2mTimeCurrent{
+    0%,42%{ opacity:1; transform:translateY(0); }
+    48%,100%{ opacity:0; transform:translateY(-2px); }
+  }
+  @keyframes thsrq2mTimeOriginal{
+    0%,42%{ opacity:0; transform:translateY(2px); }
+    48%,90%{ opacity:1; transform:translateY(0); }
+    100%{ opacity:0; transform:translateY(-2px); }
+  }
+  </style>
+
+  <style>
+    @media (max-width: 720px){
+      #panel-startend2 .rod2-item{
+        overflow: hidden;
+      }
+      #panel-startend2 .thsrq2m-card{
+        display:grid;
+        grid-template-columns:116px minmax(0,1fr) 78px 72px;
+        column-gap:clamp(4px,1.9vw,10px);
+        align-items:center;
+        justify-content:space-between;
+        width:100%;
+      }
+      #panel-startend2 .thsrq2m-time{
+        width:116px;
+        min-width:116px;
+        justify-items:start;
+      }
+      #panel-startend2 .thsrq2m-time .rod2-timecell,
+      #panel-startend2 .thsrq2m-timecell,
+      #panel-startend2 .thsrq2m-time-track,
+      #panel-startend2 .thsrq2m-time-frame{
+        width:100%;
+      }
+      #panel-startend2 .thsrq2m-time-frame{
+        text-align:left;
+      }
+      #panel-startend2 .thsrq2m-time .rsv2-time-main,
+      #panel-startend2 .thsrq2m-time .rsv2-time-sub,
+      #panel-startend2 .thsrq2m-time .rod2-time-original,
+      #panel-startend2 .thsrq2m-time-frame,
+      #panel-startend2 .thsrq2m-time-current,
+      #panel-startend2 .thsrq2m-time-original,
+      #panel-startend2 .thsrq2m-time-original .rod2-time-original{
+        font-size:.86rem !important;
+        font-weight:900 !important;
+        line-height:1.14 !important;
+        white-space:nowrap !important;
+        font-family:'Inter','Noto Sans TC',sans-serif !important;
+      }
+      #panel-startend2 .thsrq2m-duration-text{
+        display:flex;
+        align-items:center;
+        justify-content:center;
+        width:100%;
+        text-align:center;
+        justify-self:stretch;
+        white-space:nowrap;
+      }
+      #panel-startend2 .thsrq2m-traincol{
+        justify-items:center;
+        align-content:center;
+        text-align:center;
+      }
+      #panel-startend2 .thsrq2m-route{
+        text-align:center;
+        word-break:keep-all;
+      }
+      #panel-startend2 .thsrq2m-trainline{
+        justify-content:center;
+        gap:0;
+        text-align:center;
+      }
+      #panel-startend2 .thsrq2m-trainline .rsv2-train-no,
+      #panel-startend2 .thsrq2m-trainline .rsv2-train-type{
+        font-size:.86rem !important;
+        font-weight:900 !important;
+      }
+      #panel-startend2 .thsrq2m-trainline .rsv2-train-type{
+        margin-left:0 !important;
+      }
+      #panel-startend2 .thsrq2m-seatcol{
+        justify-items:center;
+        align-content:center;
+        min-width:78px;
+        text-align:center;
+      }
+      #panel-startend2 .thsrq2m-seatline{
+        text-align:center;
+        font-size:.8rem;
+        line-height:1.2;
+      }
+      #panel-startend2 .thsrq2m-seatline .seat-icon{
+        font-size:1em !important;
+        width:1em;
+        min-width:1em;
+        line-height:1;
+      }
+      #panel-startend2 .thsrq2m-side{
+        justify-items:center;
+        width:72px;
+        min-width:72px;
+        text-align:center;
+        gap:4px;
+      }
+      #panel-startend2 .thsrq2m-state{
+        display:flex;
+        align-items:center;
+        justify-content:center;
+        text-align:center;
+        width:100%;
+      }
+      #panel-startend2 .thsrq2m-side .rod2-ticket{
+        width:48px;
+        max-width:48px;
+        min-width:48px;
+        min-height:22px;
+        padding:0 3px;
+        font-size:.72rem;
+        line-height:1;
+      }
+    }
+    @media (max-width: 520px){
+      #panel-startend2 .thsrq2m-card{
+        grid-template-columns:108px minmax(0,1fr) 72px 68px;
+        column-gap:clamp(4px,1.8vw,8px);
+      }
+      #panel-startend2 .thsrq2m-time{
+        width:108px;
+        min-width:108px;
+      }
+      #panel-startend2 .thsrq2m-seatcol{
+        min-width:72px;
+      }
+      #panel-startend2 .thsrq2m-side{
+        width:68px;
+        min-width:68px;
+      }
+      #panel-startend2 .thsrq2m-side .rod2-ticket{
+        width:44px;
+        max-width:44px;
+        min-width:44px;
+      }
+    }
+  </style>
 </head>
 <body class="light-mode">
 
@@ -2192,7 +2502,7 @@
 <script charset="UTF-8" src="../shared/rail-station-query-common.js?v=20260327-station1"></script>
 <script charset="UTF-8" src="../shared/rail-station-timetable-v2.js?v=20260330-stationv2"></script>
 <script charset="UTF-8" src="../shared/rail-train-query-v2.js?v=20260329-trainquery2"></script>
-<script charset="UTF-8" src="../shared/rail-origin-destination-query-v2.js?v=20260402-odquery2darkhead"></script>
+<script charset="UTF-8" src="../shared/rail-origin-destination-query-v2.js?v=20260403-odquery2mobilecards10"></script>
 <script>
   let nameToId = {};
   let stationListSorted = [];
@@ -2961,6 +3271,72 @@
     return `<span class="rod2-summary-time"><span class="rsv2-time-main">${escapeTrainQueryHtml(depText || '--')} → ${escapeTrainQueryHtml(arrText || '--')}</span></span>`;
   }
 
+  function isThsrQuery2MobileViewport(){
+    return !!(window.matchMedia && window.matchMedia('(max-width: 720px)').matches);
+  }
+
+  function getThsrQuery2DelayMinutes(statusText){
+    const text = String(statusText || '');
+    let match = text.match(/(?:晚|誤點|延遲)\s*([+-]?\d+)\s*分/);
+    if(match) return parseInt(match[1], 10) || 0;
+    match = text.match(/提早\s*([+-]?\d+)\s*分/);
+    if(match) return -(parseInt(match[1], 10) || 0);
+    return 0;
+  }
+
+  function addThsrQuery2MinutesToHHMM(hhmm, deltaMinutes){
+    const base = parseTime(hhmm || '');
+    if(base === null || !Number.isFinite(deltaMinutes)) return hhmm || '--';
+    let total = base + deltaMinutes;
+    total = ((total % 1440) + 1440) % 1440;
+    const hour = String(Math.floor(total / 60)).padStart(2, '0');
+    const minute = String(total % 60).padStart(2, '0');
+    return `${hour}:${minute}`;
+  }
+
+  function buildThsrStartEndQuery2MobileTimeHtml(row){
+    const depText = String(row?.legacyRow?.dep || row?.depText || '--');
+    const arrText = String(row?.legacyRow?.arr || row?.arrText || '--');
+    const delayMinutes = getThsrQuery2DelayMinutes(row?.statusText || row?.status || '');
+    if(!delayMinutes){
+      return `<div class="rod2-timecell thsrq2m-timecell"><span class="thsrq2m-time-frame thsrq2m-time-current">${escapeTrainQueryHtml(depText)} → ${escapeTrainQueryHtml(arrText)}</span></div>`;
+    }
+    const depNew = addThsrQuery2MinutesToHHMM(depText, delayMinutes);
+    const arrNew = addThsrQuery2MinutesToHHMM(arrText, delayMinutes);
+    return `<div class="rod2-timecell thsrq2m-timecell is-rotating"><span class="thsrq2m-time-track"><span class="thsrq2m-time-frame thsrq2m-time-current">${escapeTrainQueryHtml(depNew)} → ${escapeTrainQueryHtml(arrNew)}</span><span class="thsrq2m-time-frame thsrq2m-time-original"><span class="rod2-time-original">${escapeTrainQueryHtml(depText)} → ${escapeTrainQueryHtml(arrText)}</span></span></span></div>`;
+  }
+
+  function buildThsrStartEndQuery2MobileCard(index, row){
+    const timeHtml = buildThsrStartEndQuery2MobileTimeHtml(row);
+    const trainHtml = row?.trainHtml || escapeTrainQueryHtml(row?.trainNo || '--');
+    const durationText = [
+      escapeTrainQueryHtml(row?.durationText || '--'),
+      row?._durRankLabel ? escapeTrainQueryHtml(row._durRankLabel) : ''
+    ].filter(Boolean).join(' · ');
+    const statusTone = getThsrStationStatusTone(row?.statusText || row?.status || '');
+    const statusHtml = row?.statusHtml || escapeTrainQueryHtml(row?.statusText || row?.status || '--');
+    const ticketHtml = row?.ticketHidden
+      ? ''
+      : `<button class="rod2-ticket" type="button" data-role="ticket" data-index="${index}">${escapeTrainQueryHtml(row?.ticketLabel || '訂票')}</button>`;
+    return `
+      <div class="thsrq2m-card">
+        <div class="thsrq2m-time">${timeHtml}<div class="thsrq2m-duration-text">${durationText}</div></div>
+        <div class="thsrq2m-traincol">
+          <div class="thsrq2m-route">${escapeTrainQueryHtml(row?.routeText || '--')}</div>
+          <div class="thsrq2m-trainline">${trainHtml}</div>
+        </div>
+        <div class="thsrq2m-seatcol">
+          <div class="thsrq2m-seatline">標準艙 ${getSeatIcon(row?.trainNo, 'standard', row?.originDate)}</div>
+          <div class="thsrq2m-seatline">商務艙 ${getSeatIcon(row?.trainNo, 'business', row?.originDate)}</div>
+        </div>
+        <div class="thsrq2m-side">
+          <div class="thsrq2m-state rod2-tone-${statusTone}">${statusHtml}</div>
+          ${ticketHtml}
+        </div>
+      </div>
+    `;
+  }
+
   function buildThsrStartEndQuery2Summary(rows){
     const nextRow = (rows || [])
       .filter((row)=>!/已過站|已到終點/.test(String(row?.statusText || row?.status || '')))
@@ -2999,6 +3375,7 @@
         sortDep: parseTime(row.dep || '') ?? 9999,
         sortArr: parseTime(row.arr || '') ?? 9999,
         sortDur: row.durMin ?? 999999,
+        mobileCardRenderer: isThsrQuery2MobileViewport() ? buildThsrStartEndQuery2MobileCard : null,
         legacyRow: row
       };
     });
@@ -3023,6 +3400,7 @@
       countLabel: '總班次',
       summaryHtml: summary.html,
       summaryRow: summary.row,
+      hideMobileHead: false,
       headings: {
         time: '出發 / 抵達',
         train: '車次',
@@ -3030,6 +3408,12 @@
         route: '行駛區間',
         seat: '座位',
         status: '狀態 / 訂票'
+      },
+      mobileHeadings: {
+        time: '時間',
+        train: '列車',
+        seat: '餘票',
+        status: '狀態'
       },
       emptyMessage: '查無符合條件的班次',
       rows
@@ -3564,13 +3948,12 @@
   }
   
   function bindQueryTabs(){ document.querySelectorAll('.query-tab').forEach(btn=>{ btn.addEventListener('click',()=>switchQueryPanel(btn.dataset.target)); }); }
-  function isDesktopStartEndOfficial(){ return !!(window.matchMedia && window.matchMedia('(min-width: 721px)').matches); }
   function resolveStartEndPanelId(panelId){
-    if(panelId !== 'panel-startend' && panelId !== 'panel-startend2') return panelId;
-    return isDesktopStartEndOfficial() ? 'panel-startend2' : 'panel-startend';
+    if(panelId !== 'panel-startend') return panelId;
+    return 'panel-startend2';
   }
   function resolveQueryTabTarget(panelId){
-    if(panelId === 'panel-startend' || panelId === 'panel-startend2') return 'panel-startend';
+    if(panelId === 'panel-startend') return 'panel-startend';
     return panelId;
   }
   async function switchQueryPanel(panelId){
@@ -3614,13 +3997,42 @@
       if(resizeTimer) clearTimeout(resizeTimer);
       resizeTimer = setTimeout(()=>{
         const activeTarget = document.querySelector('.query-tab.active')?.dataset?.target;
-        if(activeTarget !== 'panel-startend') return;
-        const visiblePanelId = document.querySelector('.query-panel:not(.hidden)')?.id;
-        const desiredPanelId = resolveStartEndPanelId('panel-startend');
-        if(visiblePanelId === desiredPanelId) return;
-        switchQueryPanel('panel-startend');
+        if(activeTarget === 'panel-startend'){
+          const visiblePanelId = document.querySelector('.query-panel:not(.hidden)')?.id;
+          const desiredPanelId = resolveStartEndPanelId('panel-startend');
+          if(visiblePanelId === desiredPanelId) return;
+          switchQueryPanel('panel-startend');
+          return;
+        }
+        if(activeTarget === 'panel-startend2'){
+          switchQueryPanel('panel-startend');
+        }
       }, 90);
     });
+  }
+
+  function placeThsrMobilePreviewTabAfterLiveTracker(){
+    const grid = document.querySelector('main .grid');
+    const tabs = grid?.querySelector('.query-tabs');
+    const tab = document.getElementById('tab-startend2-mobile');
+    const panel = document.getElementById('panel-startend2');
+    if(!tabs || !tab || !panel || !grid) return;
+    const anchorTab =
+      document.getElementById('tab-live-tracker') ||
+      document.getElementById('tab-operation-diagram') ||
+      document.getElementById('tab-master-table') ||
+      document.getElementById('tab-trainno');
+    const anchorPanel =
+      document.getElementById('panel-live-tracker') ||
+      document.getElementById('panel-operation-diagram') ||
+      document.getElementById('panel-master-table') ||
+      document.getElementById('panel-trainno');
+    if(anchorTab?.parentElement === tabs && anchorTab.nextElementSibling !== tab){
+      anchorTab.insertAdjacentElement('afterend', tab);
+    }
+    if(anchorPanel?.parentElement === grid && anchorPanel.nextElementSibling !== panel){
+      anchorPanel.insertAdjacentElement('afterend', panel);
+    }
   }
 
   const modal = document.getElementById('trainModal');
@@ -4541,6 +4953,7 @@
     bindStationInput('endStation');
     bindStationInput('stationNameInput');
     initThsrStartEndQuery2Panel();
+    placeThsrMobilePreviewTabAfterLiveTracker();
     initStationQuery2Panel();
     bindTrainInput('trainNumberInput');
     initTrainQuery2Panel();
