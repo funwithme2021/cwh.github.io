@@ -5376,7 +5376,7 @@ function renderHistory(){
 
   function getTraAutoRefreshIntervalMs(){
     // 接受轉乘需要重算組合，降頻避免使用者一直感覺在等待。
-    return lastStartEndQuery?.accept ? 180000 : 60000;
+    return lastStartEndQuery?.accept ? 100000 : 60000;
   }
 
   function hasRememberedQueryState(){
@@ -8863,17 +8863,238 @@ function interpolateGeoPoint(fromPoint, toPoint, ratio) {
     };
 }
 
+function buildGeoPathProfile(pathNames, resolveGeoItem, resolveScalar) {
+    const points = [];
+    let cumulative = 0;
+    let previous = null;
+    (Array.isArray(pathNames) ? pathNames : []).forEach((name) => {
+        const geo = resolveGeoItem?.(name);
+        if (!geo) return;
+        const explicitScalar = resolveScalar ? Number(resolveScalar(name)) : NaN;
+        if (previous) {
+            if (Number.isFinite(explicitScalar) && Number.isFinite(previous.rawScalar)) {
+                cumulative += Math.abs(explicitScalar - previous.rawScalar);
+            } else {
+                cumulative += getGeoDistanceKm(previous.lat, previous.lon, geo.lat, geo.lon);
+            }
+        }
+        const point = { name, lat: geo.lat, lon: geo.lon, scalar: cumulative };
+        if (Number.isFinite(explicitScalar)) point.rawScalar = explicitScalar;
+        points.push(point);
+        previous = point;
+    });
+    return points;
+}
+
+function interpolatePointOnProfile(profile, ratio) {
+    const points = Array.isArray(profile) ? profile : [];
+    if (!points.length) return null;
+    if (points.length === 1) return { lat: points[0].lat, lon: points[0].lon, pathPoints: points };
+    const firstScalar = Number(points[0].scalar);
+    const lastScalar = Number(points[points.length - 1].scalar);
+    const span = lastScalar - firstScalar;
+    if (!Number.isFinite(span) || span <= 0) {
+        const fallback = interpolateGeoPoint(points[0], points[points.length - 1], ratio);
+        return { ...fallback, pathPoints: points };
+    }
+    const targetScalar = firstScalar + (span * Math.max(0, Math.min(1, Number(ratio) || 0)));
+    for (let i = 0; i < points.length - 1; i++) {
+        const from = points[i];
+        const to = points[i + 1];
+        const fromScalar = Number(from.scalar);
+        const toScalar = Number(to.scalar);
+        if (!Number.isFinite(fromScalar) || !Number.isFinite(toScalar) || toScalar < fromScalar) continue;
+        if (targetScalar < fromScalar || targetScalar > toScalar) continue;
+        const localRatio = toScalar === fromScalar ? 0 : ((targetScalar - fromScalar) / (toScalar - fromScalar));
+        return { ...interpolateGeoPoint(from, to, localRatio), pathPoints: points };
+    }
+    return { lat: points[points.length - 1].lat, lon: points[points.length - 1].lon, pathPoints: points };
+}
+
+function locatePointOnProfileSegment(profile, ratio, makeSegmentKey, segmentMap) {
+    const points = Array.isArray(profile) ? profile : [];
+    if (!points.length) return null;
+    if (points.length === 1) {
+        return {
+            lat: points[0].lat,
+            lon: points[0].lon,
+            pathPoints: points,
+            kind: 'station',
+            stationName: points[0].name
+        };
+    }
+    const firstScalar = Number(points[0].scalar);
+    const lastScalar = Number(points[points.length - 1].scalar);
+    const span = lastScalar - firstScalar;
+    if (!Number.isFinite(span) || span <= 0) {
+        const fallback = interpolateGeoPoint(points[0], points[points.length - 1], ratio);
+        const segmentKey = makeSegmentKey?.(points[0]?.name, points[points.length - 1]?.name) || '';
+        return {
+            ...fallback,
+            pathPoints: points,
+            kind: 'segment',
+            segmentKey,
+            segmentRatio: Math.max(0, Math.min(1, Number(ratio) || 0))
+        };
+    }
+    const targetScalar = firstScalar + (span * Math.max(0, Math.min(1, Number(ratio) || 0)));
+    for (let i = 0; i < points.length - 1; i++) {
+        const from = points[i];
+        const to = points[i + 1];
+        const fromScalar = Number(from.scalar);
+        const toScalar = Number(to.scalar);
+        if (!Number.isFinite(fromScalar) || !Number.isFinite(toScalar) || toScalar < fromScalar) continue;
+        if (targetScalar < fromScalar || targetScalar > toScalar) continue;
+        const localRatio = toScalar === fromScalar ? 0 : ((targetScalar - fromScalar) / (toScalar - fromScalar));
+        const segmentKey = makeSegmentKey?.(from.name, to.name) || '';
+        const segment = segmentMap?.get(segmentKey) || null;
+        const segmentRatio = !segment
+            ? localRatio
+            : (segment.fromName === from.name && segment.toName === to.name ? localRatio : (1 - localRatio));
+        return {
+            ...interpolateGeoPoint(from, to, localRatio),
+            pathPoints: points,
+            kind: 'segment',
+            segmentKey,
+            segmentRatio,
+            segment
+        };
+    }
+    return {
+        lat: points[points.length - 1].lat,
+        lon: points[points.length - 1].lon,
+        pathPoints: points,
+        kind: 'station',
+        stationName: points[points.length - 1].name
+    };
+}
+
+function projectPointToGeoSegment(lat, lon, fromPoint, toPoint) {
+    if (!fromPoint || !toPoint) return null;
+    const refLat = Number(fromPoint.lat);
+    const meanLat = ((Number(fromPoint.lat) + Number(toPoint.lat) + Number(lat)) / 3);
+    const kmPerLat = 111.32;
+    const kmPerLon = 111.32 * Math.cos((meanLat * Math.PI) / 180);
+    const px = (Number(lon) - Number(fromPoint.lon)) * kmPerLon;
+    const py = (Number(lat) - refLat) * kmPerLat;
+    const bx = (Number(toPoint.lon) - Number(fromPoint.lon)) * kmPerLon;
+    const by = (Number(toPoint.lat) - refLat) * kmPerLat;
+    const len2 = (bx * bx) + (by * by);
+    const ratio = len2 > 0 ? Math.max(0, Math.min(1, ((px * bx) + (py * by)) / len2)) : 0;
+    const projX = bx * ratio;
+    const projY = by * ratio;
+    return {
+        ratio,
+        lat: fromPoint.lat + ((toPoint.lat - fromPoint.lat) * ratio),
+        lon: fromPoint.lon + ((toPoint.lon - fromPoint.lon) * ratio),
+        distanceKm: Math.hypot(px - projX, py - projY)
+    };
+}
+
+function getMedianNumber(values) {
+    const list = (Array.isArray(values) ? values : []).filter((value) => Number.isFinite(value)).sort((a, b) => a - b);
+    if (!list.length) return null;
+    const middle = Math.floor(list.length / 2);
+    return list.length % 2 ? list[middle] : ((list[middle - 1] + list[middle]) / 2);
+}
+
+function getPolylineMinDistanceKm(lat, lon, pathPoints) {
+    const points = Array.isArray(pathPoints) ? pathPoints : [];
+    if (!points.length) return Infinity;
+    const refLat = Number(lat);
+    const toXY = (point) => {
+        const meanLat = (refLat + Number(point.lat)) / 2;
+        const kmPerLat = 111.32;
+        const kmPerLon = 111.32 * Math.cos((meanLat * Math.PI) / 180);
+        return {
+            x: (Number(point.lon) - Number(lon)) * kmPerLon,
+            y: (Number(point.lat) - refLat) * kmPerLat
+        };
+    };
+    const pointDistance = (point) => Math.hypot(toXY(point).x, toXY(point).y);
+    if (points.length === 1) return pointDistance(points[0]);
+    let minDistance = Infinity;
+    for (let i = 0; i < points.length - 1; i++) {
+        const a = toXY(points[i]);
+        const b = toXY(points[i + 1]);
+        const abx = b.x - a.x;
+        const aby = b.y - a.y;
+        const len2 = (abx * abx) + (aby * aby);
+        let t = 0;
+        if (len2 > 0) {
+            t = Math.max(0, Math.min(1, (-(a.x * abx) - (a.y * aby)) / len2));
+        }
+        const projX = a.x + (abx * t);
+        const projY = a.y + (aby * t);
+        minDistance = Math.min(minDistance, Math.hypot(projX, projY));
+    }
+    return minDistance;
+}
+
+function getGeoLocateError(error, fallbackMessage) {
+    const code = Number(error?.code);
+    if (code === 1) return new Error('請允許定位權限');
+    if (code === 2) return new Error('目前無法取得可用定位，請確認裝置已開啟定位服務');
+    if (code === 3) return new Error('定位逾時，請到訊號較好的地方再試一次');
+    const message = String(error?.message || fallbackMessage || '定位失敗，請稍後再試').trim();
+    return new Error(message || '定位失敗，請稍後再試');
+}
+
 function getBrowserGeoPosition() {
     return new Promise((resolve, reject) => {
         if (!navigator.geolocation) {
-            reject(new Error('瀏覽器不支援定位'));
+            reject(getGeoLocateError(null, '瀏覽器不支援定位'));
             return;
         }
         navigator.geolocation.getCurrentPosition(
             (position) => resolve(position),
-            () => reject(new Error('無法取得目前位置')),
+            (error) => reject(getGeoLocateError(error, '無法取得目前位置')),
             { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 }
         );
+    });
+}
+
+function collectGeoPositionSamples(options = {}) {
+    return new Promise((resolve, reject) => {
+        if (!navigator.geolocation) {
+            reject(getGeoLocateError(null, '瀏覽器不支援定位'));
+            return;
+        }
+        const durationMs = Math.max(2600, Number(options.durationMs) || 3200);
+        const targetCount = Math.max(2, Number(options.targetCount) || 3);
+        const samples = [];
+        let finished = false;
+        let watchId = null;
+        let timer = null;
+        let lastError = null;
+        const done = (error) => {
+            if (finished) return;
+            finished = true;
+            if (timer) clearTimeout(timer);
+            if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+            if (samples.length) {
+                resolve(samples.slice(0, targetCount));
+                return;
+            }
+            reject(getGeoLocateError(error || lastError, '無法取得目前位置'));
+        };
+        watchId = navigator.geolocation.watchPosition(
+            (position) => {
+                const ts = Number(position?.timestamp) || Date.now();
+                const lastTs = samples.length ? Number(samples[samples.length - 1]?.timestamp || 0) : 0;
+                if (lastTs && (ts - lastTs) < 650) {
+                    samples[samples.length - 1] = position;
+                } else {
+                    samples.push(position);
+                }
+                if (samples.length >= targetCount) done();
+            },
+            (error) => {
+                lastError = error;
+            },
+            { enableHighAccuracy: true, timeout: durationMs, maximumAge: 0 }
+        );
+        timer = setTimeout(() => done(samples.length ? null : getGeoLocateError(lastError, '定位逾時，請到訊號較好的地方再試一次')), durationMs + 600);
     });
 }
 
@@ -8982,11 +9203,180 @@ async function locateNearestTraStation(target) {
     return fillTraStationQueryFromLocation(nearest.name);
 }
 
-function getTraLocatedTrainPosition(entry) {
+let traGeoSegmentCatalogCache = null;
+
+function makeTraGeoSegmentKey(a, b) {
+    const names = [normalizeTraLinkedStation(a), normalizeTraLinkedStation(b)].filter(Boolean);
+    if (names.length !== 2 || names[0] === names[1]) return '';
+    names.sort();
+    return `${names[0]}|||${names[1]}`;
+}
+
+function getTraGeoSegmentCatalog() {
+    if (traGeoSegmentCatalogCache) return traGeoSegmentCatalogCache;
+    const map = new Map();
+    const segments = window.RailNetwork?.getTraSegments?.() || [];
+    segments.forEach((segment) => {
+        const names = (Array.isArray(segment?.stations) ? segment.stations : [])
+            .map((name) => normalizeTraLinkedStation(name))
+            .filter(Boolean);
+        for (let i = 0; i < names.length - 1; i++) {
+            const first = names[i];
+            const second = names[i + 1];
+            if (!first || !second || first === second) continue;
+            const key = makeTraGeoSegmentKey(first, second);
+            if (!key || map.has(key)) continue;
+            const ordered = [first, second].sort();
+            const fromName = ordered[0];
+            const toName = ordered[1];
+            const fromGeo = getTraStationGeoItem(fromName);
+            const toGeo = getTraStationGeoItem(toName);
+            if (!fromGeo || !toGeo) continue;
+            map.set(key, { key, fromName, toName, fromGeo, toGeo });
+        }
+    });
+    traGeoSegmentCatalogCache = {
+        list: Array.from(map.values()),
+        map
+    };
+    return traGeoSegmentCatalogCache;
+}
+
+function getNearestTraGeoStation(lat, lon) {
+    let best = null;
+    (window.stationGeoList || []).forEach((station) => {
+        const distanceKm = getGeoDistanceKm(lat, lon, station.lat, station.lon);
+        if (!best || distanceKm < best.distanceKm) {
+            best = { ...station, distanceKm };
+        }
+    });
+    return best;
+}
+
+function getNearestTraGeoSegment(lat, lon) {
+    const catalog = getTraGeoSegmentCatalog();
+    let best = null;
+    catalog.list.forEach((segment) => {
+        const projection = projectPointToGeoSegment(lat, lon, segment.fromGeo, segment.toGeo);
+        if (!projection) return;
+        if (!best || projection.distanceKm < best.distanceKm) {
+            best = { ...segment, ...projection };
+        }
+    });
+    return best;
+}
+
+function getTraGeoSampleSpreadKm(points) {
+    const list = Array.isArray(points) ? points : [];
+    let maxDistance = 0;
+    for (let i = 0; i < list.length; i++) {
+        for (let j = i + 1; j < list.length; j++) {
+            maxDistance = Math.max(
+                maxDistance,
+                getGeoDistanceKm(list[i].lat, list[i].lon, list[j].lat, list[j].lon)
+            );
+        }
+    }
+    return maxDistance;
+}
+
+function analyzeTraGeoSamples(samples) {
+    const normalizedSamples = (Array.isArray(samples) ? samples : []).map((position) => {
+        const lat = Number(position?.coords?.latitude);
+        const lon = Number(position?.coords?.longitude);
+        if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+        const accuracyKm = Number(position?.coords?.accuracy) > 0 ? (Number(position.coords.accuracy) / 1000) : null;
+        return {
+            lat,
+            lon,
+            accuracyKm,
+            timestampMs: Number(position?.timestamp) || Date.now(),
+            nearestStation: getNearestTraGeoStation(lat, lon),
+            nearestSegment: getNearestTraGeoSegment(lat, lon)
+        };
+    }).filter(Boolean);
+    if (!normalizedSamples.length) throw new Error('無法取得目前位置');
+
+    const spreadKm = getTraGeoSampleSpreadKm(normalizedSamples);
+    const medianAccuracyKm = getMedianNumber(normalizedSamples.map((sample) => sample.accuracyKm)) || 0.08;
+    const stationThresholdKm = Math.max(0.12, Math.min(0.42, (medianAccuracyKm * 1.2) + 0.04));
+    const stationSpreadThresholdKm = Math.max(0.12, Math.min(0.58, stationThresholdKm * 1.65));
+
+    const stationGroups = new Map();
+    normalizedSamples.forEach((sample) => {
+        const station = sample.nearestStation;
+        if (!station?.name) return;
+        if (!stationGroups.has(station.name)) {
+            stationGroups.set(station.name, { stationName: station.name, count: 0, distances: [] });
+        }
+        const group = stationGroups.get(station.name);
+        group.count += 1;
+        group.distances.push(station.distanceKm);
+    });
+    const bestStation = Array.from(stationGroups.values()).sort((a, b) => {
+        if (b.count !== a.count) return b.count - a.count;
+        return (getMedianNumber(a.distances) || Infinity) - (getMedianNumber(b.distances) || Infinity);
+    })[0] || null;
+
+    const stationLikely = !!bestStation && (
+        (normalizedSamples.length === 1 && (getMedianNumber(bestStation.distances) || Infinity) <= stationThresholdKm) ||
+        (bestStation.count >= 2 &&
+            (getMedianNumber(bestStation.distances) || Infinity) <= stationThresholdKm &&
+            spreadKm <= stationSpreadThresholdKm)
+    );
+    if (stationLikely) {
+        return {
+            kind: 'station',
+            stationName: bestStation.stationName,
+            points: normalizedSamples,
+            spreadKm
+        };
+    }
+
+    const segmentGroups = new Map();
+    normalizedSamples.forEach((sample) => {
+        const segment = sample.nearestSegment;
+        if (!segment?.key) return;
+        if (!segmentGroups.has(segment.key)) {
+            segmentGroups.set(segment.key, { key: segment.key, count: 0, distances: [] });
+        }
+        const group = segmentGroups.get(segment.key);
+        group.count += 1;
+        group.distances.push(segment.distanceKm);
+    });
+    const bestSegmentGroup = Array.from(segmentGroups.values()).sort((a, b) => {
+        if (b.count !== a.count) return b.count - a.count;
+        return (getMedianNumber(a.distances) || Infinity) - (getMedianNumber(b.distances) || Infinity);
+    })[0];
+    const segmentCatalog = getTraGeoSegmentCatalog();
+    const segment = segmentCatalog.map.get(bestSegmentGroup?.key || '');
+    if (!segment) throw new Error('附近沒有可判定的站間區段');
+
+    const points = normalizedSamples.map((sample) => ({
+        ...sample,
+        projection: projectPointToGeoSegment(sample.lat, sample.lon, segment.fromGeo, segment.toGeo)
+    }));
+    return {
+        kind: 'segment',
+        segment,
+        points,
+        spreadKm,
+        userRatio: getMedianNumber(points.map((sample) => sample.projection?.ratio))
+    };
+}
+
+function getNowAbsFromOriginAt(originDateStr, timestampMs) {
+    const now = Number.isFinite(Number(timestampMs)) ? new Date(Number(timestampMs)) : new Date();
+    const todayStr = fmtDate(now);
+    const dayDiff = originDateStr ? diffDays(originDateStr, todayStr) : 0;
+    return (dayDiff * 1440) + now.getHours() * 60 + now.getMinutes() + (now.getSeconds() / 60) + (now.getMilliseconds() / 60000);
+}
+
+function getTraLocatedTrainState(entry, timestampMs) {
     const stops = entry?.data?.['車站時間'] || [];
     if (!Array.isArray(stops) || stops.length < 2) return null;
     const absAD = buildAbsArrDep(stops);
-    const nowAbs = getNowAbsFromOrigin(entry.originDate);
+    const nowAbs = getNowAbsFromOriginAt(entry.originDate, timestampMs);
     let delayMin = 0;
     try {
         delayMin = Math.max(0, Number(getDelayMinutes(String(entry.trainNo)) || 0));
@@ -9005,20 +9395,48 @@ function getTraLocatedTrainPosition(entry) {
         const startAbs = Number.isFinite(arrAbs) ? arrAbs : depAbs;
         const endAbs = Number.isFinite(depAbs) ? depAbs : arrAbs;
         if (Number.isFinite(startAbs) && Number.isFinite(endAbs) && nowAbs >= Math.min(startAbs, endAbs) && nowAbs <= Math.max(startAbs, endAbs)) {
-            return { lat: stationGeo.lat, lon: stationGeo.lon };
+            return {
+                kind: 'station',
+                stationName: normalizeTraLinkedStation(stops[i]?.[0]),
+                lat: stationGeo.lat,
+                lon: stationGeo.lon,
+                pathPoints: [stationGeo]
+            };
         }
     }
 
+    const segmentMap = getTraGeoSegmentCatalog().map;
     for (let i = 0; i < stops.length - 1; i++) {
-        const fromGeo = getTraStationGeoItem(stops[i]?.[0]);
-        const toGeo = getTraStationGeoItem(stops[i + 1]?.[0]);
-        if (!fromGeo || !toGeo) continue;
         const depAbs = shift(absAD.absDep?.[i] ?? absAD.absArr?.[i]);
         const arrAbs = shift(absAD.absArr?.[i + 1] ?? absAD.absDep?.[i + 1]);
         if (!Number.isFinite(depAbs) || !Number.isFinite(arrAbs) || arrAbs < depAbs) continue;
         if (nowAbs < depAbs || nowAbs > arrAbs) continue;
         const span = Math.max(1, arrAbs - depAbs);
-        return interpolateGeoPoint(fromGeo, toGeo, (nowAbs - depAbs) / span);
+        const pathNames = window.RailNetwork?.findTraRoutePath?.(stops[i]?.[0], stops[i + 1]?.[0]) || [stops[i]?.[0], stops[i + 1]?.[0]];
+        const profile = buildGeoPathProfile(pathNames, getTraStationGeoItem);
+        if (profile.length >= 2) {
+            const located = locatePointOnProfileSegment(profile, (nowAbs - depAbs) / span, makeTraGeoSegmentKey, segmentMap);
+            if (located) return located;
+        }
+        const fromGeo = getTraStationGeoItem(stops[i]?.[0]);
+        const toGeo = getTraStationGeoItem(stops[i + 1]?.[0]);
+        if (!fromGeo || !toGeo) continue;
+        const fallbackKey = makeTraGeoSegmentKey(stops[i]?.[0], stops[i + 1]?.[0]);
+        const fallbackSegment = segmentMap.get(fallbackKey) || null;
+        const fallbackProjection = projectPointToGeoSegment(
+            interpolateGeoPoint(fromGeo, toGeo, (nowAbs - depAbs) / span).lat,
+            interpolateGeoPoint(fromGeo, toGeo, (nowAbs - depAbs) / span).lon,
+            fallbackSegment?.fromGeo || fromGeo,
+            fallbackSegment?.toGeo || toGeo
+        );
+        return {
+            ...interpolateGeoPoint(fromGeo, toGeo, (nowAbs - depAbs) / span),
+            pathPoints: [fromGeo, toGeo],
+            kind: 'segment',
+            segmentKey: fallbackKey,
+            segmentRatio: fallbackProjection?.ratio ?? Math.max(0, Math.min(1, (nowAbs - depAbs) / span)),
+            segment: fallbackSegment
+        };
     }
 
     return null;
@@ -9036,34 +9454,89 @@ async function prepareTraLiveLocateData() {
     } catch (_) {}
 }
 
-async function locateTraRunningTrainByPosition() {
+function scoreTraEntryForGeoContext(entry, context) {
+    const segmentMap = getTraGeoSegmentCatalog().map;
+    let matched = 0;
+    let totalScore = 0;
+    let totalDistanceKm = 0;
+    context.points.forEach((sample) => {
+        const state = getTraLocatedTrainState(entry, sample.timestampMs);
+        if (!state) return;
+        const pointDistanceKm = getGeoDistanceKm(sample.lat, sample.lon, state.lat, state.lon);
+        if (context.kind === 'segment') {
+            const userRatio = sample.projection?.ratio ?? context.userRatio ?? 0.5;
+            if (state.kind === 'segment' && state.segmentKey === context.segment.key) {
+                totalScore += (Math.abs((Number(state.segmentRatio) || 0) - userRatio) * 8) + (pointDistanceKm * 0.35);
+                totalDistanceKm += pointDistanceKm;
+                matched += 1;
+                return;
+            }
+            if (state.kind === 'station') {
+                const endpointRatio = state.stationName === context.segment.fromName ? 0 : (state.stationName === context.segment.toName ? 1 : null);
+                if (endpointRatio !== null) {
+                    totalScore += (Math.abs(endpointRatio - userRatio) * 8) + (pointDistanceKm * 0.4) + 0.8;
+                    totalDistanceKm += pointDistanceKm;
+                    matched += 1;
+                }
+            }
+            return;
+        }
+
+        if (state.kind === 'station' && state.stationName === context.stationName) {
+            totalScore += pointDistanceKm * 0.45;
+            totalDistanceKm += pointDistanceKm;
+            matched += 1;
+            return;
+        }
+        if (state.kind === 'segment') {
+            const segment = segmentMap.get(state.segmentKey || '');
+            if (!segment) return;
+            const endpointRatio = segment.fromName === context.stationName ? 0 : (segment.toName === context.stationName ? 1 : null);
+            if (endpointRatio === null) return;
+            totalScore += (Math.abs((Number(state.segmentRatio) || 0) - endpointRatio) * 8) + (pointDistanceKm * 0.4) + 0.7;
+            totalDistanceKm += pointDistanceKm;
+            matched += 1;
+        }
+    });
+    if (!matched) return null;
+    return {
+        matched,
+        avgDistanceKm: totalDistanceKm / matched,
+        score: (totalScore / matched) + ((context.points.length - matched) * 1.75)
+    };
+}
+
+async function locateTraRunningTrainByPosition(options) {
+    const opts = options || {};
     if (!Array.isArray(window.stationGeoList) || !window.stationGeoList.length) {
         await initStationMap();
     }
     await prepareTraLiveLocateData();
-    const position = await getBrowserGeoPosition();
-    const lat = Number(position?.coords?.latitude);
-    const lon = Number(position?.coords?.longitude);
-    if (!Number.isFinite(lat) || !Number.isFinite(lon)) throw new Error('無法取得目前位置');
+    const samples = await collectGeoPositionSamples({ durationMs: 3200, targetCount: 3 });
+    const context = analyzeTraGeoSamples(samples);
     let best = null;
     (scheduleKeyList || []).forEach((entry) => {
-        const geoPoint = getTraLocatedTrainPosition(entry);
-        if (!geoPoint) return;
-        const distanceKm = getGeoDistanceKm(lat, lon, geoPoint.lat, geoPoint.lon);
-        if (!best || distanceKm < best.distanceKm) {
-            best = { entry, distanceKm };
+        const scored = scoreTraEntryForGeoContext(entry, context);
+        if (!scored) return;
+        if (!best || scored.score < best.score) {
+            best = { entry, ...scored };
         }
     });
-    if (!best || best.distanceKm > 12) {
+    if (!best || best.avgDistanceKm > 12) {
         throw new Error('附近沒有可判定的行駛中列車');
     }
+    const result = { entry: best.entry, avgDistanceKm: best.avgDistanceKm, matched: best.matched, score: best.score, context };
+    if (opts.applyTrainQuery === false) return result;
     switchQueryPanel('panel-trainno');
     const trainNo = String(best.entry.trainNo || '');
     const input = document.getElementById('trainNumberInput');
     if (input) input.value = trainNo;
     if (typeof updateHeroSnapshot === 'function') updateHeroSnapshot();
-    return filterTrainScheduleByNumberV2(trainNo);
+    result.queryResult = await Promise.resolve(filterTrainScheduleByNumberV2(trainNo));
+    return result;
 }
+
+window.locateTraRunningTrainByPosition = locateTraRunningTrainByPosition;
 
 function initTraGeolocationButtons() {
     ensureGeoInlineButton('startStation', {
@@ -9307,7 +9780,7 @@ document.addEventListener('click', (event) => {
 <script charset="UTF-8" src="../shared/rail-network.js?v=20260329-thsrkm1"></script>
 <script charset="UTF-8" src="../shared/rail-master-table.js?v=20260329-thsrkm1"></script>
 <script charset="UTF-8" src="../shared/rail-operation-diagram.js?v=20260329-thsrkm1"></script>
-<script charset="UTF-8" src="../shared/rail-live-tracker.js?v=20260329-livepanel8"></script>
+<script charset="UTF-8" src="../shared/rail-live-tracker.js?v=20260404-livepanel9"></script>
 <script charset="UTF-8" src="../shared/rail-usage-footer.js?v=20260326-footer3"></script>
 <script>
 window.addEventListener('load', () => {

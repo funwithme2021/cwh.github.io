@@ -10,6 +10,7 @@
   const STATION_ALERT_WINDOW = 10;
   const STATION_SOON_WINDOW = 3;
   const MAP_PADDING_Y = 36;
+  const TRACKER_STATES = new Map();
   const TRA_TYPE_COLORS = {
     "新自強": "#7c3aed",
     "普悠瑪": "#db2777",
@@ -1504,6 +1505,15 @@
     return sortSnapshotsByTrainNo((snapshots || []).filter((snapshot) => snapshot.state !== "arrived" || snapshot.sharedStationOnly));
   }
 
+  function getSnapshotPriority(snapshot) {
+    if (!snapshot) return -1;
+    if (snapshot.state === "running") return 4;
+    if (snapshot.state === "dwell") return 3;
+    if (snapshot.state === "upcoming") return 2;
+    if (snapshot.state === "arrived") return 1;
+    return 0;
+  }
+
   function getDefaultFocusedSnapshot(snapshots) {
     const list = snapshots || [];
     return (
@@ -1620,6 +1630,72 @@
     focusTrainOnBoard(state, trainNo, originDate, { scroll: options?.scroll !== false });
   }
 
+  function resolveTrackerRouteForEntry(state, entry, queryDate) {
+    if (!entry) return "";
+    if (state.system === "thsr") return "thsr-main";
+    const groups = getRailNetwork()?.getTraSegmentGroups?.() || [];
+    let bestSegment = "";
+    let bestPriority = -1;
+    groups.forEach((group) => {
+      (group.segments || []).forEach((segment) => {
+        if (!matchesSegmentEntry(entry, segment)) return;
+        const projections = buildRouteProjections(entry, segment.stations || [], state.system, queryDate || getQueryDate());
+        const visibleSnapshots = getVisibleSnapshots((projections || []).map((projection) => buildSnapshot(projection, state.system, queryDate || getQueryDate())).filter(Boolean));
+        const topSnapshot = visibleSnapshots[0] || null;
+        const priority = getSnapshotPriority(topSnapshot);
+        if (priority > bestPriority) {
+          bestPriority = priority;
+          bestSegment = segment.id || bestSegment;
+        }
+        if (!bestSegment && segment?.id) bestSegment = segment.id;
+      });
+    });
+    return bestSegment;
+  }
+
+  async function focusTrainInTracker(state, trainNo, originDate, options) {
+    if (!state || !trainNo) return false;
+    if (!(await ensureLiveTrackerAccess())) return false;
+    window.switchQueryPanel?.(state.config.panelId);
+    const queryDate = getQueryDate();
+    const scheduleSources = await ensureScheduleReady(state.system);
+    const entries = buildEntries(state.system, scheduleSources);
+    const matchedEntry =
+      entries.find((entry) => String(entry.trainNo) === String(trainNo) && String(entry.originDate || "") === String(originDate || "")) ||
+      entries.find((entry) => String(entry.trainNo) === String(trainNo));
+    const routeId = resolveTrackerRouteForEntry(state, matchedEntry, queryDate);
+    if (routeId && state.routeSelect && state.routeSelect.value !== routeId) {
+      state.routeSelect.value = routeId;
+    }
+    state.selectedTrainKey = makeTrainKey(trainNo, originDate);
+    const render = state.variant === "modern" ? renderTrackerV2 : renderTracker;
+    await render(state);
+    setFocusedSnapshot(state, trainNo, originDate, { scroll: options?.scroll !== false });
+    return true;
+  }
+
+  async function locateTrainIntoTracker(state, button) {
+    const locator = state?.system === "tr" ? window.locateTraRunningTrainByPosition : window.locateThsrRunningTrainByPosition;
+    if (typeof locator !== "function") throw new Error("定位找車次尚未就緒");
+    const previousText = button?.textContent || "定位";
+    if (button) {
+      button.disabled = true;
+      button.textContent = "定位中…";
+    }
+    try {
+      const result = await locator({ applyTrainQuery: false });
+      const entry = result?.entry || null;
+      if (!entry?.trainNo) throw new Error("附近沒有可判定的行駛中列車");
+      await focusTrainInTracker(state, entry.trainNo, entry.originDate, { scroll: true });
+      return true;
+    } finally {
+      if (button) {
+        button.disabled = false;
+        button.textContent = previousText;
+      }
+    }
+  }
+
   function bindTrackerV2Output(state) {
     if (state.variant !== "modern") return;
     state.output.querySelectorAll(".rail-live-v2-event-card[data-train-key]").forEach((card) => {
@@ -1644,6 +1720,16 @@
         const originDate = button.getAttribute("data-origin-date");
         setFocusedSnapshot(state, trainNo, originDate, { scroll: false });
         openTrainDetail(trainNo, originDate);
+      });
+    });
+    state.output.querySelectorAll("[data-live-locate-train]").forEach((button) => {
+      button.addEventListener("click", async (event) => {
+        event.stopPropagation();
+        try {
+          await locateTrainIntoTracker(state, button);
+        } catch (error) {
+          alert(error?.message || "定位失敗，請稍後再試");
+        }
       });
     });
   }
@@ -1909,7 +1995,10 @@
       state.output.innerHTML = `
         <div class="rail-live-v2-layout">
           <article class="rail-live-v2-section rail-live-v2-focus-shell">
-            <div class="rail-live-v2-section-head"><h3>焦點列車</h3><p>點圖上的列車會直接開詳細資訊，並同步切到這裡。</p></div>
+            <div class="rail-live-v2-section-head">
+              <div><h3>焦點列車</h3><p>點圖上的列車會直接開詳細資訊，並同步切到這裡。</p></div>
+              <button type="button" class="rail-live-mini-btn rail-live-locate-btn" data-live-locate-train="1">定位找車次</button>
+            </div>
             <div class="rail-live-v2-section-body" data-live-v2-focus></div>
           </article>
           <section class="rail-live-board">
@@ -1993,9 +2082,10 @@
       .rail-live-v2-focus-shell{grid-area:focus;}
       .rail-live-v2-trains-shell{grid-area:trains;}
       .rail-live-v2-section{border:1px solid var(--border); background:var(--bg-surface); border-radius:20px; overflow:hidden;}
-      .rail-live-v2-section-head{padding:14px 16px; border-bottom:1px solid var(--border);}
+      .rail-live-v2-section-head{padding:14px 16px; border-bottom:1px solid var(--border); display:flex; align-items:flex-start; justify-content:space-between; gap:12px;}
       .rail-live-v2-section-head h3{margin:0; font-size:1rem;}
       .rail-live-v2-section-head p{margin:4px 0 0; color:var(--text-muted); font-size:.8rem; line-height:1.55;}
+      .rail-live-locate-btn{white-space:nowrap; flex:0 0 auto;}
       .rail-live-v2-section-body{padding:16px;}
       .rail-live-v2-scroll{padding:14px 16px; overflow:auto;}
       .rail-live-v2-focus-card{padding:18px; border-radius:18px; border:1px solid color-mix(in srgb, var(--rail-live-color) 26%, var(--border)); background:linear-gradient(145deg, color-mix(in srgb, var(--rail-live-color) 10%, var(--bg-surface)), var(--bg-body));}
@@ -2081,7 +2171,7 @@
         .rail-live-select,.rail-live-input{min-width:0; flex:1 1 140px;}
         .rail-live-board{padding:14px; border-radius:18px;}
         .rail-live-v2-section{border-radius:18px;}
-        .rail-live-v2-section-head{padding:10px 12px;}
+        .rail-live-v2-section-head{padding:10px 12px; align-items:center;}
         .rail-live-v2-section-head p{display:none;}
         .rail-live-v2-section-body,.rail-live-v2-scroll{padding:10px 12px;}
         .rail-live-v2-focus-card{padding:10px 11px; border-radius:14px;}
@@ -2219,6 +2309,16 @@
     const inserted = insertTrackerPanel(system, config);
     if (!inserted) return;
     const state = buildState(system, inserted.panel, config);
+    TRACKER_STATES.set(system, state);
+    window.RailLiveTracker = window.RailLiveTracker || {};
+    window.RailLiveTracker.focusTrain = async (trainNo, originDate, options = {}) => {
+      const activeState = TRACKER_STATES.get(getSystem()) || TRACKER_STATES.get(system);
+      return focusTrainInTracker(activeState, trainNo, originDate, options);
+    };
+    window.RailLiveTracker.locateTrain = async (options = {}) => {
+      const activeState = TRACKER_STATES.get(getSystem()) || TRACKER_STATES.get(system);
+      return locateTrainIntoTracker(activeState, options?.button || null);
+    };
     bindTrackerPanel(state, inserted.tab);
     const syncPlacement = () => placeAfterAnchor(inserted.tab, inserted.panel, config);
     if (document.readyState === "complete") setTimeout(syncPlacement, 0);
