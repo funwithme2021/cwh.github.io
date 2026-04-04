@@ -500,23 +500,16 @@
     return names.slice();
   }
 
-  function getJourneyInterpolationRatio(system, fullPathStations, startPathIndex, endPathIndex, currentPathIndex) {
+  function getJourneyInterpolationRatio(system, fullPathStations, startPathIndex, endPathIndex, currentPathIndex, totalMinutes, startStop, endStop) {
     const totalSteps = Math.abs(endPathIndex - startPathIndex);
     const fallbackRatio = totalSteps > 0 ? Math.abs(currentPathIndex - startPathIndex) / totalSteps : 0;
     if (system !== "thsr") return fallbackRatio;
-    const getMileage = window.RailNetwork?.getThsrStationMileage;
-    if (typeof getMileage !== "function") return fallbackRatio;
     const startStation = fullPathStations?.[startPathIndex];
     const endStation = fullPathStations?.[endPathIndex];
     const currentStation = fullPathStations?.[currentPathIndex];
-    const startKm = Number(getMileage(startStation));
-    const endKm = Number(getMileage(endStation));
-    const currentKm = Number(getMileage(currentStation));
-    if (![startKm, endKm, currentKm].every(Number.isFinite)) return fallbackRatio;
-    const totalDistance = endKm - startKm;
-    if (!totalDistance) return fallbackRatio;
-    const ratio = (currentKm - startKm) / totalDistance;
-    return Number.isFinite(ratio) ? Math.min(1, Math.max(0, ratio)) : fallbackRatio;
+    const getTimedRatio = window.RailNetwork?.getThsrTimedInterpolationRatio;
+    if (typeof getTimedRatio !== "function") return fallbackRatio;
+    return getTimedRatio(startStation, endStation, currentStation, totalMinutes, startStop, endStop, fallbackRatio);
   }
 
   function buildJourneyPathPoints(system, timedStops, fullPathStations) {
@@ -587,6 +580,7 @@
       if (!next) return;
       const travelStart = Number.isFinite(current.departureMinute) ? current.departureMinute : current.arrivalMinute;
       const travelEnd = Number.isFinite(next.arrivalMinute) ? next.arrivalMinute : next.departureMinute;
+      const totalMinutes = Number.isFinite(travelStart) && Number.isFinite(travelEnd) ? (travelEnd - travelStart) : null;
       const delta = next.pathIndex - current.pathIndex;
       const steps = Math.abs(delta);
       if (!Number.isFinite(travelStart) || !Number.isFinite(travelEnd) || steps <= 1) return;
@@ -601,7 +595,16 @@
           minute: Math.round(
             travelStart +
               (travelEnd - travelStart) *
-                getJourneyInterpolationRatio(system, fullPathStations, current.pathIndex, next.pathIndex, pathIndex)
+                getJourneyInterpolationRatio(
+                  system,
+                  fullPathStations,
+                  current.pathIndex,
+                  next.pathIndex,
+                  pathIndex,
+                  totalMinutes,
+                  !current.isPassOnly,
+                  !next.isPassOnly
+                )
           ),
           kind: "pass",
           isStop: false,

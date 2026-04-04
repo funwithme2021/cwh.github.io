@@ -256,6 +256,83 @@
     return Number.isFinite(mileage) ? mileage : null;
   }
 
+  const THSR_ACCEL_KM_PER_MIN2 = 2.0;
+  const THSR_DECEL_KM_PER_MIN2 = 2.7;
+
+  function clampRatio(value, fallbackRatio) {
+    const fallback = Number.isFinite(fallbackRatio) ? fallbackRatio : 0;
+    return Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : fallback;
+  }
+
+  function getThsrMileageInterpolationRatio(startStation, endStation, currentStation, fallbackRatio) {
+    const startKm = Number(getThsrStationMileage(startStation));
+    const endKm = Number(getThsrStationMileage(endStation));
+    const currentKm = Number(getThsrStationMileage(currentStation));
+    if (![startKm, endKm, currentKm].every(Number.isFinite)) return clampRatio(fallbackRatio, 0);
+    const totalDistance = endKm - startKm;
+    if (!totalDistance) return clampRatio(fallbackRatio, 0);
+    return clampRatio((currentKm - startKm) / totalDistance, fallbackRatio);
+  }
+
+  function solveThsrCruiseSpeed(totalDistanceKm, totalMinutes, startStop, endStop) {
+    if (!Number.isFinite(totalDistanceKm) || totalDistanceKm <= 0 || !Number.isFinite(totalMinutes) || totalMinutes <= 0) return null;
+    if (!startStop && !endStop) return totalDistanceKm / totalMinutes;
+    const coeff =
+      (startStop ? (1 / (2 * THSR_ACCEL_KM_PER_MIN2)) : 0) +
+      (endStop ? (1 / (2 * THSR_DECEL_KM_PER_MIN2)) : 0);
+    if (!(coeff > 0)) return totalDistanceKm / totalMinutes;
+    const discriminant = (totalMinutes * totalMinutes) - (4 * coeff * totalDistanceKm);
+    if (discriminant < 0) return null;
+    const sqrtDisc = Math.sqrt(discriminant);
+    const candidates = [
+      (totalMinutes - sqrtDisc) / (2 * coeff),
+      (totalMinutes + sqrtDisc) / (2 * coeff),
+    ].filter((value) => Number.isFinite(value) && value > 0);
+    if (!candidates.length) return null;
+    const valid = candidates.filter((speed) => {
+      const accelDistance = startStop ? ((speed * speed) / (2 * THSR_ACCEL_KM_PER_MIN2)) : 0;
+      const decelDistance = endStop ? ((speed * speed) / (2 * THSR_DECEL_KM_PER_MIN2)) : 0;
+      return accelDistance + decelDistance <= totalDistanceKm + 1e-6;
+    });
+    const picked = (valid.length ? valid : candidates).sort((a, b) => a - b)[0];
+    return Number.isFinite(picked) ? picked : null;
+  }
+
+  function getThsrTimedInterpolationRatio(startStation, endStation, currentStation, totalMinutes, startStop, endStop, fallbackRatio) {
+    const startKm = Number(getThsrStationMileage(startStation));
+    const endKm = Number(getThsrStationMileage(endStation));
+    const currentKm = Number(getThsrStationMileage(currentStation));
+    if (![startKm, endKm, currentKm].every(Number.isFinite)) return clampRatio(fallbackRatio, 0);
+    const totalDistanceKm = Math.abs(endKm - startKm);
+    if (!(totalDistanceKm > 0) || !Number.isFinite(totalMinutes) || totalMinutes <= 0) return clampRatio(fallbackRatio, 0);
+    const distanceFromStartKm = Math.max(0, Math.min(totalDistanceKm, Math.abs(currentKm - startKm)));
+    const cruiseSpeed = solveThsrCruiseSpeed(totalDistanceKm, totalMinutes, startStop, endStop);
+    if (!Number.isFinite(cruiseSpeed) || cruiseSpeed <= 0) {
+      return getThsrMileageInterpolationRatio(startStation, endStation, currentStation, fallbackRatio);
+    }
+
+    const accelDistanceKm = startStop ? ((cruiseSpeed * cruiseSpeed) / (2 * THSR_ACCEL_KM_PER_MIN2)) : 0;
+    const accelMinutes = startStop ? (cruiseSpeed / THSR_ACCEL_KM_PER_MIN2) : 0;
+    const decelDistanceKm = endStop ? ((cruiseSpeed * cruiseSpeed) / (2 * THSR_DECEL_KM_PER_MIN2)) : 0;
+    const cruiseDistanceKm = Math.max(0, totalDistanceKm - accelDistanceKm - decelDistanceKm);
+    const cruiseMinutes = cruiseDistanceKm > 0 ? (cruiseDistanceKm / cruiseSpeed) : 0;
+
+    let elapsedMinutes = 0;
+    if (startStop && distanceFromStartKm <= accelDistanceKm + 1e-6) {
+      elapsedMinutes = Math.sqrt((2 * Math.max(0, distanceFromStartKm)) / THSR_ACCEL_KM_PER_MIN2);
+    } else if (distanceFromStartKm <= accelDistanceKm + cruiseDistanceKm + 1e-6) {
+      elapsedMinutes = accelMinutes + (Math.max(0, distanceFromStartKm - accelDistanceKm) / cruiseSpeed);
+    } else if (endStop) {
+      const decelProgressKm = Math.max(0, distanceFromStartKm - accelDistanceKm - cruiseDistanceKm);
+      const underRoot = Math.max(0, (cruiseSpeed * cruiseSpeed) - (2 * THSR_DECEL_KM_PER_MIN2 * decelProgressKm));
+      elapsedMinutes = accelMinutes + cruiseMinutes + ((cruiseSpeed - Math.sqrt(underRoot)) / THSR_DECEL_KM_PER_MIN2);
+    } else {
+      elapsedMinutes = totalMinutes;
+    }
+
+    return clampRatio(elapsedMinutes / totalMinutes, fallbackRatio);
+  }
+
   function buildGraph(segments) {
     const graph = new Map();
     const addEdge = (from, to, segmentId) => {
@@ -420,6 +497,8 @@
     getThsrStationOrder,
     getThsrStationMileageMap,
     getThsrStationMileage,
+    getThsrMileageInterpolationRatio,
+    getThsrTimedInterpolationRatio,
     findTraRoutePath,
     findThsrRoutePath,
     findRoutePath,

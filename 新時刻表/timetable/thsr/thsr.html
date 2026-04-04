@@ -2646,6 +2646,22 @@
   }
   function sameStation(a,b){ return normTW(a) === normTW(b); }
   const THSR_STATION_ORDER = ['南港','臺北','板橋','桃園','新竹','苗栗','臺中','彰化','雲林','嘉義','臺南','左營'];
+  const THSR_STATION_MILEAGE_KM = {
+    '南港': 0.0,
+    '臺北': 9.2,
+    '板橋': 16.4,
+    '桃園': 45.6,
+    '新竹': 75.5,
+    '苗栗': 108.2,
+    '臺中': 169.1,
+    '彰化': 197.3,
+    '雲林': 221.9,
+    '嘉義': 255.0,
+    '臺南': 317.3,
+    '左營': 348.6
+  };
+  window.THSR_STATION_ORDER = THSR_STATION_ORDER.slice();
+  window.THSR_STATION_MILEAGE_KM = { ...THSR_STATION_MILEAGE_KM };
   function normTHSRStationName(s){ const n = normTW(s||''); if(n==='高雄' || n==='新左營') return '左營'; return n; }
   function thsrStationIndex(name){ return THSR_STATION_ORDER.indexOf(normTHSRStationName(name)); }
   function parseTime(t){ if(!t || !/\d{1,2}:\d{2}/.test(t)) return null; let [h,m]=t.split(':').map(x=>parseInt(x,10)); return h*60+m; }
@@ -4358,13 +4374,20 @@
         const endAbs = next.arrAbs ?? next.depAbs ?? next.eventAbs;
         const segmentCount = Math.max(1, path.length - 1);
         const duration = (Number.isFinite(startAbs) && Number.isFinite(endAbs)) ? Math.max(0, endAbs - startAbs) : null;
+        const startStop = current.kind !== 'pass';
+        const endStop = next.kind !== 'pass';
+        const getTimedRatio = window.RailNetwork?.getThsrTimedInterpolationRatio;
 
         for(let step=1; step<path.length; step++){
           if(step === path.length - 1){
             expanded.push(next);
             continue;
           }
-          const passAbs = (duration === null) ? null : Math.round(startAbs + (duration * step / segmentCount));
+          const fallbackRatio = step / segmentCount;
+          const ratio = (typeof getTimedRatio === 'function')
+            ? getTimedRatio(current.station, next.station, path[step], duration, startStop, endStop, fallbackRatio)
+            : fallbackRatio;
+          const passAbs = (duration === null) ? null : Math.round(startAbs + (duration * ratio));
           expanded.push({
             station: path[step],
             kind: 'pass',
