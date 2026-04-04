@@ -4521,12 +4521,13 @@ function splitArrDep(stopRow){
     const locationNextIndex = Math.min(locationRows.length - 1, locationRowIndex + 1);
     let visibleNextIndex = -1;
     if(Array.isArray(visibleRows) && visibleRows.length){
-      const nextVisibleStation =
-        locationRows[getNextTraStopIndex(locationRows, locationNextIndex)]?.station ||
-        locationRows[locationNextIndex]?.station ||
-        '';
-      if(nextVisibleStation){
-        visibleNextIndex = visibleRows.findIndex((row)=>normalizeTraLinkedStation(row?.station) === normalizeTraLinkedStation(nextVisibleStation));
+      const immediateVisibleStation = locationRows[locationNextIndex]?.station || '';
+      const nextStopStation = locationRows[getNextTraStopIndex(locationRows, locationNextIndex)]?.station || '';
+      if(immediateVisibleStation){
+        visibleNextIndex = visibleRows.findIndex((row)=>normalizeTraLinkedStation(row?.station) === normalizeTraLinkedStation(immediateVisibleStation));
+      }
+      if(visibleNextIndex < 0 && nextStopStation){
+        visibleNextIndex = visibleRows.findIndex((row)=>normalizeTraLinkedStation(row?.station) === normalizeTraLinkedStation(nextStopStation));
       }
       if(visibleNextIndex < 0){
         visibleRows.forEach((row, index)=>{
