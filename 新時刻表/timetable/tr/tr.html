@@ -3870,7 +3870,7 @@ td{ border-bottom: 1px solid rgba(255,255,255,0.06); }
   </div>
 </div>
 
-<script charset="UTF-8" src="./train.real-schedule.js?v=20260403-geo1"></script>
+<script charset="UTF-8" src="./train.real-schedule.js?v=20260404-stationlive1"></script>
 <script charset="UTF-8" src="../shared/rail-station-query-common.js?v=20260327-station1"></script>
 <script charset="UTF-8" src="../shared/rail-station-timetable-v2.js?v=20260330-stationv2"></script>
 <script charset="UTF-8" src="../shared/rail-train-query-v2.js?v=20260329-trainquery2"></script>
@@ -4214,7 +4214,90 @@ function splitArrDep(stopRow){
     return [startStation, endStation];
   }
 
-  function buildTraTimelineRows(stops, showPassStops, trainType){
+  function getTraLiveTimelineAnchor(trainNo, originDateStr, actualEntries){
+    const liveEntry = getTraLiveBoardEntrySafe(trainNo, originDateStr);
+    const station = normalizeTraLinkedStation(liveEntry?.stationName || '');
+    if(!station || !Array.isArray(actualEntries) || !actualEntries.length) return null;
+    let anchorIndex = -1;
+    actualEntries.forEach((entry, index)=>{
+      if(normalizeTraLinkedStation(entry?.station) === station) anchorIndex = index;
+    });
+    if(anchorIndex < 0) return null;
+    const anchorEntry = actualEntries[anchorIndex];
+    const scheduledEventAbs = anchorEntry?.kind === 'terminal'
+      ? (anchorEntry.arrAbs ?? anchorEntry.depAbs ?? anchorEntry.eventAbs)
+      : (anchorEntry.depAbs ?? anchorEntry.arrAbs ?? anchorEntry.eventAbs);
+    if(!Number.isFinite(scheduledEventAbs)) return null;
+    const liveEventAbs = parseTraLiveTimestampAbs(liveEntry?.srcUpdateTime || liveEntry?.updateTime || '', originDateStr);
+    const eventAbs = Number.isFinite(liveEventAbs) ? Math.min(scheduledEventAbs, liveEventAbs) : scheduledEventAbs;
+    return {
+      station,
+      index: anchorIndex,
+      entry: anchorEntry,
+      eventAbs
+    };
+  }
+
+  function applyTraLiveTimelineAssist(actualEntries, expandedEntries, trainType, liveOptions){
+    const trainNo = String(liveOptions?.trainNo || '').trim();
+    const originDateStr = String(liveOptions?.originDateStr || '').trim();
+    if(!trainNo || !originDateStr || !Array.isArray(actualEntries) || !Array.isArray(expandedEntries)) return expandedEntries;
+    const anchor = getTraLiveTimelineAnchor(trainNo, originDateStr, actualEntries);
+    if(!anchor) return expandedEntries;
+    const adjusted = expandedEntries.map((entry)=>({ ...entry }));
+    const normalizedAnchor = normalizeTraLinkedStation(anchor.station);
+    for(let index=adjusted.length-1; index>=0; index--){
+      const row = adjusted[index];
+      if(normalizeTraLinkedStation(row?.station) !== normalizedAnchor) continue;
+      if(row?.kind !== anchor.entry.kind) continue;
+      if(anchor.entry.kind === 'pass'){
+        row.eventAbs = anchor.eventAbs;
+        row.passText = formatAbsTime(anchor.eventAbs);
+      }
+      break;
+    }
+
+    let nextFixed = null;
+    for(let index = anchor.index + 1; index < actualEntries.length; index += 1){
+      if(actualEntries[index]?.kind === 'pass') continue;
+      nextFixed = actualEntries[index];
+      break;
+    }
+    if(!nextFixed) return adjusted;
+    const endAbs = nextFixed.arrAbs ?? nextFixed.depAbs ?? nextFixed.eventAbs;
+    if(!(Number.isFinite(anchor.eventAbs) && Number.isFinite(endAbs) && endAbs > anchor.eventAbs)) return adjusted;
+
+    const path = getTraRouteStationsBetween(anchor.station, nextFixed.station);
+    if(path.length <= 1) return adjusted;
+    const duration = endAbs - anchor.eventAbs;
+    const getTraRatio = window.RailNetwork?.getTraTimedInterpolationRatio;
+    const nextStationNorm = normalizeTraLinkedStation(nextFixed.station);
+    for(let step = 1; step < path.length - 1; step += 1){
+      const station = path[step];
+      const fallbackRatio = step / (path.length - 1);
+      const ratio = (typeof getTraRatio === 'function')
+        ? getTraRatio(path, 0, path.length - 1, step, duration, anchor.entry.kind !== 'pass', nextFixed.kind !== 'pass', trainType, fallbackRatio)
+        : fallbackRatio;
+      const passAbs = Math.round(anchor.eventAbs + (duration * ratio));
+      const stationNorm = normalizeTraLinkedStation(station);
+      for(let index = 0; index < adjusted.length; index += 1){
+        const row = adjusted[index];
+        if(row?.kind !== 'pass') continue;
+        if(normalizeTraLinkedStation(row?.station) !== stationNorm) continue;
+        row.eventAbs = passAbs;
+        row.passText = formatAbsTime(passAbs);
+        break;
+      }
+    }
+    return adjusted.map((row)=>{
+      if(normalizeTraLinkedStation(row?.station) === nextStationNorm && row.kind !== 'pass'){
+        return { ...row };
+      }
+      return row;
+    });
+  }
+
+  function buildTraTimelineRows(stops, showPassStops, trainType, liveOptions){
     const rows = stops || [];
     const absAD = buildAbsArrDep(rows);
     const actualEntries = [];
@@ -4289,7 +4372,8 @@ function splitArrDep(stopRow){
       }
     }
 
-    const visible = showPassStops ? expanded : actualEntries.filter((entry)=>entry.kind !== 'pass');
+    const timelineEntries = applyTraLiveTimelineAssist(actualEntries, showPassStops ? expanded : actualEntries, trainType, liveOptions);
+    const visible = showPassStops ? timelineEntries : timelineEntries.filter((entry)=>entry.kind !== 'pass');
     return visible.map((entry)=>{
       const isPass = entry.kind === 'pass';
       const primaryText = isPass ? '' : ((entry.kind === 'terminal') ? (entry.arrText || entry.depText || '') : (entry.depText || entry.arrText || ''));
@@ -4357,11 +4441,106 @@ function splitArrDep(stopRow){
     if(firstAbs!==null && firstAbs!==undefined && m < firstAbs) return m + 1440;
     return m;
   }
+  function isTraLiveAssistEligible(originDateStr){
+    if(!originDateStr) return false;
+    const todayStr = fmtDate(new Date());
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yestStr = fmtDate(yesterday);
+    return originDateStr === todayStr || originDateStr === yestStr;
+  }
+  function getTraLiveBoardEntrySafe(trainNo, originDateStr){
+    if(!isTraLiveAssistEligible(originDateStr) || typeof window.getTraLiveBoardEntry !== 'function') return null;
+    try{
+      return window.getTraLiveBoardEntry(String(trainNo || '').trim()) || null;
+    }catch(_){
+      return null;
+    }
+  }
+  function getTraStationLiveEntriesSafe(trainNo, originDateStr){
+    if(!isTraLiveAssistEligible(originDateStr) || typeof window.getTraStationLiveEntries !== 'function') return [];
+    try{
+      const entries = window.getTraStationLiveEntries(String(trainNo || '').trim());
+      return Array.isArray(entries) ? entries : [];
+    }catch(_){
+      return [];
+    }
+  }
+  function getTraStationLiveEntry(trainNo, originDateStr, stationName){
+    const normalizedStation = normalizeTraLinkedStation(stationName);
+    if(!normalizedStation) return null;
+    const entries = getTraStationLiveEntriesSafe(trainNo, originDateStr);
+    let matched = null;
+    entries.forEach((entry)=>{
+      if(normalizeTraLinkedStation(entry?.stationName) !== normalizedStation) return;
+      const currentStamp = Date.parse(matched?.srcUpdateTime || matched?.updateTime || '') || 0;
+      const nextStamp = Date.parse(entry?.srcUpdateTime || entry?.updateTime || '') || 0;
+      if(!matched || nextStamp >= currentStamp) matched = entry;
+    });
+    return matched;
+  }
+  function parseTraLiveTimestampAbs(timestamp, originDateStr){
+    const text = String(timestamp || '').trim();
+    if(!text) return null;
+    const dt = new Date(text);
+    if(!Number.isFinite(dt.getTime())) return null;
+    const localDate = fmtDate(dt);
+    return diffDays(originDateStr || localDate, localDate) * 1440 + dt.getHours() * 60 + dt.getMinutes();
+  }
+  function getTraLivePassedStationName(trainNo, originDateStr){
+    const entry = getTraLiveBoardEntrySafe(trainNo, originDateStr);
+    return normalizeTraLinkedStation(entry?.stationName || '');
+  }
+  function getTraLivePassedStationIndex(trainNo, originDateStr, stopsArr){
+    if(!Array.isArray(stopsArr) || !stopsArr.length) return -1;
+    const station = getTraLivePassedStationName(trainNo, originDateStr);
+    if(!station) return -1;
+    let matched = -1;
+    stopsArr.forEach((stop, index)=>{
+      if(normalizeTraLinkedStation(stop?.[0]) === station) matched = index;
+    });
+    return matched;
+  }
+  function isTraStationPassedByLive(trainNo, originDateStr, stopsArr, stationIndex){
+    if(!Number.isInteger(stationIndex) || stationIndex < 0) return false;
+    const liveIndex = getTraLivePassedStationIndex(trainNo, originDateStr, stopsArr);
+    return Number.isInteger(liveIndex) && liveIndex >= stationIndex;
+  }
+  function getTraLiveTimelineProgress(trainNo, originDateStr, locationRows, visibleRows){
+    const station = getTraLivePassedStationName(trainNo, originDateStr);
+    if(!station || !Array.isArray(locationRows) || !locationRows.length){
+      return { station: '', locationRowIndex: -1, locationNextIndex: -1, visibleNextIndex: -1 };
+    }
+    let locationRowIndex = -1;
+    locationRows.forEach((row, index)=>{
+      if(normalizeTraLinkedStation(row?.station) === station) locationRowIndex = index;
+    });
+    if(locationRowIndex < 0){
+      return { station: '', locationRowIndex: -1, locationNextIndex: -1, visibleNextIndex: -1 };
+    }
+    const locationNextIndex = Math.min(locationRows.length - 1, locationRowIndex + 1);
+    let visibleNextIndex = -1;
+    if(Array.isArray(visibleRows) && visibleRows.length){
+      const nextVisibleStation =
+        locationRows[getNextTraStopIndex(locationRows, locationNextIndex)]?.station ||
+        locationRows[locationNextIndex]?.station ||
+        '';
+      if(nextVisibleStation){
+        visibleNextIndex = visibleRows.findIndex((row)=>normalizeTraLinkedStation(row?.station) === normalizeTraLinkedStation(nextVisibleStation));
+      }
+      if(visibleNextIndex < 0){
+        visibleRows.forEach((row, index)=>{
+          if(normalizeTraLinkedStation(row?.station) === station) visibleNextIndex = Math.min(visibleRows.length - 1, index + 1);
+        });
+      }
+    }
+    return { station, locationRowIndex, locationNextIndex, visibleNextIndex };
+  }
 // ===== 狀態：用「發車日」判斷（不是站別跨日後的日期） =====
   
   // ===== 狀態：用「發車日」判斷（支援跨日車仍在跑的情境） =====
   // passedStationAbsOrTime：可傳入「查詢站的 absMin（相對於發車日）」；若仍傳 HH:MM 字串也可相容
-  function getTrainStatusLabel(trainNo, originDateStr, firstTimeStr, lastTimeStr, passedStationAbsOrTime){
+  function getTrainStatusLabel(trainNo, originDateStr, firstTimeStr, lastTimeStr, passedStationAbsOrTime, stopsArr=null, passedStationIndex=null){
     const ctx = getTrainDetailRuntimeContext(trainNo, originDateStr, firstTimeStr, lastTimeStr);
 
     // 未來發車日：一律未發車
@@ -4378,6 +4557,11 @@ function splitArrDep(stopRow){
 
     // 停駛/截短等優先顯示（比已過站更重要）
     if(raw && /停駛|取消|暫停|終止|運轉整理|截短|折返|部分停駛/i.test(raw)) return raw;
+
+    if(isTraStationPassedByLive(trainNo, originDateStr, stopsArr, passedStationIndex)){
+      if(Array.isArray(stopsArr) && passedStationIndex === stopsArr.length - 1) return '已到終點';
+      return '已過站';
+    }
 
     // 以「整體誤點分鐘」修正時間判斷（避免誤點時過早顯示已過站/下一站）
     const delayMin = ctx.delayMin;
@@ -5718,7 +5902,9 @@ const stopsCount = ei - si - 1;
         originDate,
         (arr[0]?.[2]||arr[0]?.[1]||''),
         (arr.slice(-1)[0]?.[1]||arr.slice(-1)[0]?.[2]||''),
-        stAbs
+        stAbs,
+        arr,
+        si
       );
 
       list.push({
@@ -6276,7 +6462,9 @@ function buildTransferList(st, ed){
               originDate1,
               (a1[0]?.[2]||a1[0]?.[1]||''),
               (a1.slice(-1)[0]?.[1]||a1.slice(-1)[0]?.[2]||''),
-              stDepAbs
+              stDepAbs,
+              a1,
+              sIdx
             );
             const suppressPassed = (status === '已過站' || status === '已到終點' || status === '已到終點站');
 
@@ -6380,7 +6568,9 @@ function buildTransferList(st, ed){
           originDate1,
           (a1[0]?.[2]||a1[0]?.[1]||''),
           (a1.slice(-1)[0]?.[1]||a1.slice(-1)[0]?.[2]||''),
-          stDepAbs
+          stDepAbs,
+          a1,
+          sIdx
         );
         const suppressPassed = (status === '已過站' || status === '已到終點' || status === '已到終點站');
 
@@ -6900,7 +7090,9 @@ function renderTransferTable(){
               originDate, // 狀態永遠用發車日
               (arr[0]?.[2]||arr[0]?.[1]||''),
               (arr.slice(-1)[0]?.[1]||arr.slice(-1)[0]?.[2]||''),
-              absMin // 用本站 absMin 判斷已過站
+              absMin, // 用本站 absMin 判斷已過站
+              arr,
+              idx
             );
 
             rows.push({
@@ -6943,9 +7135,45 @@ function renderTransferTable(){
     return 'neutral';
   }
 
-  function getTraSupplementStatus(baseStatus, arrAbs, depAbs, runtimeCtx){
+  function getTraStationLiveSupplementStatus(trainNo, originDateStr, stationName, arrAbs, depAbs, runtimeCtx){
+    const liveEntry = getTraStationLiveEntry(trainNo, originDateStr, stationName);
+    if(!liveEntry) return '';
+    const nowAbs = Number(runtimeCtx?.nowAbs);
+    if(!Number.isFinite(nowAbs)) return '';
+    const stationDelay = Number(liveEntry?.delayMin);
+    const shift = Number.isFinite(stationDelay) ? stationDelay : (Number(runtimeCtx?.delayMin) || 0);
+    let arrEff = Number.isFinite(arrAbs) ? (arrAbs + shift) : null;
+    let depEff = Number.isFinite(depAbs) ? (depAbs + shift) : null;
+    if(arrEff === null){
+      const arrLiveAbs = getAbsFromHHMMMaybeCross(liveEntry.scheduleArrivalTime || '', runtimeCtx?.firstAbs);
+      if(Number.isFinite(arrLiveAbs)) arrEff = arrLiveAbs + shift;
+    }
+    if(depEff === null){
+      const depLiveAbs = getAbsFromHHMMMaybeCross(liveEntry.scheduleDepartureTime || '', runtimeCtx?.firstAbs);
+      if(Number.isFinite(depLiveAbs)) depEff = depLiveAbs + shift;
+    }
+    const liveUpdateAbs = parseTraLiveTimestampAbs(liveEntry?.srcUpdateTime || liveEntry?.updateTime || '', originDateStr);
+    if(arrEff !== null && depEff !== null && arrEff === depEff && nowAbs === depEff) return '停靠中';
+    if(depEff !== null && nowAbs >= (depEff - 1) && nowAbs < depEff) return '即將開車';
+    if(arrEff !== null && depEff !== null && nowAbs >= arrEff && nowAbs < depEff) return '停靠中';
+    if(arrEff !== null && nowAbs >= (arrEff - 2) && nowAbs < arrEff) return '即將進站';
+    if(Number.isFinite(liveUpdateAbs) && depEff !== null && liveUpdateAbs <= depEff && nowAbs < depEff && nowAbs >= (depEff - 1.5)) return '即將開車';
+    return '';
+  }
+
+  function getTraSupplementStatus(baseStatus, arrAbs, depAbs, runtimeCtx, stationLiveStatus=''){
     const base = String(baseStatus || '');
     if(/已過站|已到終點|已到終點站/.test(base)) return '';
+    const liveStatus = String(stationLiveStatus || '').trim();
+    if(liveStatus){
+      if(liveStatus === '停靠中') return liveStatus;
+      if(liveStatus === '即將開車'){
+        return /停靠中/.test(base) ? '停靠中' : liveStatus;
+      }
+      if(liveStatus === '即將進站'){
+        return /停靠中|即將開車/.test(base) ? '' : liveStatus;
+      }
+    }
     const nowAbs = Number(runtimeCtx?.nowAbs);
     if(!Number.isFinite(nowAbs)) return '';
     const delayMin = Number(runtimeCtx?.delayMin);
@@ -6989,9 +7217,17 @@ function renderTransferTable(){
       first.dep || first.arr || '',
       last.arr || last.dep || ''
     );
+    const stationLiveStatus = getTraStationLiveSupplementStatus(
+      trainNo,
+      originDateStr,
+      stationName,
+      absAD.absArr[idx],
+      absAD.absDep[idx],
+      runtimeCtx
+    );
     return buildTraStatusDisplay(
       baseStatus,
-      getTraSupplementStatus(baseStatus, absAD.absArr[idx], absAD.absDep[idx], runtimeCtx)
+      getTraSupplementStatus(baseStatus, absAD.absArr[idx], absAD.absDep[idx], runtimeCtx, stationLiveStatus)
     );
   }
 
@@ -7594,7 +7830,9 @@ function renderTransferTable(){
         originDate,
         (arr[0]?.[2] || arr[0]?.[1] || ''),
         (arr.slice(-1)[0]?.[1] || arr.slice(-1)[0]?.[2] || ''),
-        absMin
+        absMin,
+        arr,
+        idx
       );
       const runtimeCtx = getTrainDetailRuntimeContext(
         trainNo,
@@ -7605,7 +7843,13 @@ function renderTransferTable(){
       const absAD = buildAbsArrDep(arr);
       const statusDisplay = buildTraStatusDisplay(
         status,
-        getTraSupplementStatus(status, absAD.absArr[idx], absAD.absDep[idx], runtimeCtx)
+        getTraSupplementStatus(
+          status,
+          absAD.absArr[idx],
+          absAD.absDep[idx],
+          runtimeCtx,
+          getTraStationLiveSupplementStatus(trainNo, originDate, station, absAD.absArr[idx], absAD.absDep[idx], runtimeCtx)
+        )
       );
 
       rows.push({
@@ -7844,10 +8088,17 @@ function buildTraTrainQueryV2StopRows(trainNo, originDateStr, stops, runtimeCtx,
   const canNext =
     runtimeCtx?.isActiveWindow &&
     (!Number.isFinite(runtimeCtx?.lastAbsEff) || !Number.isFinite(nowAbs) || nowAbs <= (runtimeCtx.lastAbsEff + 5));
-  const locationRows = buildTraTimelineRows(stops || [], true, trainType);
-  const visibleRows = buildTraTimelineRows(stops || [], showPassStops, trainType);
-  const nextLocationIndex = findTraNextTimelineIndex(locationRows, nowAbs, runtimeCtx?.delayMin || 0, canNext);
-  const nextVisibleIndex = findTraNextTimelineIndex(visibleRows, nowAbs, runtimeCtx?.delayMin || 0, canNext);
+  const locationRows = buildTraTimelineRows(stops || [], true, trainType, { trainNo, originDateStr });
+  const visibleRows = buildTraTimelineRows(stops || [], showPassStops, trainType, { trainNo, originDateStr });
+  const liveProgress = getTraLiveTimelineProgress(trainNo, originDateStr, locationRows, visibleRows);
+  let nextLocationIndex = findTraNextTimelineIndex(locationRows, nowAbs, runtimeCtx?.delayMin || 0, canNext);
+  let nextVisibleIndex = findTraNextTimelineIndex(visibleRows, nowAbs, runtimeCtx?.delayMin || 0, canNext);
+  if(canNext && liveProgress.locationNextIndex >= 0 && (!Number.isInteger(nextLocationIndex) || nextLocationIndex < liveProgress.locationNextIndex)){
+    nextLocationIndex = liveProgress.locationNextIndex;
+  }
+  if(canNext && liveProgress.visibleNextIndex >= 0 && (!Number.isInteger(nextVisibleIndex) || nextVisibleIndex < liveProgress.visibleNextIndex)){
+    nextVisibleIndex = liveProgress.visibleNextIndex;
+  }
   const nextVisibleStopIndex = getNextTraStopIndex(visibleRows, nextVisibleIndex);
   const nextLocationStopIndex = getNextTraStopIndex(locationRows, nextLocationIndex);
   const nextLocationRow = nextLocationIndex >= 0 ? (locationRows[nextLocationIndex] || null) : null;
@@ -7903,7 +8154,8 @@ function buildTraTrainQueryV2StopRows(trainNo, originDateStr, stops, runtimeCtx,
 
   const stopRows = visibleRows.map((row, index) => {
     const rowStatus = getTrainDetailStatusLabel(trainNo, originDateStr, firstTimeStr, lastTimeStr, row.eventAbs, runtimeCtx);
-    const isPassed = ended || rowStatus === '已過站' || (row.kind === 'terminal' && rowStatus === '已到終點');
+    const livePassedHere = liveProgress.visibleNextIndex >= 0 && index < liveProgress.visibleNextIndex;
+    const isPassed = ended || livePassedHere || rowStatus === '已過站' || (row.kind === 'terminal' && rowStatus === '已到終點');
     const arrivalAbsRaw =
       Number.isFinite(row.secondaryAbs)
         ? row.secondaryAbs
@@ -8342,7 +8594,9 @@ function filterTrainScheduleByNumberV2(trainNo){
       isActiveWindow &&
       (!Number.isFinite(delayedLastAbs) || !Number.isFinite(nowAbs) || nowAbs <= (delayedLastAbs + 5));
 
-    const locationRows = buildTraTimelineRows(arr, true, trainType);
+    const locationRows = buildTraTimelineRows(arr, true, trainType, { trainNo, originDateStr });
+    const visibleTimelineRows = buildTraTimelineRows(arr, showPassStops, trainType, { trainNo, originDateStr });
+    const liveProgress = getTraLiveTimelineProgress(trainNo, originDateStr, locationRows, visibleTimelineRows);
     let nextLocationIndex=-1;
     if(canNext){
       for(let i=0;i<locationRows.length;i++){
@@ -8352,6 +8606,9 @@ function filterTrainScheduleByNumberV2(trainNo){
         }
       }
       if(nextLocationIndex===-1 && locationRows.length) nextLocationIndex = locationRows.length-1;
+      if(liveProgress.locationNextIndex >= 0 && nextLocationIndex < liveProgress.locationNextIndex){
+        nextLocationIndex = liveProgress.locationNextIndex;
+      }
     }
 
     const scheduledCrossDayInfo = getCrossDayInfo(arr);
@@ -8360,7 +8617,7 @@ function filterTrainScheduleByNumberV2(trainNo){
         ? { crosses: true, label: '延誤跨日 · 次日到達' }
         : scheduledCrossDayInfo;
     const currentLocation = getCurrentLocationText(arr, locationRows, nextLocationIndex, status, canNext, nowAbs, delayMin);
-    const timelineRows = buildTraTimelineRows(arr, showPassStops, trainType);
+    const timelineRows = visibleTimelineRows;
 
     let nextTimelineIndex = -1;
     if(canNext){
@@ -8372,6 +8629,9 @@ function filterTrainScheduleByNumberV2(trainNo){
         }
       }
       if(nextTimelineIndex===-1 && timelineRows.length) nextTimelineIndex = timelineRows.length - 1;
+      if(liveProgress.visibleNextIndex >= 0 && nextTimelineIndex < liveProgress.visibleNextIndex){
+        nextTimelineIndex = liveProgress.visibleNextIndex;
+      }
     }
     const nextStopTimelineIndex =
       nextTimelineIndex >= 0 && timelineRows[nextTimelineIndex]?.kind === 'pass'
@@ -8434,8 +8694,9 @@ function filterTrainScheduleByNumberV2(trainNo){
       const passedHere =
         canNext &&
         Number.isFinite(nowAbs) &&
-        Number.isFinite(eventAbs) &&
-        (eventAbs + Math.max(0,delayMin)) < nowAbs;
+        ((Number.isFinite(eventAbs) &&
+        (eventAbs + Math.max(0,delayMin)) < nowAbs) ||
+        (liveProgress.visibleNextIndex >= 0 && i < liveProgress.visibleNextIndex));
       const isNext = canNext && i === nextTimelineIndex;
       const depHTML = renderTimelinePrimaryTimeHtml(trainNo, row.primaryText, row.primaryAbs, originDateStr, passedHere, delayMin);
       const arrHTML = renderTimelineSecondaryTimeHtml(trainNo, row.secondaryPrefix, row.secondaryText, row.secondaryAbs, originDateStr, passedHere, delayMin);
@@ -9926,7 +10187,7 @@ document.addEventListener('click', (event) => {
 <script charset="UTF-8" src="../shared/rail-network.js?v=20260404-autorefresh1"></script>
 <script charset="UTF-8" src="../shared/rail-master-table.js?v=20260404-autorefresh2"></script>
 <script charset="UTF-8" src="../shared/rail-operation-diagram.js?v=20260404-autorefresh2"></script>
-<script charset="UTF-8" src="../shared/rail-live-tracker.js?v=20260404-autorefresh1"></script>
+<script charset="UTF-8" src="../shared/rail-live-tracker.js?v=20260404-stationlive1"></script>
 <script charset="UTF-8" src="../shared/rail-usage-footer.js?v=20260326-footer3"></script>
 <script>
 window.addEventListener('load', () => {

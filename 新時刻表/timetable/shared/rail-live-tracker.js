@@ -367,6 +367,124 @@
     );
   }
 
+  function parseTimestampRelativeMinute(timestamp, originDate) {
+    const text = String(timestamp || "").trim();
+    if (!text) return null;
+    const value = new Date(text);
+    if (!Number.isFinite(value.getTime())) return null;
+    const localDate = `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}-${String(value.getDate()).padStart(2, "0")}`;
+    return (
+      diffDateDays(originDate || localDate, localDate) * 1440 +
+      value.getHours() * 60 +
+      value.getMinutes() +
+      value.getSeconds() / 60 +
+      value.getMilliseconds() / 60000
+    );
+  }
+
+  function getTraLiveBoardAssistEntry(trainNo, queryDate) {
+    if (!isLiveRealtimeWindow(queryDate) || typeof window.getTraLiveBoardEntry !== "function") return null;
+    try {
+      return window.getTraLiveBoardEntry(String(trainNo || "").trim()) || null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function getTraLiveAnchorMinute(liveEntry, originDate, nowMinute) {
+    const candidates = [
+      parseTimestampRelativeMinute(liveEntry?.srcUpdateTime, originDate),
+      parseTimestampRelativeMinute(liveEntry?.updateTime, originDate),
+      Number.isFinite(nowMinute) ? nowMinute : null,
+    ]
+      .filter((value) => Number.isFinite(value))
+      .map((value) => Math.min(value, nowMinute));
+    if (!candidates.length) return null;
+    return Math.min(...candidates);
+  }
+
+  function getTraLiveAnchorInfo(entry, queryDate, nowMinute) {
+    const liveEntry = getTraLiveBoardAssistEntry(entry?.trainNo, queryDate);
+    const stationName = normalizeTraStation(liveEntry?.stationName || "");
+    const fullPoints = Array.isArray(entry?.fullPathPoints) ? entry.fullPathPoints : [];
+    if (!stationName || !fullPoints.length) return null;
+
+    let fallbackIndex = -1;
+    let preferredIndex = -1;
+    fullPoints.forEach((point, index) => {
+      if (normalizeTraStation(point?.station) !== stationName) return;
+      fallbackIndex = index;
+      if (point?.kind === "departure" || (!point?.isStop && point?.kind === "pass")) {
+        preferredIndex = index;
+      }
+    });
+    const anchorIndex = preferredIndex >= 0 ? preferredIndex : fallbackIndex;
+    if (anchorIndex < 0) return null;
+
+    const anchorPoint = fullPoints[anchorIndex];
+    const routeIndex = Number(entry?.routeIndexMap?.get?.(stationName));
+    const liveMinute = getTraLiveAnchorMinute(liveEntry, entry?.originDate, nowMinute);
+    const effectiveMinute = Number.isFinite(liveMinute)
+      ? Math.min(anchorPoint.minute, liveMinute)
+      : anchorPoint.minute;
+
+    return {
+      entry: liveEntry,
+      stationName,
+      anchorIndex,
+      anchorPoint,
+      anchorMinute: effectiveMinute,
+      routeIndex: Number.isFinite(routeIndex) ? routeIndex : null,
+      isStop: Boolean(anchorPoint?.isStop),
+      canAdvance: Number.isFinite(anchorPoint?.minute) && Number.isFinite(effectiveMinute) && effectiveMinute < anchorPoint.minute,
+    };
+  }
+
+  function buildTraLiveAdjustedProjection(entry, queryDate, nowMinute) {
+    const assist = getTraLiveAnchorInfo(entry, queryDate, nowMinute);
+    if (!assist || !assist.anchorPoint) return { points: entry?.points || [], fullPathPoints: entry?.fullPathPoints || [], live: null };
+
+    const fullPoints = Array.isArray(entry?.fullPathPoints) ? entry.fullPathPoints : [];
+    const adjustedMinutes = new Map(fullPoints.map((point) => [point.sequenceIndex, point.minute]));
+    adjustedMinutes.set(assist.anchorPoint.sequenceIndex, assist.anchorMinute);
+
+    if (assist.canAdvance) {
+      const nextFixedStopPoint = fullPoints.find((point, index) => index > assist.anchorIndex && point?.isStop);
+      if (nextFixedStopPoint && Number.isFinite(nextFixedStopPoint.minute) && nextFixedStopPoint.minute > assist.anchorMinute) {
+        const totalMinutes = nextFixedStopPoint.minute - assist.anchorMinute;
+        for (let index = assist.anchorIndex + 1; index < fullPoints.length; index += 1) {
+          const point = fullPoints[index];
+          if (!point) continue;
+          if (point.sequenceIndex === nextFixedStopPoint.sequenceIndex) break;
+          if (point.isStop) continue;
+          const ratio = getJourneyInterpolationRatio(
+            "tr",
+            entry.fullPathStations,
+            assist.anchorPoint.pathIndex,
+            nextFixedStopPoint.pathIndex,
+            point.pathIndex,
+            totalMinutes,
+            Boolean(assist.anchorPoint.isStop),
+            true,
+            entry.type
+          );
+          adjustedMinutes.set(point.sequenceIndex, Math.round((assist.anchorMinute + (totalMinutes * ratio)) * 1000) / 1000);
+        }
+      }
+    }
+
+    const mapPointMinute = (point) => ({
+      ...point,
+      minute: adjustedMinutes.get(point.sequenceIndex) ?? point.minute,
+    });
+
+    return {
+      live: assist,
+      fullPathPoints: fullPoints.map(mapPointMinute),
+      points: (entry?.points || []).map(mapPointMinute),
+    };
+  }
+
   async function ensureScheduleReady(system) {
     const dateStr = getQueryDate();
     let baseSchedule = readPageValue("baseSchedule") || window.trainSchedule || {};
@@ -763,20 +881,42 @@
   }
 
   function buildSnapshot(entry, system, queryDate) {
-    const points = entry.points || [];
+    const nowMinute = getRelativeNowExactMinute(entry.originDate, queryDate);
+    const liveAdjusted = system === "tr"
+      ? buildTraLiveAdjustedProjection(entry, queryDate, nowMinute)
+      : { points: entry.points || [], fullPathPoints: entry.fullPathPoints || [], live: null };
+    const points = liveAdjusted.points || [];
     const stopDetails = entry.stopDetails || [];
     const fullTimedStops = entry.fullTimedStops || [];
-    const nowMinute = getRelativeNowMinute(entry.originDate, queryDate);
+    const liveAssist = liveAdjusted.live || null;
     const punctualityText = buildPunctualityText(system, queryDate, entry.delayMinutes);
     const firstPoint = points[0];
     const lastPoint = points[points.length - 1];
-    const segmentFirstMinute = entry.firstMinute ?? firstPoint?.minute;
-    const segmentLastMinute = entry.lastMinute ?? lastPoint?.minute;
-    const fullFirstMinute = entry.journeyFirstMinute;
+    const segmentFirstMinute = Number.isFinite(firstPoint?.minute) ? firstPoint.minute : entry.firstMinute;
+    const segmentLastMinute = Number.isFinite(lastPoint?.minute) ? lastPoint.minute : entry.lastMinute;
+    const fullFirstMinute = Number.isFinite(liveAdjusted.fullPathPoints?.[0]?.minute)
+      ? liveAdjusted.fullPathPoints[0].minute
+      : entry.journeyFirstMinute;
     const fullLastMinute = entry.journeyLastMinute;
     if (!Number.isFinite(segmentFirstMinute) || !Number.isFinite(segmentLastMinute) || !Number.isFinite(fullFirstMinute) || !Number.isFinite(fullLastMinute)) return null;
     if (nowMinute < segmentFirstMinute && (!entry.startsAtJourneyOrigin || segmentFirstMinute - nowMinute > UPCOMING_WINDOW)) return null;
     if (nowMinute > segmentLastMinute + 10) return null;
+
+    const routeDirection = Number.isFinite(firstPoint?.routeIndex) && Number.isFinite(lastPoint?.routeIndex) && lastPoint.routeIndex < firstPoint.routeIndex
+      ? -1
+      : 1;
+    if (liveAssist && Number.isFinite(liveAssist.routeIndex) && Number.isFinite(lastPoint?.routeIndex)) {
+      const beyondSegment = (liveAssist.routeIndex - lastPoint.routeIndex) * routeDirection > 0;
+      if (beyondSegment) return null;
+    }
+
+    const hasStopBeenPassedByLive = (stop) => {
+      if (!liveAssist || !Number.isFinite(stop?.routeIndex) || !Number.isFinite(liveAssist.routeIndex)) return false;
+      const routeDelta = (stop.routeIndex - liveAssist.routeIndex) * routeDirection;
+      if (routeDelta < 0) return true;
+      if (routeDelta > 0) return false;
+      return Boolean(liveAssist.isStop) && normalizeTraStation(stop?.name) === liveAssist.stationName;
+    };
 
     const getDirectionGlyphAtPointIndex = (pointIndex) => {
       const currentPoint = points[pointIndex] || points[0] || null;
@@ -838,6 +978,7 @@
     } else {
       for (let index = 0; index < stopDetails.length; index += 1) {
         const current = stopDetails[index];
+        if (hasStopBeenPassedByLive(current)) continue;
         const arrivalMinute = getStopArrivalMinute(current);
         const departureMinute = getStopDepartureMinute(current);
         if (!Number.isFinite(arrivalMinute) || !Number.isFinite(departureMinute)) continue;
@@ -950,6 +1091,8 @@
       originEventMinute,
       isSoonStop: soonKind === "stop" && Number.isFinite(soonMinutes) && soonMinutes <= STATION_SOON_WINDOW,
       locationText: state === "running" ? `${currentFrom} ➝ ${currentTo}` : state === "dwell" ? `${currentFrom} 停靠中` : state === "upcoming" ? `即將由 ${currentFrom} 發車` : `已到 ${currentTo}`,
+      livePassedStation: liveAssist?.stationName || "",
+      liveAnchorMinute: liveAssist?.anchorMinute ?? null,
     };
   }
 
@@ -979,12 +1122,23 @@
         const eventMinute = getStopEventMinute(sharedStop);
         const fullFirstMinute = getStopDepartureMinute(fullTimedStops[0]);
         const fullLastMinute = getStopArrivalMinute(fullTimedStops[fullTimedStops.length - 1]);
-        const nowMinute = getRelativeNowMinute(entry.originDate, queryDate);
+        const nowMinute = getRelativeNowExactMinute(entry.originDate, queryDate);
 
         if (!Number.isFinite(eventMinute) || !Number.isFinite(fullFirstMinute) || !Number.isFinite(fullLastMinute) || !Number.isFinite(nowMinute)) return null;
 
         const isOriginStation = sharedStation === entry.firstStation;
         const isTerminalStation = sharedStation === entry.lastStation;
+        const liveAssist = getTraLiveAnchorInfo(entry, queryDate, nowMinute);
+        if (
+          liveAssist &&
+          liveAssist.isStop &&
+          !isTerminalStation &&
+          liveAssist.stationName === sharedStation &&
+          Number.isFinite(liveAssist.anchorMinute) &&
+          liveAssist.anchorMinute <= nowMinute
+        ) {
+          return null;
+        }
         const nextStop = fullTimedStops
           .slice(sharedStopIndex + 1)
           .find((stop) => !stop.isPassOnly && Number.isFinite(getStopArrivalMinute(stop)));

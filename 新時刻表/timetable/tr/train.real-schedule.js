@@ -25,16 +25,27 @@ function readStoredTdxConfig() {
 }
 
 const TDX_CONFIG = readStoredTdxConfig();
+window.trainSchedule = {};
 
 // 全域變數，保持與原網頁邏輯銜接
-window.trainSchedule = {}; 
 let accessToken = "";
 let accessTokenExpireAt = 0;
 let stationMap = {}; // ID 轉 中文名
-let liveDelayMap = {}; // 車次轉 誤點分鐘
+let liveDelayMap = {};
+let stationLiveBoardMap = {};
 window.stationGeoList = [];
 window.stationGeoMap = {};
 window.TDX_CONFIG = { ...TDX_CONFIG };
+let liveBoardMap = {};
+window.getTraLiveBoardEntry = function(trainNo) {
+    return liveBoardMap[String(trainNo || '').trim()] || null;
+};
+window.getTraLivePassedStationName = function(trainNo) {
+    return window.getTraLiveBoardEntry(trainNo)?.stationName || '';
+};
+window.getTraStationLiveEntries = function(trainNo) {
+    return (stationLiveBoardMap[String(trainNo || '').trim()] || []).slice();
+};
 
 function applyTdxConfig(nextConfig) {
     if (!nextConfig || !nextConfig.clientId || !nextConfig.clientSecret) return window.TDX_CONFIG;
@@ -116,7 +127,7 @@ function buildTdxAuthHeaders(token, options = {}) {
 
 window.buildTdxAuthHeaders = buildTdxAuthHeaders;
 
-async function getAccessToken(force = false) {
+async function getAccessTokenLegacy(force = false) {
     if (!force && isAccessTokenValid()) return accessToken;
     try {
         const params = new URLSearchParams();
@@ -140,6 +151,42 @@ async function getAccessToken(force = false) {
         accessTokenExpireAt = Date.now() + (Math.max(0, Number(data.expires_in) || 0) * 1000);
         console.log("Token 取得成功");
         return accessToken;
+        try {
+            const stationRes = await fetch("https://tdx.transportdata.tw/api/basic/v3/Rail/TRA/StationLiveBoard?%24format=JSON", {
+                headers: buildTdxAuthHeaders(token, { includeApiKey: false })
+            });
+            const stationData = await stationRes.json();
+            stationLiveBoardMap = {};
+            const latestByKey = new Map();
+            (stationData?.StationLiveBoards || []).forEach(b => {
+                const trainNo = String(b?.TrainNo || '').trim();
+                const stationName = String(b?.StationName?.Zh_tw || b?.StationName?.ZhTw || '').trim();
+                if (!trainNo || !stationName) return;
+                const entry = {
+                    trainNo,
+                    stationId: String(b?.StationID || '').trim(),
+                    stationName,
+                    delayMin: Number.isFinite(Number(b?.DelayTime)) ? Number(b.DelayTime) : 0,
+                    scheduleArrivalTime: String(b?.ScheduleArrivalTime || '').trim(),
+                    scheduleDepartureTime: String(b?.ScheduleDepartureTime || '').trim(),
+                    runningStatus: String(b?.RunningStatus || '').trim(),
+                    srcUpdateTime: String(b?.SrcUpdateTime || '').trim(),
+                    updateTime: String(b?.UpdateTime || '').trim()
+                };
+                const key = `${trainNo}@@${stationName}`;
+                const current = latestByKey.get(key);
+                const currentStamp = Date.parse(current?.srcUpdateTime || current?.updateTime || '') || 0;
+                const nextStamp = Date.parse(entry.srcUpdateTime || entry.updateTime || '') || 0;
+                if (!current || nextStamp >= currentStamp) latestByKey.set(key, entry);
+            });
+            latestByKey.forEach((entry) => {
+                if (!stationLiveBoardMap[entry.trainNo]) stationLiveBoardMap[entry.trainNo] = [];
+                stationLiveBoardMap[entry.trainNo].push(entry);
+            });
+        } catch (stationError) {
+            stationLiveBoardMap = {};
+            console.warn("StationLiveBoard 取得失敗:", stationError);
+        }
     } catch (error) {
         accessToken = "";
         accessTokenExpireAt = 0;
@@ -153,6 +200,80 @@ async function getAccessToken(force = false) {
 
 
 // 2. 初始化車站資料 (stationMap)
+async function getAccessToken(force = false) {
+    if (!force && isAccessTokenValid()) return accessToken;
+    try {
+        const params = new URLSearchParams();
+        params.append('grant_type', 'client_credentials');
+        params.append('client_id', TDX_CONFIG.clientId);
+        params.append('client_secret', TDX_CONFIG.clientSecret);
+
+        const res = await fetch("https://tdx.transportdata.tw/auth/realms/TDXConnect/protocol/openid-connect/token", {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: params
+        });
+
+        if (!res.ok) {
+            const errorText = await res.text();
+            throw new Error(`Token ??憭望?: ${res.status} ${errorText}`);
+        }
+
+        const data = await res.json();
+        accessToken = data.access_token || "";
+        accessTokenExpireAt = Date.now() + (Math.max(0, Number(data.expires_in) || 0) * 1000);
+        console.log("Token ????");
+        return accessToken;
+    } catch (error) {
+        accessToken = "";
+        accessTokenExpireAt = 0;
+        console.error("Critical Error (getAccessToken):", error);
+        return "";
+    }
+}
+
+async function updateStationLiveBoard(token) {
+    try {
+        const stationRes = await fetch("https://tdx.transportdata.tw/api/basic/v3/Rail/TRA/StationLiveBoard?%24format=JSON", {
+            headers: buildTdxAuthHeaders(token, { includeApiKey: false })
+        });
+        if (!stationRes.ok) {
+            throw new Error(`StationLiveBoard fetch failed: ${stationRes.status}`);
+        }
+        const stationData = await stationRes.json();
+        stationLiveBoardMap = {};
+        const latestByKey = new Map();
+        (stationData?.StationLiveBoards || []).forEach((board) => {
+            const trainNo = String(board?.TrainNo || '').trim();
+            const stationName = String(board?.StationName?.Zh_tw || board?.StationName?.ZhTw || '').trim();
+            if (!trainNo || !stationName) return;
+            const entry = {
+                trainNo,
+                stationId: String(board?.StationID || '').trim(),
+                stationName,
+                delayMin: Number.isFinite(Number(board?.DelayTime)) ? Number(board.DelayTime) : 0,
+                scheduleArrivalTime: String(board?.ScheduleArrivalTime || '').trim(),
+                scheduleDepartureTime: String(board?.ScheduleDepartureTime || '').trim(),
+                runningStatus: String(board?.RunningStatus || '').trim(),
+                srcUpdateTime: String(board?.SrcUpdateTime || '').trim(),
+                updateTime: String(board?.UpdateTime || '').trim()
+            };
+            const key = `${trainNo}@@${stationName}`;
+            const current = latestByKey.get(key);
+            const currentStamp = Date.parse(current?.srcUpdateTime || current?.updateTime || '') || 0;
+            const nextStamp = Date.parse(entry.srcUpdateTime || entry.updateTime || '') || 0;
+            if (!current || nextStamp >= currentStamp) latestByKey.set(key, entry);
+        });
+        latestByKey.forEach((entry) => {
+            if (!stationLiveBoardMap[entry.trainNo]) stationLiveBoardMap[entry.trainNo] = [];
+            stationLiveBoardMap[entry.trainNo].push(entry);
+        });
+    } catch (stationError) {
+        stationLiveBoardMap = {};
+        console.warn("StationLiveBoard ??憭望?:", stationError);
+    }
+}
+
 async function initStationMap() {
     const token = await getAccessToken();
     if (!token) return;
@@ -238,11 +359,27 @@ async function updateLiveDelay() {
         });
         const data = await res.json();
         liveDelayMap = {};
+        liveBoardMap = {};
         data.TrainLiveBoards.forEach(b => {
-            liveDelayMap[b.TrainNo] = b.DelayTime;
+            const trainNo = String(b?.TrainNo || '').trim();
+            if (!trainNo) return;
+            const delayMin = Number(b?.DelayTime);
+            const stationName = String(b?.StationName?.Zh_tw || b?.StationName?.ZhTw || '').trim();
+            liveDelayMap[trainNo] = Number.isFinite(delayMin) ? delayMin : 0;
+            liveBoardMap[trainNo] = {
+                trainNo,
+                delayMin: Number.isFinite(delayMin) ? delayMin : 0,
+                stationId: String(b?.StationID || '').trim(),
+                stationName,
+                trainStationStatus: b?.TrainStationStatus,
+                srcUpdateTime: String(b?.SrcUpdateTime || '').trim(),
+                updateTime: String(b?.UpdateTime || '').trim()
+            };
         });
+        await updateStationLiveBoard(token);
         console.log("即時誤點資訊已同步");
     } catch (error) {
+        stationLiveBoardMap = {};
         console.error("即時資訊抓取失敗:", error);
     }
 }
