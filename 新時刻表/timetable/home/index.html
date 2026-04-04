@@ -3079,6 +3079,7 @@ select.setting-input[id*="pick"] {
 
         let tdxToken = null;
         let monitorFetchInterval = null; 
+        let monitorFetchLoop = null;
         let stationDB = { tr: [], thsr: [] };
         let stationFetchPromise = null;
         let lastNotificationStates = {};
@@ -3900,6 +3901,9 @@ select.setting-input[id*="pick"] {
 
         async function startMonitorSystem(isForceRefresh = false) {
             if(monitorFetchInterval) clearInterval(monitorFetchInterval);
+            if(monitorFetchLoop?.stop) monitorFetchLoop.stop();
+            monitorFetchInterval = null;
+            monitorFetchLoop = null;
             
             const isMonitorOn = localStorage.getItem('monitor_enabled') === 'true';
             const marquee = document.getElementById('monitorStatusText');
@@ -3930,7 +3934,12 @@ select.setting-input[id*="pick"] {
             }
 
             await updateAllMonitor(targets);
-            monitorFetchInterval = setInterval(() => updateAllMonitor(targets), 60000);
+            const startAlignedPolling = window.RailAssistantCommon?.startAlignedPolling;
+            if(typeof startAlignedPolling === 'function'){
+                monitorFetchLoop = startAlignedPolling(() => updateAllMonitor(targets), { intervalMs: 60000 });
+            }else{
+                monitorFetchInterval = setInterval(() => updateAllMonitor(targets), 60000);
+            }
         }
 
         async function updateAllMonitor(targets) {

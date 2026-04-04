@@ -5425,19 +5425,14 @@ function renderHistory(){
   };
 
   let autoRefreshInFlight = false;
-  let lastTraAutoRefreshAt = 0;
-
-  function getTraAutoRefreshIntervalMs(){
-    // 接受轉乘需要重算組合，降頻避免使用者一直感覺在等待。
-    return lastStartEndQuery?.accept ? 100000 : 60000;
-  }
 
   function hasRememberedQueryState(){
     return !!(
       lastStartEndQuery ||
       lastStationQuery ||
       lastStationQueryV2?.station ||
-      lastTrainQuery?.trainNo
+      lastTrainQuery?.trainNo ||
+      (modalCtx && modal && modal.style.display === 'flex')
     );
   }
 
@@ -5447,14 +5442,11 @@ function renderHistory(){
     if(cur !== todayStr) return;
     if(!hasRememberedQueryState()) return;
     if(autoRefreshInFlight) return;
-    const now = Date.now();
-    if(lastTraAutoRefreshAt && (now - lastTraAutoRefreshAt) < getTraAutoRefreshIntervalMs()) return;
 
     autoRefreshInFlight = true;
     try{
       await refreshData(cur, { silent: true });
       await window.refreshRailPageAssistant?.({ silent: true });
-      lastTraAutoRefreshAt = Date.now();
     }catch(error){
       console.warn('台鐵自動更新失敗', error);
     }finally{
@@ -5467,7 +5459,7 @@ function renderHistory(){
     if(typeof startAlignedPolling === 'function'){
       window.__traAutoRefreshLoop?.stop?.();
       window.__traAutoRefreshLoop = startAlignedPolling(() => autoRefreshActiveQueries(), {
-        getIntervalMs: () => getTraAutoRefreshIntervalMs()
+        intervalMs: 60000
       });
       return;
     }
@@ -6286,6 +6278,7 @@ function buildTransferList(st, ed){
               (a1.slice(-1)[0]?.[1]||a1.slice(-1)[0]?.[2]||''),
               stDepAbs
             );
+            const suppressPassed = (status === '已過站' || status === '已到終點' || status === '已到終點站');
 
             const endArrAdj = getAdjustedTime(n1, endArrStr, currentQueryDateStr, endArrAbs, originDate1);
 
@@ -6308,14 +6301,14 @@ function buildTransferList(st, ed){
               stDepAbs,
               arrAbs: endArrAbs,
               depSched: stDepStr,
-              depHTML: renderTimeWithDelay(n1, stDepStr, currentQueryDateStr, { suppressStrike: status==='已過站' }, stDepAbs, originDate1),
+              depHTML: renderTimeWithDelay(n1, stDepStr, currentQueryDateStr, { suppressStrike: suppressPassed }, stDepAbs, originDate1),
               startDepAtQueryStation: stDepStr,
 
               arrSched: endArrStr,
-              arrHTML: renderTimeWithDelay(n1, endArrStr, currentQueryDateStr, { suppressStrike: (status==='已到終點' || status==='已過站') }, endArrAbs, originDate1),
+              arrHTML: renderTimeWithDelay(n1, endArrStr, currentQueryDateStr, { suppressStrike: suppressPassed }, endArrAbs, originDate1),
 
-              depSortMin: (status==='已過站' ? (parseTime(stDepStr) ?? 9999) : (stDepAdj.adjMin ?? 9999)),
-              arrSortMin: ((status==='已到終點' || status==='已過站') ? (parseTime(endArrStr) ?? 9999) : (endArrAdj.adjMin ?? 9999)),
+              depSortMin: (suppressPassed ? (parseTime(stDepStr) ?? 9999) : (stDepAdj.adjMin ?? 9999)),
+              arrSortMin: (suppressPassed ? (parseTime(endArrStr) ?? 9999) : (endArrAdj.adjMin ?? 9999)),
 
               travelMin,
               travel: `${Math.floor(travelMin/60)}h ${travelMin%60}m`,
@@ -6389,6 +6382,7 @@ function buildTransferList(st, ed){
           (a1.slice(-1)[0]?.[1]||a1.slice(-1)[0]?.[2]||''),
           stDepAbs
         );
+        const suppressPassed = (status === '已過站' || status === '已到終點' || status === '已到終點站');
 
         const endArrAdj2 = getAdjustedTime(n2, endArrStr2, currentQueryDateStr, endArrAbs2, originDate2);
 
@@ -6414,19 +6408,19 @@ function buildTransferList(st, ed){
           midDepAbs: midDepAbs2,
           arrAbs: endArrAbs2,
           depSched: stDepStr,
-          depHTML: renderTimeWithDelay(n1, stDepStr, currentQueryDateStr, { suppressStrike: status==='已過站' }, stDepAbs, originDate1),
+          depHTML: renderTimeWithDelay(n1, stDepStr, currentQueryDateStr, { suppressStrike: suppressPassed }, stDepAbs, originDate1),
 
           midArr: midArrStr1,
           midDep: midDepStr2,
           waitMin,
-          midArrHTML: renderTimeWithDelay(n1, midArrStr1, currentQueryDateStr, { suppressStrike: false }, midArrAbs1, originDate1),
-          midDepHTML: renderTimeWithDelay(n2, midDepStr2, currentQueryDateStr, { suppressStrike: false }, midDepAbs2, originDate2),
+          midArrHTML: renderTimeWithDelay(n1, midArrStr1, currentQueryDateStr, { suppressStrike: suppressPassed }, midArrAbs1, originDate1),
+          midDepHTML: renderTimeWithDelay(n2, midDepStr2, currentQueryDateStr, { suppressStrike: suppressPassed }, midDepAbs2, originDate2),
 
           arrSched: endArrStr2,
-          arrHTML: renderTimeWithDelay(n2, endArrStr2, currentQueryDateStr, { suppressStrike: false }, endArrAbs2, originDate2),
+          arrHTML: renderTimeWithDelay(n2, endArrStr2, currentQueryDateStr, { suppressStrike: suppressPassed }, endArrAbs2, originDate2),
 
-          depSortMin: (status==='已過站' ? (parseTime(stDepStr) ?? 9999) : (stDepAdj.adjMin ?? 9999)),
-          arrSortMin: (endArrAdj2.adjMin ?? (parseTime(endArrStr2) ?? 9999)),
+          depSortMin: (suppressPassed ? (parseTime(stDepStr) ?? 9999) : (stDepAdj.adjMin ?? 9999)),
+          arrSortMin: (suppressPassed ? (parseTime(endArrStr2) ?? 9999) : (endArrAdj2.adjMin ?? (parseTime(endArrStr2) ?? 9999))),
 
           travelMin,
           travel: `${Math.floor(travelMin/60)}h ${travelMin%60}m`,
@@ -9929,10 +9923,10 @@ document.addEventListener('click', (event) => {
 <script charset="UTF-8" src="../shared/rail-assistant-common.js?v=20260319-utf8fix"></script>
 <script charset="UTF-8" src="../shared/rail-feature-gate.js?v=20260326-captcha8"></script>
   <script charset="UTF-8" src="../shared/rail-page-assistant.js?v=20260326-captcha1"></script>
-<script charset="UTF-8" src="../shared/rail-network.js?v=20260404-traccel1"></script>
-<script charset="UTF-8" src="../shared/rail-master-table.js?v=20260404-traccel1"></script>
-<script charset="UTF-8" src="../shared/rail-operation-diagram.js?v=20260404-traccel1"></script>
-<script charset="UTF-8" src="../shared/rail-live-tracker.js?v=20260404-traccel1"></script>
+<script charset="UTF-8" src="../shared/rail-network.js?v=20260404-autorefresh1"></script>
+<script charset="UTF-8" src="../shared/rail-master-table.js?v=20260404-autorefresh2"></script>
+<script charset="UTF-8" src="../shared/rail-operation-diagram.js?v=20260404-autorefresh2"></script>
+<script charset="UTF-8" src="../shared/rail-live-tracker.js?v=20260404-autorefresh1"></script>
 <script charset="UTF-8" src="../shared/rail-usage-footer.js?v=20260326-footer3"></script>
 <script>
 window.addEventListener('load', () => {
