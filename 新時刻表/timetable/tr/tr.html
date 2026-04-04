@@ -4214,7 +4214,7 @@ function splitArrDep(stopRow){
     return [startStation, endStation];
   }
 
-  function buildTraTimelineRows(stops, showPassStops){
+  function buildTraTimelineRows(stops, showPassStops, trainType){
     const rows = stops || [];
     const absAD = buildAbsArrDep(rows);
     const actualEntries = [];
@@ -4261,13 +4261,18 @@ function splitArrDep(stopRow){
         const endAbs = next.arrAbs ?? next.depAbs ?? next.eventAbs;
         const segmentCount = Math.max(1, path.length - 1);
         const duration = (Number.isFinite(startAbs) && Number.isFinite(endAbs)) ? Math.max(0, endAbs - startAbs) : null;
+        const getTraRatio = window.RailNetwork?.getTraTimedInterpolationRatio;
 
         for(let step=1; step<path.length; step++){
           if(step === path.length - 1){
             expanded.push(next);
             continue;
           }
-          const passAbs = (duration === null) ? null : Math.round(startAbs + (duration * step / segmentCount));
+          const fallbackRatio = step / segmentCount;
+          const ratio = (typeof getTraRatio === 'function')
+            ? getTraRatio(path, 0, path.length - 1, step, duration, current.kind !== 'pass', next.kind !== 'pass', trainType, fallbackRatio)
+            : fallbackRatio;
+          const passAbs = (duration === null) ? null : Math.round(startAbs + (duration * ratio));
           expanded.push({
             station: path[step],
             kind: 'pass',
@@ -7835,7 +7840,7 @@ function getNextTraStopIndex(rows, fromIndex){
   return -1;
 }
 
-function buildTraTrainQueryV2StopRows(trainNo, originDateStr, stops, runtimeCtx, trainStatus, showPassStops){
+function buildTraTrainQueryV2StopRows(trainNo, originDateStr, stops, runtimeCtx, trainStatus, showPassStops, trainType){
   const firstStop = stops?.[0] || [];
   const lastStop = stops?.[stops.length - 1] || [];
   const firstTimeStr = (firstStop?.[2] || firstStop?.[1] || '');
@@ -7845,8 +7850,8 @@ function buildTraTrainQueryV2StopRows(trainNo, originDateStr, stops, runtimeCtx,
   const canNext =
     runtimeCtx?.isActiveWindow &&
     (!Number.isFinite(runtimeCtx?.lastAbsEff) || !Number.isFinite(nowAbs) || nowAbs <= (runtimeCtx.lastAbsEff + 5));
-  const locationRows = buildTraTimelineRows(stops || [], true);
-  const visibleRows = buildTraTimelineRows(stops || [], showPassStops);
+  const locationRows = buildTraTimelineRows(stops || [], true, trainType);
+  const visibleRows = buildTraTimelineRows(stops || [], showPassStops, trainType);
   const nextLocationIndex = findTraNextTimelineIndex(locationRows, nowAbs, runtimeCtx?.delayMin || 0, canNext);
   const nextVisibleIndex = findTraNextTimelineIndex(visibleRows, nowAbs, runtimeCtx?.delayMin || 0, canNext);
   const nextVisibleStopIndex = getNextTraStopIndex(visibleRows, nextVisibleIndex);
@@ -8033,7 +8038,7 @@ function buildTraTrainQueryV2Data(trainNo, options){
         firstStop?.[2] || firstStop?.[1] || '',
         lastStop?.[1] || lastStop?.[2] || ''
       );
-  const board = buildTraTrainQueryV2StopRows(trainNo, currentQueryDateStr, stops, runtimeCtx, statusLabel, showPassStops);
+  const board = buildTraTrainQueryV2StopRows(trainNo, currentQueryDateStr, stops, runtimeCtx, statusLabel, showPassStops, typeLabel);
   const progressPercent = getTraTrainQueryProgress(runtimeCtx, currentQueryDateStr);
   const totalRunMinutes =
     Number.isFinite(runtimeCtx?.firstAbsEff) && Number.isFinite(runtimeCtx?.lastAbsEff)
@@ -8312,6 +8317,7 @@ function filterTrainScheduleByNumberV2(trainNo){
     const lastStation = arr[arr.length - 1]?.[0] || '';
     const firstStop = splitArrDep(arr[0] || []);
     const lastStop = splitArrDep(arr[arr.length - 1] || []);
+    const trainType = normalizeTraTypeDisplay(t['車種'] || '');
     const firstDep = firstStop.dep || firstStop.arr || '--';
     const lastArr = lastStop.arr || lastStop.dep || '--';
     const firstTimeStr = (arr[0]?.[2]||arr[0]?.[1]||'');
@@ -8342,7 +8348,7 @@ function filterTrainScheduleByNumberV2(trainNo){
       isActiveWindow &&
       (!Number.isFinite(delayedLastAbs) || !Number.isFinite(nowAbs) || nowAbs <= (delayedLastAbs + 5));
 
-    const locationRows = buildTraTimelineRows(arr, true);
+    const locationRows = buildTraTimelineRows(arr, true, trainType);
     let nextLocationIndex=-1;
     if(canNext){
       for(let i=0;i<locationRows.length;i++){
@@ -8360,7 +8366,7 @@ function filterTrainScheduleByNumberV2(trainNo){
         ? { crosses: true, label: '延誤跨日 · 次日到達' }
         : scheduledCrossDayInfo;
     const currentLocation = getCurrentLocationText(arr, locationRows, nextLocationIndex, status, canNext, nowAbs, delayMin);
-    const timelineRows = buildTraTimelineRows(arr, showPassStops);
+    const timelineRows = buildTraTimelineRows(arr, showPassStops, trainType);
 
     let nextTimelineIndex = -1;
     if(canNext){
@@ -9923,10 +9929,10 @@ document.addEventListener('click', (event) => {
 <script charset="UTF-8" src="../shared/rail-assistant-common.js?v=20260319-utf8fix"></script>
 <script charset="UTF-8" src="../shared/rail-feature-gate.js?v=20260326-captcha8"></script>
   <script charset="UTF-8" src="../shared/rail-page-assistant.js?v=20260326-captcha1"></script>
-<script charset="UTF-8" src="../shared/rail-network.js?v=20260329-thsrkm1"></script>
-<script charset="UTF-8" src="../shared/rail-master-table.js?v=20260329-thsrkm1"></script>
-<script charset="UTF-8" src="../shared/rail-operation-diagram.js?v=20260329-thsrkm1"></script>
-<script charset="UTF-8" src="../shared/rail-live-tracker.js?v=20260404-livepanel9"></script>
+<script charset="UTF-8" src="../shared/rail-network.js?v=20260404-traccel1"></script>
+<script charset="UTF-8" src="../shared/rail-master-table.js?v=20260404-traccel1"></script>
+<script charset="UTF-8" src="../shared/rail-operation-diagram.js?v=20260404-traccel1"></script>
+<script charset="UTF-8" src="../shared/rail-live-tracker.js?v=20260404-traccel1"></script>
 <script charset="UTF-8" src="../shared/rail-usage-footer.js?v=20260326-footer3"></script>
 <script>
 window.addEventListener('load', () => {

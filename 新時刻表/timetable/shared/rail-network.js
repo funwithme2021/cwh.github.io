@@ -220,6 +220,198 @@
     return unique(getTraSegments().flatMap((segment) => segment.stations));
   }
 
+  const TRA_CUMULATIVE_MILEAGE_SPECS = [
+    {
+      id: "west-main",
+      stations: [
+        ["基隆", 0.0], ["三坑", 1.5], ["八堵", 3.9], ["七堵", 6.2], ["百福", 8.9], ["五堵", 11.9],
+        ["汐止", 13.3], ["汐科", 14.6], ["南港", 19.3], ["松山", 22.1], ["臺北", 28.5], ["萬華", 31.3],
+        ["板橋", 35.7], ["浮洲", 38.1], ["樹林", 41.1], ["南樹林", 43.1], ["山佳", 45.0], ["鶯歌", 49.4],
+        ["鳳鳴", 54.4], ["桃園", 57.6], ["內壢", 63.5], ["中壢", 67.5], ["埔心", 73.3], ["楊梅", 77.3],
+        ["富岡", 84.1], ["新富", 85.8], ["北湖", 87.3], ["湖口", 89.8], ["新豐", 96.0], ["竹北", 100.8],
+        ["北新竹", 105.2], ["新竹", 106.6], ["三姓橋", 111.4], ["香山", 114.6], ["崎頂", 120.8], ["竹南", 125.3],
+        ["造橋", 130.7], ["豐富", 136.6], ["苗栗", 140.6], ["南勢", 147.2], ["銅鑼", 151.4], ["三義", 158.8],
+        ["泰安", 169.7], ["后里", 172.3], ["豐原", 179.0], ["栗林", 181.6], ["潭子", 184.1], ["頭家厝", 186.0],
+        ["松竹", 187.7], ["太原", 189.5], ["精武", 191.2], ["臺中", 193.1], ["五權", 195.3], ["大慶", 197.4],
+        ["烏日", 200.5], ["新烏日", 201.4], ["成功", 203.8], ["彰化", 210.9], ["花壇", 217.5], ["大村", 222.1],
+        ["員林", 225.6], ["永靖", 229.1], ["社頭", 232.8], ["田中", 237.1], ["二水", 242.9], ["林內", 251.0],
+        ["石榴", 255.8], ["斗六", 260.6], ["斗南", 268.2], ["石龜", 272.1], ["大林", 276.7], ["民雄", 282.5],
+        ["嘉北", 289.2], ["嘉義", 291.8], ["水上", 298.4], ["南靖", 301.0], ["後壁", 307.0], ["新營", 314.7],
+        ["柳營", 318.0], ["林鳳營", 321.9], ["隆田", 327.4], ["拔林", 329.6], ["善化", 334.2], ["南科", 337.1],
+        ["新市", 341.8], ["永康", 346.8], ["大橋", 350.5], ["臺南", 353.2], ["保安", 360.8], ["仁德", 362.2],
+        ["中洲", 364.7], ["大湖", 367.6], ["路竹", 370.6], ["岡山", 378.4], ["橋頭", 382.0], ["楠梓", 386.2],
+        ["新左營", 391.3], ["左營", 393.3], ["內惟", 394.4], ["美術館", 396.1], ["鼓山", 397.3], ["三塊厝", 399.0],
+        ["高雄", 399.9],
+      ],
+    },
+    {
+      id: "west-sea",
+      stations: [
+        ["竹南", 0.0], ["談文", 4.5], ["大山", 11.3], ["後龍", 15.0], ["龍港", 18.6], ["白沙屯", 26.7],
+        ["新埔", 29.8], ["通霄", 35.6], ["苑裡", 41.7], ["日南", 49.4], ["大甲", 54.1], ["臺中港", 59.3],
+        ["清水", 65.3], ["沙鹿", 68.5], ["龍井", 73.1], ["大肚", 78.1], ["追分", 83.1], ["彰化", 90.3],
+      ],
+    },
+    {
+      id: "pingtung",
+      stations: [
+        ["高雄", 0.0], ["民族", 1.3], ["科工館", 2.4], ["正義", 4.2], ["鳳山", 5.5], ["後庄", 9.4],
+        ["九曲堂", 13.6], ["六塊厝", 18.6], ["屏東", 20.9], ["歸來", 23.5], ["麟洛", 25.8], ["西勢", 28.2],
+        ["竹田", 31.9], ["潮州", 35.9], ["崁頂", 40.8], ["南州", 43.2], ["鎮安", 47.0], ["林邊", 50.1],
+        ["佳冬", 54.0], ["東海", 57.1], ["枋寮", 61.2],
+      ],
+    },
+    {
+      id: "south-link",
+      stations: [
+        ["枋寮", 0.0], ["加祿", 5.3], ["內獅", 8.8], ["枋山", 13.6], ["大武", 43.8], ["瀧溪", 55.5],
+        ["金崙", 63.9], ["太麻里", 74.8], ["知本", 86.5], ["康樂", 93.6], ["臺東", 98.1],
+      ],
+    },
+    {
+      id: "yilan",
+      stations: [
+        ["八堵", 0.0], ["暖暖", 1.6], ["四腳亭", 3.9], ["瑞芳", 8.9], ["猴硐", 13.5], ["三貂嶺", 16.0],
+        ["牡丹", 19.5], ["雙溪", 22.9], ["貢寮", 28.2], ["福隆", 32.0], ["石城", 37.4], ["大里", 40.1],
+        ["大溪", 44.8], ["龜山", 49.4], ["外澳", 52.9], ["頭城", 56.6], ["頂埔", 58.8], ["礁溪", 62.9],
+        ["四城", 67.6], ["宜蘭", 71.3], ["二結", 77.1], ["中里", 78.3], ["羅東", 80.1], ["冬山", 85.1],
+        ["新馬", 89.3], ["蘇澳新", 90.2], ["蘇澳", 93.5],
+      ],
+    },
+    {
+      id: "beihui",
+      stations: [
+        ["蘇澳新", 0.0], ["永樂", 5.2], ["東澳", 10.9], ["南澳", 18.9], ["武塔", 22.6], ["漢本", 35.5],
+        ["和平", 39.9], ["和仁", 47.8], ["崇德", 57.8], ["新城", 63.1], ["景美", 68.4], ["北埔", 74.9],
+        ["花蓮", 79.5],
+      ],
+    },
+    {
+      id: "taitung",
+      stations: [
+        ["花蓮", 0.0], ["吉安", 3.5], ["志學", 12.3], ["平和", 15.3], ["壽豐", 17.1], ["豐田", 19.9],
+        ["林榮新光", 26.1], ["南平", 28.3], ["鳳林", 32.5], ["萬榮", 37.4], ["光復", 43.0], ["大富", 50.5],
+        ["富源", 53.7], ["瑞穗", 62.8], ["三民", 72.2], ["玉里", 83.0], ["東里", 89.8], ["東竹", 95.8],
+        ["富里", 101.9], ["池上", 108.7], ["海端", 114.4], ["關山", 120.9], ["瑞和", 128.4], ["瑞源", 131.1],
+        ["鹿野", 136.6], ["山里", 142.7], ["臺東", 150.9],
+      ],
+    },
+    {
+      id: "pingxi",
+      stations: [
+        ["三貂嶺", 0.0], ["大華", 3.6], ["十分", 6.4], ["望古", 8.1], ["嶺腳", 10.2], ["平溪", 11.2], ["菁桐", 12.9],
+      ],
+    },
+    {
+      id: "deepao",
+      stations: [
+        ["瑞芳", 0.0], ["海科館", 4.3], ["八斗子", 4.7],
+      ],
+    },
+    {
+      id: "neiwan",
+      stations: [
+        ["新竹", 0.0], ["北新竹", 1.4], ["千甲", 3.6], ["新莊", 6.6], ["竹中", 7.9], ["上員", 10.6],
+        ["榮華", 15.0], ["竹東", 16.6], ["橫山", 20.1], ["九讚頭", 22.1], ["合興", 24.3], ["富貴", 25.7], ["內灣", 27.9],
+      ],
+    },
+    {
+      id: "liujia",
+      stations: [
+        ["竹中", 0.0], ["六家", 3.1],
+      ],
+    },
+    {
+      id: "jiji",
+      stations: [
+        ["二水", 0.0], ["源泉", 3.0], ["濁水", 10.8], ["龍泉", 15.7], ["集集", 20.0], ["水里", 27.4], ["車埕", 29.6],
+      ],
+    },
+    {
+      id: "shalun",
+      stations: [
+        ["中洲", 0.0], ["長榮大學", 2.6], ["沙崙", 5.7],
+      ],
+    },
+  ];
+
+  function makeTraEdgeKey(startStation, endStation) {
+    return `${normalizeTraStation(startStation)}>>${normalizeTraStation(endStation)}`;
+  }
+
+  function buildTraEdgeDistanceMap() {
+    const map = new Map();
+    const setEdge = (startStation, endStation, distanceKm) => {
+      const start = normalizeTraStation(startStation);
+      const end = normalizeTraStation(endStation);
+      const value = Number(distanceKm);
+      if (!start || !end || !Number.isFinite(value) || value <= 0) return;
+      const forwardKey = makeTraEdgeKey(start, end);
+      const reverseKey = makeTraEdgeKey(end, start);
+      if (!map.has(forwardKey)) map.set(forwardKey, value);
+      if (!map.has(reverseKey)) map.set(reverseKey, value);
+    };
+    TRA_CUMULATIVE_MILEAGE_SPECS.forEach((line) => {
+      const stations = Array.isArray(line?.stations) ? line.stations : [];
+      for (let index = 0; index < stations.length - 1; index += 1) {
+        const current = stations[index] || [];
+        const next = stations[index + 1] || [];
+        const currentKm = Number(current[1]);
+        const nextKm = Number(next[1]);
+        if (!Number.isFinite(currentKm) || !Number.isFinite(nextKm)) continue;
+        setEdge(current[0], next[0], Math.abs(nextKm - currentKm));
+      }
+    });
+    return map;
+  }
+
+  const TRA_EDGE_DISTANCE_MAP = buildTraEdgeDistanceMap();
+
+  function getTraAdjacentDistance(startStation, endStation) {
+    const key = makeTraEdgeKey(startStation, endStation);
+    const distance = TRA_EDGE_DISTANCE_MAP.get(key);
+    return Number.isFinite(distance) ? distance : null;
+  }
+
+  function sumTraPathDistance(fullPathStations, startPathIndex, endPathIndex) {
+    if (!Array.isArray(fullPathStations)) return null;
+    if (!Number.isFinite(startPathIndex) || !Number.isFinite(endPathIndex)) return null;
+    if (startPathIndex === endPathIndex) return 0;
+    const step = endPathIndex > startPathIndex ? 1 : -1;
+    let total = 0;
+    for (let index = startPathIndex; index !== endPathIndex; index += step) {
+      const from = fullPathStations[index];
+      const to = fullPathStations[index + step];
+      const distance = getTraAdjacentDistance(from, to);
+      if (!Number.isFinite(distance)) return null;
+      total += distance;
+    }
+    return total;
+  }
+
+  function getTraPathInterpolationRatio(fullPathStations, startPathIndex, endPathIndex, currentPathIndex, fallbackRatio) {
+    const fallback = Number.isFinite(fallbackRatio) ? fallbackRatio : 0;
+    const totalDistance = sumTraPathDistance(fullPathStations, startPathIndex, endPathIndex);
+    const currentDistance = sumTraPathDistance(fullPathStations, startPathIndex, currentPathIndex);
+    if (!(Number.isFinite(totalDistance) && totalDistance > 0 && Number.isFinite(currentDistance) && currentDistance >= 0)) {
+      return Math.min(1, Math.max(0, fallback));
+    }
+    const ratio = currentDistance / totalDistance;
+    return Number.isFinite(ratio) ? Math.min(1, Math.max(0, ratio)) : Math.min(1, Math.max(0, fallback));
+  }
+
+  const TRA_ACCEL_KM_PER_MIN2_BY_TYPE = {
+    "新自強": 2.52,
+    "普悠瑪": 2.2,
+    "太魯閣": 2.2,
+    "自強號": 1.44,
+    "莒光號": 1.44,
+    "區間車": 2.52,
+    "區間快": 2.52,
+  };
+  const TRA_DEFAULT_ACCEL_KM_PER_MIN2 = 1.44;
+  const TRA_DECEL_KM_PER_MIN2 = 3.5;
+
   function getThsrStationOrder() {
     const liveOrder = Array.isArray(window.THSR_STATION_ORDER) && window.THSR_STATION_ORDER.length
       ? window.THSR_STATION_ORDER
@@ -264,6 +456,60 @@
     return Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : fallback;
   }
 
+  function solveCruiseSpeed(totalDistanceKm, totalMinutes, accelKmPerMin2, decelKmPerMin2, startStop, endStop) {
+    if (!Number.isFinite(totalDistanceKm) || totalDistanceKm <= 0 || !Number.isFinite(totalMinutes) || totalMinutes <= 0) return null;
+    if (!startStop && !endStop) return totalDistanceKm / totalMinutes;
+    const coeff =
+      (startStop && accelKmPerMin2 > 0 ? (1 / (2 * accelKmPerMin2)) : 0) +
+      (endStop && decelKmPerMin2 > 0 ? (1 / (2 * decelKmPerMin2)) : 0);
+    if (!(coeff > 0)) return totalDistanceKm / totalMinutes;
+    const discriminant = (totalMinutes * totalMinutes) - (4 * coeff * totalDistanceKm);
+    if (discriminant < 0) return null;
+    const sqrtDisc = Math.sqrt(discriminant);
+    const candidates = [
+      (totalMinutes - sqrtDisc) / (2 * coeff),
+      (totalMinutes + sqrtDisc) / (2 * coeff),
+    ].filter((value) => Number.isFinite(value) && value > 0);
+    if (!candidates.length) return null;
+    const valid = candidates.filter((speed) => {
+      const accelDistance = startStop && accelKmPerMin2 > 0 ? ((speed * speed) / (2 * accelKmPerMin2)) : 0;
+      const decelDistance = endStop && decelKmPerMin2 > 0 ? ((speed * speed) / (2 * decelKmPerMin2)) : 0;
+      return accelDistance + decelDistance <= totalDistanceKm + 1e-6;
+    });
+    const picked = (valid.length ? valid : candidates).sort((a, b) => a - b)[0];
+    return Number.isFinite(picked) ? picked : null;
+  }
+
+  function getTimedDistanceInterpolationRatio(distanceFromStartKm, totalDistanceKm, totalMinutes, accelKmPerMin2, decelKmPerMin2, startStop, endStop, fallbackRatio) {
+    const fallback = clampRatio(fallbackRatio, 0);
+    if (!Number.isFinite(totalDistanceKm) || totalDistanceKm <= 0 || !Number.isFinite(distanceFromStartKm)) return fallback;
+    if (!Number.isFinite(totalMinutes) || totalMinutes <= 0) return clampRatio(distanceFromStartKm / totalDistanceKm, fallback);
+    const cruiseSpeed = solveCruiseSpeed(totalDistanceKm, totalMinutes, accelKmPerMin2, decelKmPerMin2, startStop, endStop);
+    if (!Number.isFinite(cruiseSpeed) || cruiseSpeed <= 0) return clampRatio(distanceFromStartKm / totalDistanceKm, fallback);
+
+    const accelDistanceKm = startStop && accelKmPerMin2 > 0 ? ((cruiseSpeed * cruiseSpeed) / (2 * accelKmPerMin2)) : 0;
+    const accelMinutes = startStop && accelKmPerMin2 > 0 ? (cruiseSpeed / accelKmPerMin2) : 0;
+    const decelDistanceKm = endStop && decelKmPerMin2 > 0 ? ((cruiseSpeed * cruiseSpeed) / (2 * decelKmPerMin2)) : 0;
+    const cruiseDistanceKm = Math.max(0, totalDistanceKm - accelDistanceKm - decelDistanceKm);
+    const cruiseMinutes = cruiseDistanceKm > 0 ? (cruiseDistanceKm / cruiseSpeed) : 0;
+    const targetDistanceKm = Math.max(0, Math.min(totalDistanceKm, distanceFromStartKm));
+
+    let elapsedMinutes = 0;
+    if (startStop && targetDistanceKm <= accelDistanceKm + 1e-6) {
+      elapsedMinutes = Math.sqrt((2 * targetDistanceKm) / accelKmPerMin2);
+    } else if (targetDistanceKm <= accelDistanceKm + cruiseDistanceKm + 1e-6) {
+      elapsedMinutes = accelMinutes + (Math.max(0, targetDistanceKm - accelDistanceKm) / cruiseSpeed);
+    } else if (endStop && decelKmPerMin2 > 0) {
+      const decelProgressKm = Math.max(0, targetDistanceKm - accelDistanceKm - cruiseDistanceKm);
+      const underRoot = Math.max(0, (cruiseSpeed * cruiseSpeed) - (2 * decelKmPerMin2 * decelProgressKm));
+      elapsedMinutes = accelMinutes + cruiseMinutes + ((cruiseSpeed - Math.sqrt(underRoot)) / decelKmPerMin2);
+    } else {
+      elapsedMinutes = totalMinutes;
+    }
+
+    return clampRatio(elapsedMinutes / totalMinutes, fallback);
+  }
+
   function getThsrMileageInterpolationRatio(startStation, endStation, currentStation, fallbackRatio) {
     const startKm = Number(getThsrStationMileage(startStation));
     const endKm = Number(getThsrStationMileage(endStation));
@@ -275,27 +521,7 @@
   }
 
   function solveThsrCruiseSpeed(totalDistanceKm, totalMinutes, startStop, endStop) {
-    if (!Number.isFinite(totalDistanceKm) || totalDistanceKm <= 0 || !Number.isFinite(totalMinutes) || totalMinutes <= 0) return null;
-    if (!startStop && !endStop) return totalDistanceKm / totalMinutes;
-    const coeff =
-      (startStop ? (1 / (2 * THSR_ACCEL_KM_PER_MIN2)) : 0) +
-      (endStop ? (1 / (2 * THSR_DECEL_KM_PER_MIN2)) : 0);
-    if (!(coeff > 0)) return totalDistanceKm / totalMinutes;
-    const discriminant = (totalMinutes * totalMinutes) - (4 * coeff * totalDistanceKm);
-    if (discriminant < 0) return null;
-    const sqrtDisc = Math.sqrt(discriminant);
-    const candidates = [
-      (totalMinutes - sqrtDisc) / (2 * coeff),
-      (totalMinutes + sqrtDisc) / (2 * coeff),
-    ].filter((value) => Number.isFinite(value) && value > 0);
-    if (!candidates.length) return null;
-    const valid = candidates.filter((speed) => {
-      const accelDistance = startStop ? ((speed * speed) / (2 * THSR_ACCEL_KM_PER_MIN2)) : 0;
-      const decelDistance = endStop ? ((speed * speed) / (2 * THSR_DECEL_KM_PER_MIN2)) : 0;
-      return accelDistance + decelDistance <= totalDistanceKm + 1e-6;
-    });
-    const picked = (valid.length ? valid : candidates).sort((a, b) => a - b)[0];
-    return Number.isFinite(picked) ? picked : null;
+    return solveCruiseSpeed(totalDistanceKm, totalMinutes, THSR_ACCEL_KM_PER_MIN2, THSR_DECEL_KM_PER_MIN2, startStop, endStop);
   }
 
   function getThsrTimedInterpolationRatio(startStation, endStation, currentStation, totalMinutes, startStop, endStop, fallbackRatio) {
@@ -305,32 +531,40 @@
     if (![startKm, endKm, currentKm].every(Number.isFinite)) return clampRatio(fallbackRatio, 0);
     const totalDistanceKm = Math.abs(endKm - startKm);
     if (!(totalDistanceKm > 0) || !Number.isFinite(totalMinutes) || totalMinutes <= 0) return clampRatio(fallbackRatio, 0);
-    const distanceFromStartKm = Math.max(0, Math.min(totalDistanceKm, Math.abs(currentKm - startKm)));
-    const cruiseSpeed = solveThsrCruiseSpeed(totalDistanceKm, totalMinutes, startStop, endStop);
-    if (!Number.isFinite(cruiseSpeed) || cruiseSpeed <= 0) {
-      return getThsrMileageInterpolationRatio(startStation, endStation, currentStation, fallbackRatio);
+    return getTimedDistanceInterpolationRatio(
+      Math.max(0, Math.min(totalDistanceKm, Math.abs(currentKm - startKm))),
+      totalDistanceKm,
+      totalMinutes,
+      THSR_ACCEL_KM_PER_MIN2,
+      THSR_DECEL_KM_PER_MIN2,
+      startStop,
+      endStop,
+      getThsrMileageInterpolationRatio(startStation, endStation, currentStation, fallbackRatio)
+    );
+  }
+
+  function getTraAccelerationRate(type) {
+    const normalizedType = normalizeTraDisplayType(type);
+    return TRA_ACCEL_KM_PER_MIN2_BY_TYPE[normalizedType] || TRA_DEFAULT_ACCEL_KM_PER_MIN2;
+  }
+
+  function getTraTimedInterpolationRatio(fullPathStations, startPathIndex, endPathIndex, currentPathIndex, totalMinutes, startStop, endStop, trainType, fallbackRatio) {
+    const fallback = getTraPathInterpolationRatio(fullPathStations, startPathIndex, endPathIndex, currentPathIndex, fallbackRatio);
+    const totalDistanceKm = sumTraPathDistance(fullPathStations, startPathIndex, endPathIndex);
+    const distanceFromStartKm = sumTraPathDistance(fullPathStations, startPathIndex, currentPathIndex);
+    if (!(Number.isFinite(totalDistanceKm) && totalDistanceKm > 0 && Number.isFinite(distanceFromStartKm) && distanceFromStartKm >= 0)) {
+      return fallback;
     }
-
-    const accelDistanceKm = startStop ? ((cruiseSpeed * cruiseSpeed) / (2 * THSR_ACCEL_KM_PER_MIN2)) : 0;
-    const accelMinutes = startStop ? (cruiseSpeed / THSR_ACCEL_KM_PER_MIN2) : 0;
-    const decelDistanceKm = endStop ? ((cruiseSpeed * cruiseSpeed) / (2 * THSR_DECEL_KM_PER_MIN2)) : 0;
-    const cruiseDistanceKm = Math.max(0, totalDistanceKm - accelDistanceKm - decelDistanceKm);
-    const cruiseMinutes = cruiseDistanceKm > 0 ? (cruiseDistanceKm / cruiseSpeed) : 0;
-
-    let elapsedMinutes = 0;
-    if (startStop && distanceFromStartKm <= accelDistanceKm + 1e-6) {
-      elapsedMinutes = Math.sqrt((2 * Math.max(0, distanceFromStartKm)) / THSR_ACCEL_KM_PER_MIN2);
-    } else if (distanceFromStartKm <= accelDistanceKm + cruiseDistanceKm + 1e-6) {
-      elapsedMinutes = accelMinutes + (Math.max(0, distanceFromStartKm - accelDistanceKm) / cruiseSpeed);
-    } else if (endStop) {
-      const decelProgressKm = Math.max(0, distanceFromStartKm - accelDistanceKm - cruiseDistanceKm);
-      const underRoot = Math.max(0, (cruiseSpeed * cruiseSpeed) - (2 * THSR_DECEL_KM_PER_MIN2 * decelProgressKm));
-      elapsedMinutes = accelMinutes + cruiseMinutes + ((cruiseSpeed - Math.sqrt(underRoot)) / THSR_DECEL_KM_PER_MIN2);
-    } else {
-      elapsedMinutes = totalMinutes;
-    }
-
-    return clampRatio(elapsedMinutes / totalMinutes, fallbackRatio);
+    return getTimedDistanceInterpolationRatio(
+      distanceFromStartKm,
+      totalDistanceKm,
+      totalMinutes,
+      getTraAccelerationRate(trainType),
+      TRA_DECEL_KM_PER_MIN2,
+      startStop,
+      endStop,
+      fallback
+    );
   }
 
   function buildGraph(segments) {
@@ -494,6 +728,9 @@
     getTraSegmentGroups,
     getTraSegments,
     getTraStationCatalog,
+    getTraAdjacentDistance,
+    getTraPathInterpolationRatio,
+    getTraTimedInterpolationRatio,
     getThsrStationOrder,
     getThsrStationMileageMap,
     getThsrStationMileage,
