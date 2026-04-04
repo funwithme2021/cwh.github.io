@@ -3565,23 +3565,59 @@ td{ border-bottom: 1px solid rgba(255,255,255,0.06); }
       appearance: none;
       border: none;
       flex: 0 0 auto;
-      width: 32px;
-      height: 32px;
+      min-height: 32px;
+      padding: 0 8px;
       display: inline-flex;
       align-items: center;
       justify-content: center;
       border-radius: 10px;
       background: rgba(37,99,235,0.12);
       color: var(--primary, #2563eb);
-      font-size: 14px;
+      font-size: 12px;
       font-weight: 900;
-      line-height: 1;
+      line-height: 1.1;
+      white-space: nowrap;
       cursor: pointer;
       transition: transform .16s ease, background .16s ease, opacity .16s ease;
     }
     .rail-geo-btn[data-kind="train"]{
       background: rgba(16,185,129,0.12);
       color: #0f766e;
+    }
+    .rail-status-rotator{
+      position: relative;
+      display: inline-grid;
+      align-items: center;
+      vertical-align: middle;
+      min-width: 0;
+    }
+    .rail-status-rotator-track{
+      display: grid;
+    }
+    .rail-status-rotator-item{
+      grid-area: 1 / 1;
+      white-space: nowrap;
+      opacity: 0;
+      animation-duration: 4.2s;
+      animation-timing-function: ease-in-out;
+      animation-iteration-count: infinite;
+    }
+    .rail-status-rotator-item.is-primary{ animation-name: railStatusPrimarySwap; }
+    .rail-status-rotator-item.is-secondary{ animation-name: railStatusSecondarySwap; }
+    .rail-status-tone-success{ color: #16a34a; }
+    .rail-status-tone-warning{ color: #c2410c; }
+    .rail-status-tone-danger{ color: #b91c1c; }
+    .rail-status-tone-muted{ color: #94a3b8; }
+    .rail-status-tone-neutral{ color: var(--text-main); }
+    @keyframes railStatusPrimarySwap{
+      0%, 44% { opacity: 1; }
+      50%, 94% { opacity: 0; }
+      100% { opacity: 1; }
+    }
+    @keyframes railStatusSecondarySwap{
+      0%, 44% { opacity: 0; }
+      50%, 94% { opacity: 1; }
+      100% { opacity: 0; }
     }
     .rail-geo-btn:hover{
       transform: translateY(-1px);
@@ -3953,10 +3989,12 @@ let __startEndDelegated = false;
     if(!dl) return;
 
     const k = normLoose(keyword||'');
+    const wantsDualTaiForms = /[台臺]/.test(k.raw);
     // ★ 手機效能：最多只顯示前 50 筆，且一次 innerHTML 寫入（避免大量 DOM append）
     const limit = 50;
     let out = '';
     let count = 0;
+    const seen = new Set();
 
     for(let i=0;i<stationListSorted.length;i++){
       const s = stationListSorted[i];
@@ -3972,9 +4010,19 @@ let __startEndDelegated = false;
         if(!hit) continue;
       }
 
-      const displayName = String(s.name || '').replace(/臺/g, '台');
-      out += `<option value="${s.id}-${displayName}"></option>`;
-      count++;
+      const names = wantsDualTaiForms
+        ? [String(s.name || ''), String(s.name || '').replace(/臺/g, '台')]
+        : [String(s.name || '').replace(/臺/g, '台')];
+      for(let j=0;j<names.length;j++){
+        const displayName = String(names[j] || '').trim();
+        if(!displayName) continue;
+        const optionValue = `${s.id}-${displayName}`;
+        if(seen.has(optionValue)) continue;
+        seen.add(optionValue);
+        out += `<option value="${optionValue}"></option>`;
+        count++;
+        if(count >= limit) break;
+      }
       if(count >= limit) break;
     }
 
@@ -6891,9 +6939,61 @@ function renderTransferTable(){
     const text = String(label || '');
     if(/停駛|取消|暫停|終止|截短|折返|部分停駛|異常/.test(text)) return 'danger';
     if(/晚|延遲|誤點/.test(text)) return 'warning';
-    if(/準點/.test(text)) return 'success';
+    if(/準點|即將進站|停靠中|即將開車/.test(text)) return 'success';
     if(/已過站|已到終點|已到終點站/.test(text)) return 'muted';
     return 'neutral';
+  }
+
+  function getTraSupplementStatus(baseStatus, arrAbs, depAbs, runtimeCtx){
+    const base = String(baseStatus || '');
+    if(/已過站|已到終點|已到終點站/.test(base)) return '';
+    const nowAbs = Number(runtimeCtx?.nowAbs);
+    if(!Number.isFinite(nowAbs)) return '';
+    const delayMin = Number(runtimeCtx?.delayMin);
+    const shift = Number.isFinite(delayMin) ? delayMin : 0;
+    const arrEff = Number.isFinite(arrAbs) ? (arrAbs + shift) : null;
+    const depEff = Number.isFinite(depAbs) ? (depAbs + shift) : null;
+    if(arrEff !== null && depEff !== null && arrEff === depEff && nowAbs === depEff) return '停靠中';
+    if(depEff !== null && nowAbs >= (depEff - 1) && nowAbs < depEff) return '即將開車';
+    if(arrEff !== null && depEff !== null && nowAbs >= arrEff && nowAbs < depEff) return '停靠中';
+    if(arrEff !== null && nowAbs >= (arrEff - 2) && nowAbs < arrEff) return '即將進站';
+    return '';
+  }
+
+  function buildTraStatusDisplay(baseStatus, supplementStatus){
+    const base = String(baseStatus || '').trim() || '--';
+    const supplement = String(supplementStatus || '').trim();
+    if(!supplement || supplement === base){
+      return {
+        html: escapeTrainQueryHtml(base),
+        tone: getTraStationStatusTone(base)
+      };
+    }
+    const renderItem = (label, kind) => `<span class="rail-status-rotator-item ${kind} rail-status-tone-${getTraStationStatusTone(label)}">${escapeTrainQueryHtml(label)}</span>`;
+    return {
+      html: `<span class="rail-status-rotator" title="${escapeTrainQueryHtml(`${supplement} / ${base}`)}"><span class="rail-status-rotator-track">${renderItem(supplement, 'is-primary')}${renderItem(base, 'is-secondary')}</span></span>`,
+      tone: 'neutral'
+    };
+  }
+
+  function getTraStationStatusDisplayForTrain(trainNo, originDateStr, stationName, baseStatus){
+    const schedule = getScheduleByOrigin(trainNo, originDateStr);
+    const stops = schedule?.['車站時間'] || [];
+    const idx = stops.findIndex((stop)=>normalizeTraLinkedStation(stop?.[0]) === normalizeTraLinkedStation(stationName));
+    if(idx < 0) return buildTraStatusDisplay(baseStatus, '');
+    const absAD = buildAbsArrDep(stops);
+    const first = splitArrDep(stops[0] || []);
+    const last = splitArrDep(stops[stops.length - 1] || []);
+    const runtimeCtx = getTrainDetailRuntimeContext(
+      trainNo,
+      originDateStr,
+      first.dep || first.arr || '',
+      last.arr || last.dep || ''
+    );
+    return buildTraStatusDisplay(
+      baseStatus,
+      getTraSupplementStatus(baseStatus, absAD.absArr[idx], absAD.absDep[idx], runtimeCtx)
+    );
   }
 
   function setTraStartEndLegacyFilters(selectedTypes){
@@ -7102,6 +7202,7 @@ function renderTransferTable(){
     const sourceRows = modeEnabled ? (currentTransferList || []) : (currentStartEndList || []);
     const rows = sourceRows.map((row)=>{
       if(modeEnabled && !row.isDirect){
+        const transferStatusDisplay = getTraStationStatusDisplayForTrain(row.n1, row.originDate1, row.startStation, row.status);
         return {
           trainNo: row.n1,
           originDate: row.originDate1,
@@ -7120,7 +7221,8 @@ function renderTransferTable(){
           summaryTransferText: `${row.transferStation}轉乘`,
           metaHtml: `${row.transferStation}轉乘 · 等候 ${row.waitMin} 分`,
           statusText: row.status,
-          statusTone: getTraStationStatusTone(row.status),
+          statusHtml: transferStatusDisplay.html,
+          statusTone: transferStatusDisplay.tone,
           ticketHidden: true,
           isPassed: isTraQuery2PassedStatus(row.status),
           isRunning: isTraQuery2ActiveStatus(row.status),
@@ -7153,6 +7255,7 @@ function renderTransferTable(){
         endStation: row.endStation
       } : row;
       const schedule = getScheduleByOrigin(directRow.num, directRow.originDate || currentQueryDateStr);
+      const directStatusDisplay = getTraStationStatusDisplayForTrain(directRow.num, directRow.originDate, directRow.startStation, directRow.status);
       const viaText = getTraViaLabelFromStops(schedule?.['車站時間'] || [], {
         tripLine: schedule?.['行別'] || schedule?.['路線'] || schedule?.['TripLine'] || '',
         trainNo: directRow.num
@@ -7183,7 +7286,8 @@ function renderTransferTable(){
         mobileTransferLine2: modeEnabled ? '不須轉乘' : '',
         metaHtml: '',
         statusText: directRow.status,
-        statusTone: getTraStationStatusTone(directRow.status),
+        statusHtml: directStatusDisplay.html,
+        statusTone: directStatusDisplay.tone,
         ticketHidden: !eligibility.ok,
         ticketLabel: '訂票',
         isPassed: isTraQuery2PassedStatus(directRow.status),
@@ -7493,6 +7597,17 @@ function renderTransferTable(){
         (arr.slice(-1)[0]?.[1] || arr.slice(-1)[0]?.[2] || ''),
         absMin
       );
+      const runtimeCtx = getTrainDetailRuntimeContext(
+        trainNo,
+        originDate,
+        (arr[0]?.[2] || arr[0]?.[1] || ''),
+        (arr.slice(-1)[0]?.[1] || arr.slice(-1)[0]?.[2] || '')
+      );
+      const absAD = buildAbsArrDep(arr);
+      const statusDisplay = buildTraStatusDisplay(
+        status,
+        getTraSupplementStatus(status, absAD.absArr[idx], absAD.absDep[idx], runtimeCtx)
+      );
 
       rows.push({
         trainNo,
@@ -7507,6 +7622,8 @@ function renderTransferTable(){
         displayTime: status === '已過站' ? (dep || '--') : (depAdj.adj || dep || '--'),
         depMin: status === '已過站' ? (parseTime(dep) ?? 9999) : (depAdj.adjMin ?? 9999),
         status,
+        statusHtml: statusDisplay.html,
+        statusTone: statusDisplay.tone,
         isCrossDay: originDate !== currentQueryDateStr,
         isSea: String(trainNo).includes('A')
       });
@@ -7533,7 +7650,7 @@ function renderTransferTable(){
         {
           label: '下一班',
           html: upcoming
-            ? `${upcoming.depHTML}<span style="color:var(--text-main);"> · </span><span style="color:var(--text-main);">${upcoming.trainNo}</span><span class="rsv2-train-type">${colorType(upcoming.type)}</span><span style="color:var(--text-main);"> · </span><span class="rsv2-tone-${getTraStationStatusTone(upcoming.status)}">${upcoming.status}</span>`
+            ? `${upcoming.depHTML}<span style="color:var(--text-main);"> · </span><span style="color:var(--text-main);">${upcoming.trainNo}</span><span class="rsv2-train-type">${colorType(upcoming.type)}</span><span style="color:var(--text-main);"> · </span><span class="rsv2-summary-value">${upcoming.statusHtml || `<span class="rsv2-tone-${upcoming.statusTone || getTraStationStatusTone(upcoming.status)}">${escapeTrainQueryHtml(upcoming.status)}</span>`}</span>`
             : `<span class="rsv2-tone-muted">今日已無班次</span>`,
           tone: 'neutral',
           openDetail: upcoming ? { trainNo: upcoming.trainNo, originDate: upcoming.originDate } : null,
@@ -7565,7 +7682,8 @@ function renderTransferTable(){
         routeText: row.range,
         viaText: row.viaLabel,
         statusText: row.status,
-        statusTone: getTraStationStatusTone(row.status),
+        statusHtml: row.statusHtml,
+        statusTone: row.statusTone || getTraStationStatusTone(row.status),
         isPassed: /已過站|已到終點|已到終點站/.test(row.status),
         isRunning: /已過站|已到終點|已到終點站/.test(row.status) === false
       }))
@@ -9100,9 +9218,29 @@ function collectGeoPositionSamples(options = {}) {
 
 function setGeoButtonBusy(button, busy) {
     if (!button) return;
-    if (!button.dataset.idleLabel) button.dataset.idleLabel = button.textContent || '';
+    if (!button.dataset.desktopLabel) button.dataset.desktopLabel = button.textContent || '';
     button.disabled = !!busy;
-    button.textContent = busy ? '…' : (button.dataset.idleLabel || button.textContent || '');
+    const mobile = !!(window.matchMedia && window.matchMedia('(max-width: 720px)').matches);
+    const idleLabel = mobile && button.dataset.mobileLabel
+        ? button.dataset.mobileLabel
+        : (button.dataset.desktopLabel || button.textContent || '');
+    button.textContent = busy ? '…' : (idleLabel || '📍');
+}
+
+function syncGeoButtonLabel(button) {
+    if (!button || button.disabled) return;
+    const mobile = !!(window.matchMedia && window.matchMedia('(max-width: 720px)').matches);
+    button.textContent = (mobile && button.dataset.mobileLabel)
+        ? button.dataset.mobileLabel
+        : (button.dataset.desktopLabel || button.textContent || '📍');
+}
+
+function installGeoButtonResizeSync() {
+    if (window.__traGeoButtonResizeSyncInstalled) return;
+    window.__traGeoButtonResizeSyncInstalled = true;
+    window.addEventListener('resize', () => {
+        document.querySelectorAll('.rail-geo-btn').forEach(syncGeoButtonLabel);
+    });
 }
 
 function ensureGeoInlineButton(inputId, options = {}) {
@@ -9119,9 +9257,13 @@ function ensureGeoInlineButton(inputId, options = {}) {
     button.className = 'rail-geo-btn';
     button.dataset.geoKey = key;
     button.dataset.kind = options.kind || 'station';
-    button.title = options.title || '定位';
-    button.setAttribute('aria-label', options.title || '定位');
-    button.textContent = options.icon || '📍';
+    const desktopLabel = options.icon || '📍';
+    const mobileLabel = options.mobileIcon || desktopLabel;
+    button.dataset.desktopLabel = desktopLabel;
+    button.dataset.mobileLabel = mobileLabel;
+    button.title = options.title || desktopLabel || '定位';
+    button.setAttribute('aria-label', options.title || desktopLabel || '定位');
+    button.textContent = desktopLabel;
     button.addEventListener('click', async (event) => {
         event.preventDefault();
         event.stopPropagation();
@@ -9135,6 +9277,8 @@ function ensureGeoInlineButton(inputId, options = {}) {
         }
     });
     wrap.appendChild(button);
+    installGeoButtonResizeSync();
+    syncGeoButtonLabel(button);
     return button;
 }
 
@@ -9541,33 +9685,35 @@ window.locateTraRunningTrainByPosition = locateTraRunningTrainByPosition;
 function initTraGeolocationButtons() {
     ensureGeoInlineButton('startStation', {
         key: 'tra-start-legacy',
-        title: '定位最近車站',
-        icon: '📍',
+        title: '📍車站',
+        icon: '📍車站',
+        mobileIcon: '📍',
         onClick: () => locateNearestTraStation('start')
     });
     ensureGeoInlineButton('startStationInput2', {
         key: 'tra-start-v2',
-        title: '定位最近車站',
-        icon: '📍',
+        title: '📍車站',
+        icon: '📍車站',
+        mobileIcon: '📍',
         onClick: () => locateNearestTraStation('start')
     });
     ensureGeoInlineButton('stationNameInput', {
         key: 'tra-station-legacy',
-        title: '定位最近車站',
-        icon: '📍',
+        title: '📍車站',
+        icon: '📍車站',
         onClick: () => locateNearestTraStation('station')
     });
     ensureGeoInlineButton('stationNameInput2', {
         key: 'tra-station-v2',
-        title: '定位最近車站',
-        icon: '📍',
+        title: '📍車站',
+        icon: '📍車站',
         onClick: () => locateNearestTraStation('station')
     });
     ensureGeoInlineButton('trainNumberInput', {
         key: 'tra-train-live',
         kind: 'train',
-        title: '定位找車次',
-        icon: '🚆',
+        title: '📍定位車次',
+        icon: '📍定位車次',
         onClick: () => locateTraRunningTrainByPosition()
     });
 }

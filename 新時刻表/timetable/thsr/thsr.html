@@ -37,6 +37,51 @@
   .seat-l { color: #f59e0b; }
   .seat-x { color: #ef4444; }
   .seat-none { color: var(--text-light); opacity: 0.5; }
+  .thsr-station-train-inline {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0;
+    white-space: nowrap;
+  }
+  .thsr-station-train-inline .rsv2-train-no {
+    min-width: auto;
+    text-align: left;
+  }
+  .rail-status-rotator{
+    position: relative;
+    display: inline-grid;
+    align-items: center;
+    vertical-align: middle;
+    min-width: 0;
+  }
+  .rail-status-rotator-track{
+    display: grid;
+  }
+  .rail-status-rotator-item{
+    grid-area: 1 / 1;
+    white-space: nowrap;
+    opacity: 0;
+    animation-duration: 4.2s;
+    animation-timing-function: ease-in-out;
+    animation-iteration-count: infinite;
+  }
+  .rail-status-rotator-item.is-primary{ animation-name: railStatusPrimarySwap; }
+  .rail-status-rotator-item.is-secondary{ animation-name: railStatusSecondarySwap; }
+  .rail-status-tone-success{ color: #16a34a; }
+  .rail-status-tone-warning{ color: #c2410c; }
+  .rail-status-tone-danger{ color: #b91c1c; }
+  .rail-status-tone-muted{ color: #94a3b8; }
+  .rail-status-tone-neutral{ color: var(--text-main); }
+  @keyframes railStatusPrimarySwap{
+    0%, 44% { opacity: 1; }
+    50%, 94% { opacity: 0; }
+    100% { opacity: 1; }
+  }
+  @keyframes railStatusSecondarySwap{
+    0%, 44% { opacity: 0; }
+    50%, 94% { opacity: 1; }
+    100% { opacity: 0; }
+  }
 
   /* ===== 行動裝置優化增強 (Mobile Overrides) ===== */
   @media (max-width: 760px) {
@@ -2284,17 +2329,18 @@
       appearance: none;
       border: none;
       flex: 0 0 auto;
-      width: 32px;
-      height: 32px;
+      min-height: 32px;
+      padding: 0 8px;
       display: inline-flex;
       align-items: center;
       justify-content: center;
       border-radius: 10px;
       background: rgba(37,99,235,0.12);
       color: var(--primary, #2563eb);
-      font-size: 14px;
+      font-size: 12px;
       font-weight: 900;
-      line-height: 1;
+      line-height: 1.1;
+      white-space: nowrap;
       cursor: pointer;
       transition: transform .16s ease, background .16s ease, opacity .16s ease;
     }
@@ -2594,6 +2640,10 @@
     return { firstAbs, lastAbs, crosses };
   }
   function normTW(s){ return String(s||'').trim().replace(/台/g,'臺'); }
+  function normLoose(s){
+    const t = String(s||'').trim();
+    return { raw:t, asTai:t.replace(/台/g,'臺'), asTai2:t.replace(/臺/g,'台') };
+  }
   function sameStation(a,b){ return normTW(a) === normTW(b); }
   const THSR_STATION_ORDER = ['南港','臺北','板橋','桃園','新竹','苗栗','臺中','彰化','雲林','嘉義','臺南','左營'];
   function normTHSRStationName(s){ const n = normTW(s||''); if(n==='高雄' || n==='新左營') return '左營'; return n; }
@@ -2647,6 +2697,74 @@
     return (mode === 'train') ? '行駛中' : '已過站';
   }
 
+  function getThsrStopRuntime(stops, idx){
+    const list = Array.isArray(stops) ? stops : [];
+    if(idx < 0 || idx >= list.length) return null;
+    let dayOffset = 0;
+    let prevMinute = null;
+    for(let i = 0; i < list.length; i++){
+      const ad = splitArrDep(list[i] || []);
+      const compareMinute = parseTime(ad.dep || ad.arr || '');
+      if(prevMinute !== null && compareMinute !== null && compareMinute < prevMinute){
+        dayOffset += 1;
+      }
+      const arrMinute = parseTime(ad.arr || '');
+      const depMinute = parseTime(ad.dep || '');
+      if(i === idx){
+        return {
+          arrAbs: Number.isFinite(arrMinute) ? (dayOffset * 1440 + arrMinute) : null,
+          depAbs: Number.isFinite(depMinute) ? (dayOffset * 1440 + depMinute) : null,
+          arrText: ad.arr || '',
+          depText: ad.dep || ''
+        };
+      }
+      if(compareMinute !== null) prevMinute = compareMinute;
+    }
+    return null;
+  }
+
+  function getThsrSupplementStatus(originDateStr, stopRuntime, baseStatus){
+    const base = String(baseStatus || '');
+    if(!stopRuntime || /已過站|已到終點/.test(base)) return '';
+    const nowAbs = getNowAbsFromOrigin(originDateStr || fmtDate(new Date()));
+    const arrAbs = Number.isFinite(stopRuntime.arrAbs) ? stopRuntime.arrAbs : null;
+    const depAbs = Number.isFinite(stopRuntime.depAbs) ? stopRuntime.depAbs : null;
+    if(arrAbs !== null && depAbs !== null && arrAbs === depAbs && nowAbs === depAbs) return '停靠中';
+    if(depAbs !== null && nowAbs >= (depAbs - 1) && nowAbs < depAbs) return '即將開車';
+    if(arrAbs !== null && depAbs !== null && nowAbs >= arrAbs && nowAbs < depAbs) return '停靠中';
+    if(arrAbs !== null && nowAbs >= (arrAbs - 2) && nowAbs < arrAbs) return '即將進站';
+    return '';
+  }
+
+  function buildThsrStatusDisplay(baseStatus, supplementStatus){
+    const base = String(baseStatus || '').trim() || '--';
+    const supplement = String(supplementStatus || '').trim();
+    if(!supplement || supplement === base){
+      return {
+        html: escapeTrainQueryHtml(base),
+        tone: getThsrStationStatusTone(base)
+      };
+    }
+    const renderItem = (label, kind) => `<span class="rail-status-rotator-item ${kind} rail-status-tone-${getThsrStationStatusTone(label)}">${escapeTrainQueryHtml(label)}</span>`;
+    return {
+      html: `<span class="rail-status-rotator" title="${escapeTrainQueryHtml(`${supplement} / ${base}`)}"><span class="rail-status-rotator-track">${renderItem(supplement, 'is-primary')}${renderItem(base, 'is-secondary')}</span></span>`,
+      tone: 'neutral'
+    };
+  }
+
+  function getThsrStopStatusDisplay(stops, idx, originDateStr, baseStatus){
+    const runtime = getThsrStopRuntime(stops, idx);
+    return buildThsrStatusDisplay(baseStatus, getThsrSupplementStatus(originDateStr, runtime, baseStatus));
+  }
+
+  function getThsrStationStatusDisplayByTrain(trainNo, originDateStr, stationName, baseStatus){
+    const sch = getScheduleMapByOrigin(originDateStr);
+    const stops = sch?.[trainNo]?.['車站時間'] || [];
+    const idx = stops.findIndex((stop)=>sameStation(stop?.[0], stationName));
+    if(idx < 0) return buildThsrStatusDisplay(baseStatus, '');
+    return getThsrStopStatusDisplay(stops, idx, originDateStr, baseStatus);
+  }
+
   function statusBadge(label){ const s = String(label||''); const tip = '狀態依預定時刻與目前時間推估'; return `<span class="status-badge est" style="background:transparent; display:inline-flex; align-items:center; gap:4px; white-space:nowrap; padding:0;"><span class="status-text-${s}">${s}</span><span class="est-tip" title="${tip}" style="opacity:0.5; cursor:help;">ⓘ</span></span>`; }
 
   function bindStationInput(inputId){
@@ -2671,7 +2789,42 @@
     if(nameToId[asTai]) return asTai; 
     return normTW(v); 
   }
-  function fillStationDatalist(k){ const dl=document.getElementById('stationList'); if(!dl) return; dl.innerHTML=stationListSorted.filter(s=>s.name.includes(normTW(k))||String(s.id).includes(k)).slice(0,30).map(s=>`<option value="${s.id}-${s.name}"></option>`).join(''); }
+  function fillStationDatalist(keyword){
+    const dl = document.getElementById('stationList');
+    if(!dl) return;
+    const k = normLoose(keyword || '');
+    const wantsDualTaiForms = /[台臺]/.test(k.raw);
+    const limit = 30;
+    const out = [];
+    const seen = new Set();
+    for(let i = 0; i < stationListSorted.length; i++){
+      const s = stationListSorted[i];
+      if(!s) continue;
+      if(k.raw){
+        const id = String(s.id || '');
+        const name = String(s.name || '');
+        const name2 = name.replace(/臺/g,'台');
+        const hit = id.includes(k.raw) || id.includes(k.asTai) || id.includes(k.asTai2) ||
+          name.includes(k.raw) || name.includes(k.asTai) || name.includes(k.asTai2) ||
+          name2.includes(k.raw) || name2.includes(k.asTai) || name2.includes(k.asTai2);
+        if(!hit) continue;
+      }
+      const names = wantsDualTaiForms
+        ? [String(s.name || ''), String(s.name || '').replace(/臺/g,'台')]
+        : [String(s.name || '')];
+      for(let j = 0; j < names.length; j++){
+        const displayName = String(names[j] || '').trim();
+        if(!displayName) continue;
+        const optionValue = `${s.id}-${displayName}`;
+        if(seen.has(optionValue)) continue;
+        seen.add(optionValue);
+        out.push(`<option value="${optionValue}"></option>`);
+        if(out.length >= limit) break;
+      }
+      if(out.length >= limit) break;
+    }
+    dl.innerHTML = out.join('');
+  }
   function fillTrainDatalist(k){ 
     const dl=document.getElementById('trainNumberList'); if(!dl) return; 
     const nums = Object.keys(baseSchedule).filter(n=>n.includes(k)).sort();
@@ -3279,7 +3432,7 @@
     const text = String(label || '');
     if(/取消|停駛|異常|查無/.test(text)) return 'danger';
     if(/晚|延遲|誤點/.test(text)) return 'warning';
-    if(/行駛中|準點/.test(text)) return 'success';
+    if(/行駛中|準點|即將進站|停靠中|即將開車/.test(text)) return 'success';
     if(/已過站|已到終點/.test(text)) return 'muted';
     return 'neutral';
   }
@@ -3400,10 +3553,11 @@
   function buildThsrStartEndQuery2Rows(sortKey){
     const rows = (currentStartEndList || []).map((row)=>{
       const booking = getThsrQuery2BookingState(row);
+      const statusDisplay = getThsrStationStatusDisplayByTrain(row.trainNo, row.originDate, row.startStation, row.status);
       return {
         trainNo: row.trainNo,
         originDate: row.originDate,
-        trainHtml: `<span class="rsv2-train-no">${row.trainNo}</span><span class="rsv2-train-type rsv2-brand-thsr">高鐵</span>`,
+        trainHtml: buildThsrStationTrainDisplayHtml(row.trainNo),
         timeHtml: buildThsrQuery2CombinedTimeHtml(row.dep, row.arr),
         summaryTimeHtml: buildThsrQuery2SummaryTimeHtml(row.dep, row.arr),
         timeText: `${row.dep || '--'} → ${row.arr || '--'}`,
@@ -3414,7 +3568,8 @@
         seatHtml: `<span class="rod2-seat-stack"><span>標準艙 ${getSeatIcon(row.trainNo, 'standard', row.originDate)}</span><span>商務艙 ${getSeatIcon(row.trainNo, 'business', row.originDate)}</span></span>`,
         summarySeatHtml: `標準艙 ${getSeatIcon(row.trainNo, 'standard', row.originDate)} · 商務艙 ${getSeatIcon(row.trainNo, 'business', row.originDate)}`,
         statusText: row.status,
-        statusTone: getThsrStationStatusTone(row.status),
+        statusHtml: statusDisplay.html,
+        statusTone: statusDisplay.tone,
         ticketHidden: !booking.ok,
         ticketLabel: '訂票',
         isPassed: isThsrQuery2PassedStatus(row.status),
@@ -3550,11 +3705,14 @@
         const lastArr = (splitArrDep(stops[stops.length - 1] || []).arr || splitArrDep(stops[stops.length - 1] || []).dep || '');
         const firstDep = splitArrDep(stops[0] || []).dep || '';
         const status = getStatusLabel(origin, time, lastArr, firstDep, 'list');
+        const statusDisplay = getThsrStopStatusDisplay(stops, idx, origin, status);
         list.push({
           trainNo,
           range: `${first} → ${last}`,
           time: time || '--',
           status,
+          statusHtml: statusDisplay.html,
+          statusTone: statusDisplay.tone,
           originDate: origin,
           depMin: parseTime(time) ?? 9999,
           isCrossDay: origin !== currentQueryDateStr
@@ -3582,7 +3740,7 @@
         {
           label: '下一班',
           html: upcoming
-            ? `<span style="color:var(--text-main);">${upcoming.time}</span><span style="color:var(--text-main);"> · <span class="rsv2-brand-thsr">高鐵</span>${upcoming.trainNo} · </span><span class="rsv2-tone-${getThsrStationStatusTone(upcoming.status)}">${upcoming.status}</span>`
+            ? `<span style="color:var(--text-main);">${upcoming.time}</span><span style="color:var(--text-main);"> · <span class="rsv2-brand-thsr">高鐵</span>${upcoming.trainNo} · </span><span class="rsv2-summary-value">${upcoming.statusHtml || `<span class="rsv2-tone-${upcoming.statusTone || getThsrStationStatusTone(upcoming.status)}">${escapeTrainQueryHtml(upcoming.status)}</span>`}</span>`
             : `<span class="rsv2-tone-muted">今日已無班次</span>`,
           tone: 'neutral',
           openDetail: upcoming ? { trainNo: upcoming.trainNo, originDate: upcoming.originDate } : null,
@@ -3603,12 +3761,12 @@
         trainNo: row.trainNo,
         originDate: row.originDate,
         timeText: row.time || '--',
-        trainHtml: `<span class="rsv2-train-no">${row.trainNo}</span><span class="rsv2-train-type rsv2-brand-thsr">高鐵</span>`,
-        mobileTrainPrimaryText: row.trainNo,
-        mobileTrainSecondaryHtml: '<span class="rsv2-brand-thsr">高鐵</span>',
+        trainHtml: buildThsrStationTrainDisplayHtml(row.trainNo),
+        mobileTrainPrimaryHtml: buildThsrStationTrainDisplayHtml(row.trainNo),
         routeText: row.range,
         statusText: row.status,
-        statusTone: getThsrStationStatusTone(row.status),
+        statusHtml: row.statusHtml,
+        statusTone: row.statusTone || getThsrStationStatusTone(row.status),
         isPassed: /已過站|已到終點/.test(row.status),
         isRunning: /已過站|已到終點/.test(row.status) === false
       }))
@@ -3693,6 +3851,11 @@
 
   function buildThsrTrainQueryDisplayHtml(trainNo){
     return `<span>高鐵${escapeTrainQueryHtml(trainNo)}</span>`;
+  }
+
+  function buildThsrStationTrainDisplayHtml(trainNo){
+    const no = escapeTrainQueryHtml(trainNo || '--');
+    return `<span class="thsr-station-train-inline"><span class="rsv2-train-type rsv2-brand-thsr">高鐵</span><span class="rsv2-train-no">${no}</span></span>`;
   }
 
   function formatTrainQueryDurationCompact(totalMinutes){
@@ -5181,9 +5344,29 @@
 
   function setGeoButtonBusy(button, busy) {
     if (!button) return;
-    if (!button.dataset.idleLabel) button.dataset.idleLabel = button.textContent || '';
+    if (!button.dataset.desktopLabel) button.dataset.desktopLabel = button.textContent || '';
     button.disabled = !!busy;
-    button.textContent = busy ? '…' : (button.dataset.idleLabel || button.textContent || '');
+    const mobile = !!(window.matchMedia && window.matchMedia('(max-width: 720px)').matches);
+    const idleLabel = mobile && button.dataset.mobileLabel
+      ? button.dataset.mobileLabel
+      : (button.dataset.desktopLabel || button.textContent || '');
+    button.textContent = busy ? '…' : (idleLabel || '📍');
+  }
+
+  function syncGeoButtonLabel(button) {
+    if (!button || button.disabled) return;
+    const mobile = !!(window.matchMedia && window.matchMedia('(max-width: 720px)').matches);
+    button.textContent = (mobile && button.dataset.mobileLabel)
+      ? button.dataset.mobileLabel
+      : (button.dataset.desktopLabel || button.textContent || '📍');
+  }
+
+  function installGeoButtonResizeSync() {
+    if (window.__thsrGeoButtonResizeSyncInstalled) return;
+    window.__thsrGeoButtonResizeSyncInstalled = true;
+    window.addEventListener('resize', () => {
+      document.querySelectorAll('.rail-geo-btn').forEach(syncGeoButtonLabel);
+    });
   }
 
   function ensureGeoInlineButton(inputId, options = {}) {
@@ -5200,9 +5383,13 @@
     button.className = 'rail-geo-btn';
     button.dataset.geoKey = key;
     button.dataset.kind = options.kind || 'station';
-    button.title = options.title || '定位';
-    button.setAttribute('aria-label', options.title || '定位');
-    button.textContent = options.icon || '📍';
+    const desktopLabel = options.icon || '📍';
+    const mobileLabel = options.mobileIcon || desktopLabel;
+    button.dataset.desktopLabel = desktopLabel;
+    button.dataset.mobileLabel = mobileLabel;
+    button.title = options.title || desktopLabel || '定位';
+    button.setAttribute('aria-label', options.title || desktopLabel || '定位');
+    button.textContent = desktopLabel;
     button.addEventListener('click', async (event) => {
       event.preventDefault();
       event.stopPropagation();
@@ -5216,6 +5403,8 @@
       }
     });
     wrap.appendChild(button);
+    installGeoButtonResizeSync();
+    syncGeoButtonLabel(button);
     return button;
   }
 
@@ -5649,33 +5838,35 @@
   function initThsrGeolocationButtons() {
     ensureGeoInlineButton('startStation', {
       key: 'thsr-start-legacy',
-      title: '定位最近車站',
-      icon: '📍',
+      title: '📍車站',
+      icon: '📍車站',
+      mobileIcon: '📍',
       onClick: () => locateNearestThsrStation('start')
     });
     ensureGeoInlineButton('startStationInput2', {
       key: 'thsr-start-v2',
-      title: '定位最近車站',
-      icon: '📍',
+      title: '📍車站',
+      icon: '📍車站',
+      mobileIcon: '📍',
       onClick: () => locateNearestThsrStation('start')
     });
     ensureGeoInlineButton('stationNameInput', {
       key: 'thsr-station-legacy',
-      title: '定位最近車站',
-      icon: '📍',
+      title: '📍車站',
+      icon: '📍車站',
       onClick: () => locateNearestThsrStation('station')
     });
     ensureGeoInlineButton('stationNameInput2', {
       key: 'thsr-station-v2',
-      title: '定位最近車站',
-      icon: '📍',
+      title: '📍車站',
+      icon: '📍車站',
       onClick: () => locateNearestThsrStation('station')
     });
     ensureGeoInlineButton('trainNumberInput', {
       key: 'thsr-train-live',
       kind: 'train',
-      title: '定位找車次',
-      icon: '🚆',
+      title: '📍定位車次',
+      icon: '📍定位車次',
       onClick: () => locateThsrRunningTrainByPosition()
     });
   }
