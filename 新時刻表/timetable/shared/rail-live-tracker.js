@@ -410,21 +410,21 @@
     if (!stationName || !fullPoints.length) return null;
 
     let fallbackIndex = -1;
-    let preferredIndex = -1;
+    let stopIndex = -1;
+    let passIndex = -1;
     fullPoints.forEach((point, index) => {
       if (normalizeTraStation(point?.station) !== stationName) return;
       fallbackIndex = index;
-      if (point?.kind === "departure" || (!point?.isStop && point?.kind === "pass")) {
-        preferredIndex = index;
-      }
+      if (!point?.isStop && point?.kind === "pass" && passIndex < 0) passIndex = index;
+      if (point?.isStop && stopIndex < 0) stopIndex = index;
     });
-    const anchorIndex = preferredIndex >= 0 ? preferredIndex : fallbackIndex;
+    const anchorIndex = passIndex >= 0 ? passIndex : (stopIndex >= 0 ? stopIndex : fallbackIndex);
     if (anchorIndex < 0) return null;
 
     const anchorPoint = fullPoints[anchorIndex];
     const routeIndex = Number(entry?.routeIndexMap?.get?.(stationName));
     const liveMinute = getTraLiveAnchorMinute(liveEntry, entry?.originDate, nowMinute);
-    const effectiveMinute = Number.isFinite(liveMinute)
+    const effectiveMinute = (!Boolean(anchorPoint?.isStop) && Number.isFinite(liveMinute))
       ? Math.min(anchorPoint.minute, liveMinute)
       : anchorPoint.minute;
 
@@ -436,7 +436,7 @@
       anchorMinute: effectiveMinute,
       routeIndex: Number.isFinite(routeIndex) ? routeIndex : null,
       isStop: Boolean(anchorPoint?.isStop),
-      canAdvance: Number.isFinite(anchorPoint?.minute) && Number.isFinite(effectiveMinute) && effectiveMinute < anchorPoint.minute,
+      canAdvance: !Boolean(anchorPoint?.isStop) && Number.isFinite(anchorPoint?.minute) && Number.isFinite(effectiveMinute) && effectiveMinute < anchorPoint.minute,
     };
   }
 
@@ -898,8 +898,17 @@
       ? liveAdjusted.fullPathPoints[0].minute
       : entry.journeyFirstMinute;
     const fullLastMinute = entry.journeyLastMinute;
+    const liveStopDetail = liveAssist?.isStop
+      ? stopDetails.find((stop) => normalizeTraStation(stop?.name) === liveAssist.stationName) || null
+      : null;
+    const liveStopDepartureMinute = getStopDepartureMinute(liveStopDetail);
+    const liveStopHoldActive =
+      !!liveStopDetail &&
+      Number.isFinite(liveStopDepartureMinute) &&
+      Number.isFinite(nowMinute) &&
+      nowMinute < liveStopDepartureMinute;
     if (!Number.isFinite(segmentFirstMinute) || !Number.isFinite(segmentLastMinute) || !Number.isFinite(fullFirstMinute) || !Number.isFinite(fullLastMinute)) return null;
-    if (nowMinute < segmentFirstMinute && (!entry.startsAtJourneyOrigin || segmentFirstMinute - nowMinute > UPCOMING_WINDOW)) return null;
+    if (nowMinute < segmentFirstMinute && (!entry.startsAtJourneyOrigin || segmentFirstMinute - nowMinute > UPCOMING_WINDOW) && !liveStopHoldActive) return null;
     if (nowMinute > segmentLastMinute + 10) return null;
 
     const routeDirection = Number.isFinite(firstPoint?.routeIndex) && Number.isFinite(lastPoint?.routeIndex) && lastPoint.routeIndex < firstPoint.routeIndex
@@ -915,7 +924,7 @@
       const routeDelta = (stop.routeIndex - liveAssist.routeIndex) * routeDirection;
       if (routeDelta < 0) return true;
       if (routeDelta > 0) return false;
-      return Boolean(liveAssist.isStop) && normalizeTraStation(stop?.name) === liveAssist.stationName;
+      return !Boolean(liveAssist.isStop) && normalizeTraStation(stop?.name) === liveAssist.stationName;
     };
 
     const getDirectionGlyphAtPointIndex = (pointIndex) => {
@@ -951,7 +960,7 @@
     let nextStopTime = "";
     let originEventMinute = entry.originDepartureMinute;
 
-    if (nowMinute < segmentFirstMinute) {
+    if (nowMinute < segmentFirstMinute && !liveStopHoldActive) {
       const originStop = stopDetails.find((stop) => stop.name === entry.firstStation) || stopDetails[0] || null;
       const anchorPointIndex = Math.max(
         0,
@@ -976,13 +985,43 @@
       directionGlyph = getDirectionGlyphAtPointIndex(anchorPointIndex);
       originEventMinute = departureMinute;
     } else {
+      if (liveStopHoldActive && liveStopDetail) {
+        const isOriginLiveStop = liveStopDetail.name === entry.firstStation;
+        const isTerminalLiveStop = liveStopDetail.name === entry.lastStation;
+        const pointIndex = Math.max(
+          0,
+          points.findIndex((point) => point.station === liveStopDetail.name)
+        );
+        state = isTerminalLiveStop ? "arrived" : (isOriginLiveStop ? "upcoming" : "dwell");
+        stateLabel = isTerminalLiveStop ? "已到終點" : (isOriginLiveStop ? "即將發車" : "停靠中");
+        positionIndex = liveStopDetail.routeIndex ?? points[pointIndex]?.routeIndex ?? lastPoint?.routeIndex ?? 0;
+        currentFrom = liveStopDetail.name;
+        currentTo = liveStopDetail.name;
+        const nextStop = stopDetails
+          .slice(stopDetails.indexOf(liveStopDetail) + 1)
+          .find((stop) => Number.isFinite(getStopArrivalMinute(stop)) && getStopArrivalMinute(stop) > liveStopDepartureMinute);
+        const fallbackPoint = points.find((point) => Number.isFinite(point.minute) && point.minute > liveStopDepartureMinute);
+        nextStation = isTerminalLiveStop ? liveStopDetail.name : (nextStop?.name || fallbackPoint?.station || liveStopDetail.name);
+        nextTime = formatMinute(isTerminalLiveStop ? (getStopArrivalMinute(liveStopDetail) ?? liveStopDepartureMinute) : (getStopArrivalMinute(nextStop) ?? fallbackPoint?.minute ?? liveStopDepartureMinute));
+        statusText = isTerminalLiveStop
+          ? "已到終點"
+          : `${isOriginLiveStop ? "即將發車" : "停靠中"}·${punctualityText}`;
+        soonStation = liveStopDetail.name;
+        soonMinutes = isOriginLiveStop && Number.isFinite(liveStopDepartureMinute) ? Math.max(0, liveStopDepartureMinute - nowMinute) : 0;
+        soonKind = "stop";
+        nextEventKind = isTerminalLiveStop ? "terminal" : (isOriginLiveStop ? "departure" : "arrival");
+        nextStopStation = "";
+        nextStopTime = "";
+        directionGlyph = getDirectionGlyphAtPointIndex(pointIndex);
+        originEventMinute = isOriginLiveStop ? liveStopDepartureMinute : originEventMinute;
+      } else {
       for (let index = 0; index < stopDetails.length; index += 1) {
         const current = stopDetails[index];
         if (hasStopBeenPassedByLive(current)) continue;
         const arrivalMinute = getStopArrivalMinute(current);
         const departureMinute = getStopDepartureMinute(current);
         if (!Number.isFinite(arrivalMinute) || !Number.isFinite(departureMinute)) continue;
-        if (nowMinute >= arrivalMinute && nowMinute <= departureMinute) {
+        if (nowMinute >= arrivalMinute && nowMinute < departureMinute) {
           state = "dwell";
           stateLabel = "停靠中";
           positionIndex = current.routeIndex ?? lastPoint?.routeIndex ?? 0;
@@ -992,15 +1031,15 @@
             .slice(index + 1)
             .find((stop) => Number.isFinite(getStopArrivalMinute(stop)) && getStopArrivalMinute(stop) > departureMinute);
           const fallbackPoint = points.find((point) => Number.isFinite(point.minute) && point.minute > departureMinute);
-          nextStation = nextStop?.name || fallbackPoint?.station || current.name;
-          nextTime = formatMinute(getStopArrivalMinute(nextStop) ?? fallbackPoint?.minute ?? departureMinute);
+          nextStation = current.name;
+          nextTime = formatMinute(departureMinute);
           statusText = `停靠中·${punctualityText}`;
           soonStation = current.name;
           soonMinutes = 0;
           soonKind = "stop";
-          nextEventKind = nextStop ? "arrival" : fallbackPoint?.isStop ? "arrival" : "pass";
-          nextStopStation = nextStop?.name || "";
-          nextStopTime = nextStop ? formatMinute(getStopArrivalMinute(nextStop)) : "";
+          nextEventKind = "departure";
+          nextStopStation = "";
+          nextStopTime = "";
           const pointIndex = Math.max(
             0,
             points.findIndex((point) => point.station === current.name && point.minute >= arrivalMinute)
@@ -1043,6 +1082,7 @@
           directionGlyph = getDirectionGlyphAtPointIndex(index);
           break;
         }
+      }
       }
     }
 
@@ -1129,16 +1169,12 @@
         const isOriginStation = sharedStation === entry.firstStation;
         const isTerminalStation = sharedStation === entry.lastStation;
         const liveAssist = getTraLiveAnchorInfo(entry, queryDate, nowMinute);
-        if (
-          liveAssist &&
-          liveAssist.isStop &&
-          !isTerminalStation &&
+        const liveStopHolding =
+          !!liveAssist &&
+          !!liveAssist.isStop &&
           liveAssist.stationName === sharedStation &&
-          Number.isFinite(liveAssist.anchorMinute) &&
-          liveAssist.anchorMinute <= nowMinute
-        ) {
-          return null;
-        }
+          Number.isFinite(departureMinute) &&
+          nowMinute < departureMinute;
         const nextStop = fullTimedStops
           .slice(sharedStopIndex + 1)
           .find((stop) => !stop.isPassOnly && Number.isFinite(getStopArrivalMinute(stop)));
@@ -1155,7 +1191,7 @@
         let soonKind = "";
         let originEventMinute = isOriginStation ? departureMinute : null;
 
-        if (isOriginStation && Number.isFinite(departureMinute) && nowMinute < departureMinute && departureMinute - nowMinute <= UPCOMING_WINDOW) {
+        if (isOriginStation && Number.isFinite(departureMinute) && nowMinute < departureMinute && (departureMinute - nowMinute <= UPCOMING_WINDOW || liveStopHolding)) {
           state = "upcoming";
           stateLabel = "即將發車";
           statusText = `即將發車·${buildPunctualityText(system, queryDate, delayMinutes)}`;
@@ -1166,13 +1202,15 @@
           nextStopTime = nextTime;
           soonMinutes = departureMinute - nowMinute;
           soonKind = "stop";
-        } else if (Number.isFinite(arrivalMinute) && Number.isFinite(departureMinute) && nowMinute >= arrivalMinute && nowMinute <= departureMinute) {
+        } else if ((Number.isFinite(arrivalMinute) && Number.isFinite(departureMinute) && nowMinute >= arrivalMinute && nowMinute < departureMinute) || (liveStopHolding && !isOriginStation)) {
           state = "dwell";
           stateLabel = "停靠中";
           statusText = isTerminalStation ? "已到終點" : `停靠中·${buildPunctualityText(system, queryDate, delayMinutes)}`;
-          nextTime = isTerminalStation ? formatMinute(arrivalMinute) : formatMinute(nextStop ? getStopArrivalMinute(nextStop) : departureMinute);
-          nextStation = isTerminalStation ? sharedStation : (nextStop?.name || sharedStation);
-          nextEventKind = isTerminalStation ? "terminal" : "arrival";
+          nextTime = isTerminalStation ? formatMinute(arrivalMinute) : formatMinute(departureMinute);
+          nextStation = sharedStation;
+          nextEventKind = isTerminalStation ? "terminal" : "departure";
+          nextStopStation = "";
+          nextStopTime = "";
           soonMinutes = 0;
           soonKind = "stop";
         } else if (isTerminalStation && Number.isFinite(arrivalMinute) && nowMinute >= arrivalMinute && nowMinute <= arrivalMinute + 10) {
@@ -1357,7 +1395,7 @@
         const arrivalMinute = getStopArrivalMinute(stop);
         const departureMinute = getStopDepartureMinute(stop);
         if (!Number.isFinite(arrivalMinute) || !Number.isFinite(departureMinute)) return;
-        if (snapshot.nowMinute >= arrivalMinute && snapshot.nowMinute <= departureMinute) {
+        if (snapshot.nowMinute >= arrivalMinute && snapshot.nowMinute < departureMinute) {
           pushStationEvent(map, stop.name, { trainNo: snapshot.trainNo, originDate: snapshot.originDate, type: snapshot.type, kind: "停靠中", station: stop.name, timeMinute: departureMinute, timeText: formatMinute(departureMinute), minutesAway: 0, snapshot });
         } else if (arrivalMinute > snapshot.nowMinute && arrivalMinute - snapshot.nowMinute <= STATION_ALERT_WINDOW) {
           pushStationEvent(map, stop.name, { trainNo: snapshot.trainNo, originDate: snapshot.originDate, type: snapshot.type, kind: "即將進站", station: stop.name, timeMinute: arrivalMinute, timeText: formatMinute(arrivalMinute), minutesAway: Math.max(0, arrivalMinute - snapshot.nowMinute), snapshot });

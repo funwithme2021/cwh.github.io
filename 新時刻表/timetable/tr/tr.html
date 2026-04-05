@@ -4244,6 +4244,7 @@ function splitArrDep(stopRow){
     if(!trainNo || !originDateStr || !Array.isArray(actualEntries) || !Array.isArray(expandedEntries)) return expandedEntries;
     const anchor = getTraLiveTimelineAnchor(trainNo, originDateStr, actualEntries);
     if(!anchor) return expandedEntries;
+    if(anchor.entry?.kind !== 'pass') return expandedEntries;
     const adjusted = expandedEntries.map((entry)=>({ ...entry }));
     const normalizedAnchor = normalizeTraLinkedStation(anchor.station);
     for(let index=adjusted.length-1; index>=0; index--){
@@ -4491,36 +4492,77 @@ function splitArrDep(stopRow){
     const entry = getTraLiveBoardEntrySafe(trainNo, originDateStr);
     return normalizeTraLinkedStation(entry?.stationName || '');
   }
-  function getTraLivePassedStationIndex(trainNo, originDateStr, stopsArr){
-    if(!Array.isArray(stopsArr) || !stopsArr.length) return -1;
+  function getTraStopKindFromStopRow(stopRow, index, totalCount){
+    const raw1 = String(stopRow?.[1] || '').trim();
+    const raw2 = String(stopRow?.[2] || '').trim();
+    const isEdge = index === 0 || index === totalCount - 1;
+    const hasSingleTime = !!((raw1 || raw2) && !(raw1 && raw2));
+    return (!isEdge && hasSingleTime) ? 'pass' : 'stop';
+  }
+  function getTraLiveStationMatch(trainNo, originDateStr, stopsArr){
+    if(!Array.isArray(stopsArr) || !stopsArr.length) return null;
     const station = getTraLivePassedStationName(trainNo, originDateStr);
-    if(!station) return -1;
-    let matched = -1;
+    if(!station) return null;
+    let matchedIndex = -1;
     stopsArr.forEach((stop, index)=>{
-      if(normalizeTraLinkedStation(stop?.[0]) === station) matched = index;
+      if(normalizeTraLinkedStation(stop?.[0]) === station) matchedIndex = index;
     });
-    return matched;
+    if(matchedIndex < 0) return null;
+    const kind = getTraStopKindFromStopRow(stopsArr[matchedIndex], matchedIndex, stopsArr.length);
+    return {
+      station,
+      index: matchedIndex,
+      kind,
+      isPass: kind === 'pass',
+      isStop: kind !== 'pass'
+    };
+  }
+  function getTraLivePassedStationIndex(trainNo, originDateStr, stopsArr){
+    const match = getTraLiveStationMatch(trainNo, originDateStr, stopsArr);
+    return match ? match.index : -1;
   }
   function isTraStationPassedByLive(trainNo, originDateStr, stopsArr, stationIndex){
     if(!Number.isInteger(stationIndex) || stationIndex < 0) return false;
-    const liveIndex = getTraLivePassedStationIndex(trainNo, originDateStr, stopsArr);
-    return Number.isInteger(liveIndex) && liveIndex >= stationIndex;
+    const match = getTraLiveStationMatch(trainNo, originDateStr, stopsArr);
+    if(!match) return false;
+    if(match.index > stationIndex) return true;
+    if(match.index < stationIndex) return false;
+    return !!match.isPass;
   }
   function getTraLiveTimelineProgress(trainNo, originDateStr, locationRows, visibleRows){
     const station = getTraLivePassedStationName(trainNo, originDateStr);
     if(!station || !Array.isArray(locationRows) || !locationRows.length){
-      return { station: '', locationRowIndex: -1, locationNextIndex: -1, visibleNextIndex: -1 };
+      return { station: '', locationRowIndex: -1, locationNextIndex: -1, visibleNextIndex: -1, isStopStation: false };
     }
-    let locationRowIndex = -1;
+    let stopLocationIndex = -1;
+    let passLocationIndex = -1;
     locationRows.forEach((row, index)=>{
-      if(normalizeTraLinkedStation(row?.station) === station) locationRowIndex = index;
+      if(normalizeTraLinkedStation(row?.station) !== station) return;
+      if(row?.kind === 'pass'){
+        if(passLocationIndex < 0) passLocationIndex = index;
+      }else if(stopLocationIndex < 0){
+        stopLocationIndex = index;
+      }
     });
+    const isStopStation = stopLocationIndex >= 0;
+    const locationRowIndex = isStopStation
+      ? stopLocationIndex
+      : (passLocationIndex >= 0 ? passLocationIndex : -1);
     if(locationRowIndex < 0){
-      return { station: '', locationRowIndex: -1, locationNextIndex: -1, visibleNextIndex: -1 };
+      return { station: '', locationRowIndex: -1, locationNextIndex: -1, visibleNextIndex: -1, isStopStation: false };
     }
-    const locationNextIndex = Math.min(locationRows.length - 1, locationRowIndex + 1);
+    const locationNextIndex = isStopStation
+      ? locationRowIndex
+      : Math.min(locationRows.length - 1, locationRowIndex + 1);
     let visibleNextIndex = -1;
-    if(Array.isArray(visibleRows) && visibleRows.length){
+    if(isStopStation){
+      visibleNextIndex = Array.isArray(visibleRows)
+        ? visibleRows.findIndex((row)=>normalizeTraLinkedStation(row?.station) === station && row?.kind !== 'pass')
+        : -1;
+      if(visibleNextIndex < 0 && Array.isArray(visibleRows) && visibleRows.length){
+        visibleNextIndex = visibleRows.findIndex((row)=>normalizeTraLinkedStation(row?.station) === station);
+      }
+    }else if(Array.isArray(visibleRows) && visibleRows.length){
       const immediateVisibleStation = locationRows[locationNextIndex]?.station || '';
       const nextStopStation = locationRows[getNextTraStopIndex(locationRows, locationNextIndex)]?.station || '';
       if(immediateVisibleStation){
@@ -4535,7 +4577,7 @@ function splitArrDep(stopRow){
         });
       }
     }
-    return { station, locationRowIndex, locationNextIndex, visibleNextIndex };
+    return { station, locationRowIndex, locationNextIndex, visibleNextIndex, isStopStation };
   }
 // ===== 狀態：用「發車日」判斷（不是站別跨日後的日期） =====
   
@@ -4579,7 +4621,7 @@ function splitArrDep(stopRow){
       }
 
       if(Number.isFinite(delayMin) && delayMin>0 && passAbs!==null && Number.isFinite(passAbs)) passAbs = passAbs + Math.max(0,delayMin);
-      if(passAbs !== null && Number.isFinite(passAbs) && Number.isFinite(ctx.nowAbs) && ctx.nowAbs > passAbs){
+      if(passAbs !== null && Number.isFinite(passAbs) && Number.isFinite(ctx.nowAbs) && ctx.nowAbs >= passAbs){
         return '已過站';
       }
     }
@@ -4700,11 +4742,16 @@ function splitArrDep(stopRow){
     };
   }
 
-  function getCurrentLocationText(stops, timelineRows, nextIndex, status, canNext, nowAbs, delayMin){
+  function getCurrentLocationText(stops, timelineRows, nextIndex, status, canNext, nowAbs, delayMin, liveProgress=null, liveStopHoldActive=false){
     if(!Array.isArray(stops) || !stops.length) return '--';
     const firstStation = stops[0]?.[0] || '';
     const lastStation = stops[stops.length - 1]?.[0] || '';
-    if(status === '未發車') return `尚未發車 · ${firstStation}`;
+    if(status === '未發車'){
+      if(liveStopHoldActive && !!liveProgress?.isStopStation && nextIndex === 0){
+        return `即將由 ${firstStation} 發車`;
+      }
+      return `尚未發車 · ${firstStation}`;
+    }
     if(status === '已到終點' || status === '已到終點站') return `已到 ${lastStation}`;
     if(!canNext || !Array.isArray(timelineRows) || !timelineRows.length || nextIndex < 0) return lastStation || '依時刻表顯示';
     if(canNext && nextIndex === 0) return `即將由 ${firstStation} 發車`;
@@ -4712,6 +4759,17 @@ function splitArrDep(stopRow){
     const currentRow = timelineRows[nextIndex] || null;
     const previousRow = nextIndex > 0 ? (timelineRows[nextIndex - 1] || null) : null;
     const positiveDelay = Math.max(0, Number(delayMin) || 0);
+    const isLiveHeldStop =
+      !!liveStopHoldActive &&
+      !!liveProgress?.isStopStation &&
+      Number.isInteger(liveProgress?.locationNextIndex) &&
+      liveProgress.locationNextIndex === nextIndex &&
+      currentRow?.kind !== 'pass';
+
+    if(isLiveHeldStop){
+      if(nextIndex === 0) return `即將由 ${firstStation} 發車`;
+      return currentRow?.station || '--';
+    }
 
     if(currentRow && currentRow.kind !== 'pass' && Number.isFinite(nowAbs)){
       const arrivalAbsRaw =
@@ -4728,7 +4786,7 @@ function splitArrDep(stopRow){
       if(currentRow.kind === 'terminal' && Number.isFinite(arrivalAbs) && nowAbs >= arrivalAbs){
         return currentRow.station || lastStation || '--';
       }
-      if(Number.isFinite(arrivalAbs) && Number.isFinite(departureAbs) && arrivalAbs <= nowAbs && nowAbs <= departureAbs){
+      if(Number.isFinite(arrivalAbs) && Number.isFinite(departureAbs) && arrivalAbs <= nowAbs && nowAbs < departureAbs){
         return currentRow.station || '--';
       }
     }
@@ -7136,45 +7194,24 @@ function renderTransferTable(){
     return 'neutral';
   }
 
-  function getTraStationLiveSupplementStatus(trainNo, originDateStr, stationName, arrAbs, depAbs, runtimeCtx){
-    const liveEntry = getTraStationLiveEntry(trainNo, originDateStr, stationName);
-    if(!liveEntry) return '';
+  function getTraStationLiveSupplementStatus(trainNo, originDateStr, stationName, arrAbs, depAbs, runtimeCtx, stopsArr, stationIndex){
+    const liveMatch = getTraLiveStationMatch(trainNo, originDateStr, stopsArr);
+    if(!liveMatch || !liveMatch.isStop) return '';
+    if(normalizeTraLinkedStation(stationName) !== liveMatch.station) return '';
+    if(Number.isInteger(stationIndex) && liveMatch.index !== stationIndex) return '';
+    if(liveMatch.index === 0) return '';
     const nowAbs = Number(runtimeCtx?.nowAbs);
     if(!Number.isFinite(nowAbs)) return '';
-    const stationDelay = Number(liveEntry?.delayMin);
-    const shift = Number.isFinite(stationDelay) ? stationDelay : (Number(runtimeCtx?.delayMin) || 0);
-    let arrEff = Number.isFinite(arrAbs) ? (arrAbs + shift) : null;
-    let depEff = Number.isFinite(depAbs) ? (depAbs + shift) : null;
-    if(arrEff === null){
-      const arrLiveAbs = getAbsFromHHMMMaybeCross(liveEntry.scheduleArrivalTime || '', runtimeCtx?.firstAbs);
-      if(Number.isFinite(arrLiveAbs)) arrEff = arrLiveAbs + shift;
-    }
-    if(depEff === null){
-      const depLiveAbs = getAbsFromHHMMMaybeCross(liveEntry.scheduleDepartureTime || '', runtimeCtx?.firstAbs);
-      if(Number.isFinite(depLiveAbs)) depEff = depLiveAbs + shift;
-    }
-    const liveUpdateAbs = parseTraLiveTimestampAbs(liveEntry?.srcUpdateTime || liveEntry?.updateTime || '', originDateStr);
-    if(arrEff !== null && depEff !== null && arrEff === depEff && nowAbs === depEff) return '停靠中';
-    if(depEff !== null && nowAbs >= (depEff - 1) && nowAbs < depEff) return '即將開車';
-    if(arrEff !== null && depEff !== null && nowAbs >= arrEff && nowAbs < depEff) return '停靠中';
-    if(arrEff !== null && nowAbs >= (arrEff - 2) && nowAbs < arrEff) return '即將進站';
-    if(Number.isFinite(liveUpdateAbs) && depEff !== null && liveUpdateAbs <= depEff && nowAbs < depEff && nowAbs >= (depEff - 1.5)) return '即將開車';
-    return '';
+    const shift = Math.max(0, Number(runtimeCtx?.delayMin) || 0);
+    const depEff = Number.isFinite(depAbs) ? (depAbs + shift) : null;
+    return (Number.isFinite(depEff) && nowAbs < depEff) ? '停靠中' : '';
   }
 
   function getTraSupplementStatus(baseStatus, arrAbs, depAbs, runtimeCtx, stationLiveStatus=''){
     const base = String(baseStatus || '');
     if(/已過站|已到終點|已到終點站/.test(base)) return '';
     const liveStatus = String(stationLiveStatus || '').trim();
-    if(liveStatus){
-      if(liveStatus === '停靠中') return liveStatus;
-      if(liveStatus === '即將開車'){
-        return /停靠中/.test(base) ? '停靠中' : liveStatus;
-      }
-      if(liveStatus === '即將進站'){
-        return /停靠中|即將開車/.test(base) ? '' : liveStatus;
-      }
-    }
+    if(liveStatus === '停靠中') return liveStatus;
     const nowAbs = Number(runtimeCtx?.nowAbs);
     if(!Number.isFinite(nowAbs)) return '';
     const delayMin = Number(runtimeCtx?.delayMin);
@@ -7224,7 +7261,9 @@ function renderTransferTable(){
       stationName,
       absAD.absArr[idx],
       absAD.absDep[idx],
-      runtimeCtx
+      runtimeCtx,
+      stops,
+      idx
     );
     return buildTraStatusDisplay(
       baseStatus,
@@ -7849,7 +7888,7 @@ function renderTransferTable(){
           absAD.absArr[idx],
           absAD.absDep[idx],
           runtimeCtx,
-          getTraStationLiveSupplementStatus(trainNo, originDate, station, absAD.absArr[idx], absAD.absDep[idx], runtimeCtx)
+          getTraStationLiveSupplementStatus(trainNo, originDate, station, absAD.absArr[idx], absAD.absDep[idx], runtimeCtx, arr, idx)
         )
       );
 
@@ -8063,17 +8102,18 @@ function findTraNextTimelineIndex(rows, nowAbs, delayMin, canNext){
   const positiveDelay = Math.max(0, Number(delayMin) || 0);
   for(let i = 0; i < rows.length; i++){
     const eventAbs = rows[i]?.eventAbs;
-    if(Number.isFinite(eventAbs) && Number.isFinite(nowAbs) && (eventAbs + positiveDelay) >= nowAbs){
+    if(Number.isFinite(eventAbs) && Number.isFinite(nowAbs) && (eventAbs + positiveDelay) > nowAbs){
       return i;
     }
   }
   return rows.length ? rows.length - 1 : -1;
 }
 
-function getNextTraStopIndex(rows, fromIndex){
+function getNextTraStopIndex(rows, fromIndex, skipCurrentStop){
   if(!Array.isArray(rows) || fromIndex < 0) return -1;
-  if(rows[fromIndex]?.kind !== 'pass') return fromIndex;
-  for(let i = fromIndex + 1; i < rows.length; i++){
+  let startIndex = fromIndex;
+  if(rows[fromIndex]?.kind === 'pass' || skipCurrentStop) startIndex = fromIndex + 1;
+  for(let i = startIndex; i < rows.length; i++){
     if(rows[i]?.kind !== 'pass') return i;
   }
   return -1;
@@ -8100,11 +8140,51 @@ function buildTraTrainQueryV2StopRows(trainNo, originDateStr, stops, runtimeCtx,
   if(canNext && liveProgress.visibleNextIndex >= 0 && (!Number.isInteger(nextVisibleIndex) || nextVisibleIndex < liveProgress.visibleNextIndex)){
     nextVisibleIndex = liveProgress.visibleNextIndex;
   }
-  const nextVisibleStopIndex = getNextTraStopIndex(visibleRows, nextVisibleIndex);
-  const nextLocationStopIndex = getNextTraStopIndex(locationRows, nextLocationIndex);
   const nextLocationRow = nextLocationIndex >= 0 ? (locationRows[nextLocationIndex] || null) : null;
+  const scheduledArrivalAbsRaw =
+    Number.isFinite(nextLocationRow?.secondaryAbs)
+      ? nextLocationRow.secondaryAbs
+      : (nextLocationRow?.kind === 'terminal' ? nextLocationRow?.primaryAbs : null);
+  const scheduledDepartureAbsRaw =
+    Number.isFinite(nextLocationRow?.primaryAbs)
+      ? nextLocationRow.primaryAbs
+      : nextLocationRow?.secondaryAbs;
+  const scheduledArrivalAbs = Number.isFinite(scheduledArrivalAbsRaw) ? (scheduledArrivalAbsRaw + positiveDelay) : null;
+  const scheduledDepartureAbs = Number.isFinite(scheduledDepartureAbsRaw) ? (scheduledDepartureAbsRaw + positiveDelay) : null;
+  const scheduledStopHoldActive =
+    nextLocationRow?.kind !== 'pass' &&
+    Number.isFinite(nowAbs) &&
+    Number.isFinite(scheduledArrivalAbs) &&
+    Number.isFinite(scheduledDepartureAbs) &&
+    scheduledArrivalAbs <= nowAbs &&
+    nowAbs <= scheduledDepartureAbs;
+  const liveStopDepartureAbs =
+    canNext &&
+    liveProgress.isStopStation &&
+    nextLocationRow?.kind !== 'pass'
+      ? ((Number.isFinite(nextLocationRow.primaryAbs) ? nextLocationRow.primaryAbs : nextLocationRow.secondaryAbs) + positiveDelay)
+      : null;
+  const liveStopHoldActive =
+    !!liveProgress.isStopStation &&
+    nextLocationRow?.kind !== 'pass' &&
+    Number.isFinite(liveStopDepartureAbs) &&
+    Number.isFinite(nowAbs) &&
+    nowAbs < liveStopDepartureAbs;
+  const holdAtStopActive = scheduledStopHoldActive || liveStopHoldActive;
+  const nextVisibleStopIndex = holdAtStopActive ? -1 : getNextTraStopIndex(visibleRows, nextVisibleIndex, false);
+  const nextLocationStopIndex = holdAtStopActive ? -1 : getNextTraStopIndex(locationRows, nextLocationIndex, false);
   const nextLocationStopRow = nextLocationStopIndex >= 0 ? (locationRows[nextLocationStopIndex] || null) : null;
-  const currentLocation = getCurrentLocationText(stops, locationRows, nextLocationIndex, trainStatus, canNext, nowAbs, runtimeCtx?.delayMin || 0);
+  const currentLocation = getCurrentLocationText(
+    stops,
+    locationRows,
+    nextLocationIndex,
+    trainStatus,
+    canNext,
+    nowAbs,
+    runtimeCtx?.delayMin || 0,
+    liveProgress,
+    holdAtStopActive
+  );
 
   const ended =
     trainStatus === '已到終點' ||
@@ -8120,29 +8200,14 @@ function buildTraTrainQueryV2StopRows(trainNo, originDateStr, stops, runtimeCtx,
       Number.isFinite(nowAbs) &&
       nowAbs >= (firstEventEff - 10) &&
       nowAbs <= firstEventEff;
-    nextHint = `${soonToDepart ? '即將發車' : '尚未發車'} · ${firstStop?.[0] || '--'}`;
+    const liveAtOrigin = !!liveStopHoldActive && nextLocationIndex === 0;
+    nextHint = `${(soonToDepart || liveAtOrigin) ? '即將發車' : '尚未發車'} · ${firstStop?.[0] || '--'}`;
   }else if(trainStatus === '已到終點' || trainStatus === '已到終點站'){
     nextHint = `已抵達 ${lastStop?.[0] || '--'}`;
+  }else if(holdAtStopActive && nextLocationRow){
+    nextHint = `停靠中 ${nextLocationRow.station || '--'}`;
   }else if(nextLocationRow){
-    const arrivalAbsRaw =
-      Number.isFinite(nextLocationRow.secondaryAbs)
-        ? nextLocationRow.secondaryAbs
-        : (nextLocationRow.kind === 'terminal' ? nextLocationRow.primaryAbs : null);
-    const departureAbsRaw =
-      Number.isFinite(nextLocationRow.primaryAbs)
-        ? nextLocationRow.primaryAbs
-        : nextLocationRow.secondaryAbs;
-    const arrivalAbs = Number.isFinite(arrivalAbsRaw) ? (arrivalAbsRaw + positiveDelay) : null;
-    const departureAbs = Number.isFinite(departureAbsRaw) ? (departureAbsRaw + positiveDelay) : null;
-    const isDwellingAtStation =
-      nextLocationRow.kind !== 'pass' &&
-      Number.isFinite(nowAbs) &&
-      Number.isFinite(arrivalAbs) &&
-      Number.isFinite(departureAbs) &&
-      arrivalAbs <= nowAbs &&
-      nowAbs <= departureAbs;
-
-    if(isDwellingAtStation){
+    if(scheduledStopHoldActive){
       nextHint = `停靠中 ${nextLocationRow.station || '--'}`;
     }else if(nextLocationRow.kind === 'pass'){
         nextHint = nextLocationStopRow?.station
@@ -8167,14 +8232,21 @@ function buildTraTrainQueryV2StopRows(trainNo, originDateStr, stops, runtimeCtx,
         : row.secondaryAbs;
     const arrivalAbs = Number.isFinite(arrivalAbsRaw) ? (arrivalAbsRaw + positiveDelay) : null;
     const departureAbs = Number.isFinite(departureAbsRaw) ? (departureAbsRaw + positiveDelay) : null;
+    const isLiveOriginHold = liveStopHoldActive && index === 0 && liveProgress.visibleNextIndex === index;
+    const isLiveCurrentStop =
+      liveStopHoldActive &&
+      row.kind !== 'pass' &&
+      liveProgress.visibleNextIndex === index &&
+      !isLiveOriginHold;
     const isCurrent =
-      !isPassed &&
+      (!isPassed &&
       row.kind !== 'pass' &&
       Number.isFinite(nowAbs) &&
       Number.isFinite(arrivalAbs) &&
       Number.isFinite(departureAbs) &&
       arrivalAbs <= nowAbs &&
-      nowAbs <= departureAbs;
+      nowAbs < departureAbs) ||
+      isLiveCurrentStop;
     const isNext = !isPassed && !isCurrent && nextVisibleIndex === index;
     const isNextStop = !isPassed && !isCurrent && !isNext && nextVisibleStopIndex === index;
 
@@ -8225,7 +8297,7 @@ function buildTraTrainQueryV2StopRows(trainNo, originDateStr, stops, runtimeCtx,
         Number.isFinite(nowAbs) &&
         nowAbs >= (originEventAbs - 10) &&
         nowAbs <= originEventAbs;
-      stateText = soonToDepart ? '即將發車' : '尚未發車';
+      stateText = (soonToDepart || isLiveOriginHold) ? '即將發車' : '尚未發車';
     }else if(isNext){
       stateText = row.kind === 'pass' ? '即將通過' : '下一停靠';
     }else if(isNextStop){
@@ -8526,7 +8598,7 @@ function filterTrainScheduleByNumberV2(trainNo){
         passAbs = getAbsFromHHMMMaybeCross(passedStationAbsOrTime, ctx.firstAbs);
       }
       if(Number.isFinite(delayMin) && delayMin>0 && passAbs!==null && Number.isFinite(passAbs)) passAbs += Math.max(0, delayMin);
-      if(passAbs !== null && Number.isFinite(passAbs) && Number.isFinite(ctx.nowAbs) && ctx.nowAbs > passAbs){
+      if(passAbs !== null && Number.isFinite(passAbs) && Number.isFinite(ctx.nowAbs) && ctx.nowAbs >= passAbs){
         return '已過站';
       }
     }
@@ -8602,7 +8674,7 @@ function filterTrainScheduleByNumberV2(trainNo){
     if(canNext){
       for(let i=0;i<locationRows.length;i++){
         const a = locationRows[i]?.eventAbs;
-        if(a!==null && a!==undefined && Number.isFinite(a) && Number.isFinite(nowAbs) && (a + Math.max(0,delayMin)) >= nowAbs){
+        if(a!==null && a!==undefined && Number.isFinite(a) && Number.isFinite(nowAbs) && (a + Math.max(0,delayMin)) > nowAbs){
           nextLocationIndex=i; break;
         }
       }
@@ -8611,33 +8683,52 @@ function filterTrainScheduleByNumberV2(trainNo){
         nextLocationIndex = liveProgress.locationNextIndex;
       }
     }
+    const nextLocationRow = nextLocationIndex >= 0 ? (locationRows[nextLocationIndex] || null) : null;
+    const scheduledArrivalAbsRaw =
+      Number.isFinite(nextLocationRow?.secondaryAbs)
+        ? nextLocationRow.secondaryAbs
+        : (nextLocationRow?.kind === 'terminal' ? nextLocationRow?.primaryAbs : null);
+    const scheduledDepartureAbsRaw =
+      Number.isFinite(nextLocationRow?.primaryAbs)
+        ? nextLocationRow.primaryAbs
+        : nextLocationRow?.secondaryAbs;
+    const scheduledArrivalAbs = Number.isFinite(scheduledArrivalAbsRaw) ? (scheduledArrivalAbsRaw + Math.max(0, delayMin)) : null;
+    const scheduledDepartureAbs = Number.isFinite(scheduledDepartureAbsRaw) ? (scheduledDepartureAbsRaw + Math.max(0, delayMin)) : null;
+    const scheduledStopHoldActive =
+      nextLocationRow?.kind !== 'pass' &&
+      Number.isFinite(nowAbs) &&
+      Number.isFinite(scheduledArrivalAbs) &&
+      Number.isFinite(scheduledDepartureAbs) &&
+      scheduledArrivalAbs <= nowAbs &&
+      nowAbs < scheduledDepartureAbs;
+    const liveStopDepartureAbs =
+      canNext &&
+      liveProgress.isStopStation &&
+      nextLocationRow?.kind !== 'pass'
+        ? ((Number.isFinite(nextLocationRow.primaryAbs) ? nextLocationRow.primaryAbs : nextLocationRow.secondaryAbs) + Math.max(0, delayMin))
+        : null;
+    const liveStopHoldActive =
+      !!liveProgress.isStopStation &&
+      nextLocationRow?.kind !== 'pass' &&
+      Number.isFinite(liveStopDepartureAbs) &&
+      Number.isFinite(nowAbs) &&
+      nowAbs < liveStopDepartureAbs;
+    const holdAtStopActive = scheduledStopHoldActive || liveStopHoldActive;
 
     const scheduledCrossDayInfo = getCrossDayInfo(arr);
     const crossDayInfo =
       (!scheduledCrossDayInfo.crosses && runtimeCtx.crossesEff)
         ? { crosses: true, label: '延誤跨日 · 次日到達' }
         : scheduledCrossDayInfo;
-    const currentLocation = getCurrentLocationText(arr, locationRows, nextLocationIndex, status, canNext, nowAbs, delayMin);
+    const detailBoard = buildTraTrainQueryV2StopRows(trainNo, originDateStr, arr, runtimeCtx, status, showPassStops, trainType);
+    const detailStateRows = Array.isArray(detailBoard?.stopRows) ? detailBoard.stopRows : [];
+    const detailHintPriority = ['停靠中', '即將通過', '即將發車', '尚未發車', '下一停靠'];
+    const detailPrimaryHintIndex = detailHintPriority.reduce((found, label)=>{
+      if(found >= 0) return found;
+      return detailStateRows.findIndex((row)=>String(row?.stateText || '') === label);
+    }, -1);
+    const currentLocation = detailBoard?.currentLocation || getCurrentLocationText(arr, locationRows, nextLocationIndex, status, canNext, nowAbs, delayMin, liveProgress, holdAtStopActive);
     const timelineRows = visibleTimelineRows;
-
-    let nextTimelineIndex = -1;
-    if(canNext){
-      for(let i=0;i<timelineRows.length;i++){
-        const a = timelineRows[i]?.eventAbs;
-        if(a!==null && a!==undefined && Number.isFinite(a) && Number.isFinite(nowAbs) && (a + Math.max(0,delayMin)) >= nowAbs){
-          nextTimelineIndex = i;
-          break;
-        }
-      }
-      if(nextTimelineIndex===-1 && timelineRows.length) nextTimelineIndex = timelineRows.length - 1;
-      if(liveProgress.visibleNextIndex >= 0 && nextTimelineIndex < liveProgress.visibleNextIndex){
-        nextTimelineIndex = liveProgress.visibleNextIndex;
-      }
-    }
-    const nextStopTimelineIndex =
-      nextTimelineIndex >= 0 && timelineRows[nextTimelineIndex]?.kind === 'pass'
-        ? timelineRows.findIndex((row, index)=>index > nextTimelineIndex && row.kind !== 'pass')
-        : -1;
 
     document.getElementById('modalTitleMain').innerHTML = `
       <span class="modal-brand-tag">TR</span>
@@ -8691,19 +8782,15 @@ function filterTrainScheduleByNumberV2(trainNo){
       item.className='timeline-item';
       if(row.kind === 'pass') item.classList.add('pass');
 
-      const eventAbs = row.eventAbs;
-      const passedHere =
-        canNext &&
-        Number.isFinite(nowAbs) &&
-        ((Number.isFinite(eventAbs) &&
-        (eventAbs + Math.max(0,delayMin)) < nowAbs) ||
-        (liveProgress.visibleNextIndex >= 0 && i < liveProgress.visibleNextIndex));
-      const isNext = canNext && i === nextTimelineIndex;
+      const stopState = detailStateRows[i] || {};
+      const passedHere = !!stopState.isPassed;
+      const hintText = /尚未發車|即將發車|停靠中|即將通過|下一停靠/.test(stopState.stateText || '')
+        ? String(stopState.stateText || '')
+        : '';
+      const isPrimaryHint = detailPrimaryHintIndex === i && !!hintText;
       const depHTML = renderTimelinePrimaryTimeHtml(trainNo, row.primaryText, row.primaryAbs, originDateStr, passedHere, delayMin);
       const arrHTML = renderTimelineSecondaryTimeHtml(trainNo, row.secondaryPrefix, row.secondaryText, row.secondaryAbs, originDateStr, passedHere, delayMin);
-      const badgeLabel = row.kind === 'pass' ? '即將通過' : '下一站';
-      const badgeNext = isNext ? ` <span class="badge-next">${badgeLabel}</span>` : '';
-      const badgeFollow = nextStopTimelineIndex === i ? ` <span class="badge-follow">下一停靠</span>` : '';
+      const badgeNext = hintText ? ` <span class="${isPrimaryHint ? 'badge-next' : 'badge-follow'}">${hintText}</span>` : '';
       const tag = row.descriptor || '';
 
       item.innerHTML=`
@@ -8713,13 +8800,13 @@ function filterTrainScheduleByNumberV2(trainNo){
           <div class="tl-line"></div>
         </div>
         <div class="tl-content">
-          <div class="tl-station"><span>${row.station}</span>${arrHTML?`<span class="st-arr ${row.kind === 'pass' ? 'pass' : 'stop'}">${arrHTML}</span>`:""}${badgeNext}${badgeFollow}</div>
+          <div class="tl-station"><span>${row.station}</span>${arrHTML?`<span class="st-arr ${row.kind === 'pass' ? 'pass' : 'stop'}">${arrHTML}</span>`:""}${badgeNext}</div>
           ${tag ? `<div class="tl-desc">${tag}</div>` : ''}
         </div>
       `;
 
       if(passedHere) item.classList.add('passed');
-      if(isNext) item.classList.add('next');
+      if(isPrimaryHint) item.classList.add('next');
 
       timeline.appendChild(item);
     });
@@ -8902,7 +8989,7 @@ function filterTrainScheduleByNumberV2(trainNo){
     if(canNext){
       for(let i=0;i<arr.length;i++){
         const a = abs?.[i]?.abs;
-        if(a!==null && a!==undefined && Number.isFinite(a) && Number.isFinite(nowAbs) && (a + Math.max(0,delayMin)) >= nowAbs){
+        if(a!==null && a!==undefined && Number.isFinite(a) && Number.isFinite(nowAbs) && (a + Math.max(0,delayMin)) > nowAbs){
           nextIndex=i; break;
         }
       }

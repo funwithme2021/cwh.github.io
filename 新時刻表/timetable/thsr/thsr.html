@@ -4468,41 +4468,38 @@
     const travel = (Number.isFinite(depAbs) && Number.isFinite(arrAbs)) ? durationText(0, Math.max(0, arrAbs - depAbs)).replace('0h ', '') : '--';
     const timelineRows = buildThsrTimelineRows(stops, showPassStops);
     const locationTimelineRows = buildThsrTimelineRows(stops, true);
+    const trainStatus = getStatusLabel(originDateStr, firstTimes.dep, lastTimes.arr || lastTimes.dep, depTime, 'train');
+    const runtime = getThsrTrainQueryRuntime(originDateStr, depTime, arrTime);
+    const board = buildThsrTrainQueryV2StopRows(stops, originDateStr, trainStatus, runtime, showPassStops);
+    const detailStateRows = Array.isArray(board?.stopRows) ? board.stopRows : [];
+    const detailHintPriority = ['停靠中', '即將通過', '即將發車', '尚未發車', '下一停靠'];
+    const detailPrimaryHintIndex = detailHintPriority.reduce((found, label)=>{
+      if(found >= 0) return found;
+      return detailStateRows.findIndex((row)=>String(row?.stateText || '') === label);
+    }, -1);
     const crosses = Number.isFinite(arrAbs) && arrAbs >= 1440;
     const isActiveWindow =
       (originDateStr === todayStr) ||
       (originDateStr === yestStr && crosses && Number.isFinite(arrAbs) && nowAbs <= (arrAbs + 360));
 
-    let nextTimelineIndex = -1;
-    if(isActiveWindow){
-      for(let i=0;i<timelineRows.length;i++){
-        const eventAbs = timelineRows[i]?.eventAbs;
-        if(eventAbs !== null && eventAbs !== undefined && Number.isFinite(eventAbs) && eventAbs >= nowAbs){
-          nextTimelineIndex = i;
-          break;
-        }
-      }
-    }
-    const nextStopTimelineIndex =
-      nextTimelineIndex >= 0 && timelineRows[nextTimelineIndex]?.kind === 'pass'
-        ? timelineRows.findIndex((row, index)=>index > nextTimelineIndex && row.kind !== 'pass')
-        : -1;
-
-    const currentLocation = getThsrDetailCurrentLocation(locationTimelineRows, nowAbs, originDateStr, todayStr, isActiveWindow, lastStop[0] || '--');
+    const currentLocation = board?.currentLocation || getThsrDetailCurrentLocation(locationTimelineRows, nowAbs, originDateStr, todayStr, isActiveWindow, lastStop[0] || '--');
 
     const html = timelineRows.map((row, i)=>{
-      const isPassed = isActiveWindow && Number.isFinite(row.eventAbs) && row.eventAbs < nowAbs;
-      const isNext = isActiveWindow && i === nextTimelineIndex;
+      const stopState = detailStateRows[i] || {};
+      const isPassed = !!stopState.isPassed;
+      const hintText = /尚未發車|即將發車|停靠中|即將通過|下一停靠/.test(stopState.stateText || '')
+        ? String(stopState.stateText || '')
+        : '';
+      const isPrimaryHint = detailPrimaryHintIndex === i && !!hintText;
       const secondaryHtml = row.secondaryPrefix && row.secondaryText
         ? `<span class="st-arr ${row.kind === 'pass' ? 'pass' : 'stop'}"><span class="st-arr-prefix">${row.secondaryPrefix}</span>${row.secondaryText}</span>`
         : '';
-      const badge = isNext ? `<span class="badge-next">${row.kind === 'pass' ? '即將通過' : '下一站'}</span>` : '';
-      const badgeFollow = nextStopTimelineIndex === i ? `<span class="badge-follow">下一停靠</span>` : '';
+      const badge = hintText ? `<span class="${isPrimaryHint ? 'badge-next' : 'badge-follow'}">${hintText}</span>` : '';
       const classes = ['timeline-item'];
       if(isPassed) classes.push('passed');
-      if(isNext) classes.push('next');
+      if(isPrimaryHint) classes.push('next');
       if(row.kind === 'pass') classes.push('pass');
-      return `<div class="${classes.join(' ')}"><div class="tl-time">${row.primaryText || '<span class="tl-time-empty">--</span>'}</div><div class="tl-marker"><div class="tl-dot"></div><div class="tl-line"></div></div><div class="tl-content"><div class="tl-station"><span>${row.station}</span>${secondaryHtml}${badge}${badgeFollow}</div>${row.descriptor ? `<div class="tl-desc">${row.descriptor}</div>` : ''}</div></div>`;
+      return `<div class="${classes.join(' ')}"><div class="tl-time">${row.primaryText || '<span class="tl-time-empty">--</span>'}</div><div class="tl-marker"><div class="tl-dot"></div><div class="tl-line"></div></div><div class="tl-content"><div class="tl-station"><span>${row.station}</span>${secondaryHtml}${badge}</div>${row.descriptor ? `<div class="tl-desc">${row.descriptor}</div>` : ''}</div></div>`;
     }).join('');
 
     document.getElementById('modalBody').innerHTML = `
