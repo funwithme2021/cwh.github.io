@@ -1944,6 +1944,55 @@
     }
   }
 
+  function getCachedTrainSnapshot(state, trainNo, originDate) {
+    const snapshots = Array.isArray(state?.snapshots) ? state.snapshots : [];
+    if (!snapshots.length) return null;
+    const exactKey = makeTrainKey(trainNo, originDate);
+    return (
+      snapshots.find((snapshot) => makeTrainKey(snapshot.trainNo, snapshot.originDate || snapshot.queryDate) === exactKey) ||
+      snapshots.find((snapshot) => sameTrainNo(snapshot.trainNo, trainNo) && (!originDate || String(snapshot.originDate || snapshot.queryDate || "") === String(originDate || ""))) ||
+      snapshots.find((snapshot) => sameTrainNo(snapshot.trainNo, trainNo)) ||
+      null
+    );
+  }
+
+  function buildSingleTrainSnapshot(system, trainNo, originDate, options = {}) {
+    const queryDate = options?.queryDate || getQueryDate();
+    const baseSchedule = readPageValue("baseSchedule") || window.trainSchedule || {};
+    const prevSchedule = readPageValue("prevSchedule") || {};
+    const scheduleSources = [];
+    if (baseSchedule && Object.keys(baseSchedule).length) scheduleSources.push({ map: baseSchedule, originDate: queryDate });
+    if (prevSchedule && Object.keys(prevSchedule).length) scheduleSources.push({ map: prevSchedule, originDate: addDays(queryDate, -1) });
+    if (!scheduleSources.length) return null;
+
+    const entries = buildEntries(system, scheduleSources).filter((entry) => sameTrainNo(entry.trainNo, trainNo));
+    const matchedEntry =
+      entries.find((entry) => String(entry.originDate || "") === String(originDate || "")) ||
+      entries[0] ||
+      null;
+    if (!matchedEntry) return null;
+
+    const routeStations = Array.isArray(matchedEntry.fullPathStations) && matchedEntry.fullPathStations.length
+      ? matchedEntry.fullPathStations.slice()
+      : expandEntryPathStations(system, matchedEntry.stops || []);
+    if (routeStations.length < 2) return null;
+
+    const projections = buildRouteProjections(matchedEntry, routeStations, system, queryDate);
+    const snapshots = dedupeCircularSnapshots(
+      projections
+        .map((projection) => buildSnapshot(projection, system, queryDate))
+        .concat(system === "tr" ? buildSharedStationOnlySnapshots([matchedEntry], { stations: routeStations }, system, queryDate) : [])
+        .filter(Boolean)
+    );
+    if (!snapshots.length) return null;
+    const exactKey = makeTrainKey(trainNo, originDate || matchedEntry.originDate);
+    return (
+      snapshots.find((snapshot) => makeTrainKey(snapshot.trainNo, snapshot.originDate || snapshot.queryDate) === exactKey) ||
+      snapshots.sort((a, b) => getSnapshotPriority(b) - getSnapshotPriority(a))[0] ||
+      null
+    );
+  }
+
   function bindTrackerV2Output(state) {
     if (state.variant !== "modern") return;
     state.output.querySelectorAll(".rail-live-v2-event-card[data-train-key]").forEach((card) => {
@@ -2257,7 +2306,7 @@
         <div class="rail-live-v2-layout">
           <article class="rail-live-v2-section rail-live-v2-focus-shell">
             <div class="rail-live-v2-section-head">
-              <div><h3>焦點列車</h3><p>點圖上的列車會直接開詳細資訊，並同步切到這裡。</p></div>
+              <div><h3>焦點列車</h3><p>點圖上的列車會直接同步切到這裡。</p></div>
               <button type="button" class="rail-live-mini-btn rail-live-locate-btn" data-live-locate-train="1">📍定位車次</button>
             </div>
             <div class="rail-live-v2-section-body" data-live-v2-focus></div>
@@ -2270,7 +2319,7 @@
             <div class="rail-live-map" style="height:${boardHeight}px; --rail-live-line-top:${MAP_PADDING_Y}px; --rail-live-line-bottom:${MAP_PADDING_Y}px;"><div class="rail-live-line"></div></div>
           </section>
           <article class="rail-live-v2-section rail-live-v2-trains-shell">
-            <div class="rail-live-v2-section-head"><h3>全部列車</h3><p>保留原本卡片資訊，直接點選即可定位列車並切換焦點。</p></div>
+            <div class="rail-live-v2-section-head"><h3>全部列車</h3><p>直接點選即可定位列車並切換焦點。</p></div>
             <div class="rail-live-v2-scroll rail-live-v2-all-scroll" data-live-v2-trains style="max-height:${feedHeight}px"></div>
           </article>
         </div>
@@ -2604,6 +2653,14 @@
     window.RailLiveTracker.locateTrain = async (options = {}) => {
       const activeState = TRACKER_STATES.get(getSystem()) || TRACKER_STATES.get(system);
       return locateTrainIntoTracker(activeState, options?.button || null);
+    };
+    window.RailLiveTracker.getTrainSnapshot = (trainNo, originDate, options = {}) => {
+      const targetSystem = options?.system || getSystem() || system;
+      const activeState = TRACKER_STATES.get(targetSystem) || TRACKER_STATES.get(getSystem()) || TRACKER_STATES.get(system);
+      return (
+        getCachedTrainSnapshot(activeState, trainNo, originDate) ||
+        buildSingleTrainSnapshot(targetSystem, trainNo, originDate, options)
+      );
     };
     bindTrackerPanel(state, inserted.tab);
     const syncPlacement = () => placeAfterAnchor(inserted.tab, inserted.panel, config);

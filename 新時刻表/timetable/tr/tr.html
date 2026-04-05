@@ -4719,6 +4719,90 @@ function splitArrDep(stopRow){
     });
   }
 
+  function shiftTraTimelineAbs(absValue, delayMin){
+    return Number.isFinite(absValue) ? (absValue + Math.max(0, Number(delayMin) || 0)) : absValue;
+  }
+
+  function buildTraEffectiveTimelineRows(baseRows, delayMin, trainType, liveOptions){
+    const adjusted = (Array.isArray(baseRows) ? baseRows : []).map((row)=>({
+      ...row,
+      primaryAbs: shiftTraTimelineAbs(row?.primaryAbs, delayMin),
+      secondaryAbs: shiftTraTimelineAbs(row?.secondaryAbs, delayMin),
+      eventAbs: shiftTraTimelineAbs(row?.eventAbs, delayMin)
+    }));
+    const trainNo = String(liveOptions?.trainNo || '').trim();
+    const originDateStr = String(liveOptions?.originDateStr || '').trim();
+    if(!trainNo || !originDateStr || !adjusted.length) return adjusted;
+
+    const liveEntry = getTraLiveBoardEntrySafe(trainNo, originDateStr);
+    const station = normalizeTraLinkedStation(liveEntry?.stationName || '');
+    if(!station) return adjusted;
+
+    let stopIndex = -1;
+    let passIndex = -1;
+    adjusted.forEach((row, index)=>{
+      if(normalizeTraLinkedStation(row?.station) !== station) return;
+      if(row?.kind === 'pass'){
+        if(passIndex < 0) passIndex = index;
+      }else if(stopIndex < 0){
+        stopIndex = index;
+      }
+    });
+
+    const anchorIndex = passIndex >= 0 ? passIndex : stopIndex;
+    if(anchorIndex < 0) return adjusted;
+
+    const anchorRow = adjusted[anchorIndex];
+    if(anchorRow?.kind !== 'pass') return adjusted;
+
+    const delayedScheduledAnchorAbs = anchorRow.eventAbs;
+    if(!Number.isFinite(delayedScheduledAnchorAbs)) return adjusted;
+
+    const liveEventAbs = parseTraLiveTimestampAbs(liveEntry?.srcUpdateTime || liveEntry?.updateTime || '', originDateStr);
+    const anchorEventAbs = Number.isFinite(liveEventAbs)
+      ? Math.min(delayedScheduledAnchorAbs, liveEventAbs)
+      : delayedScheduledAnchorAbs;
+
+    anchorRow.eventAbs = anchorEventAbs;
+    anchorRow.secondaryAbs = anchorEventAbs;
+
+    let nextFixedIndex = -1;
+    for(let index = anchorIndex + 1; index < adjusted.length; index += 1){
+      if(adjusted[index]?.kind === 'pass') continue;
+      nextFixedIndex = index;
+      break;
+    }
+    if(nextFixedIndex < 0) return adjusted;
+
+    const nextFixed = adjusted[nextFixedIndex];
+    const endAbs = nextFixed?.secondaryAbs ?? nextFixed?.primaryAbs ?? nextFixed?.eventAbs;
+    if(!(Number.isFinite(anchorEventAbs) && Number.isFinite(endAbs) && endAbs > anchorEventAbs)) return adjusted;
+
+    const path = getTraRouteStationsBetween(anchorRow.station, nextFixed.station);
+    if(path.length <= 1) return adjusted;
+
+    const duration = endAbs - anchorEventAbs;
+    const getTraRatio = window.RailNetwork?.getTraTimedInterpolationRatio;
+    for(let step = 1; step < path.length - 1; step += 1){
+      const fallbackRatio = step / (path.length - 1);
+      const ratio = (typeof getTraRatio === 'function')
+        ? getTraRatio(path, 0, path.length - 1, step, duration, false, nextFixed.kind !== 'pass', trainType, fallbackRatio)
+        : fallbackRatio;
+      const passAbs = Math.round(anchorEventAbs + (duration * ratio));
+      const stationNorm = normalizeTraLinkedStation(path[step]);
+      for(let index = anchorIndex + 1; index < adjusted.length; index += 1){
+        const row = adjusted[index];
+        if(row?.kind !== 'pass') continue;
+        if(normalizeTraLinkedStation(row?.station) !== stationNorm) continue;
+        row.eventAbs = passAbs;
+        row.secondaryAbs = passAbs;
+        break;
+      }
+    }
+
+    return adjusted;
+  }
+
 
   function getStopDateStr(originDateStr, absMin){
     if(absMin === null || absMin === undefined) return originDateStr;
@@ -4897,6 +4981,30 @@ function splitArrDep(stopRow){
       }
     }
     return { station, locationRowIndex, locationNextIndex, visibleNextIndex, isStopStation };
+  }
+  function canAdvanceTraTimelineByLive(liveProgress){
+    return !!liveProgress && liveProgress.locationNextIndex >= 0 && !liveProgress.isStopStation;
+  }
+  function getTraTrackerSnapshot(trainNo, originDateStr){
+    if(!trainNo || typeof window.RailLiveTracker?.getTrainSnapshot !== 'function') return null;
+    try{
+      return window.RailLiveTracker.getTrainSnapshot(String(trainNo || '').trim(), originDateStr, { system: 'tr' }) || null;
+    }catch(_){
+      return null;
+    }
+  }
+  function findTraTimelineRowIndex(rows, stationName, preferPass=null){
+    const target = normalizeTraLinkedStation(stationName);
+    if(!target || !Array.isArray(rows) || !rows.length) return -1;
+    let fallbackIndex = -1;
+    for(let index = 0; index < rows.length; index += 1){
+      const row = rows[index];
+      if(normalizeTraLinkedStation(row?.station) !== target) continue;
+      if(fallbackIndex < 0) fallbackIndex = index;
+      if(preferPass === null) return index;
+      if(Boolean(row?.kind === 'pass') === Boolean(preferPass)) return index;
+    }
+    return fallbackIndex;
   }
 // ===== 狀態：用「發車日」判斷（不是站別跨日後的日期） =====
   
@@ -8463,21 +8571,54 @@ function buildTraTrainQueryV2StopRows(trainNo, originDateStr, stops, runtimeCtx,
   const canNext =
     runtimeCtx?.isActiveWindow &&
     (!Number.isFinite(runtimeCtx?.lastAbsEff) || !Number.isFinite(nowAbs) || nowAbs <= (runtimeCtx.lastAbsEff + 5));
-  const locationRows = buildTraTimelineRows(stops || [], true, trainType, { trainNo, originDateStr });
-  const visibleRows = buildTraTimelineRows(stops || [], showPassStops, trainType, { trainNo, originDateStr });
+  const locationRows = buildTraTimelineRows(stops || [], true, trainType);
+  const visibleRows = buildTraTimelineRows(stops || [], showPassStops, trainType);
+  const runtimeLocationRows = buildTraEffectiveTimelineRows(locationRows, positiveDelay, trainType, { trainNo, originDateStr });
+  const runtimeVisibleRows = buildTraEffectiveTimelineRows(visibleRows, positiveDelay, trainType, { trainNo, originDateStr });
   const liveProgress = getTraLiveTimelineProgress(trainNo, originDateStr, locationRows, visibleRows);
-  let nextLocationIndex = findTraNextTimelineIndex(locationRows, nowAbs, runtimeCtx?.delayMin || 0, canNext);
-  let nextVisibleIndex = findTraNextTimelineIndex(visibleRows, nowAbs, runtimeCtx?.delayMin || 0, canNext);
-  if(canNext && liveProgress.locationNextIndex >= 0 && (!Number.isInteger(nextLocationIndex) || nextLocationIndex < liveProgress.locationNextIndex)){
+  const liveCanAdvanceTimeline = canAdvanceTraTimelineByLive(liveProgress);
+  const trackerSnapshot = getTraTrackerSnapshot(trainNo, originDateStr);
+  const trackerCurrentVisibleIndex = trackerSnapshot
+    ? findTraTimelineRowIndex(runtimeVisibleRows, trackerSnapshot.currentFrom, trackerSnapshot.state === 'running' ? null : false)
+    : -1;
+  const trackerSoonVisibleIndex = trackerSnapshot
+    ? (
+        trackerSnapshot.state === 'running'
+          ? findTraTimelineRowIndex(runtimeVisibleRows, trackerSnapshot.soonStation, trackerSnapshot.soonKind === 'pass')
+          : trackerCurrentVisibleIndex
+      )
+    : -1;
+  const trackerNextStopVisibleIndex = trackerSnapshot
+    ? findTraTimelineRowIndex(runtimeVisibleRows, trackerSnapshot.nextStopStation || trackerSnapshot.nextStation, false)
+    : -1;
+  const trackerCurrentLocationIndex = trackerSnapshot
+    ? findTraTimelineRowIndex(runtimeLocationRows, trackerSnapshot.currentFrom, trackerSnapshot.state === 'running' ? null : false)
+    : -1;
+  const trackerSoonLocationIndex = trackerSnapshot
+    ? (
+        trackerSnapshot.state === 'running'
+          ? findTraTimelineRowIndex(runtimeLocationRows, trackerSnapshot.soonStation, trackerSnapshot.soonKind === 'pass')
+          : trackerCurrentLocationIndex
+      )
+    : -1;
+  let nextLocationIndex = findTraNextTimelineIndex(runtimeLocationRows, nowAbs, 0, canNext);
+  let nextVisibleIndex = findTraNextTimelineIndex(runtimeVisibleRows, nowAbs, 0, canNext);
+  if(trackerSnapshot && trackerSoonLocationIndex >= 0){
+    nextLocationIndex = trackerSoonLocationIndex;
+  }
+  if(trackerSnapshot && trackerSoonVisibleIndex >= 0){
+    nextVisibleIndex = trackerSoonVisibleIndex;
+  }
+  if(canNext && liveCanAdvanceTimeline && (!Number.isInteger(nextLocationIndex) || nextLocationIndex < liveProgress.locationNextIndex)){
     nextLocationIndex = liveProgress.locationNextIndex;
   }
-  if(canNext && liveProgress.visibleNextIndex >= 0 && (!Number.isInteger(nextVisibleIndex) || nextVisibleIndex < liveProgress.visibleNextIndex)){
+  if(canNext && liveCanAdvanceTimeline && liveProgress.visibleNextIndex >= 0 && (!Number.isInteger(nextVisibleIndex) || nextVisibleIndex < liveProgress.visibleNextIndex)){
     nextVisibleIndex = liveProgress.visibleNextIndex;
   }
-  nextLocationIndex = normalizeTraNextTimelineIndex(locationRows, nextLocationIndex, nowAbs, runtimeCtx?.delayMin || 0, canNext);
-  nextVisibleIndex = normalizeTraNextTimelineIndex(visibleRows, nextVisibleIndex, nowAbs, runtimeCtx?.delayMin || 0, canNext);
-  const liveLocationRow = liveProgress.locationRowIndex >= 0 ? (locationRows[liveProgress.locationRowIndex] || null) : null;
-  const nextLocationRow = nextLocationIndex >= 0 ? (locationRows[nextLocationIndex] || null) : null;
+  nextLocationIndex = normalizeTraNextTimelineIndex(runtimeLocationRows, nextLocationIndex, nowAbs, 0, canNext);
+  nextVisibleIndex = normalizeTraNextTimelineIndex(runtimeVisibleRows, nextVisibleIndex, nowAbs, 0, canNext);
+  const liveLocationRow = liveProgress.locationRowIndex >= 0 ? (runtimeLocationRows[liveProgress.locationRowIndex] || null) : null;
+  const nextLocationRow = nextLocationIndex >= 0 ? (runtimeLocationRows[nextLocationIndex] || null) : null;
   const scheduledArrivalAbsRaw =
     Number.isFinite(nextLocationRow?.secondaryAbs)
       ? nextLocationRow.secondaryAbs
@@ -8486,8 +8627,8 @@ function buildTraTrainQueryV2StopRows(trainNo, originDateStr, stops, runtimeCtx,
     Number.isFinite(nextLocationRow?.primaryAbs)
       ? nextLocationRow.primaryAbs
       : nextLocationRow?.secondaryAbs;
-  const scheduledArrivalAbs = Number.isFinite(scheduledArrivalAbsRaw) ? (scheduledArrivalAbsRaw + positiveDelay) : null;
-  const scheduledDepartureAbs = Number.isFinite(scheduledDepartureAbsRaw) ? (scheduledDepartureAbsRaw + positiveDelay) : null;
+  const scheduledArrivalAbs = Number.isFinite(scheduledArrivalAbsRaw) ? scheduledArrivalAbsRaw : null;
+  const scheduledDepartureAbs = Number.isFinite(scheduledDepartureAbsRaw) ? scheduledDepartureAbsRaw : null;
   const scheduledStopHoldActive =
     nextLocationRow?.kind !== 'pass' &&
     Number.isFinite(nowAbs) &&
@@ -8499,7 +8640,7 @@ function buildTraTrainQueryV2StopRows(trainNo, originDateStr, stops, runtimeCtx,
     canNext &&
     liveProgress.isStopStation &&
     liveLocationRow?.kind !== 'pass'
-      ? ((Number.isFinite(liveLocationRow?.primaryAbs) ? liveLocationRow.primaryAbs : liveLocationRow?.secondaryAbs) + positiveDelay)
+      ? (Number.isFinite(liveLocationRow?.primaryAbs) ? liveLocationRow.primaryAbs : liveLocationRow?.secondaryAbs)
       : null;
   const liveStopHoldActive =
     !!liveProgress.isStopStation &&
@@ -8508,17 +8649,21 @@ function buildTraTrainQueryV2StopRows(trainNo, originDateStr, stops, runtimeCtx,
     Number.isFinite(nowAbs) &&
     nowAbs < liveStopDepartureAbs;
   const holdAtStopActive = scheduledStopHoldActive || liveStopHoldActive;
-  const nextVisibleStopIndex = holdAtStopActive ? -1 : getNextTraStopIndex(visibleRows, nextVisibleIndex, false);
-  const nextLocationStopIndex = holdAtStopActive ? -1 : getNextTraStopIndex(locationRows, nextLocationIndex, false);
-  const nextLocationStopRow = nextLocationStopIndex >= 0 ? (locationRows[nextLocationStopIndex] || null) : null;
-  const currentLocation = getCurrentLocationText(
+  const nextVisibleStopIndex = holdAtStopActive
+    ? -1
+    : (trackerSnapshot && trackerSnapshot.state === 'running' && trackerSnapshot.soonKind === 'pass' && trackerNextStopVisibleIndex >= 0
+        ? trackerNextStopVisibleIndex
+        : getNextTraStopIndex(runtimeVisibleRows, nextVisibleIndex, false));
+  const nextLocationStopIndex = holdAtStopActive ? -1 : getNextTraStopIndex(runtimeLocationRows, nextLocationIndex, false);
+  const nextLocationStopRow = nextLocationStopIndex >= 0 ? (runtimeLocationRows[nextLocationStopIndex] || null) : null;
+  const currentLocation = trackerSnapshot?.locationText || getCurrentLocationText(
     stops,
-    locationRows,
+    runtimeLocationRows,
     nextLocationIndex,
     trainStatus,
     canNext,
     nowAbs,
-    runtimeCtx?.delayMin || 0,
+    0,
     liveProgress,
     holdAtStopActive
   );
@@ -8529,9 +8674,23 @@ function buildTraTrainQueryV2StopRows(trainNo, originDateStr, stops, runtimeCtx,
     (originDateStr && originDateStr < runtimeCtx?.todayStr && !runtimeCtx?.isActiveWindow);
 
   let nextHint = currentLocation || '--';
-  if(trainStatus === '未發車'){
-    const firstEventAbs = locationRows[0]?.primaryAbs ?? locationRows[0]?.secondaryAbs ?? locationRows[0]?.eventAbs ?? null;
-    const firstEventEff = Number.isFinite(firstEventAbs) ? (firstEventAbs + positiveDelay) : null;
+  if(trackerSnapshot){
+    if(trackerSnapshot.state === 'upcoming'){
+      nextHint = `${/即將發車/.test(String(trackerSnapshot.statusText || '')) ? '即將發車' : '尚未發車'} · ${trackerSnapshot.currentFrom || firstStop?.[0] || '--'}`;
+    }else if(trackerSnapshot.state === 'dwell'){
+      nextHint = `停靠中 ${trackerSnapshot.currentFrom || '--'}`;
+    }else if(trackerSnapshot.state === 'running'){
+      nextHint = trackerSnapshot.soonKind === 'pass'
+        ? (trackerSnapshot.nextStopStation
+            ? `即將通過 ${trackerSnapshot.soonStation} · 下一停靠 ${trackerSnapshot.nextStopStation}`
+            : `即將通過 ${trackerSnapshot.soonStation}`)
+        : `下一停靠 ${trackerSnapshot.nextStopStation || trackerSnapshot.soonStation || trackerSnapshot.nextStation || '--'}`;
+    }else if(trackerSnapshot.state === 'arrived'){
+      nextHint = `已抵達 ${trackerSnapshot.currentTo || lastStop?.[0] || '--'}`;
+    }
+  }else if(trainStatus === '未發車'){
+    const firstEventAbs = runtimeLocationRows[0]?.primaryAbs ?? runtimeLocationRows[0]?.secondaryAbs ?? runtimeLocationRows[0]?.eventAbs ?? null;
+    const firstEventEff = Number.isFinite(firstEventAbs) ? firstEventAbs : null;
     const soonToDepart =
       Number.isFinite(firstEventEff) &&
       Number.isFinite(nowAbs) &&
@@ -8555,10 +8714,35 @@ function buildTraTrainQueryV2StopRows(trainNo, originDateStr, stops, runtimeCtx,
     }
   }
 
+  const hasTrackerTruth = !!trackerSnapshot && ['upcoming','dwell','running','arrived'].includes(String(trackerSnapshot.state || ''));
   const stopRows = visibleRows.map((row, index) => {
-    const rowStatus = getTrainDetailStatusLabel(trainNo, originDateStr, firstTimeStr, lastTimeStr, row.eventAbs, runtimeCtx);
+    const runtimeRow = runtimeVisibleRows[index] || row;
     const livePassedHere = liveProgress.visibleNextIndex >= 0 && index < liveProgress.visibleNextIndex;
-    const isPassed = ended || livePassedHere || rowStatus === '已過站' || (row.kind === 'terminal' && rowStatus === '已到終點');
+    const runtimeArrivalAbs =
+      Number.isFinite(runtimeRow?.secondaryAbs)
+        ? runtimeRow.secondaryAbs
+        : (runtimeRow?.kind === 'terminal' ? runtimeRow?.primaryAbs : null);
+    const runtimeDepartureAbs =
+      Number.isFinite(runtimeRow?.primaryAbs)
+        ? runtimeRow.primaryAbs
+        : runtimeRow?.secondaryAbs;
+    const scheduledPassed =
+      row.kind === 'pass'
+        ? (Number.isFinite(runtimeRow?.eventAbs) && Number.isFinite(nowAbs) && nowAbs >= runtimeRow.eventAbs)
+        : row.kind === 'terminal'
+          ? (Number.isFinite(runtimeArrivalAbs) && Number.isFinite(nowAbs) && nowAbs >= runtimeArrivalAbs)
+          : (Number.isFinite(runtimeDepartureAbs) && Number.isFinite(nowAbs) && nowAbs >= runtimeDepartureAbs);
+    const trackerBoundaryIndex =
+      trackerSnapshot?.state === 'running'
+        ? trackerSoonVisibleIndex
+        : trackerCurrentVisibleIndex;
+    const isPassed = hasTrackerTruth
+      ? (
+          trackerSnapshot.state === 'arrived'
+            ? (row.kind === 'terminal' ? true : index < runtimeVisibleRows.length)
+            : (Number.isInteger(trackerBoundaryIndex) && trackerBoundaryIndex >= 0 ? index < trackerBoundaryIndex : (ended || livePassedHere || scheduledPassed))
+        )
+      : (ended || livePassedHere || scheduledPassed);
     const arrivalAbsRaw =
       Number.isFinite(row.secondaryAbs)
         ? row.secondaryAbs
@@ -8567,15 +8751,15 @@ function buildTraTrainQueryV2StopRows(trainNo, originDateStr, stops, runtimeCtx,
       Number.isFinite(row.primaryAbs)
         ? row.primaryAbs
         : row.secondaryAbs;
-    const arrivalAbs = Number.isFinite(arrivalAbsRaw) ? (arrivalAbsRaw + positiveDelay) : null;
-    const departureAbs = Number.isFinite(departureAbsRaw) ? (departureAbsRaw + positiveDelay) : null;
+    const arrivalAbs = Number.isFinite(runtimeArrivalAbs) ? runtimeArrivalAbs : null;
+    const departureAbs = Number.isFinite(runtimeDepartureAbs) ? runtimeDepartureAbs : null;
     const isLiveOriginHold = liveStopHoldActive && index === 0 && liveProgress.visibleNextIndex === index;
     const isLiveCurrentStop =
       liveStopHoldActive &&
       row.kind !== 'pass' &&
       liveProgress.visibleNextIndex === index &&
       !isLiveOriginHold;
-    const isCurrent =
+    const fallbackIsCurrent =
       (!isPassed &&
       row.kind !== 'pass' &&
       Number.isFinite(nowAbs) &&
@@ -8584,8 +8768,30 @@ function buildTraTrainQueryV2StopRows(trainNo, originDateStr, stops, runtimeCtx,
       arrivalAbs <= nowAbs &&
       nowAbs < departureAbs) ||
       isLiveCurrentStop;
-    const isNext = !isPassed && !isCurrent && nextVisibleIndex === index;
-    const isNextStop = !isPassed && !isCurrent && !isNext && nextVisibleStopIndex === index;
+    const isCurrent = hasTrackerTruth
+      ? (
+          (trackerSnapshot.state === 'dwell' || trackerSnapshot.state === 'upcoming') &&
+          trackerCurrentVisibleIndex === index &&
+          row.kind !== 'pass'
+        )
+      : fallbackIsCurrent;
+    const fallbackIsNext = !isPassed && !isCurrent && nextVisibleIndex === index;
+    const isNext = hasTrackerTruth
+      ? (
+          trackerSnapshot.state === 'running' &&
+          trackerSoonVisibleIndex === index
+        )
+      : fallbackIsNext;
+    const fallbackIsNextStop = !isPassed && !isCurrent && !isNext && nextVisibleStopIndex === index;
+    const isNextStop = hasTrackerTruth
+      ? (
+          trackerSnapshot.state === 'running' &&
+          trackerSnapshot.soonKind === 'pass' &&
+          trackerNextStopVisibleIndex >= 0 &&
+          trackerNextStopVisibleIndex === index &&
+          trackerNextStopVisibleIndex !== trackerSoonVisibleIndex
+        )
+      : fallbackIsNextStop;
 
     let arrHtml = '--';
     let depHtml = '--';
@@ -9050,25 +9256,28 @@ function filterTrainScheduleByNumberV2(trainNo){
       isActiveWindow &&
       (!Number.isFinite(delayedLastAbs) || !Number.isFinite(nowAbs) || nowAbs <= (delayedLastAbs + 5));
 
-    const locationRows = buildTraTimelineRows(arr, true, trainType, { trainNo, originDateStr });
-    const visibleTimelineRows = buildTraTimelineRows(arr, showPassStops, trainType, { trainNo, originDateStr });
+    const locationRows = buildTraTimelineRows(arr, true, trainType);
+    const visibleTimelineRows = buildTraTimelineRows(arr, showPassStops, trainType);
+    const runtimeLocationRows = buildTraEffectiveTimelineRows(locationRows, Math.max(0, delayMin), trainType, { trainNo, originDateStr });
+    const runtimeVisibleTimelineRows = buildTraEffectiveTimelineRows(visibleTimelineRows, Math.max(0, delayMin), trainType, { trainNo, originDateStr });
     const liveProgress = getTraLiveTimelineProgress(trainNo, originDateStr, locationRows, visibleTimelineRows);
+    const liveCanAdvanceTimeline = canAdvanceTraTimelineByLive(liveProgress);
     let nextLocationIndex=-1;
     if(canNext){
-      for(let i=0;i<locationRows.length;i++){
-        const a = locationRows[i]?.eventAbs;
-        if(a!==null && a!==undefined && Number.isFinite(a) && Number.isFinite(nowAbs) && (a + Math.max(0,delayMin)) > nowAbs){
+      for(let i=0;i<runtimeLocationRows.length;i++){
+        const a = runtimeLocationRows[i]?.eventAbs;
+        if(a!==null && a!==undefined && Number.isFinite(a) && Number.isFinite(nowAbs) && a > nowAbs){
           nextLocationIndex=i; break;
         }
       }
-      if(nextLocationIndex===-1 && locationRows.length) nextLocationIndex = locationRows.length-1;
-      if(liveProgress.locationNextIndex >= 0 && nextLocationIndex < liveProgress.locationNextIndex){
+      if(nextLocationIndex===-1 && runtimeLocationRows.length) nextLocationIndex = runtimeLocationRows.length-1;
+      if(liveCanAdvanceTimeline && liveProgress.locationNextIndex >= 0 && nextLocationIndex < liveProgress.locationNextIndex){
         nextLocationIndex = liveProgress.locationNextIndex;
       }
     }
-    nextLocationIndex = normalizeTraNextTimelineIndex(locationRows, nextLocationIndex, nowAbs, delayMin, canNext);
-    const liveLocationRow = liveProgress.locationRowIndex >= 0 ? (locationRows[liveProgress.locationRowIndex] || null) : null;
-    const nextLocationRow = nextLocationIndex >= 0 ? (locationRows[nextLocationIndex] || null) : null;
+    nextLocationIndex = normalizeTraNextTimelineIndex(runtimeLocationRows, nextLocationIndex, nowAbs, 0, canNext);
+    const liveLocationRow = liveProgress.locationRowIndex >= 0 ? (runtimeLocationRows[liveProgress.locationRowIndex] || null) : null;
+    const nextLocationRow = nextLocationIndex >= 0 ? (runtimeLocationRows[nextLocationIndex] || null) : null;
     const scheduledArrivalAbsRaw =
       Number.isFinite(nextLocationRow?.secondaryAbs)
         ? nextLocationRow.secondaryAbs
@@ -9077,8 +9286,8 @@ function filterTrainScheduleByNumberV2(trainNo){
       Number.isFinite(nextLocationRow?.primaryAbs)
         ? nextLocationRow.primaryAbs
         : nextLocationRow?.secondaryAbs;
-    const scheduledArrivalAbs = Number.isFinite(scheduledArrivalAbsRaw) ? (scheduledArrivalAbsRaw + Math.max(0, delayMin)) : null;
-    const scheduledDepartureAbs = Number.isFinite(scheduledDepartureAbsRaw) ? (scheduledDepartureAbsRaw + Math.max(0, delayMin)) : null;
+    const scheduledArrivalAbs = Number.isFinite(scheduledArrivalAbsRaw) ? scheduledArrivalAbsRaw : null;
+    const scheduledDepartureAbs = Number.isFinite(scheduledDepartureAbsRaw) ? scheduledDepartureAbsRaw : null;
     const scheduledStopHoldActive =
       nextLocationRow?.kind !== 'pass' &&
       Number.isFinite(nowAbs) &&
@@ -9090,7 +9299,7 @@ function filterTrainScheduleByNumberV2(trainNo){
       canNext &&
       liveProgress.isStopStation &&
       liveLocationRow?.kind !== 'pass'
-        ? ((Number.isFinite(liveLocationRow?.primaryAbs) ? liveLocationRow.primaryAbs : liveLocationRow?.secondaryAbs) + Math.max(0, delayMin))
+        ? (Number.isFinite(liveLocationRow?.primaryAbs) ? liveLocationRow.primaryAbs : liveLocationRow?.secondaryAbs)
         : null;
     const liveStopHoldActive =
       !!liveProgress.isStopStation &&
@@ -9112,8 +9321,8 @@ function filterTrainScheduleByNumberV2(trainNo){
       if(found >= 0) return found;
       return detailStateRows.findIndex((row)=>String(row?.stateText || '') === label);
     }, -1);
-    const currentLocation = detailBoard?.currentLocation || getCurrentLocationText(arr, locationRows, nextLocationIndex, status, canNext, nowAbs, delayMin, liveProgress, holdAtStopActive);
-    const timelineRows = visibleTimelineRows;
+    const currentLocation = detailBoard?.currentLocation || getCurrentLocationText(arr, runtimeLocationRows, nextLocationIndex, status, canNext, nowAbs, 0, liveProgress, holdAtStopActive);
+    const timelineRows = runtimeVisibleTimelineRows;
 
     document.getElementById('modalTitleMain').innerHTML = `
       <span class="modal-brand-tag">TR</span>
