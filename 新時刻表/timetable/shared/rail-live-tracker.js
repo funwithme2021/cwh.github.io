@@ -1053,7 +1053,7 @@
         for (let index = 0; index < points.length - 1; index += 1) {
           const current = points[index];
           const next = points[index + 1];
-          if (!Number.isFinite(current?.minute) || !Number.isFinite(next?.minute) || nowMinute < current.minute || nowMinute > next.minute) continue;
+          if (!Number.isFinite(current?.minute) || !Number.isFinite(next?.minute) || nowMinute < current.minute || nowMinute >= next.minute) continue;
           state = "running";
           stateLabel = "行進中";
           positionIndex = current.routeIndex + (next.routeIndex - current.routeIndex) * (clamp((nowMinute - current.minute) / Math.max(1, next.minute - current.minute), 0, 1));
@@ -1061,24 +1061,26 @@
           currentTo = next.station;
           const nextStop = stopDetails.find((stop) => Number.isFinite(getStopArrivalMinute(stop)) && getStopArrivalMinute(stop) >= nowMinute);
           const nextPoint = points.find((point, pointIndex) => pointIndex > index && Number.isFinite(point.minute) && point.minute >= nowMinute);
-          nextStation = nextStop?.name || next.station;
-          nextTime = formatMinute(getStopArrivalMinute(nextStop) ?? nextPoint?.minute ?? next.minute);
           statusText = `行進中·${punctualityText}`;
-          const soonTarget = nextStop
+          const nextStopTarget = nextStop
             ? { station: nextStop.name, minute: getStopArrivalMinute(nextStop), isStop: true }
-            : nextPoint
-              ? { station: nextPoint.station, minute: nextPoint.minute, isStop: Boolean(nextPoint.isStop) }
-              : null;
+            : null;
+          const nextPointTarget = nextPoint
+            ? { station: nextPoint.station, minute: nextPoint.minute, isStop: Boolean(nextPoint.isStop) }
+            : null;
+          const soonTarget = !nextStopTarget
+            ? nextPointTarget
+            : !nextPointTarget
+              ? nextStopTarget
+              : (nextPointTarget.minute < nextStopTarget.minute ? nextPointTarget : nextStopTarget);
+          nextStation = soonTarget?.station || next.station;
+          nextTime = formatMinute(soonTarget?.minute ?? next.minute);
           soonStation = soonTarget?.station || next.station;
           soonMinutes = Number.isFinite(soonTarget?.minute) ? Math.max(0, soonTarget.minute - nowMinute) : Number.POSITIVE_INFINITY;
           soonKind = soonTarget?.isStop ? "stop" : soonTarget ? "pass" : "";
-          nextEventKind = nextStop ? "arrival" : nextPoint?.isStop ? "arrival" : "pass";
-          nextStopStation = nextStop?.name || (nextPoint?.isStop ? nextPoint.station : "");
-          nextStopTime = nextStop
-            ? formatMinute(getStopArrivalMinute(nextStop))
-            : nextPoint?.isStop
-              ? formatMinute(nextPoint.minute)
-              : "";
+          nextEventKind = soonTarget?.isStop ? "arrival" : soonTarget ? "pass" : "";
+          nextStopStation = nextStopTarget?.station || "";
+          nextStopTime = nextStopTarget ? formatMinute(nextStopTarget.minute) : "";
           directionGlyph = getDirectionGlyphAtPointIndex(index);
           break;
         }

@@ -4232,7 +4232,7 @@
     if(!isActiveWindow || !Array.isArray(rows) || !rows.length) return -1;
     for(let i = 0; i < rows.length; i++){
       const eventAbs = rows[i]?.eventAbs;
-      if(Number.isFinite(eventAbs) && eventAbs >= nowAbs) return i;
+      if(Number.isFinite(eventAbs) && eventAbs > nowAbs) return i;
     }
     return rows.length ? rows.length - 1 : -1;
   }
@@ -4282,7 +4282,7 @@
         Number.isFinite(nextLocationRow.arrAbs) &&
         Number.isFinite(nextLocationRow.depAbs) &&
         runtime.nowAbs >= nextLocationRow.arrAbs &&
-        runtime.nowAbs <= nextLocationRow.depAbs;
+        runtime.nowAbs < nextLocationRow.depAbs;
 
       if(isDwellingAtStation){
         nextHint = `停靠中 ${nextLocationRow.station || '--'}`;
@@ -4305,10 +4305,10 @@
         Number.isFinite(row.arrAbs) &&
         Number.isFinite(row.depAbs) &&
         runtime.nowAbs >= row.arrAbs &&
-        runtime.nowAbs <= row.depAbs;
+        runtime.nowAbs < row.depAbs;
       const isPassed =
         ended ||
-        (runtime.isActiveWindow && Number.isFinite(row.eventAbs) && row.eventAbs < runtime.nowAbs && !isCurrent);
+        (runtime.isActiveWindow && Number.isFinite(row.eventAbs) && row.eventAbs <= runtime.nowAbs && !isCurrent);
       const isNext = !isPassed && !isCurrent && nextVisibleIndex === index;
       const isNextStop = !isPassed && !isCurrent && !isNext && nextVisibleStopIndex === index;
 
@@ -4744,7 +4744,7 @@
     if(!Array.isArray(timelineRows) || !timelineRows.length) return fallbackStation || '--';
     const nextTimelineIndex = timelineRows.findIndex((row)=>{
       const eventAbs = row?.eventAbs;
-      return Number.isFinite(eventAbs) && eventAbs >= nowAbs;
+      return Number.isFinite(eventAbs) && eventAbs > nowAbs;
     });
     if(nextTimelineIndex < 0) return fallbackStation || timelineRows[timelineRows.length - 1]?.station || '--';
     const nextRow = timelineRows[nextTimelineIndex] || null;
@@ -4755,7 +4755,7 @@
       Number.isFinite(nextRow.arrAbs) &&
       Number.isFinite(nextRow.depAbs) &&
       nowAbs >= nextRow.arrAbs &&
-      nowAbs <= nextRow.depAbs;
+      nowAbs < nextRow.depAbs;
     if(isDwellingAtStation) return nextRow.station || fallbackStation || '--';
     const prevRow = timelineRows[nextTimelineIndex - 1] || null;
     const fromStation = prevRow?.station || nextRow.station || fallbackStation || '--';
