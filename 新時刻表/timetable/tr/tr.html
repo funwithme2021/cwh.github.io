@@ -4708,6 +4708,11 @@ function splitArrDep(stopRow){
         station: entry.station,
         kind: entry.kind,
         source: entry.source,
+        arrText: entry.arrText || '',
+        depText: entry.depText || '',
+        passText: entry.passText || '',
+        arrAbs: entry.arrAbs,
+        depAbs: entry.depAbs,
         primaryText,
         primaryAbs,
         secondaryText,
@@ -4726,6 +4731,8 @@ function splitArrDep(stopRow){
   function buildTraEffectiveTimelineRows(baseRows, delayMin, trainType, liveOptions){
     const adjusted = (Array.isArray(baseRows) ? baseRows : []).map((row)=>({
       ...row,
+      arrAbs: shiftTraTimelineAbs(row?.arrAbs, delayMin),
+      depAbs: shiftTraTimelineAbs(row?.depAbs, delayMin),
       primaryAbs: shiftTraTimelineAbs(row?.primaryAbs, delayMin),
       secondaryAbs: shiftTraTimelineAbs(row?.secondaryAbs, delayMin),
       eventAbs: shiftTraTimelineAbs(row?.eventAbs, delayMin)
@@ -8719,13 +8726,17 @@ function buildTraTrainQueryV2StopRows(trainNo, originDateStr, stops, runtimeCtx,
     const runtimeRow = runtimeVisibleRows[index] || row;
     const livePassedHere = liveProgress.visibleNextIndex >= 0 && index < liveProgress.visibleNextIndex;
     const runtimeArrivalAbs =
-      Number.isFinite(runtimeRow?.secondaryAbs)
-        ? runtimeRow.secondaryAbs
-        : (runtimeRow?.kind === 'terminal' ? runtimeRow?.primaryAbs : null);
+      Number.isFinite(runtimeRow?.arrAbs)
+        ? runtimeRow.arrAbs
+        : (Number.isFinite(runtimeRow?.secondaryAbs)
+            ? runtimeRow.secondaryAbs
+            : (runtimeRow?.kind === 'terminal' ? runtimeRow?.primaryAbs : null));
     const runtimeDepartureAbs =
-      Number.isFinite(runtimeRow?.primaryAbs)
-        ? runtimeRow.primaryAbs
-        : runtimeRow?.secondaryAbs;
+      Number.isFinite(runtimeRow?.depAbs)
+        ? runtimeRow.depAbs
+        : (Number.isFinite(runtimeRow?.primaryAbs)
+            ? runtimeRow.primaryAbs
+            : runtimeRow?.secondaryAbs);
     const scheduledPassed =
       row.kind === 'pass'
         ? (Number.isFinite(runtimeRow?.eventAbs) && Number.isFinite(nowAbs) && nowAbs >= runtimeRow.eventAbs)
@@ -8744,13 +8755,17 @@ function buildTraTrainQueryV2StopRows(trainNo, originDateStr, stops, runtimeCtx,
         )
       : (ended || livePassedHere || scheduledPassed);
     const arrivalAbsRaw =
-      Number.isFinite(row.secondaryAbs)
-        ? row.secondaryAbs
-        : (row.kind === 'terminal' ? row.primaryAbs : null);
+      Number.isFinite(row.arrAbs)
+        ? row.arrAbs
+        : (Number.isFinite(row.secondaryAbs)
+            ? row.secondaryAbs
+            : (row.kind === 'terminal' ? row.primaryAbs : null));
     const departureAbsRaw =
-      Number.isFinite(row.primaryAbs)
-        ? row.primaryAbs
-        : row.secondaryAbs;
+      Number.isFinite(row.depAbs)
+        ? row.depAbs
+        : (Number.isFinite(row.primaryAbs)
+            ? row.primaryAbs
+            : row.secondaryAbs);
     const arrivalAbs = Number.isFinite(runtimeArrivalAbs) ? runtimeArrivalAbs : null;
     const departureAbs = Number.isFinite(runtimeDepartureAbs) ? runtimeDepartureAbs : null;
     const isLiveOriginHold = liveStopHoldActive && index === 0 && liveProgress.visibleNextIndex === index;
@@ -8768,9 +8783,14 @@ function buildTraTrainQueryV2StopRows(trainNo, originDateStr, stops, runtimeCtx,
       arrivalAbs <= nowAbs &&
       nowAbs < departureAbs) ||
       isLiveCurrentStop;
+    const isTrackerOriginUpcoming =
+      hasTrackerTruth &&
+      trackerSnapshot.state === 'upcoming' &&
+      trackerCurrentVisibleIndex === index &&
+      row.kind !== 'pass';
     const isCurrent = hasTrackerTruth
       ? (
-          (trackerSnapshot.state === 'dwell' || trackerSnapshot.state === 'upcoming') &&
+          trackerSnapshot.state === 'dwell' &&
           trackerCurrentVisibleIndex === index &&
           row.kind !== 'pass'
         )
@@ -8804,22 +8824,30 @@ function buildTraTrainQueryV2StopRows(trainNo, originDateStr, stops, runtimeCtx,
       arrHtml = passHtml;
       depHtml = escapeTrainQueryHtml('-');
     }else if(row.kind === 'origin'){
-      const depSched = row.primaryText || row.secondaryText || '--';
-      const depTimeHtml = isPassed
-        ? escapeTrainQueryHtml(depSched)
-        : renderTimeWithDelayForTrainDetail(depSched, currentQueryDateStr, { stackVertical: true }, departureAbsRaw, originDateStr, runtimeCtx?.delayMin || 0);
-      arrHtml = depTimeHtml;
-      depHtml = depTimeHtml;
-    }else if(row.kind === 'terminal'){
-      const arrSched = row.primaryText || row.secondaryText || '--';
+      const arrSched = row.arrText || row.secondaryText || row.primaryText || '--';
+      const depSched = row.depText || row.primaryText || row.secondaryText || '--';
       const arrTimeHtml = isPassed
         ? escapeTrainQueryHtml(arrSched)
         : renderTimeWithDelayForTrainDetail(arrSched, currentQueryDateStr, { stackVertical: true }, arrivalAbsRaw, originDateStr, runtimeCtx?.delayMin || 0);
+      const depTimeHtml = isPassed
+        ? escapeTrainQueryHtml(depSched)
+        : renderTimeWithDelayForTrainDetail(depSched, currentQueryDateStr, { stackVertical: true }, departureAbsRaw, originDateStr, runtimeCtx?.delayMin || 0);
       arrHtml = arrTimeHtml;
-      depHtml = arrTimeHtml;
+      depHtml = depTimeHtml;
+    }else if(row.kind === 'terminal'){
+      const arrSched = row.arrText || row.primaryText || row.secondaryText || '--';
+      const depSched = row.depText || row.secondaryText || row.primaryText || '--';
+      const arrTimeHtml = isPassed
+        ? escapeTrainQueryHtml(arrSched)
+        : renderTimeWithDelayForTrainDetail(arrSched, currentQueryDateStr, { stackVertical: true }, arrivalAbsRaw, originDateStr, runtimeCtx?.delayMin || 0);
+      const depTimeHtml = isPassed
+        ? escapeTrainQueryHtml(depSched)
+        : renderTimeWithDelayForTrainDetail(depSched, currentQueryDateStr, { stackVertical: true }, departureAbsRaw, originDateStr, runtimeCtx?.delayMin || 0);
+      arrHtml = arrTimeHtml;
+      depHtml = depTimeHtml;
     }else{
-      const arrSched = row.secondaryText || row.primaryText || '--';
-      const depSched = row.primaryText || row.secondaryText || '--';
+      const arrSched = row.arrText || row.secondaryText || row.primaryText || '--';
+      const depSched = row.depText || row.primaryText || row.secondaryText || '--';
       arrHtml = isPassed
         ? escapeTrainQueryHtml(arrSched)
         : renderTimeWithDelayForTrainDetail(arrSched, currentQueryDateStr, { stackVertical: true }, arrivalAbsRaw, originDateStr, runtimeCtx?.delayMin || 0);
@@ -8829,7 +8857,9 @@ function buildTraTrainQueryV2StopRows(trainNo, originDateStr, stops, runtimeCtx,
     }
 
     let stateText = row.kind === 'pass' ? '通過' : '停靠';
-    if(isCurrent){
+    if(isTrackerOriginUpcoming && row.kind === 'origin'){
+      stateText = '即將發車';
+    }else if(isCurrent){
       stateText = '停靠中';
     }else if(isPassed){
       stateText = row.kind === 'pass' ? '已通過' : (row.kind === 'terminal' && ended ? '已到終點' : '已過站');

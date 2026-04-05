@@ -6,7 +6,7 @@
   const ANCHOR_PANEL_ID = "panel-operation-diagram";
   const REFRESH_MS = 60000;
   const DELAY_REFRESH_MS = 30000;
-  const UPCOMING_WINDOW = 30;
+  const UPCOMING_WINDOW = 10;
   const STATION_ALERT_WINDOW = 10;
   const STATION_SOON_WINDOW = 3;
   const MAP_PADDING_Y = 36;
