@@ -1870,6 +1870,264 @@ td{ border-bottom: 1px solid rgba(255,255,255,0.06); }
       background: rgba(59,130,246,0.16);
       border-color: rgba(59,130,246,0.26);
     }
+    .modal-section.modal-timeline-card{
+      padding:0;
+      overflow:hidden;
+      background:var(--bg-surface,#ffffff);
+      border:1px solid rgba(148,163,184,0.16);
+      box-shadow:0 8px 24px rgba(15,23,42,0.04);
+    }
+    body.dark-mode .modal-section.modal-timeline-card{
+      background:rgba(15,23,42,0.86);
+      border-color:rgba(148,163,184,0.14);
+    }
+    .modal-timeline-tools{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+      padding:14px 16px;
+      border-bottom:1px solid rgba(148,163,184,0.16);
+      background:rgba(248,250,252,0.9);
+    }
+    body.dark-mode .modal-timeline-tools{
+      background:rgba(15,23,42,0.76);
+    }
+    .modal-timeline-copy{
+      min-width:0;
+      display:grid;
+      gap:4px;
+    }
+    .modal-timeline-title{
+      color:var(--text-main);
+      font-size:.95rem;
+      font-weight:900;
+    }
+    .modal-timeline-subtitle{
+      color:var(--text-muted);
+      font-size:.8rem;
+      font-weight:700;
+    }
+    .modal-timeline-body{
+      overflow-x:auto;
+    }
+    .modal-stop-table{
+      min-width:100%;
+    }
+    .modal-stop-head,
+    .modal-stop-row{
+      display:grid;
+      grid-template-columns:52px minmax(168px,1.25fr) minmax(98px,.82fr) minmax(98px,.82fr) minmax(108px,.9fr);
+      gap:10px;
+      align-items:center;
+      padding:6px 16px;
+    }
+    .modal-stop-head{
+      position:sticky;
+      top:0;
+      z-index:1;
+      background:rgba(248,250,252,0.96);
+      border-bottom:1px solid rgba(148,163,184,0.16);
+      color:var(--text-muted);
+      font-size:.8rem;
+      font-weight:900;
+      letter-spacing:.02em;
+      padding-top:10px;
+      padding-bottom:10px;
+    }
+    body.dark-mode .modal-stop-head{
+      background:rgba(15,23,42,0.76);
+    }
+    .modal-stop-row{
+      position:relative;
+    }
+    .modal-stop-row.is-passed{
+      background:rgba(148,163,184,0.05);
+    }
+    .modal-stop-row.is-pass{
+      background:rgba(37,99,235,0.03);
+    }
+    .modal-stop-row.is-current{
+      background:rgba(37,99,235,0.08);
+      box-shadow:inset 3px 0 0 var(--primary);
+    }
+    .modal-stop-marker-col{
+      display:grid;
+      justify-items:center;
+      align-self:stretch;
+      min-height:100%;
+    }
+    .modal-stop-marker{
+      position:relative;
+      width:14px;
+      min-height:32px;
+      height:100%;
+    }
+    .modal-stop-dot{
+      position:absolute;
+      left:50%;
+      top:50%;
+      transform:translate(-50%,-50%);
+      display:block;
+      width:10px;
+      height:10px;
+      border-radius:999px;
+      background:var(--text-main);
+      border:2px solid var(--bg-surface);
+      z-index:1;
+      flex-shrink:0;
+      transition:all .3s;
+      margin:0;
+    }
+    .modal-stop-line{
+      position:absolute;
+      left:50%;
+      top:-8px;
+      bottom:-8px;
+      width:2px;
+      background:var(--text-main);
+      transform:translateX(-50%);
+    }
+    .modal-stop-row:last-child .modal-stop-line{
+      display:none;
+    }
+    .modal-stop-row.is-active .modal-stop-dot{
+      background:#22c55e;
+      width:14px;
+      height:14px;
+      box-shadow:0 0 0 6px rgba(34,197,94,0.16);
+      border-color:#fff;
+    }
+    .modal-stop-row.is-passed .modal-stop-dot{
+      background:var(--border);
+      box-shadow:none;
+      width:10px;
+      height:10px;
+    }
+    .modal-stop-row.is-passed .modal-stop-line{
+      background:var(--border);
+    }
+    .modal-stop-row.is-pass .modal-stop-dot{
+      background:var(--text-main);
+      box-shadow:none;
+    }
+    .modal-stop-row.is-pass.is-passed .modal-stop-dot{
+      background:var(--border);
+    }
+    .modal-stop-row.is-pass.is-active .modal-stop-dot{
+      background:#22c55e;
+      width:14px;
+      height:14px;
+      box-shadow:0 0 0 6px rgba(34,197,94,0.16);
+    }
+    .modal-stop-station-cell{
+      min-width:0;
+      display:grid;
+      gap:0;
+    }
+    .modal-stop-station-main{
+      color:var(--text-main);
+      font-size:.98rem;
+      font-weight:900;
+      line-height:1.05;
+      word-break:break-word;
+      display:flex;
+      align-items:baseline;
+      gap:6px;
+      flex-wrap:wrap;
+    }
+    .modal-stop-row.is-pass .modal-stop-station-main{
+      color:#0369a1;
+    }
+    body.dark-mode .modal-stop-row.is-pass .modal-stop-station-main{
+      color:#7dd3fc;
+    }
+    .modal-stop-row.is-pass .modal-stop-time-main,
+    .modal-stop-row.is-pass .modal-stop-state{
+      color:#0369a1;
+      --detail-time-main-color:#0369a1;
+      --detail-time-muted-color:#0369a1;
+    }
+    body.dark-mode .modal-stop-row.is-pass .modal-stop-time-main,
+    body.dark-mode .modal-stop-row.is-pass .modal-stop-state{
+      color:#7dd3fc;
+      --detail-time-main-color:#7dd3fc;
+      --detail-time-muted-color:#7dd3fc;
+    }
+    .modal-stop-row.is-active .modal-stop-station-main{
+      color:#15803d;
+    }
+    body.dark-mode .modal-stop-row.is-active .modal-stop-station-main{
+      color:#4ade80;
+    }
+    .modal-stop-row.is-pass.is-active .modal-stop-time-main,
+    .modal-stop-row.is-pass.is-active .modal-stop-state{
+      color:#15803d;
+      --detail-time-main-color:#15803d;
+      --detail-time-muted-color:#15803d;
+    }
+    body.dark-mode .modal-stop-row.is-pass.is-active .modal-stop-time-main,
+    body.dark-mode .modal-stop-row.is-pass.is-active .modal-stop-state{
+      color:#4ade80;
+      --detail-time-main-color:#4ade80;
+      --detail-time-muted-color:#4ade80;
+    }
+    .modal-stop-row.is-passed .modal-stop-station-main{
+      opacity:.5;
+    }
+    .modal-stop-station-sub{
+      color:var(--text-muted);
+      font-size:.76rem;
+      font-weight:700;
+      line-height:1.15;
+    }
+    .modal-stop-inline-tag{
+      color:var(--text-muted);
+      font-size:.72rem;
+      font-weight:700;
+      line-height:1;
+      white-space:nowrap;
+    }
+    .modal-stop-time-cell{
+      min-width:0;
+      display:grid;
+      gap:2px;
+    }
+    .modal-stop-time-main{
+      color:var(--text-main);
+      font-size:.9rem;
+      font-weight:900;
+      line-height:1.08;
+    }
+    .modal-stop-time-main > span{
+      padding-top:1px;
+      padding-bottom:1px;
+    }
+    .modal-stop-time-main > span[style*="display:grid"]{
+      gap:3px !important;
+    }
+    .modal-stop-time-main > span > span{
+      line-height:1.08 !important;
+    }
+    .modal-stop-time-empty{
+      color:var(--text-muted);
+    }
+    .modal-stop-row.is-passed .modal-stop-time-main{
+      opacity:.5;
+    }
+    .modal-stop-row.is-passed .modal-stop-state{
+      opacity:.5;
+    }
+    .modal-stop-state{
+      font-size:.84rem;
+      font-weight:900;
+      line-height:1.05;
+    }
+    .modal-tone-success{ color:#15803d; }
+    .modal-tone-warning{ color:#c2410c; }
+    .modal-tone-danger{ color:#b91c1c; }
+    .modal-tone-muted{ color:#64748b; }
+    .modal-tone-neutral{ color:var(--text-main); }
     body.dark-mode .modal-toggle-btn{
       background: rgba(96,165,250,0.14);
       border-color: rgba(96,165,250,0.22);
@@ -2437,6 +2695,15 @@ td{ border-bottom: 1px solid rgba(255,255,255,0.06); }
       padding: 6px 12px;
       font-size: .76rem;
     }
+    .modal-stop-head,
+    .modal-stop-row{
+      grid-template-columns:44px minmax(128px,1.18fr) minmax(88px,.8fr) minmax(88px,.8fr) minmax(92px,.84fr);
+      gap:8px;
+      padding:4px 12px;
+    }
+    .modal-stop-marker{
+      min-height:28px;
+    }
     .timeline-item{
       gap: 10px;
       padding: 0 0 8px;
@@ -2497,12 +2764,64 @@ td{ border-bottom: 1px solid rgba(255,255,255,0.06); }
       color:#4ade80;
     }
     @media (max-width: 760px){
+      .modal-timeline-tools{
+        display:grid;
+        grid-template-columns:minmax(0,1fr);
+        align-items:stretch;
+        gap:8px;
+        padding:12px 12px 10px;
+      }
+      .modal-timeline-copy{
+        gap:2px;
+      }
+      .modal-timeline-title{
+        font-size:.9rem;
+        line-height:1.1;
+      }
+      .modal-timeline-subtitle{
+        font-size:.74rem;
+        line-height:1.15;
+      }
       .modal-section-head{
         align-items:flex-start;
       }
       .modal-toggle-btn{
         width:100%;
         justify-content:center;
+        white-space:nowrap;
+        padding:7px 10px;
+        min-height:36px;
+        font-size:.72rem;
+      }
+      .modal-stop-head,
+      .modal-stop-row{
+        grid-template-columns:32px minmax(92px,1.08fr) minmax(58px,.64fr) minmax(58px,.64fr) minmax(68px,.72fr);
+        gap:5px;
+        padding:3px 8px;
+      }
+      .modal-stop-head{
+        font-size:.72rem;
+        padding-top:8px;
+        padding-bottom:8px;
+      }
+      .modal-stop-marker{
+        width:12px;
+        min-height:22px;
+      }
+      .modal-stop-station-main{
+        font-size:.84rem;
+      }
+      .modal-stop-station-sub{
+        font-size:.66rem;
+      }
+      .modal-stop-inline-tag{
+        font-size:.64rem;
+      }
+      .modal-stop-time-main{
+        font-size:.76rem;
+      }
+      .modal-stop-state{
+        font-size:.71rem;
       }
       .timeline-item{
         gap: 8px;
@@ -7933,7 +8252,7 @@ function renderTransferTable(){
         {
           label: '下一班',
           html: upcoming
-            ? `${upcoming.depHTML}<span style="color:var(--text-main);"> · </span><span style="color:var(--text-main);">${upcoming.trainNo}</span><span class="rsv2-train-type">${colorType(upcoming.type)}</span><span style="color:var(--text-main);"> · </span><span class="rsv2-summary-value">${upcoming.statusHtml || `<span class="rsv2-tone-${upcoming.statusTone || getTraStationStatusTone(upcoming.status)}">${escapeTrainQueryHtml(upcoming.status)}</span>`}</span>`
+            ? `${upcoming.depHTML}<span style="color:var(--text-main);"> · </span><span style="color:var(--text-main);">${upcoming.trainNo}</span><span class="rsv2-train-type">${colorType(upcoming.type)}</span><span style="color:var(--text-main);"> · </span><span class="rsv2-summary-value rsv2-tone-${upcoming.statusTone || getTraStationStatusTone(upcoming.status)}">${upcoming.statusHtml || escapeTrainQueryHtml(upcoming.status)}</span>`
             : `<span class="rsv2-tone-muted">今日已無班次</span>`,
           tone: 'neutral',
           openDetail: upcoming ? { trainNo: upcoming.trainNo, originDate: upcoming.originDate } : null,
@@ -8109,6 +8428,21 @@ function findTraNextTimelineIndex(rows, nowAbs, delayMin, canNext){
   return rows.length ? rows.length - 1 : -1;
 }
 
+function isTraTimelineEventPassed(row, nowAbs, delayMin){
+  const positiveDelay = Math.max(0, Number(delayMin) || 0);
+  const eventAbs = row?.eventAbs;
+  return Number.isFinite(eventAbs) && Number.isFinite(nowAbs) && (eventAbs + positiveDelay) <= nowAbs;
+}
+
+function normalizeTraNextTimelineIndex(rows, startIndex, nowAbs, delayMin, canNext){
+  if(!canNext || !Array.isArray(rows) || !rows.length || !Number.isInteger(startIndex) || startIndex < 0) return startIndex;
+  let index = startIndex;
+  while(index < rows.length - 1 && isTraTimelineEventPassed(rows[index], nowAbs, delayMin)){
+    index += 1;
+  }
+  return index;
+}
+
 function getNextTraStopIndex(rows, fromIndex, skipCurrentStop){
   if(!Array.isArray(rows) || fromIndex < 0) return -1;
   let startIndex = fromIndex;
@@ -8140,6 +8474,9 @@ function buildTraTrainQueryV2StopRows(trainNo, originDateStr, stops, runtimeCtx,
   if(canNext && liveProgress.visibleNextIndex >= 0 && (!Number.isInteger(nextVisibleIndex) || nextVisibleIndex < liveProgress.visibleNextIndex)){
     nextVisibleIndex = liveProgress.visibleNextIndex;
   }
+  nextLocationIndex = normalizeTraNextTimelineIndex(locationRows, nextLocationIndex, nowAbs, runtimeCtx?.delayMin || 0, canNext);
+  nextVisibleIndex = normalizeTraNextTimelineIndex(visibleRows, nextVisibleIndex, nowAbs, runtimeCtx?.delayMin || 0, canNext);
+  const liveLocationRow = liveProgress.locationRowIndex >= 0 ? (locationRows[liveProgress.locationRowIndex] || null) : null;
   const nextLocationRow = nextLocationIndex >= 0 ? (locationRows[nextLocationIndex] || null) : null;
   const scheduledArrivalAbsRaw =
     Number.isFinite(nextLocationRow?.secondaryAbs)
@@ -8157,16 +8494,16 @@ function buildTraTrainQueryV2StopRows(trainNo, originDateStr, stops, runtimeCtx,
     Number.isFinite(scheduledArrivalAbs) &&
     Number.isFinite(scheduledDepartureAbs) &&
     scheduledArrivalAbs <= nowAbs &&
-    nowAbs <= scheduledDepartureAbs;
+    nowAbs < scheduledDepartureAbs;
   const liveStopDepartureAbs =
     canNext &&
     liveProgress.isStopStation &&
-    nextLocationRow?.kind !== 'pass'
-      ? ((Number.isFinite(nextLocationRow.primaryAbs) ? nextLocationRow.primaryAbs : nextLocationRow.secondaryAbs) + positiveDelay)
+    liveLocationRow?.kind !== 'pass'
+      ? ((Number.isFinite(liveLocationRow?.primaryAbs) ? liveLocationRow.primaryAbs : liveLocationRow?.secondaryAbs) + positiveDelay)
       : null;
   const liveStopHoldActive =
     !!liveProgress.isStopStation &&
-    nextLocationRow?.kind !== 'pass' &&
+    liveLocationRow?.kind !== 'pass' &&
     Number.isFinite(liveStopDepartureAbs) &&
     Number.isFinite(nowAbs) &&
     nowAbs < liveStopDepartureAbs;
@@ -8556,10 +8893,10 @@ function filterTrainScheduleByNumberV2(trainNo){
     if(stackVertical){
       return `
         <span style="display:grid;gap:2px;justify-items:start;text-align:left;">
-          <span style="text-decoration:line-through;color:var(--text-muted);font-size:.92em;">
+          <span style="text-decoration:line-through;color:var(--detail-time-muted-color,var(--text-muted));font-size:.92em;">
             ${t.sched}
           </span>
-          <span style="font-weight:800;color:var(--text-main);">
+          <span style="font-weight:800;color:var(--detail-time-main-color,var(--text-main));">
             ${t.adj}${dayHint ? ` ${dayHint}` : ''}
           </span>
         </span>
@@ -8567,10 +8904,10 @@ function filterTrainScheduleByNumberV2(trainNo){
     }
 
     return `
-      <span style="text-decoration:line-through;color:var(--text-muted);margin-right:6px;">
+      <span style="text-decoration:line-through;color:var(--detail-time-muted-color,var(--text-muted));margin-right:6px;">
         ${t.sched}
       </span>
-      <span style="font-weight:800;color:var(--text-main);">
+      <span style="font-weight:800;color:var(--detail-time-main-color,var(--text-main));">
         ${t.adj}
       </span>
       ${dayHint}
@@ -8620,6 +8957,52 @@ function filterTrainScheduleByNumberV2(trainNo){
     if(!prefix || !timeText) return '';
     if(passedHere) return `<span style="color:var(--text-muted);">${prefix}${timeText}</span>`;
     return `<span class="st-arr-prefix">${prefix}</span>${renderTimeWithDelayForTrainDetail(timeText, currentQueryDateStr, null, absMin, originDateStr, delayMin)}`;
+  }
+
+  function renderTraDetailStopTable(stopRows, primaryHintIndex){
+    const rows = Array.isArray(stopRows) ? stopRows : [];
+    const normalizeModalTone = (value)=>['success','warning','danger','muted','neutral'].includes(String(value || '')) ? String(value) : 'neutral';
+    return `
+      <div class="modal-stop-table">
+        <div class="modal-stop-head">
+          <div></div>
+          <div>站名</div>
+          <div>到達時間</div>
+          <div>開車時間</div>
+          <div>狀態</div>
+        </div>
+        ${rows.map((row, index)=>{
+          const classes = ['modal-stop-row'];
+          if(row?.isPassed) classes.push('is-passed');
+          if(row?.isPass) classes.push('is-pass');
+          if(row?.isCurrent) classes.push('is-current');
+          if(primaryHintIndex === index && row?.stateText) classes.push('is-active');
+          const inlineTag = index === 0 ? '起站' : (index === rows.length - 1 ? '終點' : '');
+          const arrHtml = row?.arrHtml != null ? row.arrHtml : escapeTrainQueryHtml(row?.arrText || '--');
+          const depHtml = row?.depHtml != null ? row.depHtml : escapeTrainQueryHtml(row?.depText || '--');
+          return `
+            <div class="${classes.join(' ')}">
+              <div class="modal-stop-marker-col">
+                <div class="modal-stop-marker">
+                  <div class="modal-stop-dot"></div>
+                  <div class="modal-stop-line"></div>
+                </div>
+              </div>
+              <div class="modal-stop-station-cell">
+                <div class="modal-stop-station-main"><span>${escapeTrainQueryHtml(row?.station || '--')}</span>${inlineTag ? `<span class="modal-stop-inline-tag">${escapeTrainQueryHtml(inlineTag)}</span>` : ''}</div>
+              </div>
+              <div class="modal-stop-time-cell">
+                <div class="modal-stop-time-main ${(!row?.arrHtml && !row?.arrText) ? 'modal-stop-time-empty' : ''}">${arrHtml}</div>
+              </div>
+              <div class="modal-stop-time-cell">
+                <div class="modal-stop-time-main ${(!row?.depHtml && !row?.depText) ? 'modal-stop-time-empty' : ''}">${depHtml}</div>
+              </div>
+              <div class="modal-stop-state modal-tone-${escapeTrainQueryHtml(normalizeModalTone(row?.stateTone))}">${escapeTrainQueryHtml(row?.stateText || '')}</div>
+            </div>
+          `;
+        }).join('')}
+      </div>
+    `;
   }
 
   function showTrainDetails(trainNo, originDateStr, options){
@@ -8683,6 +9066,8 @@ function filterTrainScheduleByNumberV2(trainNo){
         nextLocationIndex = liveProgress.locationNextIndex;
       }
     }
+    nextLocationIndex = normalizeTraNextTimelineIndex(locationRows, nextLocationIndex, nowAbs, delayMin, canNext);
+    const liveLocationRow = liveProgress.locationRowIndex >= 0 ? (locationRows[liveProgress.locationRowIndex] || null) : null;
     const nextLocationRow = nextLocationIndex >= 0 ? (locationRows[nextLocationIndex] || null) : null;
     const scheduledArrivalAbsRaw =
       Number.isFinite(nextLocationRow?.secondaryAbs)
@@ -8704,12 +9089,12 @@ function filterTrainScheduleByNumberV2(trainNo){
     const liveStopDepartureAbs =
       canNext &&
       liveProgress.isStopStation &&
-      nextLocationRow?.kind !== 'pass'
-        ? ((Number.isFinite(nextLocationRow.primaryAbs) ? nextLocationRow.primaryAbs : nextLocationRow.secondaryAbs) + Math.max(0, delayMin))
+      liveLocationRow?.kind !== 'pass'
+        ? ((Number.isFinite(liveLocationRow?.primaryAbs) ? liveLocationRow.primaryAbs : liveLocationRow?.secondaryAbs) + Math.max(0, delayMin))
         : null;
     const liveStopHoldActive =
       !!liveProgress.isStopStation &&
-      nextLocationRow?.kind !== 'pass' &&
+      liveLocationRow?.kind !== 'pass' &&
       Number.isFinite(liveStopDepartureAbs) &&
       Number.isFinite(nowAbs) &&
       nowAbs < liveStopDepartureAbs;
@@ -8765,53 +9150,17 @@ function filterTrainScheduleByNumberV2(trainNo){
           <div class="modal-stat"><span>跨日</span><strong>${crossDayInfo.label}</strong></div>
         </div>
       </section>
-      <section class="modal-section">
-        <div class="modal-section-head">
-          <div class="modal-section-title">停靠時間軸</div>
+      <section class="modal-section modal-timeline-card">
+        <div class="modal-timeline-tools">
+          <div class="modal-timeline-copy">
+            <div class="modal-timeline-title">停靠時間軸</div>
+            <div class="modal-timeline-subtitle">${showPassStops ? '含通過站顯示' : '只顯示實際停靠站'}</div>
+          </div>
           <button type="button" class="modal-toggle-btn" id="modalPassToggle">${showPassStops ? '隱藏通過站' : '查看通過站'}</button>
         </div>
-        <div id="modalTimelineMount"></div>
+        <div class="modal-timeline-body">${renderTraDetailStopTable(detailStateRows, detailPrimaryHintIndex)}</div>
       </section>
     `;
-
-    const timeline=document.createElement('div');
-    timeline.className='timeline';
-
-    timelineRows.forEach((row, i)=>{
-      const item=document.createElement('div');
-      item.className='timeline-item';
-      if(row.kind === 'pass') item.classList.add('pass');
-
-      const stopState = detailStateRows[i] || {};
-      const passedHere = !!stopState.isPassed;
-      const hintText = /尚未發車|即將發車|停靠中|即將通過|下一停靠/.test(stopState.stateText || '')
-        ? String(stopState.stateText || '')
-        : '';
-      const isPrimaryHint = detailPrimaryHintIndex === i && !!hintText;
-      const depHTML = renderTimelinePrimaryTimeHtml(trainNo, row.primaryText, row.primaryAbs, originDateStr, passedHere, delayMin);
-      const arrHTML = renderTimelineSecondaryTimeHtml(trainNo, row.secondaryPrefix, row.secondaryText, row.secondaryAbs, originDateStr, passedHere, delayMin);
-      const badgeNext = hintText ? ` <span class="${isPrimaryHint ? 'badge-next' : 'badge-follow'}">${hintText}</span>` : '';
-      const tag = row.descriptor || '';
-
-      item.innerHTML=`
-        <div class="tl-time">${depHTML}</div>
-        <div class="tl-marker">
-          <div class="tl-dot"></div>
-          <div class="tl-line"></div>
-        </div>
-        <div class="tl-content">
-          <div class="tl-station"><span>${row.station}</span>${arrHTML?`<span class="st-arr ${row.kind === 'pass' ? 'pass' : 'stop'}">${arrHTML}</span>`:""}${badgeNext}</div>
-          ${tag ? `<div class="tl-desc">${tag}</div>` : ''}
-        </div>
-      `;
-
-      if(passedHere) item.classList.add('passed');
-      if(isPrimaryHint) item.classList.add('next');
-
-      timeline.appendChild(item);
-    });
-
-    body.querySelector('#modalTimelineMount')?.appendChild(timeline);
     body.querySelector('#modalPassToggle')?.addEventListener('click', ()=>{
       if(!modalCtx) return;
       showTrainDetails(modalCtx.trainNo, modalCtx.originDate, { showPassStops: !modalCtx.showPassStops });

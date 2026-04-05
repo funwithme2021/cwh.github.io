@@ -1283,6 +1283,256 @@
     background: rgba(251,146,60,0.18);
     border-color: rgba(251,146,60,0.32);
   }
+  .modal-section.modal-timeline-card{
+    padding:0;
+    overflow:hidden;
+    background:var(--bg-surface,#ffffff);
+    border:1px solid rgba(148,163,184,0.16);
+    box-shadow:0 8px 24px rgba(15,23,42,0.04);
+  }
+  body.dark-mode .modal-section.modal-timeline-card{
+    background:rgba(15,23,42,0.86);
+    border-color:rgba(148,163,184,0.14);
+  }
+  .modal-timeline-tools{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:12px;
+    padding:14px 16px;
+    border-bottom:1px solid rgba(148,163,184,0.16);
+    background:rgba(248,250,252,0.9);
+  }
+  body.dark-mode .modal-timeline-tools{
+    background:rgba(15,23,42,0.76);
+  }
+  .modal-timeline-copy{
+    min-width:0;
+    display:grid;
+    gap:4px;
+  }
+  .modal-timeline-title{
+    color:var(--text-main);
+    font-size:.95rem;
+    font-weight:900;
+  }
+  .modal-timeline-subtitle{
+    color:var(--text-muted);
+    font-size:.8rem;
+    font-weight:700;
+  }
+  .modal-timeline-body{
+    overflow-x:auto;
+  }
+  .modal-stop-table{
+    min-width:100%;
+  }
+  .modal-stop-head,
+  .modal-stop-row{
+    display:grid;
+    grid-template-columns:52px minmax(168px,1.25fr) minmax(98px,.82fr) minmax(98px,.82fr) minmax(108px,.9fr);
+    gap:10px;
+    align-items:center;
+    padding:6px 16px;
+  }
+  .modal-stop-head{
+    position:sticky;
+    top:0;
+    z-index:1;
+    background:rgba(248,250,252,0.96);
+    border-bottom:1px solid rgba(148,163,184,0.16);
+    color:var(--text-muted);
+    font-size:.8rem;
+    font-weight:900;
+    letter-spacing:.02em;
+    padding-top:10px;
+    padding-bottom:10px;
+  }
+  body.dark-mode .modal-stop-head{
+    background:rgba(15,23,42,0.76);
+  }
+  .modal-stop-row{
+    position:relative;
+  }
+  .modal-stop-row.is-passed{
+    background:rgba(148,163,184,0.05);
+  }
+  .modal-stop-row.is-pass{
+    background:rgba(37,99,235,0.03);
+  }
+  .modal-stop-row.is-current{
+    background:rgba(37,99,235,0.08);
+    box-shadow:inset 3px 0 0 var(--primary);
+  }
+  .modal-stop-marker-col{
+    display:grid;
+    justify-items:center;
+    align-self:stretch;
+    min-height:100%;
+  }
+  .modal-stop-marker{
+    position:relative;
+    width:14px;
+    min-height:32px;
+    height:100%;
+  }
+  .modal-stop-dot{
+    position:absolute;
+    left:50%;
+    top:50%;
+    transform:translate(-50%,-50%);
+    display:block;
+    width:10px;
+    height:10px;
+    border-radius:999px;
+    background:var(--text-main);
+    border:2px solid var(--bg-surface);
+    z-index:1;
+    flex-shrink:0;
+    transition:all .3s;
+    margin:0;
+  }
+  .modal-stop-line{
+    position:absolute;
+    left:50%;
+    top:-8px;
+    bottom:-8px;
+    width:2px;
+    background:var(--text-main);
+    transform:translateX(-50%);
+  }
+  .modal-stop-row:last-child .modal-stop-line{
+    display:none;
+  }
+  .modal-stop-row.is-active .modal-stop-dot{
+    background:#22c55e;
+    width:14px;
+    height:14px;
+    box-shadow:0 0 0 6px rgba(34,197,94,0.16);
+    border-color:#fff;
+  }
+  .modal-stop-row.is-passed .modal-stop-dot{
+    background:var(--border);
+    box-shadow:none;
+    width:10px;
+    height:10px;
+  }
+  .modal-stop-row.is-passed .modal-stop-line{
+    background:var(--border);
+  }
+  .modal-stop-row.is-pass .modal-stop-dot{
+    background:var(--text-main);
+    box-shadow:none;
+  }
+  .modal-stop-row.is-pass.is-passed .modal-stop-dot{
+    background:var(--border);
+  }
+  .modal-stop-row.is-pass.is-active .modal-stop-dot{
+    background:#22c55e;
+    width:14px;
+    height:14px;
+    box-shadow:0 0 0 6px rgba(34,197,94,0.16);
+  }
+  .modal-stop-station-cell{
+    min-width:0;
+    display:grid;
+    gap:0;
+  }
+  .modal-stop-station-main{
+    color:var(--text-main);
+    font-size:.98rem;
+    font-weight:900;
+    line-height:1.05;
+    word-break:break-word;
+    display:flex;
+    align-items:baseline;
+    gap:6px;
+    flex-wrap:wrap;
+  }
+  .modal-stop-row.is-pass .modal-stop-station-main{
+    color:#0369a1;
+  }
+  body.dark-mode .modal-stop-row.is-pass .modal-stop-station-main{
+    color:#7dd3fc;
+  }
+  .modal-stop-row.is-pass .modal-stop-time-main,
+  .modal-stop-row.is-pass .modal-stop-state{
+    color:#0369a1;
+  }
+  body.dark-mode .modal-stop-row.is-pass .modal-stop-time-main,
+  body.dark-mode .modal-stop-row.is-pass .modal-stop-state{
+    color:#7dd3fc;
+  }
+  .modal-stop-row.is-active .modal-stop-station-main{
+    color:#15803d;
+  }
+  body.dark-mode .modal-stop-row.is-active .modal-stop-station-main{
+    color:#4ade80;
+  }
+  .modal-stop-row.is-pass.is-active .modal-stop-time-main,
+  .modal-stop-row.is-pass.is-active .modal-stop-state{
+    color:#15803d;
+  }
+  body.dark-mode .modal-stop-row.is-pass.is-active .modal-stop-time-main,
+  body.dark-mode .modal-stop-row.is-pass.is-active .modal-stop-state{
+    color:#4ade80;
+  }
+  .modal-stop-row.is-passed .modal-stop-station-main{
+    opacity:.5;
+  }
+  .modal-stop-station-sub{
+    color:var(--text-muted);
+    font-size:.76rem;
+    font-weight:700;
+    line-height:1.15;
+  }
+  .modal-stop-inline-tag{
+    color:var(--text-muted);
+    font-size:.72rem;
+    font-weight:700;
+    line-height:1;
+    white-space:nowrap;
+  }
+  .modal-stop-time-cell{
+    min-width:0;
+    display:grid;
+    gap:2px;
+  }
+  .modal-stop-time-main{
+    color:var(--text-main);
+    font-size:.9rem;
+    font-weight:900;
+    line-height:1.08;
+  }
+  .modal-stop-time-main > span{
+    padding-top:1px;
+    padding-bottom:1px;
+  }
+  .modal-stop-time-main > span[style*="display:grid"]{
+    gap:3px !important;
+  }
+  .modal-stop-time-main > span > span{
+    line-height:1.08 !important;
+  }
+  .modal-stop-time-empty{
+    color:var(--text-muted);
+  }
+  .modal-stop-row.is-passed .modal-stop-time-main{
+    opacity:.5;
+  }
+  .modal-stop-row.is-passed .modal-stop-state{
+    opacity:.5;
+  }
+  .modal-stop-state{
+    font-size:.84rem;
+    font-weight:900;
+    line-height:1.05;
+  }
+  .modal-tone-success{ color:#15803d; }
+  .modal-tone-warning{ color:#c2410c; }
+  .modal-tone-danger{ color:#b91c1c; }
+  .modal-tone-muted{ color:#64748b; }
+  .modal-tone-neutral{ color:var(--text-main); }
   body.dark-mode .modal-toggle-btn{
     background: rgba(251,146,60,0.14);
     border-color: rgba(251,146,60,0.28);
@@ -1659,6 +1909,15 @@
     padding: 6px 12px;
     font-size: .76rem;
   }
+  .modal-stop-head,
+  .modal-stop-row{
+    grid-template-columns:44px minmax(128px,1.18fr) minmax(88px,.8fr) minmax(88px,.8fr) minmax(92px,.84fr);
+    gap:8px;
+    padding:4px 12px;
+  }
+  .modal-stop-marker{
+    min-height:28px;
+  }
   .timeline-item{
     gap: 10px;
     padding: 0 0 8px;
@@ -1729,12 +1988,64 @@
     font-weight:800;
   }
   @media (max-width: 760px){
+    .modal-timeline-tools{
+      display:grid;
+      grid-template-columns:minmax(0,1fr);
+      align-items:stretch;
+      gap:8px;
+      padding:12px 12px 10px;
+    }
+    .modal-timeline-copy{
+      gap:2px;
+    }
+    .modal-timeline-title{
+      font-size:.9rem;
+      line-height:1.1;
+    }
+    .modal-timeline-subtitle{
+      font-size:.74rem;
+      line-height:1.15;
+    }
     .modal-section-head{
       align-items:flex-start;
     }
     .modal-toggle-btn{
       width:100%;
       justify-content:center;
+      white-space:nowrap;
+      padding:7px 10px;
+      min-height:36px;
+      font-size:.72rem;
+    }
+    .modal-stop-head,
+    .modal-stop-row{
+      grid-template-columns:32px minmax(92px,1.08fr) minmax(58px,.64fr) minmax(58px,.64fr) minmax(68px,.72fr);
+      gap:5px;
+      padding:3px 8px;
+    }
+    .modal-stop-head{
+      font-size:.72rem;
+      padding-top:8px;
+      padding-bottom:8px;
+    }
+    .modal-stop-marker{
+      width:12px;
+      min-height:22px;
+    }
+    .modal-stop-station-main{
+      font-size:.84rem;
+    }
+    .modal-stop-station-sub{
+      font-size:.66rem;
+    }
+    .modal-stop-inline-tag{
+      font-size:.64rem;
+    }
+    .modal-stop-time-main{
+      font-size:.76rem;
+    }
+    .modal-stop-state{
+      font-size:.71rem;
     }
   }
   .stops-grid{
@@ -4484,23 +4795,7 @@
 
     const currentLocation = board?.currentLocation || getThsrDetailCurrentLocation(locationTimelineRows, nowAbs, originDateStr, todayStr, isActiveWindow, lastStop[0] || '--');
 
-    const html = timelineRows.map((row, i)=>{
-      const stopState = detailStateRows[i] || {};
-      const isPassed = !!stopState.isPassed;
-      const hintText = /尚未發車|即將發車|停靠中|即將通過|下一停靠/.test(stopState.stateText || '')
-        ? String(stopState.stateText || '')
-        : '';
-      const isPrimaryHint = detailPrimaryHintIndex === i && !!hintText;
-      const secondaryHtml = row.secondaryPrefix && row.secondaryText
-        ? `<span class="st-arr ${row.kind === 'pass' ? 'pass' : 'stop'}"><span class="st-arr-prefix">${row.secondaryPrefix}</span>${row.secondaryText}</span>`
-        : '';
-      const badge = hintText ? `<span class="${isPrimaryHint ? 'badge-next' : 'badge-follow'}">${hintText}</span>` : '';
-      const classes = ['timeline-item'];
-      if(isPassed) classes.push('passed');
-      if(isPrimaryHint) classes.push('next');
-      if(row.kind === 'pass') classes.push('pass');
-      return `<div class="${classes.join(' ')}"><div class="tl-time">${row.primaryText || '<span class="tl-time-empty">--</span>'}</div><div class="tl-marker"><div class="tl-dot"></div><div class="tl-line"></div></div><div class="tl-content"><div class="tl-station"><span>${row.station}</span>${secondaryHtml}${badge}</div>${row.descriptor ? `<div class="tl-desc">${row.descriptor}</div>` : ''}</div></div>`;
-    }).join('');
+    const html = renderThsrDetailStopTable(detailStateRows, detailPrimaryHintIndex);
 
     document.getElementById('modalBody').innerHTML = `
       <section class="modal-hero">
@@ -4518,12 +4813,15 @@
           <div class="modal-stat"><span>發車日</span><strong>${originDateStr}</strong></div>
         </div>
       </section>
-      <section class="modal-section">
-        <div class="modal-section-head">
-          <div class="modal-section-title">停靠時間軸</div>
+      <section class="modal-section modal-timeline-card">
+        <div class="modal-timeline-tools">
+          <div class="modal-timeline-copy">
+            <div class="modal-timeline-title">停靠時間軸</div>
+            <div class="modal-timeline-subtitle">${showPassStops ? '含通過站顯示' : '只顯示實際停靠站'}</div>
+          </div>
           <button type="button" class="modal-toggle-btn" id="modalPassToggle">${showPassStops ? '隱藏通過站' : '查看通過站'}</button>
         </div>
-        <div class="timeline">${html}</div>
+        <div class="modal-timeline-body">${html}</div>
       </section>`;
 
     document.getElementById('modalPassToggle')?.addEventListener('click', ()=>{
@@ -4532,53 +4830,7 @@
     });
   }
 
-  function showTrainDetails(trainNo, originDateStr){
-    {
-    const showPassStops = !!(arguments[2] && arguments[2].showPassStops);
-    const sch = getScheduleMapByOrigin(originDateStr);
-    const t = sch?.[trainNo];
-    if(!t) return;
-    const stops = t['頠???']||[];
-    if(!stops.length) return;
-    const first = stops[0][0];
-    const last = stops.slice(-1)[0][0];
-    const firstTimes = splitArrDep(stops[0]||[]);
-    const firstDep = firstTimes.dep || firstTimes.arr || '--';
-    const status = getStatusLabel(originDateStr, splitArrDep(stops[0]).dep, splitArrDep(stops.slice(-1)[0]).arr, firstDep, 'train');
-    document.getElementById('modalTitleMain').innerHTML = `<span class="modal-brand-tag">THSR</span><span class="modal-train-no">${trainNo}</span>`;
-    document.getElementById('modalTitleSub').innerHTML = `
-      <div class="modal-meta-line">
-        <span>${first} → ${last}</span>
-        <span class="modal-meta-sep">·</span>
-        <span>發車日 ${originDateStr}</span>
-        <span class="modal-meta-sep">·</span>
-        <span>狀態 ${statusBadge(status)}</span>
-      </div>
-    `;
-    modalCtx = { trainNo, originDate: originDateStr, showPassStops };
-    renderDetailedTimeline(stops, originDateStr, showPassStops);
-    modal.style.display='flex';
-    return;
-    }
-    const sch = getScheduleMapByOrigin(originDateStr); const t = sch?.[trainNo]; if(!t) return;
-    const stops = t['車站時間']||[]; const first=stops[0][0], last=stops.slice(-1)[0][0];
-    const firstTimes = splitArrDep(stops[0]||[]); const lastTimes = splitArrDep(stops.slice(-1)[0]||[]);
-    const firstDep = firstTimes.dep; const lastArr = lastTimes.arr || lastTimes.dep || '--';
-    const status = getStatusLabel(originDateStr, splitArrDep(stops[0]).dep, splitArrDep(stops.slice(-1)[0]).arr, firstDep, 'train');
-    document.getElementById('modalTitleMain').innerHTML = `<span class="modal-brand-tag">THSR</span><span class="modal-train-no">${trainNo}</span>`;
-    document.getElementById('modalTitleSub').innerHTML = `
-      <div class="modal-meta-line">
-        <span>${first} → ${last}</span>
-        <span class="modal-meta-sep">·</span>
-        <span>發車日 ${originDateStr}</span>
-        <span class="modal-meta-sep">·</span>
-        <span>狀態 <span class="status-text-${status}">${status}</span></span>
-      </div>
-    `;
-    modalCtx={trainNo,originDate:originDateStr}; renderTimeline(stops, originDateStr); modal.style.display='flex';
-  }
-
-  showTrainDetails = function(trainNo, originDateStr, options){
+  function showTrainDetails(trainNo, originDateStr, options){
     const showPassStops = !!(options && options.showPassStops);
     const sch = getScheduleMapByOrigin(originDateStr);
     const t = sch?.[trainNo];
@@ -4603,7 +4855,7 @@
     modalCtx = { trainNo, originDate: originDateStr, showPassStops };
     renderDetailedTimeline(stops, originDateStr, showPassStops);
     modal.style.display='flex';
-  };
+  }
 
   function renderTimeline(stops, originDateStr){
     const nowMin = new Date().getHours()*60 + new Date().getMinutes(); const today = isQueryToday(originDateStr);
@@ -4642,9 +4894,14 @@
           <div class="modal-stat"><span>資料型態</span><strong>${today ? '當日查詢' : '歷史 / 非今日查詢'}</strong></div>
         </div>
       </section>
-      <section class="modal-section">
-        <div class="modal-section-title">停靠時間軸</div>
-        <div class="timeline">${html}</div>
+      <section class="modal-section modal-timeline-card">
+        <div class="modal-timeline-tools">
+          <div class="modal-timeline-copy">
+            <div class="modal-timeline-title">停靠時間軸</div>
+            <div class="modal-timeline-subtitle">只顯示實際停靠站</div>
+          </div>
+        </div>
+        <div class="modal-timeline-body"><div class="timeline">${html}</div></div>
       </section>`;
   }
   
@@ -4657,6 +4914,50 @@
     if(endInput) endInput.value = lastStartEndQuery.ed || '';
     if(onlyDirectInput) onlyDirectInput.checked = !!lastStartEndQuery.onlyDirect;
     if(typeof updateTripSummary === 'function') updateTripSummary();
+  }
+
+  function renderThsrDetailStopTable(stopRows, primaryHintIndex){
+    const rows = Array.isArray(stopRows) ? stopRows : [];
+    const normalizeModalTone = (value)=>['success','warning','danger','muted','neutral'].includes(String(value || '')) ? String(value) : 'neutral';
+    return `
+      <div class="modal-stop-table">
+        <div class="modal-stop-head">
+          <div></div>
+          <div>站名</div>
+          <div>到達時間</div>
+          <div>開車時間</div>
+          <div>狀態</div>
+        </div>
+        ${rows.map((row, index)=>{
+          const classes = ['modal-stop-row'];
+          if(row?.isPassed) classes.push('is-passed');
+          if(row?.isPass) classes.push('is-pass');
+          if(row?.isCurrent) classes.push('is-current');
+          if(primaryHintIndex === index && row?.stateText) classes.push('is-active');
+          const inlineTag = index === 0 ? '起站' : (index === rows.length - 1 ? '終點' : '');
+          return `
+            <div class="${classes.join(' ')}">
+              <div class="modal-stop-marker-col">
+                <div class="modal-stop-marker">
+                  <div class="modal-stop-dot"></div>
+                  <div class="modal-stop-line"></div>
+                </div>
+              </div>
+              <div class="modal-stop-station-cell">
+                <div class="modal-stop-station-main"><span>${escapeTrainQueryHtml(row?.station || '--')}</span>${inlineTag ? `<span class="modal-stop-inline-tag">${escapeTrainQueryHtml(inlineTag)}</span>` : ''}</div>
+              </div>
+              <div class="modal-stop-time-cell">
+                <div class="modal-stop-time-main ${!row?.arrText ? 'modal-stop-time-empty' : ''}">${escapeTrainQueryHtml(row?.arrText || '--')}</div>
+              </div>
+              <div class="modal-stop-time-cell">
+                <div class="modal-stop-time-main ${!row?.depText ? 'modal-stop-time-empty' : ''}">${escapeTrainQueryHtml(row?.depText || '--')}</div>
+              </div>
+              <div class="modal-stop-state modal-tone-${escapeTrainQueryHtml(normalizeModalTone(row?.stateTone))}">${escapeTrainQueryHtml(row?.stateText || '')}</div>
+            </div>
+          `;
+        }).join('')}
+      </div>
+    `;
   }
 
   async function rerenderVisibleResults(){ 
