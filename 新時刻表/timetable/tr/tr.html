@@ -8585,6 +8585,28 @@ function buildTraTrainQueryV2StopRows(trainNo, originDateStr, stops, runtimeCtx,
   const liveProgress = getTraLiveTimelineProgress(trainNo, originDateStr, locationRows, visibleRows);
   const liveCanAdvanceTimeline = canAdvanceTraTimelineByLive(liveProgress);
   const trackerSnapshot = getTraTrackerSnapshot(trainNo, originDateStr);
+  if(trackerSnapshot && Array.isArray(trackerSnapshot.points) && trackerSnapshot.points.length){
+    const trackerPassMinuteMap = new Map();
+    trackerSnapshot.points.forEach((point)=>{
+      if(!point || point.isStop || !Number.isFinite(point.minute)) return;
+      const key = normalizeTraLinkedStation(point.station);
+      if(!key || trackerPassMinuteMap.has(key)) return;
+      trackerPassMinuteMap.set(key, point.minute);
+    });
+    const applyTrackerPassMinutes = (rows)=>{
+      (Array.isArray(rows) ? rows : []).forEach((row)=>{
+        if(row?.kind !== 'pass') return;
+        const passMinute = trackerPassMinuteMap.get(normalizeTraLinkedStation(row.station));
+        if(!Number.isFinite(passMinute)) return;
+        row.eventAbs = passMinute;
+        row.secondaryAbs = passMinute;
+        row.secondaryText = formatAbsTime(passMinute);
+        row.passText = formatAbsTime(passMinute);
+      });
+    };
+    applyTrackerPassMinutes(runtimeLocationRows);
+    applyTrackerPassMinutes(runtimeVisibleRows);
+  }
   const trackerCurrentVisibleIndex = trackerSnapshot
     ? findTraTimelineRowIndex(runtimeVisibleRows, trackerSnapshot.currentFrom, trackerSnapshot.state === 'running' ? null : false)
     : -1;
@@ -8817,10 +8839,10 @@ function buildTraTrainQueryV2StopRows(trainNo, originDateStr, stops, runtimeCtx,
     let depHtml = '--';
 
     if(row.kind === 'pass'){
-      const passSched = row.secondaryText || '--';
+      const passSched = runtimeRow?.secondaryText || runtimeRow?.passText || row.secondaryText || '--';
       const passHtml = isPassed
         ? escapeTrainQueryHtml(passSched)
-        : renderTimeWithDelayForTrainDetail(passSched, currentQueryDateStr, { stackVertical: true }, row.eventAbs, originDateStr, runtimeCtx?.delayMin || 0);
+        : renderTimeWithDelayForTrainDetail(passSched, currentQueryDateStr, { stackVertical: true }, runtimeRow?.eventAbs, originDateStr, runtimeCtx?.delayMin || 0);
       arrHtml = passHtml;
       depHtml = escapeTrainQueryHtml('-');
     }else if(row.kind === 'origin'){

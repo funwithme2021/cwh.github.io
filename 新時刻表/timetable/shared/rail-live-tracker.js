@@ -178,8 +178,16 @@
 
   function formatMinute(minuteValue) {
     if (!Number.isFinite(minuteValue)) return "--";
-    const normalized = ((minuteValue % 1440) + 1440) % 1440;
+    const rounded = Math.round(minuteValue);
+    const normalized = ((rounded % 1440) + 1440) % 1440;
     return `${String(Math.floor(normalized / 60)).padStart(2, "0")}:${String(normalized % 60).padStart(2, "0")}`;
+  }
+
+  function formatMinutesAway(minutesValue) {
+    if (!Number.isFinite(minutesValue)) return "";
+    const clamped = Math.max(0, minutesValue);
+    if (clamped <= 0) return "0";
+    return String(Math.ceil(clamped));
   }
 
   function getTrainNoParity(trainNo) {
@@ -805,6 +813,15 @@
     return getStopDepartureMinute(stop) ?? getStopArrivalMinute(stop);
   }
 
+  function getOriginDisplayMinute(stop) {
+    const departureMinute = getStopDepartureMinute(stop);
+    if (!Number.isFinite(departureMinute)) return null;
+    const arrivalMinute = getStopArrivalMinute(stop);
+    const upcomingMinute = departureMinute - UPCOMING_WINDOW;
+    if (!Number.isFinite(arrivalMinute)) return upcomingMinute;
+    return Math.min(arrivalMinute, upcomingMinute);
+  }
+
   function buildRouteProjections(entry, routeStations, system, queryDate) {
     const routeIndexMap = new Map((routeStations || []).map((name, index) => [name, index]));
     const delayMinutes = getDelayMinutes(system, entry.trainNo, queryDate);
@@ -898,6 +915,17 @@
       ? liveAdjusted.fullPathPoints[0].minute
       : entry.journeyFirstMinute;
     const fullLastMinute = entry.journeyLastMinute;
+    const originStopDetail = entry.startsAtJourneyOrigin
+      ? (stopDetails.find((stop) => stop.name === entry.firstStation) || stopDetails[0] || fullTimedStops[0] || null)
+      : null;
+    const originPendingDepartureMinute =
+      entry.startsAtJourneyOrigin && Number.isFinite(entry.originDepartureMinute)
+        ? entry.originDepartureMinute
+        : null;
+    const originDisplayMinute =
+      entry.startsAtJourneyOrigin && originStopDetail
+        ? getOriginDisplayMinute(originStopDetail)
+        : null;
     const liveStopDetail = liveAssist?.isStop
       ? stopDetails.find((stop) => normalizeTraStation(stop?.name) === liveAssist.stationName) || null
       : null;
@@ -908,7 +936,16 @@
       Number.isFinite(nowMinute) &&
       nowMinute < liveStopDepartureMinute;
     if (!Number.isFinite(segmentFirstMinute) || !Number.isFinite(segmentLastMinute) || !Number.isFinite(fullFirstMinute) || !Number.isFinite(fullLastMinute)) return null;
-    if (nowMinute < segmentFirstMinute && (!entry.startsAtJourneyOrigin || segmentFirstMinute - nowMinute > UPCOMING_WINDOW) && !liveStopHoldActive) return null;
+    if (
+      Number.isFinite(originDisplayMinute) &&
+      nowMinute < originDisplayMinute
+    ) return null;
+    if (
+      !Number.isFinite(originPendingDepartureMinute) &&
+      nowMinute < segmentFirstMinute &&
+      (!entry.startsAtJourneyOrigin || segmentFirstMinute - nowMinute > UPCOMING_WINDOW) &&
+      !liveStopHoldActive
+    ) return null;
     if (nowMinute > segmentLastMinute + 10) return null;
 
     const routeDirection = Number.isFinite(firstPoint?.routeIndex) && Number.isFinite(lastPoint?.routeIndex) && lastPoint.routeIndex < firstPoint.routeIndex
@@ -960,14 +997,14 @@
     let nextStopTime = "";
     let originEventMinute = entry.originDepartureMinute;
 
-    if (nowMinute < segmentFirstMinute && !liveStopHoldActive) {
-      const originStop = stopDetails.find((stop) => stop.name === entry.firstStation) || stopDetails[0] || null;
+    if ((Number.isFinite(originPendingDepartureMinute) && nowMinute < originPendingDepartureMinute && (Number.isFinite(originDisplayMinute) ? nowMinute >= originDisplayMinute : true)) || (nowMinute < segmentFirstMinute && !liveStopHoldActive)) {
+      const originStop = originStopDetail || stopDetails.find((stop) => stop.name === entry.firstStation) || stopDetails[0] || null;
       const anchorPointIndex = Math.max(
         0,
         points.findIndex((point) => point.station === (originStop?.name || firstPoint?.station))
       );
       const anchorPoint = points[anchorPointIndex] || firstPoint || lastPoint;
-      const departureMinute = getStopDepartureMinute(originStop) ?? segmentFirstMinute;
+      const departureMinute = getStopDepartureMinute(originStop) ?? originPendingDepartureMinute ?? segmentFirstMinute;
       state = "upcoming";
       stateLabel = "即將發車";
       positionIndex = anchorPoint?.routeIndex ?? firstPoint?.routeIndex ?? 0;
@@ -1180,6 +1217,7 @@
         const nextStop = fullTimedStops
           .slice(sharedStopIndex + 1)
           .find((stop) => !stop.isPassOnly && Number.isFinite(getStopArrivalMinute(stop)));
+        const originDisplayMinute = isOriginStation ? getOriginDisplayMinute(sharedStop) : null;
 
         let state = "";
         let stateLabel = "";
@@ -1193,7 +1231,7 @@
         let soonKind = "";
         let originEventMinute = isOriginStation ? departureMinute : null;
 
-        if (isOriginStation && Number.isFinite(departureMinute) && nowMinute < departureMinute && (departureMinute - nowMinute <= UPCOMING_WINDOW || liveStopHolding)) {
+        if (isOriginStation && Number.isFinite(departureMinute) && nowMinute < departureMinute && Number.isFinite(originDisplayMinute) && nowMinute >= originDisplayMinute) {
           state = "upcoming";
           stateLabel = "即將發車";
           statusText = `即將發車·${buildPunctualityText(system, queryDate, delayMinutes)}`;
@@ -1347,8 +1385,12 @@
   function pushStationEvent(map, stationName, event) {
     if (!map.has(stationName)) map.set(stationName, []);
     const list = map.get(stationName);
-    const key = `${event.trainNo}|${event.kind}|${event.timeText}`;
-    if (list.some((item) => `${item.trainNo}|${item.kind}|${item.timeText}` === key)) return;
+    const key = `${event.trainNo}|${event.kind}|${event.station}`;
+    const existingIndex = list.findIndex((item) => `${item.trainNo}|${item.kind}|${item.station}` === key);
+    if (existingIndex >= 0) {
+      list[existingIndex] = event;
+      return;
+    }
     list.push(event);
   }
 
@@ -1464,12 +1506,9 @@
     if (snapshot.state === "arrived") return `終點站：${snapshot.currentTo}`;
     if (snapshot.state === "upcoming") return `預計 ${snapshot.nextTime} 由 ${snapshot.currentFrom} 發車`;
     if (snapshot.nextEventKind === "pass") {
-      if (snapshot.nextStopStation && snapshot.nextStopTime) {
-        return `即將通過：${snapshot.nextStation}（${snapshot.nextTime}）｜下一停靠：${snapshot.nextStopStation}（${snapshot.nextStopTime}）`;
-      }
       return `即將通過：${snapshot.nextStation}（${snapshot.nextTime}）`;
     }
-    return `下一站：${snapshot.nextStation}（${snapshot.nextTime}）`;
+    return `下一停靠：${snapshot.nextStation}（${snapshot.nextTime}）`;
   }
 
   function buildSnapshotStatusLine(snapshot) {
@@ -1509,17 +1548,25 @@
     const lastPoint = points[points.length - 1] || null;
     const firstMinute = snapshot?.firstMinute ?? firstPoint?.minute;
     const lastMinute = snapshot?.lastMinute ?? lastPoint?.minute;
+    const basePosition = Number.isFinite(snapshot?.positionIndex) ? snapshot.positionIndex : 0;
+    const clampToBase = (value) => {
+      if (!Number.isFinite(value)) return basePosition || 0;
+      const direction = getSnapshotTravelDirection(snapshot);
+      if (direction > 0) return Math.max(value, basePosition);
+      if (direction < 0) return Math.min(value, basePosition);
+      return Number.isFinite(basePosition) ? basePosition : value;
+    };
     if (!points.length || !Number.isFinite(firstMinute) || !Number.isFinite(lastMinute)) {
-      return Number(snapshot?.positionIndex) || 0;
+      return basePosition || 0;
     }
     if (snapshot?.sharedStationOnly || points.length === 1) {
       return Number.isFinite(snapshot?.positionIndex) ? snapshot.positionIndex : firstPoint?.routeIndex ?? 0;
     }
 
     const nowMinute = getRelativeNowExactMinute(snapshot.originDate, queryDate || snapshot.queryDate || getQueryDate());
-    if (!Number.isFinite(nowMinute)) return Number(snapshot?.positionIndex) || 0;
-    if (nowMinute <= firstMinute) return firstPoint?.routeIndex ?? (Number(snapshot?.positionIndex) || 0);
-    if (nowMinute >= lastMinute) return lastPoint?.routeIndex ?? (Number(snapshot?.positionIndex) || 0);
+    if (!Number.isFinite(nowMinute)) return basePosition || 0;
+    if (nowMinute <= firstMinute) return clampToBase(firstPoint?.routeIndex ?? basePosition);
+    if (nowMinute >= lastMinute) return clampToBase(lastPoint?.routeIndex ?? basePosition);
 
     for (let index = 0; index < stopDetails.length; index += 1) {
       const current = stopDetails[index];
@@ -1527,7 +1574,7 @@
       const departureMinute = getStopDepartureMinute(current);
       if (!Number.isFinite(arrivalMinute) || !Number.isFinite(departureMinute) || !Number.isFinite(current?.routeIndex)) continue;
       if (nowMinute >= arrivalMinute && nowMinute < departureMinute) {
-        return current.routeIndex;
+        return clampToBase(current.routeIndex);
       }
     }
 
@@ -1537,14 +1584,14 @@
       if (!Number.isFinite(current?.minute) || !Number.isFinite(next?.minute)) continue;
       if (nowMinute < current.minute || nowMinute > next.minute) continue;
       if (!Number.isFinite(current?.routeIndex) || !Number.isFinite(next?.routeIndex)) {
-        return Number(snapshot?.positionIndex) || 0;
+        return basePosition || 0;
       }
-      if (current.routeIndex === next.routeIndex) return current.routeIndex;
+      if (current.routeIndex === next.routeIndex) return clampToBase(current.routeIndex);
       const duration = next.minute - current.minute;
-      if (duration <= 0) return next.routeIndex;
+      if (duration <= 0) return clampToBase(next.routeIndex);
       const progress = (nowMinute - current.minute) / duration;
       const animatedProgress = getAnimatedSegmentProgress(progress, current, next);
-      return current.routeIndex + (next.routeIndex - current.routeIndex) * animatedProgress;
+      return clampToBase(current.routeIndex + (next.routeIndex - current.routeIndex) * animatedProgress);
     }
 
     return Number.isFinite(snapshot?.positionIndex) ? snapshot.positionIndex : lastPoint?.routeIndex ?? 0;
@@ -1565,12 +1612,18 @@
     return [
       Number(snapshot?.delayMinutes) || 0,
       snapshot?.state || "",
+      snapshot?.currentFrom || "",
+      snapshot?.currentTo || "",
       Number.isFinite(snapshot?.positionIndex) ? snapshot.positionIndex : "",
       Number.isFinite(snapshot?.firstMinute) ? snapshot.firstMinute : "",
       Number.isFinite(snapshot?.lastMinute) ? snapshot.lastMinute : "",
       Number.isFinite(snapshot?.originEventMinute) ? snapshot.originEventMinute : "",
+      snapshot?.soonStation || "",
+      snapshot?.soonKind || "",
       snapshot?.nextStation || "",
       snapshot?.nextTime || "",
+      snapshot?.nextStopStation || "",
+      snapshot?.nextStopTime || "",
       snapshot?.statusText || "",
     ].join("|");
   }
@@ -1588,14 +1641,20 @@
     const slot = Math.floor(Date.now() / (Math.max(1, cadenceSeconds) * 1000));
     const signature = getSnapshotAnimationSignature(snapshot);
     const previous = state.markerStepCache.get(key);
+    const targetPosition = Number.isFinite(rawPosition) ? rawPosition : Number(snapshot?.positionIndex) || 0;
+    const forceAdvance =
+      previous &&
+      Number.isFinite(targetPosition) &&
+      Math.abs(targetPosition - previous.position) >= 0.35;
     if (
       !previous ||
+      forceAdvance ||
       previous.slot !== slot ||
       previous.cadenceSeconds !== cadenceSeconds ||
       previous.scopeKey !== scopeKey ||
       previous.signature !== signature
     ) {
-      const nextPosition = Number.isFinite(rawPosition) ? rawPosition : Number(snapshot?.positionIndex) || 0;
+      const nextPosition = targetPosition;
       const payload = { slot, cadenceSeconds, scopeKey, signature, position: nextPosition };
       state.markerStepCache.set(key, payload);
       state.markerPositions.set(key, nextPosition);
@@ -1666,7 +1725,7 @@
                     (event) => `
                       <article class="rail-live-detail-card">
                         <div class="rail-live-detail-title">${buildTrainTitleHTML(state.system, event.snapshot, true)}</div>
-                        <div class="rail-live-detail-meta">${escapeHtml(event.kind)}｜${escapeHtml(event.station)}｜${escapeHtml(event.timeText)}${Number.isFinite(event.minutesAway) && event.minutesAway > 0 ? `｜${escapeHtml(String(event.minutesAway))} 分後` : ""}</div>
+                        <div class="rail-live-detail-meta">${escapeHtml(event.kind)}｜${escapeHtml(event.station)}｜${escapeHtml(event.timeText)}${Number.isFinite(event.minutesAway) && event.minutesAway > 0 ? `｜${escapeHtml(formatMinutesAway(event.minutesAway))} 分後` : ""}</div>
                         <div class="rail-live-detail-actions">
                           <button type="button" class="rail-live-mini-btn" data-train-focus="${escapeHtml(makeTrainKey(event.trainNo, event.originDate))}">定位列車</button>
                           <button type="button" class="rail-live-mini-btn" data-train-detail="${escapeHtml(event.trainNo)}" data-origin-date="${escapeHtml(event.originDate || getQueryDate())}">查看詳情</button>
@@ -1836,7 +1895,7 @@
     return `
       <article class="rail-live-v2-event-card" data-train-key="${escapeHtml(makeTrainKey(event.trainNo, event.originDate))}">
         <div class="rail-live-v2-event-title">${buildTrainTitleHTML(system, event.snapshot, false)}</div>
-        <div class="rail-live-v2-event-meta">${escapeHtml(`${event.station}｜${event.kind}｜${event.timeText}`)}${Number.isFinite(event.minutesAway) && event.minutesAway > 0 ? `｜${escapeHtml(String(event.minutesAway))} 分後` : ""}</div>
+        <div class="rail-live-v2-event-meta">${escapeHtml(`${event.station}｜${event.kind}｜${event.timeText}`)}${Number.isFinite(event.minutesAway) && event.minutesAway > 0 ? `｜${escapeHtml(formatMinutesAway(event.minutesAway))} 分後` : ""}</div>
         <div class="rail-live-v2-event-line">${escapeHtml(buildSnapshotLocationLine(event.snapshot))}</div>
         <div class="rail-live-detail-actions">
           <button type="button" class="rail-live-mini-btn" data-train-focus="${escapeHtml(makeTrainKey(event.trainNo, event.originDate))}">聚焦列車</button>
@@ -1950,10 +2009,18 @@
     const snapshots = Array.isArray(state?.snapshots) ? state.snapshots : [];
     if (!snapshots.length) return null;
     const exactKey = makeTrainKey(trainNo, originDate);
+    const pickBest = (items) =>
+      (items || []).slice().sort((a, b) => {
+        const priorityDelta = getSnapshotPriority(b) - getSnapshotPriority(a);
+        if (priorityDelta) return priorityDelta;
+        const completionA = Number.isFinite(a?.completionRatio) ? a.completionRatio : -1;
+        const completionB = Number.isFinite(b?.completionRatio) ? b.completionRatio : -1;
+        return completionB - completionA;
+      })[0] || null;
     return (
-      snapshots.find((snapshot) => makeTrainKey(snapshot.trainNo, snapshot.originDate || snapshot.queryDate) === exactKey) ||
-      snapshots.find((snapshot) => sameTrainNo(snapshot.trainNo, trainNo) && (!originDate || String(snapshot.originDate || snapshot.queryDate || "") === String(originDate || ""))) ||
-      snapshots.find((snapshot) => sameTrainNo(snapshot.trainNo, trainNo)) ||
+      pickBest(snapshots.filter((snapshot) => makeTrainKey(snapshot.trainNo, snapshot.originDate || snapshot.queryDate) === exactKey)) ||
+      pickBest(snapshots.filter((snapshot) => sameTrainNo(snapshot.trainNo, trainNo) && (!originDate || String(snapshot.originDate || snapshot.queryDate || "") === String(originDate || "")))) ||
+      pickBest(snapshots.filter((snapshot) => sameTrainNo(snapshot.trainNo, trainNo))) ||
       null
     );
   }
@@ -1988,9 +2055,17 @@
     );
     if (!snapshots.length) return null;
     const exactKey = makeTrainKey(trainNo, originDate || matchedEntry.originDate);
+    const pickBest = (items) =>
+      (items || []).slice().sort((a, b) => {
+        const priorityDelta = getSnapshotPriority(b) - getSnapshotPriority(a);
+        if (priorityDelta) return priorityDelta;
+        const completionA = Number.isFinite(a?.completionRatio) ? a.completionRatio : -1;
+        const completionB = Number.isFinite(b?.completionRatio) ? b.completionRatio : -1;
+        return completionB - completionA;
+      })[0] || null;
     return (
-      snapshots.find((snapshot) => makeTrainKey(snapshot.trainNo, snapshot.originDate || snapshot.queryDate) === exactKey) ||
-      snapshots.sort((a, b) => getSnapshotPriority(b) - getSnapshotPriority(a))[0] ||
+      pickBest(snapshots.filter((snapshot) => makeTrainKey(snapshot.trainNo, snapshot.originDate || snapshot.queryDate) === exactKey)) ||
+      pickBest(snapshots) ||
       null
     );
   }
@@ -2224,8 +2299,8 @@
 
     state.snapshots = snapshots;
     state.segment = segment;
-      state.stationEvents = buildStationEventMap(snapshots, segment.stations);
       state.visibleSnapshots = getVisibleSnapshots(snapshots);
+      state.stationEvents = buildStationEventMap(state.visibleSnapshots, segment.stations);
       const scopeKey = `${state.system}|${state.renderedQueryDate}|${segment.id}`;
       if (state.animationScopeKey !== scopeKey) {
         state.markerPositions.clear();
