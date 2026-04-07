@@ -453,13 +453,21 @@
     if (!assist || !assist.anchorPoint) return { points: entry?.points || [], fullPathPoints: entry?.fullPathPoints || [], live: null };
 
     const fullPoints = Array.isArray(entry?.fullPathPoints) ? entry.fullPathPoints : [];
+    const baseFullTimedStops = buildTimedStops(entry?.stops || [], 0);
+    const baseFullPathPoints = buildJourneyPathPoints("tr", baseFullTimedStops, entry?.fullPathStations || [], entry?.type);
+    const baseMinuteBySequence = new Map((baseFullPathPoints || []).map((point) => [point.sequenceIndex, point.minute]));
     const adjustedMinutes = new Map(fullPoints.map((point) => [point.sequenceIndex, point.minute]));
     adjustedMinutes.set(assist.anchorPoint.sequenceIndex, assist.anchorMinute);
 
     if (assist.canAdvance) {
       const nextFixedStopPoint = fullPoints.find((point, index) => index > assist.anchorIndex && point?.isStop);
-      if (nextFixedStopPoint && Number.isFinite(nextFixedStopPoint.minute) && nextFixedStopPoint.minute > assist.anchorMinute) {
-        const totalMinutes = nextFixedStopPoint.minute - assist.anchorMinute;
+      const baseNextFixedMinute = Number(nextFixedStopPoint ? baseMinuteBySequence.get(nextFixedStopPoint.sequenceIndex) : null);
+      const effectiveEndMinute =
+        Number.isFinite(baseNextFixedMinute) && baseNextFixedMinute > assist.anchorMinute
+          ? baseNextFixedMinute
+          : nextFixedStopPoint?.minute;
+      if (nextFixedStopPoint && Number.isFinite(effectiveEndMinute) && effectiveEndMinute > assist.anchorMinute) {
+        const totalMinutes = effectiveEndMinute - assist.anchorMinute;
         for (let index = assist.anchorIndex + 1; index < fullPoints.length; index += 1) {
           const point = fullPoints[index];
           if (!point) continue;
@@ -1388,7 +1396,16 @@
     const key = `${event.trainNo}|${event.kind}|${event.station}`;
     const existingIndex = list.findIndex((item) => `${item.trainNo}|${item.kind}|${item.station}` === key);
     if (existingIndex >= 0) {
-      list[existingIndex] = event;
+      const current = list[existingIndex];
+      const currentPriority = getSnapshotPriority(current?.snapshot);
+      const nextPriority = getSnapshotPriority(event?.snapshot);
+      const currentCompletion = Number.isFinite(current?.snapshot?.completionRatio) ? current.snapshot.completionRatio : -1;
+      const nextCompletion = Number.isFinite(event?.snapshot?.completionRatio) ? event.snapshot.completionRatio : -1;
+      const shouldReplace =
+        nextPriority > currentPriority ||
+        (nextPriority === currentPriority && nextCompletion > currentCompletion) ||
+        (nextPriority === currentPriority && nextCompletion === currentCompletion && Number.isFinite(event?.timeMinute) && Number.isFinite(current?.timeMinute) && event.timeMinute < current.timeMinute);
+      if (shouldReplace) list[existingIndex] = event;
       return;
     }
     list.push(event);

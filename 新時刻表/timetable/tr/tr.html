@@ -4782,7 +4782,13 @@ function splitArrDep(stopRow){
     if(nextFixedIndex < 0) return adjusted;
 
     const nextFixed = adjusted[nextFixedIndex];
-    const endAbs = nextFixed?.secondaryAbs ?? nextFixed?.primaryAbs ?? nextFixed?.eventAbs;
+    const nextFixedBase = baseRows?.[nextFixedIndex] || null;
+    const delayedEndAbs = nextFixed?.secondaryAbs ?? nextFixed?.primaryAbs ?? nextFixed?.eventAbs;
+    const scheduledEndAbs = nextFixedBase?.secondaryAbs ?? nextFixedBase?.primaryAbs ?? nextFixedBase?.eventAbs;
+    const endAbs =
+      Number.isFinite(scheduledEndAbs) && scheduledEndAbs > anchorEventAbs
+        ? scheduledEndAbs
+        : delayedEndAbs;
     if(!(Number.isFinite(anchorEventAbs) && Number.isFinite(endAbs) && endAbs > anchorEventAbs)) return adjusted;
 
     const path = getTraRouteStationsBetween(anchorRow.station, nextFixed.station);
@@ -8871,10 +8877,15 @@ function buildTraTrainQueryV2StopRows(trainNo, originDateStr, stops, runtimeCtx,
     let depHtml = '--';
 
     if(row.kind === 'pass'){
-      const passSched = runtimeRow?.secondaryText || runtimeRow?.passText || row.secondaryText || '--';
+      const passSched = row.secondaryText || row.passText || '--';
+      const passSchedAbs = Number.isFinite(row?.eventAbs) ? row.eventAbs : null;
+      const passResolvedAbs = Number.isFinite(runtimeRow?.eventAbs) ? runtimeRow.eventAbs : passSchedAbs;
+      const passResolved = Number.isFinite(passResolvedAbs)
+        ? formatAbsTime(passResolvedAbs)
+        : (runtimeRow?.secondaryText || runtimeRow?.passText || passSched);
       const passHtml = isPassed
         ? escapeTrainQueryHtml(passSched)
-        : renderTimeWithDelayForTrainDetail(passSched, currentQueryDateStr, { stackVertical: true }, runtimeRow?.eventAbs, originDateStr, runtimeCtx?.delayMin || 0);
+        : renderResolvedTimeForTrainDetail(passSched, passResolved, { stackVertical: true }, passSchedAbs, passResolvedAbs, originDateStr);
       arrHtml = passHtml;
       depHtml = escapeTrainQueryHtml('-');
     }else if(row.kind === 'origin'){
@@ -9199,6 +9210,46 @@ function filterTrainScheduleByNumberV2(trainNo){
       </span>
       <span style="font-weight:800;color:var(--detail-time-main-color,var(--text-main));">
         ${t.adj}
+      </span>
+      ${dayHint}
+    `;
+  }
+
+  function renderResolvedTimeForTrainDetail(schedHHMM, resolvedHHMM, opts, schedAbsMin=null, resolvedAbsMin=null, originDateStr=null){
+    const sched = schedHHMM || '--';
+    const resolved = resolvedHHMM || sched;
+    if(!resolved || resolved === sched) return sched;
+
+    const stackVertical = !!(opts && opts.stackVertical);
+    let dayHint = '';
+    if(originDateStr && Number.isFinite(schedAbsMin) && Number.isFinite(resolvedAbsMin)){
+      const schedDateStr = getStopDateStr(originDateStr, schedAbsMin);
+      const resolvedDateStr = getStopDateStr(originDateStr, resolvedAbsMin);
+      if(schedDateStr && resolvedDateStr && schedDateStr !== resolvedDateStr){
+        const md = resolvedDateStr.slice(5).replace('-', '/');
+        dayHint = `<span style="margin-left:6px;color:var(--text-muted);font-weight:700;font-size:.78em;">${md}</span>`;
+      }
+    }
+
+    if(stackVertical){
+      return `
+        <span style="display:grid;gap:2px;justify-items:start;text-align:left;">
+          <span style="text-decoration:line-through;color:var(--detail-time-muted-color,var(--text-muted));font-size:.92em;">
+            ${sched}
+          </span>
+          <span style="font-weight:800;color:var(--detail-time-main-color,var(--text-main));">
+            ${resolved}${dayHint ? ` ${dayHint}` : ''}
+          </span>
+        </span>
+      `;
+    }
+
+    return `
+      <span style="text-decoration:line-through;color:var(--detail-time-muted-color,var(--text-muted));margin-right:6px;">
+        ${sched}
+      </span>
+      <span style="font-weight:800;color:var(--detail-time-main-color,var(--text-main));">
+        ${resolved}
       </span>
       ${dayHint}
     `;
