@@ -2842,14 +2842,14 @@
     <div class="modal-header">
       <div class="modal-title-block">
         <div class="modal-title-main">選擇訂票方式</div>
-        <div class="modal-title-sub">可使用高鐵 T Express App 或高鐵官網購票。</div>
+        <div class="modal-title-sub">手機可用 T-EX 行動購票 App，或改走高鐵官網訂票。</div>
       </div>
       <div class="close" id="thsrBookingChoiceClose">✕</div>
     </div>
     <div class="modal-body" style="padding: 20px 24px 24px;">
       <div style="display:grid; gap:12px;">
-        <button class="btn-primary" id="thsrBookingChoiceApp" type="button" style="width:100%; justify-content:center;">使用 T Express App</button>
-        <button class="btn-ghost" id="thsrBookingChoiceWeb" type="button" style="width:100%; justify-content:center;">使用高鐵官網購票</button>
+        <button class="btn-primary" id="thsrBookingChoiceApp" type="button" style="width:100%; justify-content:center;">使用 T-EX 行動購票 App</button>
+        <button class="btn-ghost" id="thsrBookingChoiceWeb" type="button" style="width:100%; justify-content:center;">使用高鐵官網訂票</button>
       </div>
     </div>
   </div>
@@ -2860,18 +2860,17 @@
     <div class="modal-header">
       <div class="modal-title-block">
         <div class="modal-title-main">高鐵官網訂票設定</div>
-        <div class="modal-title-sub">會開啟高鐵官網首頁，並由 userscript 代填車次查詢條件。</div>
       </div>
       <div class="close" id="thsrWebBookingClose">✕</div>
     </div>
     <div class="modal-body" style="padding: 20px 24px 24px;">
       <div style="display:grid; gap:16px;">
+        <div id="thsrWebBookingContext" style="display:grid; gap:4px; padding:12px 14px; border:1px solid var(--border); border-radius:12px; background:var(--bg-body); color:var(--text-main);"></div>
         <label style="display:grid; gap:8px;">
-          <span style="font-weight:700; color:var(--text-main);">座位偏好</span>
-          <select id="thsrSeatPreference" class="input-field" style="width:100%;">
-            <option value="0">無座位偏好</option>
-            <option value="1">靠窗優先</option>
-            <option value="2">走道優先</option>
+          <span style="font-weight:700; color:var(--text-main);">車廂類別</span>
+          <select id="thsrBookingCarriageType" class="input-field" style="width:100%;">
+            <option value="Y">標準車廂</option>
+            <option value="J">商務車廂</option>
           </select>
         </label>
         <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap:12px;">
@@ -2896,7 +2895,7 @@
             <select id="thsrTicketStudent" class="input-field" style="width:100%;"></select>
           </label>
         </div>
-        <button class="btn-primary" id="thsrWebBookingConfirm" type="button" style="width:100%; justify-content:center;">前往高鐵官網</button>
+        <button class="btn-primary" id="thsrWebBookingConfirm" type="button" style="width:100%; justify-content:center;">前往高鐵官網訂票</button>
       </div>
     </div>
   </div>
@@ -3206,6 +3205,92 @@
       const el = document.getElementById(id);
       if(el && !el.options.length) el.innerHTML = buildTHSRSelectOptions(10, selected);
     });
+  }
+  function formatTHSRBookingDateYmd(value){
+    const digits = String(value || '').trim().replace(/\D/g, '');
+    return digits.length === 8 ? digits : '';
+  }
+  function formatTHSRBookingDateInput(value){
+    const ymd = formatTHSRBookingDateYmd(value);
+    if(!ymd) return '';
+    return `${ymd.slice(0,4)}-${ymd.slice(4,6)}-${ymd.slice(6,8)}`;
+  }
+  function normalizeTHSRBookingTrainNo(value){
+    const digits = String(value || '').trim().replace(/\D/g, '');
+    if(!digits) return '';
+    if(digits.length === 3 || digits.length === 4) return digits.padStart(4, '0');
+    return '';
+  }
+  function buildTHSRWebBookingContextHtml(config){
+    const start = escapeTrainQueryHtml(normTHSRStationName(config?.startStation || '') || '--');
+    const end = escapeTrainQueryHtml(normTHSRStationName(config?.endStation || '') || '--');
+    const date = escapeTrainQueryHtml(String(config?.dateStr || '').trim() || '--');
+    const trainNo = escapeTrainQueryHtml(normalizeTHSRBookingTrainNo(config?.trainNo || '') || String(config?.trainNo || '').trim() || '--');
+    return [
+      `<div style="font-weight:800;">去程：${start} → ${end}</div>`,
+      `<div style="font-size:0.88rem; color:var(--text-muted);">乘車日期 ${date} · 車次 ${trainNo}</div>`
+    ].join('');
+  }
+  function buildTHSRBookingHeaders(authToken){
+    if(typeof window.buildTdxAuthHeaders === 'function'){
+      return window.buildTdxAuthHeaders(authToken);
+    }
+    const headers = { 'Accept': 'application/json' };
+    if(authToken) headers['Authorization'] = `Bearer ${authToken}`;
+    if(window.TDX_CONFIG?.clientId || TDX_CONFIG?.clientId){
+      headers['x-api-key'] = window.TDX_CONFIG?.clientId || TDX_CONFIG.clientId;
+    }
+    return headers;
+  }
+  async function requestTHSRBookingApi(apiUrl){
+    const readErrorText = async (response)=>{
+      try{
+        const raw = await response.text();
+        return String(raw || '').trim();
+      }catch(_){
+        return '';
+      }
+    };
+    if(typeof getAccessToken !== 'function'){
+      return { ok:false, status:0, errorText:'系統錯誤：無法取得授權函式' };
+    }
+    const requestOnce = async (forceRefresh = false)=>{
+      const authToken = await getAccessToken(forceRefresh);
+      if(!authToken) return { ok:false, status:0, errorText:'授權失敗，無法連接 TDX' };
+      const response = await fetch(apiUrl, {
+        method: 'GET',
+        headers: buildTHSRBookingHeaders(authToken)
+      });
+      return { ok: response.ok, response };
+    };
+    let result = await requestOnce(false);
+    if((result.response?.status === 401 || result.response?.status === 403) && typeof getAccessToken === 'function'){
+      result = await requestOnce(true);
+    }
+    if(!result.response){
+      return { ok:false, status:result.status || 0, errorText:result.errorText || '授權失敗' };
+    }
+    const errorText = result.response.ok ? '' : await readErrorText(result.response);
+    let payload = null;
+    let rawText = '';
+    try{
+      rawText = await result.response.text();
+      payload = rawText ? JSON.parse(rawText) : null;
+    }catch(_){
+      payload = rawText ? rawText.trim() : null;
+    }
+    return {
+      ok: result.response.ok,
+      status: result.response.status,
+      errorText,
+      payload
+    };
+  }
+  async function startTHSRWebBookingFlow(baseOptions, dialogDefaults){
+    const bookingOptions = await showTHSRWebBookingDialog({ ...(dialogDefaults || {}), ...(baseOptions || {}) });
+    if(!bookingOptions) return false;
+    await openTHSRBookingWeb({ ...(baseOptions || {}), ...(bookingOptions || {}) });
+    return true;
   }
 
   async function refreshData(dateStr, options){
@@ -5081,23 +5166,37 @@
     const modal = document.getElementById('thsrWebBookingModal');
     const closeBtn = document.getElementById('thsrWebBookingClose');
     const confirmBtn = document.getElementById('thsrWebBookingConfirm');
-    const seatPref = document.getElementById('thsrSeatPreference');
+    const contextEl = document.getElementById('thsrWebBookingContext');
+    const carriageType = document.getElementById('thsrBookingCarriageType');
     const adult = document.getElementById('thsrTicketAdult');
     const child = document.getElementById('thsrTicketChild');
     const disabled = document.getElementById('thsrTicketDisabled');
     const senior = document.getElementById('thsrTicketSenior');
     const student = document.getElementById('thsrTicketStudent');
-    if(!modal || !closeBtn || !confirmBtn || !seatPref || !adult || !child || !disabled || !senior || !student){
+    if(!modal || !closeBtn || !confirmBtn || !contextEl || !carriageType || !adult || !child || !disabled || !senior || !student){
       return Promise.resolve(null);
     }
 
     const config = defaults || {};
-    seatPref.value = String(config.seatPreference ?? 0);
+    contextEl.innerHTML = buildTHSRWebBookingContextHtml(config);
+    carriageType.value = String(config.carriageType || 'Y').toUpperCase() === 'J' ? 'J' : 'Y';
     adult.value = String(config.adult ?? 1);
     child.value = String(config.child ?? 0);
     disabled.value = String(config.disabled ?? 0);
     senior.value = String(config.senior ?? 0);
     student.value = String(config.student ?? 0);
+
+    const updateDialogState = ()=>{
+      const business = carriageType.value === 'J';
+      if(business){
+        if(String(student.value || '0') !== '0') student.value = '0';
+        student.disabled = true;
+        student.closest('label')?.style.setProperty('opacity', '0.55');
+      } else {
+        student.disabled = false;
+        student.closest('label')?.style.setProperty('opacity', '1');
+      }
+    };
 
     return new Promise((resolve)=>{
       let settled = false;
@@ -5109,6 +5208,7 @@
         confirmBtn.removeEventListener('click', onConfirm);
         modal.removeEventListener('click', onBackdrop);
         document.removeEventListener('keydown', onKeydown);
+        carriageType.removeEventListener('change', updateDialogState);
         resolve(payload);
       };
       const onCancel = ()=>finish(null);
@@ -5116,12 +5216,15 @@
       const onKeydown = (event)=>{ if(event.key === 'Escape') finish(null); };
       const onConfirm = ()=>{
         const payload = {
-          seatPreference: parseInt(seatPref.value, 10) || 0,
+          ticketType: 'S',
+          carriageType: carriageType.value === 'J' ? 'J' : 'Y',
           adult: parseInt(adult.value, 10) || 0,
           child: parseInt(child.value, 10) || 0,
           disabled: parseInt(disabled.value, 10) || 0,
           senior: parseInt(senior.value, 10) || 0,
           student: parseInt(student.value, 10) || 0,
+          returnDate: '',
+          returnTrainNo: '',
         };
         const total = payload.adult + payload.child + payload.disabled + payload.senior + payload.student;
         if(total <= 0){
@@ -5132,6 +5235,10 @@
           alert('票種總張數不可超過 10 張。');
           return;
         }
+        if(payload.carriageType === 'J' && payload.student > 0){
+          alert('商務車廂不可設定學生票。');
+          return;
+        }
         finish(payload);
       };
 
@@ -5139,8 +5246,10 @@
       confirmBtn.addEventListener('click', onConfirm);
       modal.addEventListener('click', onBackdrop);
       document.addEventListener('keydown', onKeydown);
+      carriageType.addEventListener('change', updateDialogState);
+      updateDialogState();
       modal.style.display = 'flex';
-      setTimeout(()=>{ try{ seatPref.focus(); }catch(e){} }, 0);
+      setTimeout(()=>{ try{ carriageType.focus(); }catch(e){} }, 0);
     });
   }
 
@@ -5149,46 +5258,76 @@
     return `${qty}${suffix}`;
   }
 
-  function openTHSRBookingWeb(options){
-    window.open('https://irs.thsrc.com.tw/IMINT/?locale=tw', '_blank', 'noopener');
-    return;
-    const startName = normTHSRStationName(options?.startStation || '');
-    const endName = normTHSRStationName(options?.endStation || '');
-    const trainNo = String(options?.trainNo || '').trim();
-    const rideDate = String(options?.dateStr || '').trim().replace(/-/g, '/');
-    const seatPreference = Math.max(0, Math.min(2, parseInt(options?.seatPreference, 10) || 0));
+  async function openTHSRBookingWeb(options){
+    const startName = normTHSRStationName(options?.startStation || '').replace(/臺/g, '台');
+    const endName = normTHSRStationName(options?.endStation || '').replace(/臺/g, '台');
+    const departureNumber = normalizeTHSRBookingTrainNo(options?.trainNo || '');
+    const departureDate = formatTHSRBookingDateYmd(options?.dateStr || '');
+    const carriageType = String(options?.carriageType || 'Y').toUpperCase() === 'J' ? 'J' : 'Y';
     const adult = Math.max(0, Math.min(10, parseInt(options?.adult, 10) || 0));
     const child = Math.max(0, Math.min(10, parseInt(options?.child, 10) || 0));
     const disabled = Math.max(0, Math.min(10, parseInt(options?.disabled, 10) || 0));
     const senior = Math.max(0, Math.min(10, parseInt(options?.senior, 10) || 0));
     const student = Math.max(0, Math.min(10, parseInt(options?.student, 10) || 0));
-    if(!startName || !endName || !trainNo || !rideDate){
-      alert('缺少高鐵訂票所需的起訖站、日期或車次資訊。');
-      return;
+    const total = adult + child + disabled + senior + student;
+    if(!startName || !endName || !departureDate || !departureNumber){
+      alert('缺少高鐵官網訂票所需的起訖站、日期或車次資訊。');
+      return false;
+    }
+    if(total <= 0){
+      alert('請至少選擇 1 張票。');
+      return false;
+    }
+    if(total > 10){
+      alert('票種總張數不可超過 10 張。');
+      return false;
+    }
+    if(carriageType === 'J' && student > 0){
+      alert('商務車廂不可設定學生票。');
+      return false;
     }
 
-    const payload = {
-      startStation: startName.replace(/臺/g, '台'),
-      endStation: endName.replace(/臺/g, '台'),
-      dateStr: rideDate,
-      trainNo,
-      seatPreference,
-      adult,
-      child,
-      disabled,
-      senior,
-      student,
-    };
-    const encoded = encodeURIComponent(JSON.stringify(payload));
-    window.open(`https://irs.thsrc.com.tw/IMINT/?locale=tw&thsrAutoFill=${encoded}`, '_blank', 'noopener');
+    const params = new URLSearchParams({
+      ticket_type: 'S',
+      carriage_type: carriageType,
+      adult_ticket: String(adult),
+      children_ticket: String(child),
+      disabled_ticket: String(disabled),
+      senior_ticket: String(senior),
+      student_ticket: String(student),
+      start_station: startName,
+      end_station: endName,
+      departure_date: departureDate,
+      departure_number: departureNumber,
+    });
+
+    const apiUrl = `https://tdx.transportdata.tw/api/maas-thsr/booking/deeplink/web/hsr?${params.toString()}`;
+    try{
+      const result = await requestTHSRBookingApi(apiUrl);
+      if(!result.ok){
+        const suffix = result.errorText ? `\n${result.errorText}` : '';
+        alert(`高鐵官網訂票連結取得失敗${result.status ? `（HTTP ${result.status}）` : ''}${suffix}`);
+        return false;
+      }
+      const payload = result.payload;
+      const jumpUrl = typeof payload === 'string'
+        ? payload
+        : (payload?.url || payload?.data?.url || payload?.data?.deeplink || payload?.DeepLinkUrl || payload?.link || '');
+      if(!jumpUrl){
+        console.error('THSR web deeplink payload unexpected:', payload);
+        alert('無法取得高鐵官網訂票連結。');
+        return false;
+      }
+      openTHSRExternalBookingUrl(jumpUrl);
+      return true;
+    }catch(error){
+      console.error('THSR web deeplink error:', error);
+      alert('系統發生錯誤，暫時無法開啟高鐵官網訂票。');
+      return false;
+    }
   }
 
   async function handleTHSRBookingRequest(trainNo, dateStr, timeStr, startStationName, endStationName){
-    if(isDesktopDevice()){
-      openTHSRBookingWeb();
-      return;
-    }
-
     const payloadBase = {
       trainNo: String(trainNo || '').trim(),
       dateStr: String(dateStr || '').trim(),
@@ -5203,9 +5342,9 @@
     }
 
     if(isDesktopDevice()){
-      openTHSRBookingWeb({
-        ...payloadBase,
-        seatPreference: 0,
+      await startTHSRWebBookingFlow(payloadBase, {
+        ticketType: 'S',
+        carriageType: 'Y',
         adult: 1,
         child: 0,
         disabled: 0,
@@ -5215,15 +5354,12 @@
       return;
     }
 
-    await openTHSRBookingDeepLink(payloadBase.trainNo, payloadBase.dateStr, payloadBase.timeStr, payloadBase.startStation, payloadBase.endStation);
-    return;
-
     const bookingChoice = await showTHSRBookingChoiceDialog();
     if(bookingChoice === 'cancel') return;
     if(bookingChoice === 'web'){
-      openTHSRBookingWeb({
-        ...payloadBase,
-        seatPreference: 0,
+      await startTHSRWebBookingFlow(payloadBase, {
+        ticketType: 'S',
+        carriageType: 'Y',
         adult: 1,
         child: 0,
         disabled: 0,
@@ -5277,16 +5413,16 @@
   return /Missing required realm role|required scope\/role|Access key not found/i.test(text);
  }
 
- function maybeFallbackTHSRBookingToWeb(options, errorText){
+async function maybeFallbackTHSRBookingToWeb(options, errorText){
   const msg = [
     '高鐵 App 訂票連結目前無法取得。',
     errorText ? `TDX 回應：${errorText}` : 'TDX 目前拒絕這筆 App deeplink 請求。',
     '是否改用高鐵官網訂票？'
   ].join('\n');
   if(!window.confirm(msg)) return false;
-  openTHSRBookingWeb({
-    ...options,
-    seatPreference: 0,
+  await startTHSRWebBookingFlow(options, {
+    ticketType: 'S',
+    carriageType: 'Y',
     adult: 1,
     child: 0,
     disabled: 0,
@@ -5294,7 +5430,7 @@
     student: 0,
   });
   return true;
- }
+}
 
  async function openTHSRBookingDeepLink(trainNo, dateStr, timeStr, startStationName, endStationName){ 
   const isMobile = !isDesktopDevice();
@@ -5366,7 +5502,7 @@
       const errorText = await readErrorText(res);
       if(res.status === 401 || res.status === 403) {
         if(shouldUseTHSRWebFallbackForBookingError(res.status, errorText)){
-          const fallbackUsed = maybeFallbackTHSRBookingToWeb({
+          const fallbackUsed = await maybeFallbackTHSRBookingToWeb({
             trainNo,
             dateStr,
             timeStr,
