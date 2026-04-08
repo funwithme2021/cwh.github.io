@@ -5006,6 +5006,28 @@ function splitArrDep(stopRow){
       return null;
     }
   }
+  function buildTraTrackerPassMinuteMap(snapshot){
+    const minuteMap = new Map();
+    (Array.isArray(snapshot?.points) ? snapshot.points : []).forEach((point)=>{
+      if(!point || point.isStop || !Number.isFinite(point.minute)) return;
+      const key = normalizeTraLinkedStation(point.station);
+      if(!key || minuteMap.has(key)) return;
+      minuteMap.set(key, point.minute);
+    });
+    return minuteMap;
+  }
+  function applyTraTrackerPassMinutes(rows, minuteMap){
+    if(!(minuteMap instanceof Map) || !minuteMap.size || !Array.isArray(rows)) return;
+    rows.forEach((row)=>{
+      if(row?.kind !== 'pass') return;
+      const passMinute = minuteMap.get(normalizeTraLinkedStation(row.station));
+      if(!Number.isFinite(passMinute)) return;
+      row.eventAbs = passMinute;
+      row.secondaryAbs = passMinute;
+      row.secondaryText = formatAbsTime(passMinute);
+      row.passText = formatAbsTime(passMinute);
+    });
+  }
   function findTraTimelineRowIndex(rows, stationName, preferPass=null){
     const target = normalizeTraLinkedStation(stationName);
     if(!target || !Array.isArray(rows) || !rows.length) return -1;
@@ -8586,8 +8608,8 @@ function buildTraTrainQueryV2StopRows(trainNo, originDateStr, stops, runtimeCtx,
     (!Number.isFinite(runtimeCtx?.lastAbsEff) || !Number.isFinite(nowAbs) || nowAbs <= (runtimeCtx.lastAbsEff + 5));
   const locationRows = buildTraTimelineRows(stops || [], true, trainType);
   const visibleRows = buildTraTimelineRows(stops || [], showPassStops, trainType);
-  const runtimeLocationRows = buildTraEffectiveTimelineRows(locationRows, positiveDelay, trainType, { trainNo, originDateStr });
-  const runtimeVisibleRows = buildTraEffectiveTimelineRows(visibleRows, positiveDelay, trainType, { trainNo, originDateStr });
+  const runtimeLocationRows = buildTraEffectiveTimelineRows(locationRows, positiveDelay, trainType);
+  const runtimeVisibleRows = buildTraEffectiveTimelineRows(visibleRows, positiveDelay, trainType);
   const liveProgress = getTraLiveTimelineProgress(trainNo, originDateStr, locationRows, visibleRows);
   const liveCanAdvanceTimeline = canAdvanceTraTimelineByLive(liveProgress);
   const trackerSnapshot = getTraTrackerSnapshot(trainNo, originDateStr);
@@ -8623,27 +8645,10 @@ function buildTraTrainQueryV2StopRows(trainNo, originDateStr, stops, runtimeCtx,
         statusText: `${originSoonToDepart ? '即將發車' : '尚未發車'}`
       }
     : trackerSnapshot;
-  if(effectiveTrackerSnapshot && !trackerPreDepartureLock && Array.isArray(effectiveTrackerSnapshot.points) && effectiveTrackerSnapshot.points.length){
-    const trackerPassMinuteMap = new Map();
-    effectiveTrackerSnapshot.points.forEach((point)=>{
-      if(!point || point.isStop || !Number.isFinite(point.minute)) return;
-      const key = normalizeTraLinkedStation(point.station);
-      if(!key || trackerPassMinuteMap.has(key)) return;
-      trackerPassMinuteMap.set(key, point.minute);
-    });
-    const applyTrackerPassMinutes = (rows)=>{
-      (Array.isArray(rows) ? rows : []).forEach((row)=>{
-        if(row?.kind !== 'pass') return;
-        const passMinute = trackerPassMinuteMap.get(normalizeTraLinkedStation(row.station));
-        if(!Number.isFinite(passMinute)) return;
-        row.eventAbs = passMinute;
-        row.secondaryAbs = passMinute;
-        row.secondaryText = formatAbsTime(passMinute);
-        row.passText = formatAbsTime(passMinute);
-      });
-    };
-    applyTrackerPassMinutes(runtimeLocationRows);
-    applyTrackerPassMinutes(runtimeVisibleRows);
+  if(effectiveTrackerSnapshot && !trackerPreDepartureLock){
+    const trackerPassMinuteMap = buildTraTrackerPassMinuteMap(effectiveTrackerSnapshot);
+    applyTraTrackerPassMinutes(runtimeLocationRows, trackerPassMinuteMap);
+    applyTraTrackerPassMinutes(runtimeVisibleRows, trackerPassMinuteMap);
   }
   const trackerCurrentVisibleIndex = effectiveTrackerSnapshot
     ? findTraTimelineRowIndex(runtimeVisibleRows, effectiveTrackerSnapshot.currentFrom, effectiveTrackerSnapshot.state === 'running' ? null : false)

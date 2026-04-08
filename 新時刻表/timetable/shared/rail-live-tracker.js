@@ -1390,11 +1390,22 @@
     return result.concat(Array.from(keptCircular.values()));
   }
 
+  function getPrimarySnapshotsByTrain(snapshots) {
+    const kept = new Map();
+    (snapshots || []).forEach((snapshot) => {
+      if (!snapshot?.trainNo) return;
+      const key = makeTrainKey(snapshot.trainNo, snapshot.originDate || snapshot.queryDate);
+      const current = kept.get(key);
+      if (!current || preferSnapshot(snapshot, current)) kept.set(key, snapshot);
+    });
+    return Array.from(kept.values());
+  }
+
   function pushStationEvent(map, stationName, event) {
     if (!map.has(stationName)) map.set(stationName, []);
     const list = map.get(stationName);
-    const key = `${event.trainNo}|${event.kind}|${event.station}`;
-    const existingIndex = list.findIndex((item) => `${item.trainNo}|${item.kind}|${item.station}` === key);
+    const key = `${event.trainNo}|${event.originDate || ""}|${event.kind}|${event.station}`;
+    const existingIndex = list.findIndex((item) => `${item.trainNo}|${item.originDate || ""}|${item.kind}|${item.station}` === key);
     if (existingIndex >= 0) {
       const current = list[existingIndex];
       const currentPriority = getSnapshotPriority(current?.snapshot);
@@ -1413,7 +1424,7 @@
 
   function buildStationEventMap(snapshots, segmentStations) {
     const map = new Map(segmentStations.map((station) => [station, []]));
-    snapshots.forEach((snapshot) => {
+    getPrimarySnapshotsByTrain(snapshots).forEach((snapshot) => {
       const stopDetails = snapshot.stopDetails || [];
       if (
         snapshot.sharedStationOnly &&
@@ -2023,8 +2034,13 @@
   }
 
   function getCachedTrainSnapshot(state, trainNo, originDate) {
+    const primarySnapshots = Array.isArray(state?.primarySnapshots) ? state.primarySnapshots : [];
+    const cachedVisibleSnapshots = primarySnapshots.length
+      ? primarySnapshots
+      : getPrimarySnapshotsByTrain(Array.isArray(state?.visibleSnapshots) ? state.visibleSnapshots : []);
     const snapshots = Array.isArray(state?.snapshots) ? state.snapshots : [];
-    if (!snapshots.length) return null;
+    const searchPools = [cachedVisibleSnapshots, snapshots].filter((pool) => Array.isArray(pool) && pool.length);
+    if (!searchPools.length) return null;
     const exactKey = makeTrainKey(trainNo, originDate);
     const pickBest = (items) =>
       (items || []).slice().sort((a, b) => {
@@ -2034,12 +2050,15 @@
         const completionB = Number.isFinite(b?.completionRatio) ? b.completionRatio : -1;
         return completionB - completionA;
       })[0] || null;
-    return (
-      pickBest(snapshots.filter((snapshot) => makeTrainKey(snapshot.trainNo, snapshot.originDate || snapshot.queryDate) === exactKey)) ||
-      pickBest(snapshots.filter((snapshot) => sameTrainNo(snapshot.trainNo, trainNo) && (!originDate || String(snapshot.originDate || snapshot.queryDate || "") === String(originDate || "")))) ||
-      pickBest(snapshots.filter((snapshot) => sameTrainNo(snapshot.trainNo, trainNo))) ||
-      null
-    );
+    for (const pool of searchPools) {
+      const exact = pickBest(pool.filter((snapshot) => makeTrainKey(snapshot.trainNo, snapshot.originDate || snapshot.queryDate) === exactKey));
+      if (exact) return exact;
+      const sameOrigin = pickBest(pool.filter((snapshot) => sameTrainNo(snapshot.trainNo, trainNo) && (!originDate || String(snapshot.originDate || snapshot.queryDate || "") === String(originDate || ""))));
+      if (sameOrigin) return sameOrigin;
+      const sameTrain = pickBest(pool.filter((snapshot) => sameTrainNo(snapshot.trainNo, trainNo)));
+      if (sameTrain) return sameTrain;
+    }
+    return null;
   }
 
   function buildSingleTrainSnapshot(system, trainNo, originDate, options = {}) {
