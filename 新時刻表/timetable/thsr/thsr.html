@@ -5554,6 +5554,40 @@ async function maybeFallbackTHSRBookingToWeb(options, errorText){
     } catch (_) {}
   }
 
+  function readSharedHomeGeoSnapshot(maxAgeMs = 15 * 60 * 1000) {
+    try {
+      const raw = JSON.parse(localStorage.getItem(HOME_SHARED_GEO_KEY) || 'null');
+      const lat = Number(raw?.lat);
+      const lon = Number(raw?.lon);
+      if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+      const ts = Number(raw?.ts);
+      if (Number.isFinite(ts) && maxAgeMs > 0 && (Date.now() - ts) > maxAgeMs) return null;
+      return {
+        lat,
+        lon,
+        accuracy: Number(raw?.accuracy),
+        ts: Number.isFinite(ts) ? ts : Date.now(),
+        source: String(raw?.source || 'shared')
+      };
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function buildSharedGeoFallbackSamples(targetCount = 3) {
+    const snapshot = readSharedHomeGeoSnapshot();
+    if (!snapshot) return null;
+    const count = Math.max(1, Number(targetCount) || 1);
+    return Array.from({ length: count }, (_, index) => ({
+      coords: {
+        latitude: snapshot.lat,
+        longitude: snapshot.lon,
+        accuracy: Number.isFinite(snapshot.accuracy) && snapshot.accuracy >= 0 ? snapshot.accuracy : 80
+      },
+      timestamp: snapshot.ts + index
+    }));
+  }
+
   function normalizeThsrLinkedStation(rawStation) {
     const station = extractStationNameFromInput(rawStation);
     return station ? normTHSRStationName(station) : '';
@@ -5782,6 +5816,11 @@ async function maybeFallbackTHSRBookingToWeb(options, errorText){
   function collectGeoPositionSamples(options = {}) {
     return new Promise((resolve, reject) => {
       if (!navigator.geolocation) {
+        const fallbackSamples = buildSharedGeoFallbackSamples(Number(options.targetCount) || 3);
+        if (fallbackSamples?.length) {
+          resolve(fallbackSamples);
+          return;
+        }
         reject(getGeoLocateError(null, '瀏覽器不支援定位'));
         return;
       }
@@ -5802,6 +5841,11 @@ async function maybeFallbackTHSRBookingToWeb(options, errorText){
           resolve(samples.slice(0, targetCount));
           return;
         }
+        const fallbackSamples = buildSharedGeoFallbackSamples(targetCount);
+        if (fallbackSamples?.length) {
+          resolve(fallbackSamples);
+          return;
+        }
         reject(getGeoLocateError(error || lastError, '無法取得目前位置'));
       };
       watchId = navigator.geolocation.watchPosition(
@@ -5817,6 +5861,12 @@ async function maybeFallbackTHSRBookingToWeb(options, errorText){
         },
         (error) => {
           lastError = error;
+          if (Number(error?.code) === 1) {
+            const fallbackSamples = buildSharedGeoFallbackSamples(targetCount);
+            if (fallbackSamples?.length) {
+              done();
+            }
+          }
         },
         { enableHighAccuracy: true, timeout: durationMs, maximumAge: 0 }
       );
@@ -6335,6 +6385,7 @@ async function maybeFallbackTHSRBookingToWeb(options, errorText){
         try { parent.postMessage(message, '*'); } catch (e) {}
       };
       try {
+        if (data.coords) persistSharedHomeGeoSnapshot(data.coords, 'home-request');
         const result = await locateThsrRunningTrainByPosition({ applyTrainQuery: false });
         respond({
           ok: true,

@@ -510,8 +510,8 @@
     const nextHourPrompt = `${formatExampleRelativeDay(nextHour)} ${formatExampleHourClock(nextHour)}`;
     const title = isTra ? "台鐵 AI 助手" : "高鐵 AI 助手";
     const lead = isTra
-      ? "可直接輸入日期、時間、時段、起訖站、車種、轉乘、車次或車站，助手會幫你套用到頁面查詢並整理重點。"
-      : "可直接輸入日期、時間、時段、起訖站、直達條件、車次或車站，助手會幫你套用到頁面查詢並整理重點。";
+      ? "直接輸入旅程、車次或車站需求即可。"
+      : "直接輸入旅程、車次或車站需求即可。";
     const placeholder = isTra
       ? `例如：${nextHourPrompt} 台北到台中 自強號 / 明天上午 花蓮往台南 可轉乘 / 271次 台中幾點到 / ${tomorrowSlash} 板橋站有什麼車`
       : `例如：${nextHourPrompt} 台北到左營 / ${nextHourPrompt} 台中站有什麼車 / ${tomorrowChinese} 高鐵台北到左營有沒有票 / 125次 台南幾點到`;
@@ -563,11 +563,7 @@
 
   function renderEmpty(state) {
     state.renderState = null;
-    state.answer.innerHTML = `
-      <div class="rail-ai-empty">
-        直接輸入旅程、車次或車站需求即可。支援日期、單一時間、時間區間，例如「今天 08:00 台北到台中」或「412次 台中幾點到」。
-      </div>
-    `;
+    
   }
 
   function renderError(state, message) {
