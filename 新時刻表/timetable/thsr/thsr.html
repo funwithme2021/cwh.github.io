@@ -5536,6 +5536,23 @@ async function maybeFallbackTHSRBookingToWeb(options, errorText){
   
 
   const THSR_LAST_NEAREST_KEY = 'thsr_last_nearest_station';
+  const HOME_SHARED_GEO_KEY = 'home_shared_geo_snapshot_v1';
+
+  function persistSharedHomeGeoSnapshot(coords, source = 'thsr') {
+    const lat = Number(coords?.latitude ?? coords?.lat);
+    const lon = Number(coords?.longitude ?? coords?.lon);
+    const accuracy = Number(coords?.accuracy);
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
+    try {
+      localStorage.setItem(HOME_SHARED_GEO_KEY, JSON.stringify({
+        lat,
+        lon,
+        accuracy: Number.isFinite(accuracy) && accuracy >= 0 ? accuracy : null,
+        source,
+        ts: Date.now()
+      }));
+    } catch (_) {}
+  }
 
   function normalizeThsrLinkedStation(rawStation) {
     const station = extractStationNameFromInput(rawStation);
@@ -5752,7 +5769,10 @@ async function maybeFallbackTHSRBookingToWeb(options, errorText){
         return;
       }
       navigator.geolocation.getCurrentPosition(
-        (position) => resolve(position),
+        (position) => {
+          persistSharedHomeGeoSnapshot(position?.coords, 'thsr-browser');
+          resolve(position);
+        },
         (error) => reject(getGeoLocateError(error, '無法取得目前位置')),
         { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 }
       );
@@ -5778,6 +5798,7 @@ async function maybeFallbackTHSRBookingToWeb(options, errorText){
         if (timer) clearTimeout(timer);
         if (watchId !== null) navigator.geolocation.clearWatch(watchId);
         if (samples.length) {
+          persistSharedHomeGeoSnapshot(samples[samples.length - 1]?.coords, 'thsr-watch');
           resolve(samples.slice(0, targetCount));
           return;
         }
@@ -6296,6 +6317,42 @@ async function maybeFallbackTHSRBookingToWeb(options, errorText){
 
   window.locateThsrRunningTrainByPosition = locateThsrRunningTrainByPosition;
 
+  (function bindHomeLocatorBridge(){
+    if (window.__homeLocatorBridgeThsrBound) return;
+    window.__homeLocatorBridgeThsrBound = true;
+    window.addEventListener('message', async (event) => {
+      const data = event?.data;
+      if (!data || data.type !== 'HOME_LOCATOR_REQUEST' || data.sys !== 'thsr') return;
+      const requestId = String(data.requestId || '').trim();
+      const respond = (payload) => {
+        const message = { type: 'HOME_LOCATOR_RESPONSE', requestId, sys: 'thsr', ...payload };
+        try {
+          if (event.source && typeof event.source.postMessage === 'function') {
+            event.source.postMessage(message, '*');
+            return;
+          }
+        } catch (e) {}
+        try { parent.postMessage(message, '*'); } catch (e) {}
+      };
+      try {
+        const result = await locateThsrRunningTrainByPosition({ applyTrainQuery: false });
+        respond({
+          ok: true,
+          result: {
+            entry: { trainNo: String(result?.entry?.trainNo || '').trim() },
+            avgDistanceKm: Number(result?.avgDistanceKm || 0),
+            matched: result?.matched || null
+          }
+        });
+      } catch (error) {
+        respond({
+          ok: false,
+          error: error instanceof Error && error.message ? error.message : '附近沒有可判定的行駛中列車'
+        });
+      }
+    });
+  })();
+
   function initThsrGeolocationButtons() {
     ensureGeoInlineButton('startStation', {
       key: 'thsr-start-legacy',
@@ -6337,6 +6394,7 @@ async function maybeFallbackTHSRBookingToWeb(options, errorText){
     const pStart = p.get('start');
     const pEnd = p.get('end');
     const pStation = p.get('station');
+    const pTrain = extractTrainNoFromInput(p.get('train') || p.get('trainNo') || '');
     const startEndPanelId = resolveStartEndPanelId('panel-startend');
 
     if (pStart && pEnd) {
@@ -6359,6 +6417,13 @@ async function maybeFallbackTHSRBookingToWeb(options, errorText){
         switchQueryPanel('panel-station2');
         stationQuery2Controller?.setState?.({ station: stationValue });
         setTimeout(()=>stationQuery2Controller?.search?.(stationValue, { updateInput: true }), 300);
+    } else if (pTrain) {
+        switchQueryPanel('panel-trainno');
+        const input = document.getElementById('trainNumberInput');
+        if (input) input.value = pTrain;
+        setTimeout(() => {
+            filterTrainScheduleByNumberV2(pTrain);
+        }, 300);
     }
   }
 
@@ -6567,7 +6632,7 @@ async function maybeFallbackTHSRBookingToWeb(options, errorText){
 <script charset="UTF-8" src="../shared/rail-network.js?v=20260404-autorefresh1"></script>
 <script charset="UTF-8" src="../shared/rail-master-table.js?v=20260404-autorefresh2"></script>
 <script charset="UTF-8" src="../shared/rail-operation-diagram.js?v=20260404-autorefresh2"></script>
-<script charset="UTF-8" src="../shared/rail-live-tracker.js?v=20260404-stationlive1"></script>
+<script charset="UTF-8" src="../shared/rail-live-tracker.js?v=20260410-midnightfix1"></script>
 <script charset="UTF-8" src="../shared/rail-usage-footer.js?v=20260326-footer3"></script>
 <script>
 window.addEventListener('load', () => {

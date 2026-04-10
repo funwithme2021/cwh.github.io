@@ -399,6 +399,33 @@
     }
   }
 
+  function shouldApplyTraLiveAssist(entry, queryDate) {
+    if (!entry || !entry.trainNo || !entry.originDate || !isLiveRealtimeWindow(queryDate)) return false;
+    const today = todayDateStr();
+    const yesterday = addDays(today, -1);
+    const originDate = String(entry.originDate || "");
+    if (originDate !== today && originDate !== yesterday) return false;
+    const delayMinutes = Math.max(0, Number.isFinite(Number(entry.delayMinutes)) ? Number(entry.delayMinutes) : getDelayMinutes("tr", entry.trainNo, queryDate));
+
+    const timedStops =
+      Array.isArray(entry.fullTimedStops) && entry.fullTimedStops.length
+        ? entry.fullTimedStops
+        : buildTimedStops(entry.stops || [], delayMinutes);
+    const firstStop = timedStops[0] || null;
+    const lastStop = timedStops[timedStops.length - 1] || null;
+    const firstMinute = getStopDepartureMinute(firstStop);
+    const lastMinute = getStopArrivalMinute(lastStop);
+    const firstMinuteEff = Number.isFinite(firstMinute) ? firstMinute + delayMinutes : null;
+    const lastMinuteEff = Number.isFinite(lastMinute) ? lastMinute + delayMinutes : null;
+    const nowMinute = getRelativeNowExactMinute(originDate, queryDate);
+
+    if (!Number.isFinite(nowMinute)) return false;
+    if (originDate === today) {
+      return Number.isFinite(firstMinuteEff) && nowMinute >= (firstMinuteEff - UPCOMING_WINDOW);
+    }
+    return Number.isFinite(lastMinuteEff) && lastMinuteEff >= 1440 && nowMinute <= (lastMinuteEff + STATION_ALERT_WINDOW);
+  }
+
   function getTraLiveAnchorMinute(liveEntry, originDate, nowMinute) {
     const candidates = [
       parseTimestampRelativeMinute(liveEntry?.srcUpdateTime, originDate),
@@ -412,7 +439,9 @@
   }
 
   function getTraLiveAnchorInfo(entry, queryDate, nowMinute) {
-    const liveEntry = getTraLiveBoardAssistEntry(entry?.trainNo, queryDate);
+    const liveEntry = shouldApplyTraLiveAssist(entry, queryDate)
+      ? getTraLiveBoardAssistEntry(entry?.trainNo, queryDate)
+      : null;
     const stationName = normalizeTraStation(liveEntry?.stationName || "");
     const fullPoints = Array.isArray(entry?.fullPathPoints) ? entry.fullPathPoints : [];
     if (!stationName || !fullPoints.length) return null;
@@ -1401,6 +1430,20 @@
     return Array.from(kept.values());
   }
 
+  function getDisplaySnapshots(system, snapshots) {
+    const primary = getPrimarySnapshotsByTrain(snapshots);
+    if (system !== "tr") return primary;
+
+    const kept = new Map();
+    primary.forEach((snapshot) => {
+      if (!snapshot?.trainNo) return;
+      const key = String(snapshot.trainNo || "").trim().toUpperCase();
+      const current = kept.get(key);
+      if (!current || preferSnapshot(snapshot, current)) kept.set(key, snapshot);
+    });
+    return Array.from(kept.values());
+  }
+
   function pushStationEvent(map, stationName, event) {
     if (!map.has(stationName)) map.set(stationName, []);
     const list = map.get(stationName);
@@ -1807,7 +1850,7 @@
   }
 
   function getVisibleSnapshots(snapshots) {
-    return sortSnapshotsByTrainNo((snapshots || []).filter((snapshot) => snapshot.state !== "arrived" || snapshot.sharedStationOnly));
+    return sortSnapshotsByTrainNo((snapshots || []).filter((snapshot) => snapshot.state !== "arrived"));
   }
 
   function getSnapshotPriority(snapshot) {
@@ -2194,7 +2237,7 @@
       map.appendChild(button);
     });
 
-    const visibleSnapshots = snapshots.filter((snapshot) => snapshot.state !== "arrived" || snapshot.sharedStationOnly);
+    const visibleSnapshots = getVisibleSnapshots(snapshots);
     visibleSnapshots.forEach((snapshot) => {
       const anchorY = getBoardY(snapshot.positionIndex, denominator, mapHeight);
       const side = getDirectionKey(state.system, snapshot.trainNo) === "even" || getDirectionKey(state.system, snapshot.trainNo) === "north" ? "left" : "right";
@@ -2332,11 +2375,13 @@
         .filter(Boolean)
         .filter((snapshot) => !queryText || snapshot.trainNo.includes(queryText) || snapshot.type.includes(queryText) || snapshot.firstStation.includes(queryText) || snapshot.lastStation.includes(queryText))
     );
+    const primarySnapshots = getDisplaySnapshots(state.system, snapshots);
 
     state.snapshots = snapshots;
+    state.primarySnapshots = primarySnapshots;
     state.segment = segment;
-      state.visibleSnapshots = getVisibleSnapshots(snapshots);
-      state.stationEvents = buildStationEventMap(state.visibleSnapshots, segment.stations);
+      state.visibleSnapshots = getVisibleSnapshots(primarySnapshots);
+      state.stationEvents = buildStationEventMap(primarySnapshots, segment.stations);
       const scopeKey = `${state.system}|${state.renderedQueryDate}|${segment.id}`;
       if (state.animationScopeKey !== scopeKey) {
         state.markerPositions.clear();
@@ -2352,7 +2397,7 @@
 
     return {
       segment,
-      snapshots,
+      snapshots: primarySnapshots,
       visibleSnapshots: state.visibleSnapshots,
       note,
       boardHeight,
@@ -2638,6 +2683,7 @@
       activeStation: "",
       stationEvents: new Map(),
       snapshots: [],
+      primarySnapshots: [],
       visibleSnapshots: [],
       segment: null,
       markerBindings: [],
