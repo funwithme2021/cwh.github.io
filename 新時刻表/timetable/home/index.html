@@ -271,7 +271,11 @@ select.setting-input[id*="pick"] {
         .thsr-card .thsr-fav-tag:hover { background: var(--thsr-color); color: white; transform: translateY(-2px); }
 
         /* Dock */
-        .dock-container { position: fixed; bottom: 30px; width: 100%; display: flex; flex-direction: column; align-items: center; gap: 15px; pointer-events: none; z-index: 1000; }
+        .dock-container {
+            position: fixed; bottom: 30px; width: 100%; display: flex; flex-direction: column; align-items: center; gap: 15px; pointer-events: none; z-index: 1000;
+            opacity:0; visibility:hidden; transform:translateY(18px); transition:opacity .2s ease, transform .2s ease, visibility .2s ease;
+        }
+        .dock-container.is-visible { opacity:1; visibility:visible; transform:translateY(0); }
         .dock {
             pointer-events: auto;
             background: var(--dock-bg); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
@@ -315,6 +319,7 @@ select.setting-input[id*="pick"] {
 
         .setting-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
         .setting-input { background: rgba(0,0,0,0.3); border: 1px solid var(--glass-border); color: var(--text-main); padding: 10px 14px; border-radius: 12px; width: 100%; outline: none; font-size: 0.95rem; }
+        .ui-text-scale-select { width: 170px; max-width: 48%; }
         /* 下拉選單樣式 */
         select.setting-input { appearance: none; cursor: pointer; background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%2394a3b8%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E"); background-repeat: no-repeat; background-position: right 12px top 50%; background-size: 10px auto; padding-right: 30px; }
         .light-mode .setting-input { background: #fff; color: #000; border-color: #ddd; }
@@ -2226,6 +2231,17 @@ select.setting-input[id*="pick"] {
             background:linear-gradient(180deg, #314766, #273a55);
             color:#e2e8f0;
         }
+        .home-v2-body .portal-menu-button{
+            display:none;
+        }
+        .home-v2-body .portal-menu-icon{
+            width:22px;
+            height:22px;
+            display:grid;
+            place-items:center;
+            font-size:1.05rem;
+            line-height:1;
+        }
         .home-v2-body .portal-bar-toggle-meta{
             display:inline-flex;
             align-items:center;
@@ -2235,7 +2251,7 @@ select.setting-input[id*="pick"] {
             font-weight:800;
         }
         .home-v2-body.dark-mode .portal-bar-toggle-meta{
-            color:#93c5fd;
+            color:#ffffff;
         }
         .home-v2-body .portal-bar-toggle-meta::after{
             content:"▾";
@@ -2931,7 +2947,10 @@ select.setting-input[id*="pick"] {
             min-width:0;
             overflow:hidden;
             text-overflow:ellipsis;
-            white-space:nowrap;
+            white-space:normal;
+            display:-webkit-box;
+            -webkit-line-clamp:2;
+            -webkit-box-orient:vertical;
         }
         .home-v2-body .query-hub{
             display:grid;
@@ -3565,6 +3584,9 @@ select.setting-input[id*="pick"] {
             font-weight:800;
             cursor:pointer;
             white-space:nowrap;
+        }
+        .home-v2-body .query-favorites-toggle[hidden]{
+            display:none !important;
         }
         .home-v2-body.dark-mode .query-favorites-toggle{
             background:rgba(47,63,88,0.82);
@@ -4407,6 +4429,21 @@ select.setting-input[id*="pick"] {
                 min-height:42px;
                 padding:0 12px;
             }
+            .home-v2-body .portal-menu-button{
+                width:42px;
+                min-width:42px;
+                min-height:42px;
+                padding:0;
+                display:inline-grid;
+                place-items:center;
+                border-radius:14px;
+                background:linear-gradient(180deg, #3b6fa7, #2d5d90) !important;
+                border-color:transparent !important;
+                color:#ffffff !important;
+            }
+            .home-v2-body .portal-menu-button .portal-bar-toggle-meta{
+                display:none;
+            }
             .home-v2-body #themeToggleText{
                 display:none;
             }
@@ -4415,17 +4452,15 @@ select.setting-input[id*="pick"] {
             }
             .home-v2-body .portal-bar{
                 border-radius:18px;
+                display:none;
             }
-            .home-v2-body .portal-bar-toggle{
-                display:flex;
+            .home-v2-body .portal-bar.is-open{
+                display:block;
             }
             .home-v2-body .portal-link-grid{
-                display:none;
+                display:grid;
                 grid-template-columns:1fr;
                 border-top:1px solid rgba(148,163,184,0.14);
-            }
-            .home-v2-body .portal-bar.is-open .portal-link-grid{
-                display:grid;
             }
             .home-v2-body .portal-link{
                 border-right:none;
@@ -4539,17 +4574,15 @@ select.setting-input[id*="pick"] {
             }
             .home-v2-body .portal-bar{
                 border-radius:18px;
+                display:none;
             }
-            .home-v2-body .portal-bar-toggle{
-                display:flex;
+            .home-v2-body .portal-bar.is-open{
+                display:block;
             }
             .home-v2-body .portal-link-grid{
-                display:none;
+                display:grid;
                 grid-template-columns:1fr;
                 border-top:1px solid rgba(148,163,184,0.14);
-            }
-            .home-v2-body .portal-bar.is-open .portal-link-grid{
-                display:grid;
             }
             .home-v2-body .portal-link{
                 min-height:52px;
@@ -4609,11 +4642,19 @@ select.setting-input[id*="pick"] {
                 gap:12px;
             }
             .home-v2-body .hero-glance-head{
-                grid-template-columns:1fr;
                 display:grid;
+                grid-template-columns:minmax(0,1fr) auto;
+                align-items:center;
+                gap:10px;
             }
             .home-v2-body .hero-weather-top{
                 gap:12px;
+                min-width:0;
+            }
+            .home-v2-body .hero-glance-refresh{
+                justify-self:end;
+                align-self:center;
+                min-width:54px;
             }
             .home-v2-body .hero-weather-emblem{
                 width:68px;
@@ -4771,6 +4812,10 @@ select.setting-input[id*="pick"] {
                 <span class="theme-toggle-icon" id="themeToggleIcon" aria-hidden="true">☀</span>
                 <span id="themeToggleText">白天模式</span>
             </button>
+            <button class="nav-shortcut portal-menu-button" id="homePortalToggleBtn" type="button" onclick="toggleHomePortalMenu()" aria-expanded="false" aria-controls="homePortalLinkGrid" aria-label="展開功能選單">
+                <span class="portal-menu-icon" aria-hidden="true">☰</span>
+                <span class="portal-bar-toggle-meta">展開</span>
+            </button>
             <select class="lang-switch" id="langSelect" style="background:var(--glass-bg); color:var(--text-main); border:1px solid var(--glass-border); outline:none; cursor:pointer;">
                 <option value="zh">繁體中文</option>
                 <option value="en">English</option>
@@ -4787,21 +4832,17 @@ select.setting-input[id*="pick"] {
 
     <main class="content home-shell home-shell-v2">
         <section class="portal-bar" id="homePortalBar" aria-label="主選單">
-            <button class="portal-bar-toggle" id="homePortalToggleBtn" type="button" onclick="toggleHomePortalMenu()" aria-expanded="false" aria-controls="homePortalLinkGrid">
-                <span>功能選單</span>
-                <span class="portal-bar-toggle-meta">展開</span>
-            </button>
             <div class="portal-link-grid" id="homePortalLinkGrid">
                 <button class="portal-link" type="button" onclick="openAppOverlay('tr')">臺鐵查詢</button>
                 <button class="portal-link" type="button" onclick="openAppOverlay('thsr')">高鐵查詢</button>
                 <button class="portal-link" type="button" onclick="openAppOverlay('ai')">智慧查詢</button>
                 <button class="portal-link" type="button" onclick="toggleSettings(true)">系統設定</button>
-                <button class="portal-link" type="button" onclick="toggleTools()">更多功能</button>
+                <button class="portal-link" type="button" onclick="toggleFloatingDock()">更多功能</button>
             </div>
         </section>
 
         <section class="home-ops-bar" aria-label="營運狀態">
-            <div class="home-ops-label">營運狀態</div>
+            <div class="home-ops-label" id="heroOpsLabel">營運狀態</div>
             <div class="home-ops-content">
                 <strong class="home-ops-summary" id="heroOpsSummary">讀取營運訊息中</strong>
                 <span class="home-ops-detail" id="heroOpsDetail">正在同步最新營運資訊。</span>
@@ -5020,6 +5061,15 @@ select.setting-input[id*="pick"] {
                     <span>主題模式</span>
                     <button id="modeBtn" class="toggle-btn" onclick="toggleDarkMode()">切換亮色 / 深色</button>
                 </div>
+                <div class="setting-row">
+                    <span>文字大小</span>
+                    <select id="uiTextScaleSelect" class="setting-input ui-text-scale-select" onchange="setUiTextScale(this.value)">
+                        <option value="0.94">較小</option>
+                        <option value="1">標準</option>
+                        <option value="1.08">較大</option>
+                        <option value="1.16">特大</option>
+                    </select>
+                </div>
             </div>
 
             <span class="section-title">🔔 即時誤點監控</span>
@@ -5237,7 +5287,7 @@ select.setting-input[id*="pick"] {
     </div>
 
 
-    <div class="dock-container">
+    <div class="dock-container" id="floatingDock">
         <div class="tools-popup" id="toolsPopup">
             <a href="https://www.cwa.gov.tw/V8/C/" target="_blank" class="tool-btn"><div class="tool-icon">🌥️</div><span class="tool-name">氣象</span></a>
             <a href="https://web.metro.taipei/pages/assets/images/routemap2023n.png" target="_blank" class="tool-btn"><div class="tool-icon">🚇</div><span class="tool-name">北捷</span></a>
@@ -5247,7 +5297,7 @@ select.setting-input[id*="pick"] {
         <nav class="dock">
             <div class="dock-item" onclick="location.reload()">🏠</div>
             <div class="dock-item" onclick="goToSystem('tr')">🚆</div>
-            <div class="dock-item" onclick="toggleTools()" style="color: #facc15;">⚡</div>
+            <div class="dock-item" onclick="toggleToolsPopup(event)" style="color: #facc15;">⚡</div>
             <div class="dock-item" onclick="goToSystem('thsr')">🚅</div>
             <div class="dock-item" onclick="toggleSettings(true)">⚙️</div>
         </nav>
@@ -5367,6 +5417,9 @@ select.setting-input[id*="pick"] {
         max-width: 94vw; 
         pointer-events: none;
         transition: top 0.3s ease;
+      }
+      #dynamicIsland.is-hidden{
+        display:none;
       }
       #dynamicIsland .di-pill{
         pointer-events: auto;
@@ -5514,7 +5567,7 @@ select.setting-input[id*="pick"] {
       #dynamicIsland .badge.delay{ background: #fee2e2; color: #b91c1c; }
     </style>
 
-    <div id="dynamicIsland" aria-live="polite" aria-atomic="true">
+    <div id="dynamicIsland" class="is-hidden" aria-live="polite" aria-atomic="true">
       <div class="di-pill" id="diPill">
         <div class="di-icon" id="diIcon">🛰️</div>
         <div class="di-text" id="diText">監控未啟用</div>
@@ -5546,6 +5599,30 @@ select.setting-input[id*="pick"] {
         if(!t || t.includes('監控未啟用') || t.includes('尚未設定') || t.includes('監控啟動')) return [];
         if(t.includes('✦')) return t.split('✦').map(s=>s.trim()).filter(Boolean);
         return t.split(/\s{2,}/).map(s=>s.trim()).filter(Boolean);
+      }
+
+      function hasMonitorTrainTargets(){
+        const keys = [
+          'mon_tr1_train_final', 'mon_tr1_train',
+          'mon_tr2_train_final', 'mon_tr2_train',
+          'mon_thsr_train_final', 'mon_thsr_train'
+        ];
+        return keys.some((key) => String(localStorage.getItem(key) || '').trim());
+      }
+
+      function syncDynamicIslandVisibility(){
+        const monitorOn = (localStorage.getItem('monitor_enabled') === 'true');
+        const hasTargets = hasMonitorTrainTargets();
+        const shouldShow = monitorOn && hasTargets;
+        root.classList.toggle('is-hidden', !shouldShow);
+        if (!shouldShow) {
+          root.classList.remove('expanded');
+          if(rotTimer) clearInterval(rotTimer);
+          rotTimer = null;
+          lines = [];
+          panel.innerHTML = '';
+        }
+        return shouldShow;
       }
 
       function parseETA(line){
@@ -5618,6 +5695,7 @@ select.setting-input[id*="pick"] {
 
       // 3. 渲染邏輯
       function renderCollapsed(){
+        if(!syncDynamicIslandVisibility()) return;
         const monitorOn = (localStorage.getItem('monitor_enabled') === 'true');
         if(!monitorOn || !lines || lines.length===0){
             diIcon.textContent = '🛰️';
@@ -5719,6 +5797,7 @@ select.setting-input[id*="pick"] {
       }
 
       function refreshFromMarquee(){
+        if(!syncDynamicIslandVisibility()) return;
         const el = marqueeEl();
         if(!el) return;
         const newLines = safeSplitMessages(el.textContent);
@@ -5779,9 +5858,15 @@ select.setting-input[id*="pick"] {
         const HOME_QUICK_PAGE_SIZE = 3;
         const HOME_LOCATION_CACHE_KEY = 'home_location_weather_v8';
         const HOME_SHARED_GEO_KEY = 'home_shared_geo_snapshot_v1';
+        const HOME_LOCATION_WEATHER_STALE_MS = 15 * 60 * 1000;
+        const HOME_LOCATION_WEATHER_MOVE_METERS = 500;
+        const HOME_NEARBY_RAIL_STATUS_STALE_MS = 2 * 60 * 1000;
+        const UI_TEXT_SCALE_KEY = 'ui_text_scale_v1';
         let homeGeoWatchId = null;
         let homeGeoSyncLock = false;
         let homeGeoLastStamp = 0;
+        let homeNearbyRailStatusLoading = false;
+        let homeNearbyRailStatusCache = { ts: 0, key: '', text: '' };
         const HOME_HERO_VISUAL_KEY = 'home_hero_visual_mode_v1';
         const HOME_CWA_AUTH = 'rdec-key-123-45678-011121314';
         const HOME_CWA_DATASTORE = 'https://opendata.cwa.gov.tw/api/v1/rest/datastore';
@@ -6408,6 +6493,204 @@ select.setting-input[id*="pick"] {
                     <div class="monitor-list">${items}</div>
                 </div>
             `;
+        }
+
+        function getHomeNearbyRailCacheText(snapshot) {
+            if (!snapshot || !homeNearbyRailStatusCache.text) return '';
+            const cacheStamp = Number(homeNearbyRailStatusCache.ts) || 0;
+            if (Date.now() - cacheStamp > HOME_NEARBY_RAIL_STATUS_STALE_MS) return '';
+            const key = `${Math.round(Number(snapshot.lat) * 1000)}:${Math.round(Number(snapshot.lon) * 1000)}`;
+            if (homeNearbyRailStatusCache.key && homeNearbyRailStatusCache.key !== key) return '';
+            return homeNearbyRailStatusCache.text;
+        }
+
+        async function fetchHomeNearbyRailStatus(snapshot) {
+            const lat = Number(snapshot?.lat);
+            const lon = Number(snapshot?.lon);
+            if (!Number.isFinite(lat) || !Number.isFinite(lon)) return '';
+            if (!tdxToken) await getTdxToken();
+            if (!tdxToken) return '';
+            try {
+                await ensureHomeRailStationData();
+            } catch (e) { }
+            const headers = { 'Authorization': `Bearer ${tdxToken}` };
+            const parts = [];
+            const trStation = getNearestHomeSystemStation('tr', lat, lon);
+            const thsrStation = getNearestHomeSystemStation('thsr', lat, lon);
+
+            if (trStation?.id) {
+                try {
+                    const res = await fetch('https://tdx.transportdata.tw/api/basic/v3/Rail/TRA/StationLiveBoard?%24format=JSON', { headers });
+                    if (res.ok) {
+                        const data = await res.json();
+                        const rows = Array.isArray(data?.StationLiveBoards) ? data.StationLiveBoards : [];
+                        const stationRows = rows.filter(row => String(row?.StationID || '').trim() === String(trStation.id || '').trim());
+                        const delays = stationRows
+                            .map(row => Number(row?.DelayTime))
+                            .filter(value => Number.isFinite(value) && value > 0);
+                        const maxDelay = delays.length ? Math.max(...delays) : 0;
+                        if (stationRows.length && delays.length) {
+                            parts.push(`臺鐵${normalizeHomeDisplayText(trStation.name)}站近 ${stationRows.length} 筆進站資料中 ${delays.length} 班延誤，最高約 ${Math.round(maxDelay)} 分`);
+                        } else if (stationRows.length) {
+                            parts.push(`臺鐵${normalizeHomeDisplayText(trStation.name)}站近幾班多為準點`);
+                        } else {
+                            parts.push(`臺鐵${normalizeHomeDisplayText(trStation.name)}站目前未取得進站延誤資料`);
+                        }
+                    }
+                } catch (e) { }
+            }
+
+            if (thsrStation?.name) {
+                const thsrAlerts = Array.isArray(systemAlertState.thsr) ? systemAlertState.thsr : [];
+                parts.push(thsrAlerts.length
+                    ? `高鐵${normalizeHomeDisplayText(thsrStation.name)}站請留意高鐵營運異常公告`
+                    : `高鐵${normalizeHomeDisplayText(thsrStation.name)}站目前無主要營運異常`);
+            }
+
+            return uniqueTexts(parts).join('；');
+        }
+
+        function queueHomeNearbyRailStatusRefresh(snapshot) {
+            const snap = snapshot || readHomeLocationSnapshot();
+            const lat = Number(snap?.lat);
+            const lon = Number(snap?.lon);
+            if (!Number.isFinite(lat) || !Number.isFinite(lon) || homeNearbyRailStatusLoading) return;
+            const key = `${Math.round(lat * 1000)}:${Math.round(lon * 1000)}`;
+            if (homeNearbyRailStatusCache.key === key && Date.now() - (Number(homeNearbyRailStatusCache.ts) || 0) < HOME_NEARBY_RAIL_STATUS_STALE_MS) return;
+            homeNearbyRailStatusLoading = true;
+            fetchHomeNearbyRailStatus(snap).then((text) => {
+                homeNearbyRailStatusCache = {
+                    ts: Date.now(),
+                    key,
+                    text: String(text || '').trim()
+                };
+                renderHomeOpsTicker();
+            }).catch(() => {}).finally(() => {
+                homeNearbyRailStatusLoading = false;
+            });
+        }
+
+        function buildHomeSmartOpsReminder(trAlerts = [], thsrAlerts = []) {
+            const snapshot = readHomeLocationSnapshot();
+            if (!snapshot) {
+                return {
+                    summary: '出門提醒',
+                    tone: 'normal',
+                    text: '完成定位後，這裡會整合所在地天氣、警特報、地震與附近臺鐵/高鐵狀態。'
+                };
+            }
+
+            const place = snapshot.place || '目前位置';
+            const currentTemp = getHomeSnapshotCurrentTemp(snapshot);
+            const hourly = getHomeSnapshotHourlyStats(snapshot);
+            const apparentTemp = Number.isFinite(hourly.apparentTemp) ? hourly.apparentTemp : null;
+            const comfort = describeHomeComfort(currentTemp, apparentTemp);
+            const weatherMain = String(snapshot.weatherObservation || snapshot.weatherCondition || '').replace(/\s+/g, ' ').trim();
+            const rainText = String(snapshot.weatherRain || '').replace(/\s+/g, ' ').trim();
+            const weatherBits = [];
+            if (weatherMain && weatherMain !== '--') weatherBits.push(weatherMain);
+            if (comfort) weatherBits.push(comfort);
+            if (rainText && rainText !== '--') weatherBits.push(`未來 1 小時降雨 ${rainText}`);
+
+            const weatherAdvice = buildHomeWeatherAdviceParts(snapshot);
+            const abnormalRail = uniqueTexts([
+                ...trAlerts.map(msg => `臺鐵${msg}`),
+                ...thsrAlerts.map(msg => `高鐵${msg}`)
+            ]);
+            const nearbyRailText = getHomeNearbyRailCacheText(snapshot);
+            const railText = nearbyRailText
+                || (abnormalRail.length ? `${abnormalRail.slice(0, 2).join('；')}，通勤建議預留轉乘時間` : '臺鐵與高鐵目前無主要異常');
+            const hasAlert = weatherAdvice.length || abnormalRail.length || /警示｜|地震｜/.test(String(snapshot.summary || ''));
+            const summary = hasAlert ? '出門提醒' : '出門正常';
+            const suggestions = [];
+            if (weatherAdvice.length) suggestions.push(weatherAdvice.slice(0, 2).join('；'));
+            if (abnormalRail.length || /延誤/.test(nearbyRailText)) suggestions.push('通勤建議預留轉乘時間，必要時改搭下一班或提早到站');
+
+            const body = [
+                `目前${place}${weatherBits.length ? weatherBits.join('，') : '天氣資料更新中'}`,
+                railText,
+                suggestions.length ? suggestions.join('；') : ''
+            ].filter(Boolean).join('。');
+
+            return {
+                summary,
+                tone: hasAlert ? 'warn' : 'normal',
+                text: `${body}。`
+            };
+        }
+
+        function renderHomeOpsTicker() {
+            const trAlerts = Array.isArray(systemAlertState.tr) ? systemAlertState.tr : null;
+            const thsrAlerts = Array.isArray(systemAlertState.thsr) ? systemAlertState.thsr : null;
+            let opsSlides = [];
+
+            const buildOfficialSlide = (message) => {
+                const text = String(message || '').trim();
+                const isTra = /^臺鐵/.test(text);
+                const isThsr = /^高鐵/.test(text);
+                const isNormal = /全線正常|無主要異常|正常/.test(text) && !/異常|延誤|停駛|取消|受阻|中斷|影響/.test(text);
+                return {
+                    label: '營運狀態',
+                    summary: isTra
+                        ? (isNormal ? '臺鐵正常' : '臺鐵提醒')
+                        : isThsr
+                            ? (isNormal ? '高鐵正常' : '高鐵提醒')
+                            : '營運提醒',
+                    detail: text
+                };
+            };
+
+            if (trAlerts && thsrAlerts) {
+                const abnormalItems = uniqueTexts([
+                    ...trAlerts.map(msg => `臺鐵 ${msg}`),
+                    ...thsrAlerts.map(msg => `高鐵 ${msg}`)
+                ]);
+                const smartReminder = buildHomeSmartOpsReminder(trAlerts, thsrAlerts);
+                const officialItems = abnormalItems.length
+                    ? abnormalItems
+                    : ['臺鐵: 全線正常', '高鐵: 全線正常'];
+                opsSlides = [
+                    ...officialItems.map(buildOfficialSlide),
+                    {
+                        label: '智能提醒',
+                        summary: smartReminder.summary,
+                        detail: smartReminder.text
+                    }
+                ].filter(item => item.detail);
+            } else {
+                const smartReminder = buildHomeSmartOpsReminder([], []);
+                if (smartReminder?.text) {
+                    opsSlides = [{
+                        label: '智能提醒',
+                        summary: smartReminder.summary,
+                        detail: smartReminder.text
+                    }];
+                }
+            }
+
+            const heroOpsLabelEl = document.getElementById('heroOpsLabel');
+            const heroOpsDetailEl = document.getElementById('heroOpsDetail');
+            const heroOpsSummaryEl = document.getElementById('heroOpsSummary');
+            if (heroOpsDetailEl && opsSlides.length) {
+                rotateTextMessages('heroOpsDetail', opsSlides.map((item) => JSON.stringify(item)), (current, index, items) => {
+                    let slide = opsSlides[index] || opsSlides[0];
+                    try {
+                        slide = JSON.parse(current);
+                    } catch (e) { }
+                    if (heroOpsLabelEl) heroOpsLabelEl.textContent = slide.label || '營運狀態';
+                    if (heroOpsSummaryEl) heroOpsSummaryEl.textContent = slide.summary || '出門提醒';
+                    heroOpsDetailEl.textContent = slide.detail || '';
+                    heroOpsDetailEl.title = opsSlides.map(item => item.detail).join('\n');
+                });
+            } else {
+                clearRotatingText('heroOpsDetail');
+                if (heroOpsLabelEl) heroOpsLabelEl.textContent = '營運狀態';
+                if (heroOpsSummaryEl) heroOpsSummaryEl.textContent = '讀取營運訊息中';
+                if (heroOpsDetailEl) {
+                    heroOpsDetailEl.textContent = '正在同步臺鐵與高鐵的最新營運狀態。';
+                    heroOpsDetailEl.title = '正在同步臺鐵與高鐵的最新營運狀態。';
+                }
+            }
         }
 
         async function getTdxToken() {
@@ -7128,6 +7411,32 @@ function toggleSettings(show) {
             localStorage.setItem('theme', nextTheme);
             applyThemeMode(nextTheme);
             if(typeof window.refreshHomePanels === 'function') window.refreshHomePanels();
+        }
+
+        function normalizeUiTextScale(value) {
+            const allowed = ['0.94', '1', '1.08', '1.16'];
+            const raw = String(value || '1').trim();
+            return allowed.includes(raw) ? raw : '1';
+        }
+
+        function applyUiTextScale(value) {
+            const normalized = normalizeUiTextScale(value);
+            const scale = Number(normalized);
+            document.documentElement.style.fontSize = `${(16 * scale).toFixed(2)}px`;
+            const select = document.getElementById('uiTextScaleSelect');
+            if (select) select.value = normalized;
+        }
+
+        function setUiTextScale(value) {
+            const normalized = normalizeUiTextScale(value);
+            localStorage.setItem(UI_TEXT_SCALE_KEY, normalized);
+            applyUiTextScale(normalized);
+        }
+
+        try {
+            applyUiTextScale(localStorage.getItem(UI_TEXT_SCALE_KEY) || '1');
+        } catch (e) {
+            applyUiTextScale('1');
         }
 
         function saveSettings() {
@@ -8096,12 +8405,14 @@ function toggleSettings(show) {
             if (!isCompact) {
                 host.classList.remove('is-open');
                 button.setAttribute('aria-expanded', 'false');
+                button.setAttribute('aria-label', '展開功能選單');
                 const meta = button.querySelector('.portal-bar-toggle-meta');
                 if (meta) meta.textContent = '展開';
                 return;
             }
             const expanded = host.classList.contains('is-open');
             button.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+            button.setAttribute('aria-label', expanded ? '收合功能選單' : '展開功能選單');
             const meta = button.querySelector('.portal-bar-toggle-meta');
             if (meta) meta.textContent = expanded ? '收合' : '展開';
         }
@@ -8849,6 +9160,26 @@ function toggleSettings(show) {
             };
         }
 
+        function getHomeGeoDistanceMeters(a, b) {
+            const first = normalizeHomeGeoCoords(a);
+            const second = normalizeHomeGeoCoords(b);
+            if (!first || !second) return Infinity;
+            const latMeters = (first.latitude - second.latitude) * 111320;
+            const avgLat = ((first.latitude + second.latitude) / 2) * Math.PI / 180;
+            const lonMeters = (first.longitude - second.longitude) * 111320 * Math.cos(avgLat);
+            return Math.hypot(latMeters, lonMeters);
+        }
+
+        function shouldUseCachedHomeLocationWeather(cached, coords, options = {}) {
+            if (!cached || options.force) return false;
+            const cachedStamp = Number(cached.ts);
+            if (!Number.isFinite(cachedStamp) || Date.now() - cachedStamp > HOME_LOCATION_WEATHER_STALE_MS) return false;
+            const cachedCoords = normalizeHomeGeoCoords({ latitude: cached.lat, longitude: cached.lon });
+            const nextCoords = normalizeHomeGeoCoords(coords);
+            if (!cachedCoords || !nextCoords) return true;
+            return getHomeGeoDistanceMeters(cachedCoords, nextCoords) < HOME_LOCATION_WEATHER_MOVE_METERS;
+        }
+
         function persistSharedHomeGeoSnapshot(rawCoords, source = 'home') {
             const coords = normalizeHomeGeoCoords(rawCoords);
             if (!coords) return null;
@@ -8954,6 +9285,25 @@ function toggleSettings(show) {
             if (!Number.isFinite(num) || num < 0) return null;
             const rounded = Math.round(num * 10) / 10;
             return `${Number.isInteger(rounded) ? rounded : rounded.toFixed(1)} m/s`;
+        }
+
+        function getHomeUvLevel(value) {
+            const num = Number(value);
+            if (!Number.isFinite(num) || num < 0) return '';
+            if (num >= 11) return '危險級';
+            if (num >= 8) return '過量級';
+            if (num >= 6) return '高量級';
+            if (num >= 3) return '中量級';
+            return '低量級';
+        }
+
+        function formatHomeUvIndex(value) {
+            const num = Number(value);
+            if (!Number.isFinite(num) || num < 0) return '';
+            const rounded = Math.round(num * 10) / 10;
+            const indexText = Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
+            const level = getHomeUvLevel(num);
+            return level ? `紫外線 ${indexText}（${level}）` : `紫外線 ${indexText}`;
         }
 
         function extractHomeObservationWindGust(weatherElement) {
@@ -9250,6 +9600,104 @@ function toggleSettings(show) {
                 meta: metaParts.join(' · '),
                 metaCompact: metaCompactParts.join(' · ')
             };
+        }
+
+        function getHomeSnapshotCurrentTemp(snapshot) {
+            const texts = [
+                snapshot?.weatherObservation,
+                snapshot?.weatherCondition,
+                snapshot?.weatherObservationMeta
+            ];
+            for (const text of texts) {
+                const match = String(text || '').match(/(-?\d+(?:\.\d+)?)\s*度/);
+                if (match) {
+                    const value = Number(match[1]);
+                    if (Number.isFinite(value)) return value;
+                }
+            }
+            return null;
+        }
+
+        function getHomeSnapshotHourlyStats(snapshot) {
+            const rows = Array.isArray(snapshot?.forecast24hItems) ? snapshot.forecast24hItems : [];
+            const temps = rows.map(item => Number(item.temp)).filter(Number.isFinite);
+            const apparentTemps = rows.map(item => Number(item.apparentTemp)).filter(Number.isFinite);
+            return {
+                minTemp: temps.length ? Math.min(...temps) : null,
+                maxTemp: temps.length ? Math.max(...temps) : null,
+                apparentTemp: apparentTemps.length ? apparentTemps[0] : null,
+                maxApparentTemp: apparentTemps.length ? Math.max(...apparentTemps) : null
+            };
+        }
+
+        function describeHomeComfort(temp, apparentTemp) {
+            const value = Number.isFinite(Number(apparentTemp)) ? Number(apparentTemp) : Number(temp);
+            if (!Number.isFinite(value)) return '';
+            if (value >= 35) return '體感炎熱';
+            if (value >= 31) return '體感偏熱';
+            if (value <= 12) return '體感寒冷';
+            if (value <= 18) return '體感偏冷';
+            return '體感舒適';
+        }
+
+        function extractHomeRainProbability(snapshot) {
+            const match = String(snapshot?.weatherRain || '').match(/(\d+(?:\.\d+)?)\s*%/);
+            if (!match) return null;
+            const value = Number(match[1]);
+            return Number.isFinite(value) ? value : null;
+        }
+
+        function getHomeAlertCombinedText(snapshot) {
+            return uniqueTexts([
+                snapshot?.weatherAlertText,
+                snapshot?.summary,
+                ...(Array.isArray(snapshot?.weatherAlertDetails) ? snapshot.weatherAlertDetails.map(item => `${item.title || ''} ${item.description || ''} ${item.instruction || ''}`) : [])
+            ]).join(' ');
+        }
+
+        function buildHomeWeatherAdviceParts(snapshot) {
+            if (!snapshot) return [];
+            const advice = [];
+            const alertText = getHomeAlertCombinedText(snapshot);
+            const hourly = getHomeSnapshotHourlyStats(snapshot);
+            const rainProbability = extractHomeRainProbability(snapshot);
+            const nowRainText = snapshot.weatherObservationRainAmount ? `目前雨量約 ${snapshot.weatherObservationRainAmount}` : '';
+            const tempHigh = Number.isFinite(hourly.maxApparentTemp) ? hourly.maxApparentTemp : hourly.maxTemp;
+            const tempLow = hourly.minTemp;
+            const windMeta = sanitizeHomeObservationMetaText(snapshot.weatherObservationMeta || '');
+            const uvText = formatHomeUvIndex(snapshot.uvIndex);
+
+            if (/豪雨|大雨|雷雨|降雨|淹水|積水/.test(alertText)) {
+                const rainPart = [
+                    nowRainText,
+                    rainProbability != null ? `未來 1 小時降雨 ${Math.round(rainProbability)}%` : ''
+                ].filter(Boolean).join('，');
+                advice.push(`${snapshot.weatherAlertText || '降雨警示'}，${rainPart || '請留意短延時強降雨'}，建議提早出門並避免壓線轉乘`);
+            }
+            if (/強風|陸上強風|長浪|風浪/.test(alertText)) {
+                advice.push(`${snapshot.weatherAlertText || '強風提醒'}，${windMeta || '請留意風勢變化'}，騎車或步行到站建議預留緩衝`);
+            }
+            if (/高溫|炎熱|酷熱/.test(alertText) || Number(tempHigh) >= 36) {
+                const highText = Number.isFinite(tempHigh) ? `今日最高體感約 ${formatHomeTempValue(tempHigh)}` : '白天體感偏熱';
+                advice.push(`${snapshot.weatherAlertText || '高溫提醒'}，${highText}，轉乘步行請補水並避開長時間曝曬`);
+            }
+            if (/低溫|寒流|冷氣團/.test(alertText) || Number(tempLow) <= 12) {
+                const lowText = Number.isFinite(tempLow) ? `未來 24 小時低溫約 ${formatHomeTempValue(tempLow)}` : '清晨與夜間偏冷';
+                advice.push(`${snapshot.weatherAlertText || '低溫提醒'}，${lowText}，清晨候車請注意保暖`);
+            }
+            if (/濃霧|霧|能見度/.test(alertText)) {
+                advice.push(`${snapshot.weatherAlertText || '濃霧提醒'}，步行、騎車與接駁移動請放慢速度，轉乘時間建議抓寬一點`);
+            }
+            if (/颱風|熱帶性低氣壓/.test(alertText)) {
+                advice.push(`${snapshot.weatherAlertText || '颱風提醒'}，班次可能受風雨調整，出門前請再確認停駛與改點公告`);
+            }
+            if (/地震｜|地震/.test(String(snapshot.summary || '')) && snapshot.earthquakeText) {
+                advice.push(`近期顯著地震：${snapshot.earthquakeText}，若遇臨時慢行或站務管制，建議預留候車時間`);
+            }
+            if (Number(snapshot.uvIndex) >= 6) {
+                advice.push(`${uvText}，白天步行轉乘請注意防曬與補水`);
+            }
+            return uniqueTexts(advice);
         }
 
         function buildHome24hForecastItems(hourly) {
@@ -9689,8 +10137,10 @@ function toggleSettings(show) {
             const precipitation = Number(weatherElement?.Now?.Precipitation);
             const windSpeed = Number(weatherElement.WindSpeed);
             const windGust = extractHomeObservationWindGust(weatherElement);
+            const uvIndex = Number(weatherElement.UVIndex);
 
             return {
+                stationId: String(nearest.StationID || '').trim(),
                 stationName: normalizeHomePlaceName(nearest.StationName || ''),
                 countyName: normalizeHomePlaceName(geoInfo.CountyName || ''),
                 townName: normalizeHomePlaceName(geoInfo.TownName || ''),
@@ -9699,9 +10149,68 @@ function toggleSettings(show) {
                 humidity: Number.isFinite(humidity) && humidity >= 0 ? Math.round(humidity) : null,
                 windSpeed: Number.isFinite(windSpeed) && windSpeed >= 0 ? windSpeed : null,
                 windGust: Number.isFinite(windGust) && windGust >= 0 ? windGust : null,
+                uvIndex: Number.isFinite(uvIndex) && uvIndex >= 0 ? uvIndex : null,
                 precipitation: Number.isFinite(precipitation) && precipitation >= 0 ? precipitation : null,
                 time: nearest?.ObsTime?.DateTime || ''
             };
+        }
+
+        function extractHomeNumericValue(value) {
+            const direct = Number(value?.Value ?? value);
+            if (Number.isFinite(direct)) return direct;
+            const match = String(value ?? '').match(/-?\d+(?:\.\d+)?/);
+            return match ? Number(match[0]) : null;
+        }
+
+        function collectHomeUvRecords(source, depth = 0) {
+            if (depth > 6 || source == null) return [];
+            if (Array.isArray(source)) return source.flatMap(item => collectHomeUvRecords(item, depth + 1));
+            if (typeof source !== 'object') return [];
+            const stationId = String(
+                source.StationID ||
+                source.StationId ||
+                source.stationID ||
+                source.stationId ||
+                source.locationCode ||
+                source.LocationCode ||
+                ''
+            ).trim();
+            const value = extractHomeNumericValue(
+                source.UVIndex ??
+                source.uvIndex ??
+                source.UVI ??
+                source.uvi ??
+                source.value ??
+                source.Value
+            );
+            const elementName = String(source.elementName || source.ElementName || '').trim();
+            const looksLikeUv = /UV|紫外線/i.test(elementName) || Object.keys(source).some(key => /UV|紫外線|UVI/i.test(key));
+            const records = [];
+            if (stationId && Number.isFinite(value) && looksLikeUv) {
+                records.push({
+                    stationId,
+                    uvIndex: value,
+                    date: String(source.Date || source.date || source.dataTime || source.DataTime || '').trim()
+                });
+            }
+            Object.keys(source).forEach((key) => {
+                if (/^(_|web|url)$/i.test(key)) return;
+                records.push(...collectHomeUvRecords(source[key], depth + 1));
+            });
+            return records;
+        }
+
+        async function fetchHomeDailyUvIndex(stationId) {
+            const id = String(stationId || '').trim();
+            if (!id) return null;
+            const url = new URL(`${HOME_CWA_DATASTORE}/O-A0005-001`);
+            url.searchParams.set('Authorization', HOME_CWA_AUTH);
+            url.searchParams.set('format', 'JSON');
+            const response = await fetch(url.toString());
+            if (!response.ok) throw new Error(`uv ${response.status}`);
+            const data = await response.json();
+            const records = collectHomeUvRecords(data);
+            return records.find(item => String(item.stationId || '').trim() === id) || null;
         }
 
         function getHomeWeatherCodeLabel(code) {
@@ -9742,7 +10251,11 @@ function toggleSettings(show) {
             const button = document.getElementById('heroLocationRefreshBtn');
             if (!button) return;
             button.disabled = !!loading;
-            button.textContent = loading ? '更新中...' : '更新位置';
+            button.setAttribute('aria-busy', loading ? 'true' : 'false');
+            button.innerHTML = `
+                <span class="hero-refresh-full">${loading ? '更新中' : '更新位置'}</span>
+                <span class="hero-refresh-short">${loading ? '更新中' : '更新'}</span>
+            `;
         }
 
         function ensureHomeGeoWatcher(options = {}) {
@@ -9753,6 +10266,7 @@ function toggleSettings(show) {
                 homeGeoWatchId = navigator.geolocation.watchPosition((position) => {
                     const coords = normalizeHomeGeoCoords(position?.coords);
                     if (!coords) return;
+                    if (shouldUseCachedHomeLocationWeather(readHomeLocationSnapshot(), coords, { source: 'watch' })) return;
                     const payload = persistSharedHomeGeoSnapshot(coords, 'watch');
                     if (payload?.ts) homeGeoLastStamp = payload.ts;
                     window.refreshHomeLocationWeather({
@@ -9762,7 +10276,7 @@ function toggleSettings(show) {
                     }).catch(() => {});
                 }, () => {}, {
                     enableHighAccuracy: false,
-                    maximumAge: 180000,
+                    maximumAge: 600000,
                     timeout: 12000
                 });
             };
@@ -9880,14 +10394,28 @@ function toggleSettings(show) {
                 };
             }
 
-            const title = matches[0]?.parameter?.find(item => item?.valueName === 'alert_title')?.value
-                || matches[0]?.headline
-                || matches[0]?.event
-                || '天氣警特報';
+            const normalizeCwaAlert = (item) => {
+                const title = item?.parameter?.find(param => param?.valueName === 'alert_title')?.value
+                    || item?.headline
+                    || item?.event
+                    || '天氣警特報';
+                return {
+                    title: normalizeHomePlaceName(title),
+                    event: normalizeHomePlaceName(item?.event || ''),
+                    headline: normalizeHomePlaceName(item?.headline || ''),
+                    description: normalizeHomePlaceName(item?.description || item?.Description || ''),
+                    instruction: normalizeHomePlaceName(item?.instruction || item?.Instruction || ''),
+                    severity: String(item?.severity || '').trim(),
+                    urgency: String(item?.urgency || '').trim()
+                };
+            };
+            const activeAlerts = matches.map(normalizeCwaAlert).filter(item => item.title || item.event || item.headline);
+            const firstAlert = activeAlerts[0] || { title: '天氣警特報' };
 
             return {
-                text: matches.length > 1 ? `${normalizeHomePlaceName(title)} 等${matches.length}則` : normalizeHomePlaceName(title),
-                tone: 'alert'
+                text: activeAlerts.length > 1 ? `${firstAlert.title} 等${activeAlerts.length}則` : firstAlert.title,
+                tone: 'alert',
+                alerts: activeAlerts
             };
         }
 
@@ -9928,6 +10456,11 @@ function toggleSettings(show) {
             const prompt = !!options.prompt;
             let coords = normalizeHomeGeoCoords(options.coords) || null;
             const cached = readHomeLocationSnapshot();
+            if (!coords && !prompt && shouldUseCachedHomeLocationWeather(cached, null, options)) {
+                applyHomeLocationSnapshot(cached);
+                ensureHomeGeoWatcher({ prompt });
+                return cached;
+            }
 
             if (!coords && !navigator.geolocation) {
                 if (!cached) {
@@ -9959,7 +10492,7 @@ function toggleSettings(show) {
                 return cached;
             }
 
-            setHomeLocationRefreshState(true);
+            if (!silent) setHomeLocationRefreshState(true);
             try {
                 if (!coords) {
                     const position = await new Promise((resolve, reject) => {
@@ -9977,6 +10510,11 @@ function toggleSettings(show) {
                 if (!Number.isFinite(lat) || !Number.isFinite(lon)) throw new Error('invalid coords');
                 const sharedPayload = persistSharedHomeGeoSnapshot(coords, options.source || 'home');
                 if (sharedPayload?.ts) homeGeoLastStamp = sharedPayload.ts;
+                if (shouldUseCachedHomeLocationWeather(cached, coords, options)) {
+                    applyHomeLocationSnapshot(cached);
+                    ensureHomeGeoWatcher({ prompt });
+                    return cached;
+                }
 
                 const [townshipResult, weatherResult, observationResult, earthquakeResult] = await Promise.allSettled([
                     fetchHomeTownship(lat, lon),
@@ -9993,6 +10531,14 @@ function toggleSettings(show) {
                 if (observationResult.status === 'rejected') console.warn('fetchHomeObservation failed', observationResult.reason);
                 const earthquake = earthquakeResult.status === 'fulfilled' ? earthquakeResult.value : null;
                 if (earthquakeResult.status === 'rejected') console.warn('fetchHomeLatestEarthquake failed', earthquakeResult.reason);
+                let dailyUv = null;
+                if (observation?.stationId && !Number.isFinite(Number(observation?.uvIndex))) {
+                    try {
+                        dailyUv = await fetchHomeDailyUvIndex(observation.stationId);
+                    } catch (uvError) {
+                        console.warn('fetchHomeDailyUvIndex failed', uvError);
+                    }
+                }
 
                 const countyName = normalizeHomePlaceName(township?.countyName || observation?.countyName || '');
                 const townName = normalizeHomePlaceName(township?.townName || observation?.townName || township?.villageName || '');
@@ -10028,11 +10574,16 @@ function toggleSettings(show) {
                     place: formatHomeTownshipLabel(countyName, townName, countyName || '已取得位置'),
                     summary: summaryText,
                     summaryTone,
+                    weatherAlertText: alert?.text || '',
+                    weatherAlertDetails: Array.isArray(alert?.alerts) ? alert.alerts : [],
+                    earthquakeText: earthquake?.tone === 'warn' ? (earthquake.text || '') : '',
                     weatherCondition: forecastText !== '--' ? forecastText : '預報稍後更新',
                     weatherRain: rainText !== '--' ? rainText : '降雨稍後更新',
                     weatherObservation: observationDisplay.main !== '--' ? observationDisplay.main : (visual?.label || '天氣稍後更新'),
                     weatherObservationMeta: observationDisplay.meta || '',
                     weatherObservationMetaCompact: observationDisplay.metaCompact || '',
+                    weatherObservationRainAmount: formatHomeRainAmount(observation?.precipitation),
+                    uvIndex: Number.isFinite(Number(observation?.uvIndex)) ? Number(observation.uvIndex) : (Number.isFinite(Number(dailyUv?.uvIndex)) ? Number(dailyUv.uvIndex) : null),
                     weatherVisualType: visual?.type || (isHomeNightTime() ? 'clear-night' : 'partly'),
                     forecast24hItems: Array.isArray(weather?.forecast24hItems) ? weather.forecast24hItems : []
                 };
@@ -10040,6 +10591,7 @@ function toggleSettings(show) {
                 writeHomeLocationSnapshot(snapshot);
                 applyHomeLocationSnapshot(snapshot);
                 applyHomeRailDeskDefaultOrigins().catch(() => {});
+                queueHomeNearbyRailStatusRefresh(snapshot);
                 ensureHomeGeoWatcher({ prompt });
                 return snapshot;
             } catch (error) {
@@ -10059,7 +10611,7 @@ function toggleSettings(show) {
                 }
                 return cached;
             } finally {
-                setHomeLocationRefreshState(false);
+                if (!silent) setHomeLocationRefreshState(false);
             }
         };
 
@@ -10245,61 +10797,11 @@ function toggleSettings(show) {
             renderMonitorBoard(monitorOn, pushOn, monitorTargets, monitorText);
 
             {
-                const trAlerts = Array.isArray(systemAlertState.tr) ? systemAlertState.tr : null;
-                const thsrAlerts = Array.isArray(systemAlertState.thsr) ? systemAlertState.thsr : null;
-                let opsSummary = '讀取營運訊息中';
-                let opsDetail = '正在同步臺鐵與高鐵的最新營運狀態。';
-                let opsMessages = [];
-                if (trAlerts && thsrAlerts) {
-                    const abnormalItems = uniqueTexts([
-                        ...trAlerts.map(msg => `臺鐵 ${msg}`),
-                        ...thsrAlerts.map(msg => `高鐵 ${msg}`)
-                    ]);
-                    opsSummary = abnormalItems.length
-                        ? `營運異常提示：${abnormalItems.length} 則`
-                        : '目前無營運異常';
-                    opsDetail = abnormalItems.length
-                        ? abnormalItems[0]
-                        : '目前沒有新的營運異常公告。';
-                    opsMessages = abnormalItems;
-                }
-                setText('heroOpsSummary', opsSummary);
-                const heroOpsDetailEl = document.getElementById('heroOpsDetail');
-                if (heroOpsDetailEl && opsMessages.length) {
-                    rotateTextMessages('heroOpsDetail', opsMessages, (current, index, items) => {
-                        heroOpsDetailEl.textContent = current;
-                        heroOpsDetailEl.title = items.join('\n');
-                    });
-                } else {
-                    clearRotatingText('heroOpsDetail');
-                    setText('heroOpsDetail', opsDetail);
-                    if (heroOpsDetailEl) heroOpsDetailEl.title = opsDetail;
-                }
-
+                renderHomeOpsTicker();
+                queueHomeNearbyRailStatusRefresh(readHomeLocationSnapshot());
                 renderPinnedTrainCards();
                 return;
             }
-
-            const trAlerts = Array.isArray(systemAlertState.tr) ? systemAlertState.tr : null;
-            const thsrAlerts = Array.isArray(systemAlertState.thsr) ? systemAlertState.thsr : null;
-            let opsSummary = '讀取營運訊息中';
-            let opsDetail = '正在同步臺鐵與高鐵的最新營運狀態。';
-            if (trAlerts && thsrAlerts) {
-                const abnormalItems = [
-                    ...trAlerts.map(msg => `臺鐵 ${msg}`),
-                    ...thsrAlerts.map(msg => `高鐵 ${msg}`)
-                ];
-                opsSummary = abnormalItems.length
-                    ? `營運異常提示：${abnormalItems.length} 則`
-                    : '目前無營運異常';
-                opsDetail = abnormalItems.length
-                    ? abnormalItems.join('\n')
-                    : '目前沒有新的營運異常公告。';
-            }
-            setText('heroOpsSummary', opsSummary);
-            setText('heroOpsDetail', opsDetail);
-
-            renderPinnedTrainCards();
         };
 
         window.addEventListener('storage', (event) => {
@@ -10434,13 +10936,29 @@ function toggleSettings(show) {
             });
         }
         
+        function toggleFloatingDock(force) {
+            const dock = document.getElementById('floatingDock');
+            const popup = document.getElementById('toolsPopup');
+            if (!dock) return;
+            const nextState = typeof force === 'boolean' ? force : !dock.classList.contains('is-visible');
+            dock.classList.toggle('is-visible', nextState);
+            if (!nextState && popup) popup.classList.remove('active');
+            if (nextState && typeof toggleHomePortalMenu === 'function') toggleHomePortalMenu(false);
+        }
         function toggleTools() {
+            toggleFloatingDock();
+        }
+        function toggleToolsPopup(event) {
+            if (event?.stopPropagation) event.stopPropagation();
+            const dock = document.getElementById('floatingDock');
             const p = document.getElementById('toolsPopup');
+            if (!p) return;
+            if (dock && !dock.classList.contains('is-visible')) dock.classList.add('is-visible');
             p.classList.toggle('active');
             if(p.classList.contains('active')) setTimeout(() => document.addEventListener('click', closeTools, {once:true}), 10);
         }
         function closeTools(e) {
-            if(!e.target.closest('.tools-popup') && !e.target.closest('.dock-item')) document.getElementById('toolsPopup').classList.remove('active');
+            if(!e.target.closest('.tools-popup') && !e.target.closest('.dock-item')) document.getElementById('toolsPopup')?.classList.remove('active');
         }
 
 
