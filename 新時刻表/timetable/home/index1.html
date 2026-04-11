@@ -2945,12 +2945,10 @@ select.setting-input[id*="pick"] {
             font-size:0.84rem;
             line-height:1.4;
             min-width:0;
-            overflow:hidden;
-            text-overflow:ellipsis;
+            overflow:visible;
+            text-overflow:clip;
             white-space:normal;
-            display:-webkit-box;
-            -webkit-line-clamp:2;
-            -webkit-box-orient:vertical;
+            display:block;
         }
         .home-v2-body .query-hub{
             display:grid;
@@ -6531,10 +6529,6 @@ select.setting-input[id*="pick"] {
                         const maxDelay = delays.length ? Math.max(...delays) : 0;
                         if (stationRows.length && delays.length) {
                             parts.push(`臺鐵${normalizeHomeDisplayText(trStation.name)}站近 ${stationRows.length} 筆進站資料中 ${delays.length} 班延誤，最高約 ${Math.round(maxDelay)} 分`);
-                        } else if (stationRows.length) {
-                            parts.push(`臺鐵${normalizeHomeDisplayText(trStation.name)}站近幾班多為準點`);
-                        } else {
-                            parts.push(`臺鐵${normalizeHomeDisplayText(trStation.name)}站目前未取得進站延誤資料`);
                         }
                     }
                 } catch (e) { }
@@ -6542,9 +6536,9 @@ select.setting-input[id*="pick"] {
 
             if (thsrStation?.name) {
                 const thsrAlerts = Array.isArray(systemAlertState.thsr) ? systemAlertState.thsr : [];
-                parts.push(thsrAlerts.length
-                    ? `高鐵${normalizeHomeDisplayText(thsrStation.name)}站請留意高鐵營運異常公告`
-                    : `高鐵${normalizeHomeDisplayText(thsrStation.name)}站目前無主要營運異常`);
+                if (thsrAlerts.length) {
+                    parts.push(`高鐵${normalizeHomeDisplayText(thsrStation.name)}站請留意高鐵營運異常公告`);
+                }
             }
 
             return uniqueTexts(parts).join('；');
@@ -6598,13 +6592,13 @@ select.setting-input[id*="pick"] {
                 ...thsrAlerts.map(msg => `高鐵${msg}`)
             ]);
             const nearbyRailText = getHomeNearbyRailCacheText(snapshot);
-            const railText = nearbyRailText
-                || (abnormalRail.length ? `${abnormalRail.slice(0, 2).join('；')}，通勤建議預留轉乘時間` : '臺鐵與高鐵目前無主要異常');
-            const hasAlert = weatherAdvice.length || abnormalRail.length || /警示｜|地震｜/.test(String(snapshot.summary || ''));
+            const railNeedsCaution = abnormalRail.length || /延誤|停駛|取消|異常|受阻|中斷|影響/.test(nearbyRailText);
+            const railText = nearbyRailText || (abnormalRail.length ? `${abnormalRail.slice(0, 2).join('；')}，通勤建議預留轉乘時間` : '');
+            const hasAlert = weatherAdvice.length || railNeedsCaution || /警示｜|地震｜/.test(String(snapshot.summary || ''));
             const summary = hasAlert ? '出門提醒' : '出門正常';
             const suggestions = [];
             if (weatherAdvice.length) suggestions.push(weatherAdvice.slice(0, 2).join('；'));
-            if (abnormalRail.length || /延誤/.test(nearbyRailText)) suggestions.push('通勤建議預留轉乘時間，必要時改搭下一班或提早到站');
+            if (railNeedsCaution) suggestions.push('通勤建議預留轉乘時間，必要時改搭下一班或提早到站');
 
             const body = [
                 `目前${place}${weatherBits.length ? weatherBits.join('，') : '天氣資料更新中'}`,
@@ -6646,11 +6640,8 @@ select.setting-input[id*="pick"] {
                     ...thsrAlerts.map(msg => `高鐵 ${msg}`)
                 ]);
                 const smartReminder = buildHomeSmartOpsReminder(trAlerts, thsrAlerts);
-                const officialItems = abnormalItems.length
-                    ? abnormalItems
-                    : ['臺鐵: 全線正常', '高鐵: 全線正常'];
                 opsSlides = [
-                    ...officialItems.map(buildOfficialSlide),
+                    ...abnormalItems.map(buildOfficialSlide),
                     {
                         label: '智能提醒',
                         summary: smartReminder.summary,

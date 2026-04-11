@@ -10,6 +10,9 @@
   const STATION_ALERT_WINDOW = 10;
   const STATION_SOON_WINDOW = 3;
   const MAP_PADDING_Y = 36;
+  const SHARED_GEO_KEY = "home_shared_geo_snapshot_v1";
+  const USER_LOCATION_ENABLED_KEY = "rail_live_user_location_enabled_v1";
+  const USER_LOCATION_MAX_FAR_KM = 8;
   const TRACKER_STATES = new Map();
   const TRA_TYPE_COLORS = {
     "新自強": "#7c3aed",
@@ -102,6 +105,85 @@
 
   function getRailNetwork() {
     return window.RailNetwork || null;
+  }
+
+  function normalizeStationForSystem(system, name) {
+    return system === "thsr" ? normalizeThsrStation(name) : normalizeTraStation(name);
+  }
+
+  function normalizeGeoCoords(raw) {
+    if (!raw || typeof raw !== "object") return null;
+    const lat = Number(raw.latitude ?? raw.lat);
+    const lon = Number(raw.longitude ?? raw.lon);
+    const accuracy = Number(raw.accuracy);
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+    return {
+      lat,
+      lon,
+      accuracy: Number.isFinite(accuracy) && accuracy >= 0 ? accuracy : null,
+      ts: Number(raw.timestamp ?? raw.ts) || Date.now(),
+    };
+  }
+
+  function readSharedGeoSnapshot() {
+    try {
+      const raw = JSON.parse(localStorage.getItem(SHARED_GEO_KEY) || "null");
+      return normalizeGeoCoords(raw);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function persistSharedGeoSnapshot(coords, source) {
+    const normalized = normalizeGeoCoords(coords);
+    if (!normalized) return null;
+    try {
+      localStorage.setItem(SHARED_GEO_KEY, JSON.stringify({
+        lat: normalized.lat,
+        lon: normalized.lon,
+        accuracy: normalized.accuracy,
+        source: source || "live-tracker",
+        ts: Date.now(),
+      }));
+    } catch (_) {
+    }
+    return normalized;
+  }
+
+  function getStationGeo(system, stationName) {
+    const normalizedName = normalizeStationForSystem(system, stationName);
+    if (!normalizedName) return null;
+    const map = window.stationGeoMap || {};
+    const direct = map[normalizedName] || map[String(stationName || "").trim()];
+    if (direct && Number.isFinite(Number(direct.lat)) && Number.isFinite(Number(direct.lon))) {
+      return { name: normalizedName, lat: Number(direct.lat), lon: Number(direct.lon) };
+    }
+    const list = Array.isArray(window.stationGeoList) ? window.stationGeoList : [];
+    const found = list.find((item) => normalizeStationForSystem(system, item?.name) === normalizedName);
+    if (!found || !Number.isFinite(Number(found.lat)) || !Number.isFinite(Number(found.lon))) return null;
+    return { name: normalizedName, lat: Number(found.lat), lon: Number(found.lon) };
+  }
+
+  function projectGeoPointToSegment(point, fromPoint, toPoint) {
+    const p = normalizeGeoCoords(point);
+    if (!p || !fromPoint || !toPoint) return null;
+    const avgLatRad = ((Number(fromPoint.lat) + Number(toPoint.lat) + p.lat) / 3) * Math.PI / 180;
+    const xScale = 111320 * Math.cos(avgLatRad);
+    const yScale = 111320;
+    const ax = 0;
+    const ay = 0;
+    const bx = (Number(toPoint.lon) - Number(fromPoint.lon)) * xScale;
+    const by = (Number(toPoint.lat) - Number(fromPoint.lat)) * yScale;
+    const px = (p.lon - Number(fromPoint.lon)) * xScale;
+    const py = (p.lat - Number(fromPoint.lat)) * yScale;
+    const len2 = bx * bx + by * by;
+    const ratio = len2 > 0 ? clamp(((px - ax) * bx + (py - ay) * by) / len2, 0, 1) : 0;
+    const projX = bx * ratio;
+    const projY = by * ratio;
+    return {
+      ratio,
+      distanceMeters: Math.hypot(px - projX, py - projY),
+    };
   }
 
   function getSystem() {
@@ -1772,6 +1854,240 @@
     return MAP_PADDING_Y + (index / denominator) * usableHeight;
   }
 
+  function findNearestVisibleTrainForUser(state, positionIndex) {
+    const snapshots = state.visibleSnapshots || [];
+    if (!Number.isFinite(positionIndex) || !snapshots.length) return null;
+    let best = null;
+    snapshots.forEach((snapshot) => {
+      const trainPosition = getAnimatedSnapshotPosition(snapshot, state.renderedQueryDate);
+      if (!Number.isFinite(trainPosition)) return;
+      const diff = Math.abs(trainPosition - positionIndex);
+      if (!best || diff < best.diff) best = { snapshot, diff };
+    });
+    return best && best.diff <= 0.38 ? best.snapshot : null;
+  }
+
+  function projectCoordsToRouteSegment(system, coords, segment) {
+    const normalizedCoords = normalizeGeoCoords(coords);
+    const stations = segment?.stations || [];
+    if (!normalizedCoords || stations.length < 2) return null;
+    let best = null;
+    for (let index = 0; index < stations.length - 1; index += 1) {
+      const fromGeo = getStationGeo(system, stations[index]);
+      const toGeo = getStationGeo(system, stations[index + 1]);
+      if (!fromGeo || !toGeo) continue;
+      const projection = projectGeoPointToSegment(normalizedCoords, fromGeo, toGeo);
+      if (!projection) continue;
+      const candidate = {
+        ...projection,
+        segment,
+        fromStation: stations[index],
+        toStation: stations[index + 1],
+        positionIndex: index + projection.ratio,
+      };
+      if (!best || candidate.distanceMeters < best.distanceMeters) best = candidate;
+    }
+    return best;
+  }
+
+  function findBestUserLocationSegment(state, coords) {
+    const normalizedCoords = normalizeGeoCoords(coords);
+    if (!state || !normalizedCoords) return null;
+    let best = null;
+    getRouteGroupsForSystem(state.system).forEach((group) => {
+      (group.segments || []).forEach((segment) => {
+        const candidate = projectCoordsToRouteSegment(state.system, normalizedCoords, { ...segment, groupTitle: group.title });
+        if (!candidate) return;
+        if (!best || candidate.distanceMeters < best.distanceMeters) best = candidate;
+      });
+    });
+    return best;
+  }
+
+  function maybeSwitchToUserRoute(state, coords, options = {}) {
+    if (!state?.userLocationEnabled || state.system !== "tr" || !state.routeSelect) return false;
+    const best = findBestUserLocationSegment(state, coords);
+    if (!best?.segment?.id || best.distanceMeters > USER_LOCATION_MAX_FAR_KM * 1000) return false;
+    if (state.routeSelect.value === best.segment.id) return false;
+    state.routeSelect.value = best.segment.id;
+    if (state.searchInput && parseExactTrainQuery(state.searchInput.value)) state.searchInput.value = "";
+    if (options.render !== false && typeof state.runRender === "function") state.runRender();
+    return true;
+  }
+
+  function projectUserLocationToRoute(state) {
+    const coords = state.userLocation?.coords || null;
+    const stations = state.segment?.stations || [];
+    const best = projectCoordsToRouteSegment(state.system, coords, state.segment);
+    if (!best || stations.length < 2) return null;
+    const stationLabel = best.ratio <= 0.12
+      ? `${best.fromStation}站附近`
+      : best.ratio >= 0.88
+        ? `${best.toStation}站附近`
+        : `${best.fromStation} → ${best.toStation}間`;
+    const nearbyTrain = findNearestVisibleTrainForUser(state, best.positionIndex);
+    const distanceKm = best.distanceMeters / 1000;
+    return {
+      ...best,
+      label: "你的位置",
+      stationLabel,
+      nearbyTrain,
+      isFar: distanceKm > USER_LOCATION_MAX_FAR_KM,
+      title: [
+        `你的位置：${stationLabel}`,
+        nearbyTrain ? `可能接近 ${nearbyTrain.trainNo} 次` : "",
+        Number.isFinite(best.distanceMeters) ? `距目前路線約 ${distanceKm >= 1 ? `${distanceKm.toFixed(1)} 公里` : `${Math.round(best.distanceMeters)} 公尺`}` : "",
+        Number.isFinite(coords.accuracy) ? `定位精度約 ${Math.round(coords.accuracy)} 公尺` : "",
+      ].filter(Boolean).join("\n"),
+    };
+  }
+
+  function ensureUserLocationMarker(state) {
+    const map = state.output.querySelector(".rail-live-map");
+    if (!map) return null;
+    let marker = map.querySelector(".rail-live-user-location");
+    if (!marker) {
+      marker = document.createElement("div");
+      marker.className = "rail-live-user-location";
+      marker.setAttribute("aria-label", "你的位置");
+      marker.innerHTML = `
+        <span class="rail-live-user-dot" aria-hidden="true"></span>
+        <span class="rail-live-user-label">你的位置</span>
+      `;
+      map.appendChild(marker);
+    }
+    state.userLocationMarker = marker;
+    return marker;
+  }
+
+  function updateUserLocationMarker(state) {
+    const map = state.output.querySelector(".rail-live-map");
+    const stations = state.segment?.stations || [];
+    const marker = state.userLocationMarker || map?.querySelector(".rail-live-user-location") || ensureUserLocationMarker(state);
+    if (!map || !marker || !stations.length) return;
+    if (!state.userLocationEnabled) {
+      marker.hidden = true;
+      return;
+    }
+    const projection = projectUserLocationToRoute(state);
+    if (!projection) {
+      marker.hidden = true;
+      return;
+    }
+    const denominator = Math.max(1, stations.length - 1);
+    const mapHeight = map.clientHeight || getBoardHeight(stations);
+    marker.hidden = false;
+    marker.classList.toggle("is-far", projection.isFar);
+    marker.style.top = `${getBoardY(projection.positionIndex, denominator, mapHeight)}px`;
+    marker.title = projection.title;
+    const label = marker.querySelector(".rail-live-user-label");
+    if (label) {
+      label.textContent = projection.nearbyTrain
+        ? `你的位置 · ${projection.nearbyTrain.trainNo}次附近`
+        : "你的位置";
+    }
+  }
+
+  function setUserLocationCoords(state, coords, source) {
+    const normalized = normalizeGeoCoords(coords);
+    if (!state || !normalized) return;
+    state.userLocation = {
+      ...(state.userLocation || {}),
+      coords: normalized,
+      source: source || "browser",
+      updatedAt: Date.now(),
+    };
+    if (source !== "shared-storage") persistSharedGeoSnapshot(normalized, source || "live-tracker");
+    if (!state.userLocationEnabled) return;
+    if (maybeSwitchToUserRoute(state, normalized)) return;
+    updateUserLocationMarker(state);
+  }
+
+  function readUserLocationEnabled() {
+    try {
+      return localStorage.getItem(USER_LOCATION_ENABLED_KEY) === "true";
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function writeUserLocationEnabled(enabled) {
+    try {
+      localStorage.setItem(USER_LOCATION_ENABLED_KEY, enabled ? "true" : "false");
+    } catch (_) {
+    }
+  }
+
+  function syncUserLocationToggleButton(state) {
+    const button = state?.userLocationButton;
+    if (!button) return;
+    const enabled = Boolean(state.userLocationEnabled);
+    button.setAttribute("aria-pressed", enabled ? "true" : "false");
+    button.textContent = enabled ? "關閉位置" : "顯示目前位置";
+    button.title = enabled ? "關閉路線上的目前位置藍點" : "在路線上顯示目前位置藍點";
+  }
+
+  function stopUserLocationTracking(state) {
+    if (!state) return;
+    if (state.userLocationWatchId != null && navigator.geolocation?.clearWatch) {
+      try {
+        navigator.geolocation.clearWatch(state.userLocationWatchId);
+      } catch (_) {
+      }
+    }
+    state.userLocationWatchId = null;
+    if (state.userLocationMarker) state.userLocationMarker.hidden = true;
+  }
+
+  function setUserLocationEnabled(state, enabled) {
+    if (!state) return;
+    state.userLocationEnabled = Boolean(enabled);
+    writeUserLocationEnabled(state.userLocationEnabled);
+    syncUserLocationToggleButton(state);
+    if (!state.userLocationEnabled) {
+      stopUserLocationTracking(state);
+      return;
+    }
+    const cached = readSharedGeoSnapshot();
+    if (cached) {
+      state.userLocation = { ...(state.userLocation || {}), coords: cached, source: "shared", updatedAt: cached.ts || Date.now() };
+      if (maybeSwitchToUserRoute(state, cached)) return;
+    }
+    ensureUserLocationTracking(state);
+    updateUserLocationMarker(state);
+  }
+
+  function ensureUserLocationTracking(state) {
+    if (!state) return;
+    if (!state.userLocationEnabled) {
+      stopUserLocationTracking(state);
+      return;
+    }
+    const cached = readSharedGeoSnapshot();
+    if (cached && !state.userLocation?.coords) {
+      state.userLocation = { ...(state.userLocation || {}), coords: cached, source: "shared", updatedAt: cached.ts || Date.now() };
+    }
+    if (state.userLocation?.coords) updateUserLocationMarker(state);
+    if (!navigator.geolocation || state.userLocationWatchId != null) return;
+
+    const startWatch = () => {
+      if (state.userLocationWatchId != null) return;
+      state.userLocationWatchId = navigator.geolocation.watchPosition(
+        (position) => setUserLocationCoords(state, position?.coords, "live-watch"),
+        () => {},
+        { enableHighAccuracy: true, maximumAge: 5000, timeout: 12000 }
+      );
+    };
+
+    if (navigator.permissions?.query) {
+      navigator.permissions.query({ name: "geolocation" }).then((permission) => {
+        if (permission.state === "granted" || permission.state === "prompt") startWatch();
+      }).catch(startWatch);
+      return;
+    }
+    startWatch();
+  }
+
   function openTrainDetail(trainNo, originDate) {
     if (typeof window.showTrainDetails === "function") {
       try {
@@ -2280,6 +2596,13 @@
       empty.textContent = "目前沒有符合條件、且仍在此路線上的列車。";
       map.appendChild(empty);
     }
+    syncUserLocationToggleButton(state);
+    if (state.userLocationEnabled) {
+      ensureUserLocationTracking(state);
+      updateUserLocationMarker(state);
+    } else if (state.userLocationMarker) {
+      state.userLocationMarker.hidden = true;
+    }
   }
 
   function stopBoardAnimation(state) {
@@ -2300,7 +2623,7 @@
       }
       const map = state.output.querySelector(".rail-live-map");
       const stations = state.segment?.stations || [];
-      if (!map || !stations.length || !state.markerBindings?.length) {
+      if (!map || !stations.length || (!state.markerBindings?.length && (!state.userLocationEnabled || !state.userLocation?.coords))) {
         state.animationFrame = 0;
         return;
       }
@@ -2320,6 +2643,7 @@
         const anchorY = getBoardY(stablePosition, denominator, mapHeight);
         marker.style.top = `${anchorY}px`;
       });
+      if (state.userLocationEnabled) updateUserLocationMarker(state);
       state.animationFrame = window.requestAnimationFrame(tick);
     };
     tick();
@@ -2335,6 +2659,8 @@
     const groups = getRouteGroupsForSystem(state.system);
     let segment = null;
     const queryDate = getQueryDate();
+    const userRouteCoords = state.userLocation?.coords || (state.userLocationEnabled ? readSharedGeoSnapshot() : null);
+    if (userRouteCoords) maybeSwitchToUserRoute(state, userRouteCoords, { render: false });
     const queryText = String(state.searchInput.value || "").trim();
     const exactTrainQuery = parseExactTrainQuery(queryText);
     const directionValue = state.directionSelect.value || "all";
@@ -2512,6 +2838,7 @@
       <div class="rail-live-toolbar">
         <div class="rail-live-control"><span>路線</span><select id="${escapeHtml(config.inputPrefix)}Route" class="rail-live-select">${routeOptions}</select></div>
         <div class="rail-live-control"><span>方向</span><select id="${escapeHtml(config.inputPrefix)}Direction" class="rail-live-select">${directionOptions}</select></div>
+        <div class="rail-live-control rail-live-location-control"><button type="button" class="rail-live-location-toggle" data-live-user-location-toggle="1" aria-pressed="false">顯示目前位置</button></div>
         <div class="rail-live-control rail-live-search"><div class="rail-live-search-field"><input id="${escapeHtml(config.inputPrefix)}Search" class="rail-live-input rail-live-input-has-btn" type="text" placeholder="搜尋車次、車種或起迄站"><button type="button" class="rail-live-search-locate" data-live-search-locate="1" aria-label="📍定位車次" title="📍定位車次">📍定位車次</button></div><button id="${escapeHtml(config.inputPrefix)}Render" class="btn-primary" type="button">刷新動態</button></div>
       </div>
       <div id="${escapeHtml(config.inputPrefix)}Output" class="rail-live-output"><div class="rail-live-empty">可直接顯示目前路線的列車動態與車站進出站提示。</div></div>
@@ -2543,6 +2870,11 @@
       .rail-live-input{min-width:180px; flex:1 1 180px;}
       .rail-live-input-has-btn{width:100%; padding-right:112px;}
       .rail-live-search-locate{position:absolute; top:50%; right:6px; transform:translateY(-50%); min-width:100px; height:30px; padding:0 10px; border:none; border-radius:10px; background:color-mix(in srgb, var(--primary) 12%, var(--bg-surface)); color:var(--primary); font:inherit; font-size:.78rem; font-weight:900; white-space:nowrap; cursor:pointer;}
+      .rail-live-location-control{padding:0; border:none; background:transparent;}
+      .rail-live-location-toggle{height:60px; padding:0 18px; border-radius:16px; border:1px solid color-mix(in srgb, var(--primary) 18%, var(--border)); background:linear-gradient(135deg, color-mix(in srgb, var(--primary) 8%, var(--bg-surface)), var(--bg-surface)); color:var(--text-main); font:inherit; font-size:.88rem; font-weight:900; white-space:nowrap; cursor:pointer; box-shadow:0 10px 24px rgba(15,23,42,.06);}
+      .rail-live-location-toggle[aria-pressed="true"]{background:linear-gradient(135deg, #1d4ed8, #0f766e); border-color:transparent; color:#fff; box-shadow:0 14px 30px rgba(37,99,235,.22);}
+      .dark-mode .rail-live-location-toggle{background:rgba(30,41,59,.86); border-color:rgba(148,163,184,.22); color:#e5edf8;}
+      .dark-mode .rail-live-location-toggle[aria-pressed="true"]{background:linear-gradient(135deg, #2563eb, #0f766e); color:#fff;}
       .rail-live-output,.rail-live-feed{display:flex; flex-direction:column; gap:14px;}
       .rail-live-output{order:2;}
       .rail-live-layout{display:grid; grid-template-columns:minmax(0,1fr) 360px; gap:14px; align-items:start;}
@@ -2589,7 +2921,7 @@
       .rail-live-station.is-busy .rail-live-station-node{border-color:#ef4444;}
       .rail-live-station.is-soon .rail-live-station-name{color:#f97316;}
       .rail-live-station.active .rail-live-station-name{color:#2563eb;}
-      .rail-live-train-label{position:absolute; left:50%; width:0; transform:translateY(-50%); background:none; border:none; padding:0; cursor:pointer; will-change:top;}
+      .rail-live-train-label{position:absolute; left:50%; width:0; transform:translateY(-50%); z-index:18; background:none; border:none; padding:0; cursor:pointer; will-change:top;}
       .rail-live-train-anchor{position:absolute; top:-10px; left:-9px; width:18px; height:18px; display:flex; align-items:center; justify-content:center; color:var(--rail-live-color); font-size:16px; font-weight:900; line-height:1;}
       .rail-live-train-connector{position:absolute; top:0; width:20px; border-top:1px solid color-mix(in srgb, var(--rail-live-color) 70%, #64748b);}
       .rail-live-train-copy{position:absolute; top:-12px; width:210px; min-height:24px; display:flex; align-items:center;}
@@ -2601,6 +2933,12 @@
       .rail-live-train-label.left .rail-live-train-copy{right:70px; justify-content:flex-end; text-align:right; padding-right:8px;}
       .rail-live-train-label.right .rail-live-train-connector{left:12px;}
       .rail-live-train-label.right .rail-live-train-copy{left:34px; justify-content:flex-start; text-align:left; padding-left:8px;}
+      .rail-live-user-location{position:absolute; left:50%; width:0; height:0; transform:translate(-50%,-50%); z-index:8; pointer-events:none; transition:top .9s cubic-bezier(.2,.8,.2,1); filter:drop-shadow(0 8px 14px rgba(37,99,235,.20));}
+      .rail-live-user-dot{position:absolute; left:-9px; top:-9px; width:18px; height:18px; border-radius:50%; background:#1a73e8; border:3px solid #fff; box-shadow:0 0 0 7px rgba(26,115,232,.18), 0 0 0 1px rgba(37,99,235,.28);}
+      .rail-live-user-dot::after{content:""; position:absolute; inset:-11px; border-radius:50%; border:1px solid rgba(26,115,232,.24); animation:rail-live-user-pulse 1.9s ease-out infinite;}
+      .rail-live-user-label{display:none;}
+      .dark-mode .rail-live-user-label{background:rgba(15,23,42,.88); border-color:rgba(96,165,250,.24); color:#bfdbfe;}
+      .rail-live-user-location.is-far{opacity:.58;}
       .rail-live-feed-head{padding:14px 16px; border-radius:18px;}
       .rail-live-feed-head h3{margin:0; font-size:1rem;}
       .rail-live-feed-head p{margin:4px 0 0; color:var(--text-muted); font-size:.82rem; line-height:1.6;}
@@ -2629,6 +2967,7 @@
       .rail-live-modal-head h3{margin:0; font-size:1.02rem;}
       .rail-live-modal-body{padding:16px 18px;}
       @keyframes rail-live-blink{0%,49%{opacity:1;}50%,100%{opacity:.2;}}
+      @keyframes rail-live-user-pulse{0%{transform:scale(.65); opacity:.72;}100%{transform:scale(1.8); opacity:0;}}
       @keyframes rail-live-pop{from{transform:translateY(10px) scale(.98); opacity:.2;}to{transform:translateY(0) scale(1); opacity:1;}}
       @media (max-width:1080px){
         .rail-live-layout{grid-template-columns:1fr;}
@@ -2658,6 +2997,7 @@
         .rail-live-train-copy{width:150px; min-height:22px; top:-11px;}
         .rail-live-train-copy strong{font-size:.68rem;}
         .rail-live-station-name{font-size:.74rem; max-width:calc(50% - 34px);}
+        .rail-live-user-label{display:none;}
         .rail-live-modal{padding:14px;}
       }`;
     document.head.appendChild(style);
@@ -2673,6 +3013,7 @@
       directionSelect: panel.querySelector(`#${config.inputPrefix}Direction`),
       searchInput: panel.querySelector(`#${config.inputPrefix}Search`),
       renderButton: panel.querySelector(`#${config.inputPrefix}Render`),
+      userLocationButton: panel.querySelector("[data-live-user-location-toggle]"),
       output: panel.querySelector(`#${config.inputPrefix}Output`),
       modal: panel.querySelector(`#${config.inputPrefix}Modal`),
       modalTitle: panel.querySelector(`#${config.inputPrefix}ModalTitle`),
@@ -2689,6 +3030,11 @@
       markerBindings: [],
       markerPositions: new Map(),
       markerStepCache: new Map(),
+      userLocation: { coords: null, source: "", updatedAt: 0 },
+      userLocationEnabled: readUserLocationEnabled(),
+      userLocationWatchId: null,
+      userLocationMarker: null,
+      runRender: null,
       animationFrame: 0,
       animationScopeKey: "",
       renderedQueryDate: "",
@@ -2740,6 +3086,8 @@
         state.renderButton.textContent = previousLabel;
       });
     };
+    state.runRender = run;
+    syncUserLocationToggleButton(state);
     tab.addEventListener("click", async () => {
       if (!(await ensureLiveTrackerAccess())) return;
       window.switchQueryPanel?.(state.config.panelId);
@@ -2748,6 +3096,10 @@
     state.renderButton.addEventListener("click", async () => {
       if (!(await ensureLiveTrackerAccess())) return;
       run();
+    });
+    state.userLocationButton?.addEventListener("click", async () => {
+      if (!(await ensureLiveTrackerAccess())) return;
+      setUserLocationEnabled(state, !state.userLocationEnabled);
     });
     state.routeSelect?.addEventListener("change", run);
     state.directionSelect?.addEventListener("change", run);
@@ -2792,6 +3144,14 @@
     document.getElementById("mainQueryDate")?.addEventListener("change", () => {
       if (!state.panel.classList.contains("hidden")) run();
     });
+    if (!state.panel.dataset.liveGeoStorageBound) {
+      state.panel.dataset.liveGeoStorageBound = "1";
+      window.addEventListener("storage", (event) => {
+        if (event.key !== SHARED_GEO_KEY) return;
+        const coords = readSharedGeoSnapshot();
+        if (coords) setUserLocationCoords(state, coords, "shared-storage");
+      });
+    }
     startTrackerRefreshLoop(state, run);
   }
 
