@@ -9502,20 +9502,22 @@ function toggleSettings(show) {
         }
 
         function extractHomeObservationWindGust(weatherElement) {
+            const gustInfo = getHomeCwaField(weatherElement, ['GustInfo']) || {};
+            const peakGust = getHomeCwaField(gustInfo, ['PeakGust']) || {};
             const candidates = [
-                weatherElement?.GustInfo?.PeakGustSpeed,
-                weatherElement?.GustInfo?.MaximumWindSpeed,
-                weatherElement?.GustInfo?.PeakGust?.Speed,
-                weatherElement?.GustInfo?.PeakGust?.Value,
-                weatherElement?.PeakGustSpeed,
-                weatherElement?.MaximumWindSpeed,
-                weatherElement?.MaxWindSpeed,
-                weatherElement?.MaxGustSpeed,
-                weatherElement?.WindGust,
-                weatherElement?.GustSpeed
+                getHomeCwaField(gustInfo, ['PeakGustSpeed']),
+                getHomeCwaField(gustInfo, ['MaximumWindSpeed']),
+                getHomeCwaField(peakGust, ['Speed']),
+                getHomeCwaField(peakGust, ['Value']),
+                getHomeCwaField(weatherElement, ['PeakGustSpeed']),
+                getHomeCwaField(weatherElement, ['MaximumWindSpeed']),
+                getHomeCwaField(weatherElement, ['MaxWindSpeed']),
+                getHomeCwaField(weatherElement, ['MaxGustSpeed']),
+                getHomeCwaField(weatherElement, ['WindGust']),
+                getHomeCwaField(weatherElement, ['GustSpeed'])
             ];
             for (const candidate of candidates) {
-                const value = Number(candidate?.Value ?? candidate);
+                const value = extractHomeNumericValue(candidate);
                 if (Number.isFinite(value) && value >= 0) return value;
             }
             return null;
@@ -9776,7 +9778,7 @@ function toggleSettings(show) {
             if (visual?.label) mainParts.push(visual.label);
             const tempText = formatHomeTempValue(observation.temp);
             if (tempText !== '--') mainParts.push(tempText);
-            const comfortText = normalizeHomeComfortText(forecastComfort);
+            const comfortText = normalizeHomeComfortText(forecastComfort) || describeHomeComfort(observation.temp, null);
             if (comfortText) mainParts.push(comfortText);
             if (Number.isFinite(observation.humidity) && observation.humidity >= 0) {
                 const humidityText = `濕度${observation.humidity}%`;
@@ -10283,24 +10285,71 @@ function toggleSettings(show) {
             };
         }
 
+        function getHomeObservationStations(data) {
+            return [
+                ...toHomeArray(data?.records?.Station),
+                ...toHomeArray(data?.records?.station),
+                ...toHomeArray(data?.cwaopendata?.Dataset?.Station)
+            ];
+        }
+
+        function getHomeObservationGeoInfo(station) {
+            return getHomeCwaField(station, ['GeoInfo']) || {};
+        }
+
+        function getHomeObservationWeatherElement(station) {
+            return getHomeCwaField(station, ['WeatherElement']) || {};
+        }
+
+        function getHomeObservationValue(station, keys) {
+            const weatherElement = getHomeObservationWeatherElement(station);
+            const direct = getHomeCwaField(weatherElement, keys);
+            if (direct !== null) return direct;
+            return getHomeCwaField(station, keys);
+        }
+
         function getHomeObservationCoords(station) {
-            const coords = Array.isArray(station?.GeoInfo?.Coordinates) ? station.GeoInfo.Coordinates : [];
+            const geoInfo = getHomeObservationGeoInfo(station);
+            const coords = toHomeArray(getHomeCwaField(geoInfo, ['Coordinates']));
             const wgs84 = coords.find(item => /wgs84/i.test(String(item?.CoordinateName || '')));
             const target = wgs84 || coords[0];
-            const lat = Number(target?.StationLatitude);
-            const lon = Number(target?.StationLongitude);
+            const lat = extractHomeNumericValue(
+                getHomeCwaField(target, ['StationLatitude', 'Latitude', 'Lat']) ??
+                getHomeCwaField(station, ['StationLatitude', 'Latitude', 'Lat', 'lat_wgs84', 'lat'])
+            );
+            const lon = extractHomeNumericValue(
+                getHomeCwaField(target, ['StationLongitude', 'Longitude', 'Lon']) ??
+                getHomeCwaField(station, ['StationLongitude', 'Longitude', 'Lon', 'lon_wgs84', 'lon'])
+            );
             if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
             return { lat, lon };
         }
 
-        async function fetchHomeObservation(lat, lon) {
-            const url = new URL(`${HOME_CWA_DATASTORE}/O-A0003-001`);
+        async function fetchHomeObservationSource(type) {
+            const url = new URL(type === 'file'
+                ? `${HOME_CWA_FILEAPI}/O-A0003-001`
+                : `${HOME_CWA_DATASTORE}/O-A0003-001`);
             url.searchParams.set('Authorization', HOME_CWA_AUTH);
             url.searchParams.set('format', 'JSON');
             const response = await fetch(url.toString());
-            if (!response.ok) throw new Error(`observation ${response.status}`);
-            const data = await response.json();
-            const stations = Array.isArray(data?.records?.Station) ? data.records.Station : [];
+            if (!response.ok) throw new Error(`observation ${type} ${response.status}`);
+            return response.json();
+        }
+
+        async function fetchHomeObservation(lat, lon) {
+            let data = null;
+            let lastError = null;
+            for (const type of ['rest', 'file']) {
+                try {
+                    data = await fetchHomeObservationSource(type);
+                    break;
+                } catch (error) {
+                    lastError = error;
+                    console.warn('fetchHomeObservation source failed', type, error);
+                }
+            }
+            if (!data) throw lastError || new Error('observation unavailable');
+            const stations = getHomeObservationStations(data);
             if (!stations.length) return null;
 
             let nearest = null;
@@ -10308,8 +10357,7 @@ function toggleSettings(show) {
             stations.forEach((station) => {
                 const coords = getHomeObservationCoords(station);
                 if (!coords) return;
-                const weatherElement = station?.WeatherElement || {};
-                const tempValue = Number(weatherElement.AirTemperature);
+                const tempValue = extractHomeNumericValue(getHomeObservationValue(station, ['AirTemperature', 'Temperature', 'TEMP']));
                 if (!Number.isFinite(tempValue) || tempValue <= -90) return;
                 const dist = Math.hypot(coords.lat - lat, coords.lon - lon);
                 if (dist < minDist) {
@@ -10320,32 +10368,39 @@ function toggleSettings(show) {
 
             if (!nearest) return null;
 
-            const geoInfo = nearest.GeoInfo || {};
-            const weatherElement = nearest.WeatherElement || {};
-            const humidity = Number(weatherElement.RelativeHumidity);
-            const precipitation = Number(weatherElement?.Now?.Precipitation);
-            const windSpeed = Number(weatherElement.WindSpeed);
+            const geoInfo = getHomeObservationGeoInfo(nearest);
+            const weatherElement = getHomeObservationWeatherElement(nearest);
+            const nowElement = getHomeCwaField(weatherElement, ['Now']) || {};
+            const humidity = extractHomeNumericValue(getHomeObservationValue(nearest, ['RelativeHumidity', 'HUMD']));
+            const precipitation = extractHomeNumericValue(
+                getHomeCwaField(nowElement, ['Precipitation']) ??
+                getHomeObservationValue(nearest, ['Precipitation', 'H_24R'])
+            );
+            const windSpeed = extractHomeNumericValue(getHomeObservationValue(nearest, ['WindSpeed', 'WDSD']));
             const windGust = extractHomeObservationWindGust(weatherElement);
-            const uvIndex = Number(weatherElement.UVIndex);
+            const uvIndex = extractHomeNumericValue(getHomeObservationValue(nearest, ['UVIndex', 'UVI']));
+            const temp = extractHomeNumericValue(getHomeObservationValue(nearest, ['AirTemperature', 'Temperature', 'TEMP']));
+            const obsTime = getHomeCwaField(getHomeCwaField(nearest, ['ObsTime']) || {}, ['DateTime'])
+                || getHomeCwaField(nearest, ['DateTime', 'ObsTime', 'time']);
 
             return {
-                stationId: String(nearest.StationID || '').trim(),
-                stationName: normalizeHomePlaceName(nearest.StationName || ''),
-                countyName: normalizeHomePlaceName(geoInfo.CountyName || ''),
-                townName: normalizeHomePlaceName(geoInfo.TownName || ''),
-                weather: normalizeHomePlaceName(weatherElement.Weather || ''),
-                temp: Number(weatherElement.AirTemperature),
+                stationId: String(getHomeCwaField(nearest, ['StationID', 'StationId']) || '').trim(),
+                stationName: normalizeHomePlaceName(getHomeCwaField(nearest, ['StationName', 'LocationName']) || ''),
+                countyName: normalizeHomePlaceName(getHomeCwaField(geoInfo, ['CountyName']) || getHomeCwaField(nearest, ['CountyName', 'CITY']) || ''),
+                townName: normalizeHomePlaceName(getHomeCwaField(geoInfo, ['TownName']) || getHomeCwaField(nearest, ['TownName', 'TOWN']) || ''),
+                weather: normalizeHomePlaceName(getHomeObservationValue(nearest, ['Weather']) || ''),
+                temp,
                 humidity: Number.isFinite(humidity) && humidity >= 0 ? Math.round(humidity) : null,
                 windSpeed: Number.isFinite(windSpeed) && windSpeed >= 0 ? windSpeed : null,
                 windGust: Number.isFinite(windGust) && windGust >= 0 ? windGust : null,
                 uvIndex: Number.isFinite(uvIndex) && uvIndex >= 0 ? uvIndex : null,
                 precipitation: Number.isFinite(precipitation) && precipitation >= 0 ? precipitation : null,
-                time: nearest?.ObsTime?.DateTime || ''
+                time: obsTime || ''
             };
         }
 
         function extractHomeNumericValue(value) {
-            const direct = Number(value?.Value ?? value);
+            const direct = Number((value && typeof value === 'object') ? (getHomeCwaField(value, ['Value']) ?? value) : value);
             if (Number.isFinite(direct)) return direct;
             const match = String(value ?? '').match(/-?\d+(?:\.\d+)?/);
             return match ? Number(match[0]) : null;
@@ -10484,11 +10539,11 @@ function toggleSettings(show) {
         }
 
         function getHomeCwaLocationLat(location) {
-            return Number(getHomeCwaField(location, ['Latitude', 'Lat']));
+            return extractHomeNumericValue(getHomeCwaField(location, ['Latitude', 'Lat']));
         }
 
         function getHomeCwaLocationLon(location) {
-            return Number(getHomeCwaField(location, ['Longitude', 'Lon']));
+            return extractHomeNumericValue(getHomeCwaField(location, ['Longitude', 'Lon']));
         }
 
         function getHomeCwaElementName(element) {
