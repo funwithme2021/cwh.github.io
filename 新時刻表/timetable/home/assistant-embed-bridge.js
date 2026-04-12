@@ -5,12 +5,12 @@
     tr: {
       label: "台鐵 AI 助手",
       badge: "TRA",
-      src: "../tr/tr.html?embed=1&home_ai_embed=1&v=20260319-aichips3",
+      src: "../tr/tr.html?embed=1&home_ai_embed=1&v=20260412-aiverify1",
     },
     thsr: {
       label: "高鐵 AI 助手",
       badge: "THSR",
-      src: "../thsr/thsr.html?embed=1&home_ai_embed=1&v=20260319-aichips3",
+      src: "../thsr/thsr.html?embed=1&home_ai_embed=1&v=20260412-aiverify1",
     },
   };
 
@@ -396,15 +396,6 @@
   function initHost(host) {
     const initialQuery = new URLSearchParams(location.search).get("q") || "";
     const activeSystem = detectPreferredSystem(initialQuery) || host.dataset.defaultSystem || "tr";
-    const requirement = window.RailFeatureGate?.getRequirement?.("ai");
-    if (requirement?.required && window.RailFeatureGate?.mountInlineChallenge) {
-      window.RailFeatureGate.mountInlineChallenge(host, "ai", {
-        onSuccess() {
-          activateHost(host, activeSystem);
-        },
-      });
-      return;
-    }
     activateHost(host, activeSystem);
   }
 

@@ -374,12 +374,7 @@
   }
 
   async function ensureAiFeatureAccess() {
-    if (!window.RailFeatureGate?.ensureAccess) return true;
-    try {
-      return await window.RailFeatureGate.ensureAccess("ai");
-    } catch (_) {
-      return false;
-    }
+    return true;
   }
 
   function readPageValue(expression) {

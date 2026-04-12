@@ -13,6 +13,7 @@
   const SHARED_GEO_KEY = "home_shared_geo_snapshot_v1";
   const USER_LOCATION_ENABLED_KEY = "rail_live_user_location_enabled_v1";
   const USER_LOCATION_MAX_FAR_KM = 8;
+  const USER_LOCATION_POLL_MS = 3000;
   const TRACKER_STATES = new Map();
   const TRA_TYPE_COLORS = {
     "新自強": "#7c3aed",
@@ -2045,7 +2046,12 @@
       } catch (_) {
       }
     }
+    if (state.userLocationPollTimer != null) {
+      window.clearInterval(state.userLocationPollTimer);
+    }
     state.userLocationWatchId = null;
+    state.userLocationPollTimer = null;
+    state.userLocationPollBusy = false;
     state.userLocationLastProjection = null;
     if (state.userLocationMarker) state.userLocationMarker.hidden = true;
   }
@@ -2060,12 +2066,37 @@
       return;
     }
     const cached = readSharedGeoSnapshot();
+    let switchedRoute = false;
     if (cached) {
       state.userLocation = { ...(state.userLocation || {}), coords: cached, source: "shared", updatedAt: cached.ts || Date.now() };
-      if (maybeSwitchToUserRoute(state, cached)) return;
+      switchedRoute = maybeSwitchToUserRoute(state, cached);
     }
     ensureUserLocationTracking(state);
-    updateUserLocationMarker(state);
+    if (!switchedRoute) updateUserLocationMarker(state);
+  }
+
+  function requestUserLocationSample(state, source = "live-poll") {
+    if (!state?.userLocationEnabled || !navigator.geolocation || state.userLocationPollBusy) return;
+    state.userLocationPollBusy = true;
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        state.userLocationPollBusy = false;
+        setUserLocationCoords(state, position?.coords, source);
+      },
+      () => {
+        state.userLocationPollBusy = false;
+      },
+      { enableHighAccuracy: true, maximumAge: 0, timeout: 6000 }
+    );
+  }
+
+  function startUserLocationPolling(state) {
+    if (!state?.userLocationEnabled || !navigator.geolocation) return;
+    if (state.userLocationPollTimer != null) return;
+    requestUserLocationSample(state, "live-poll");
+    state.userLocationPollTimer = window.setInterval(() => {
+      requestUserLocationSample(state, "live-poll");
+    }, USER_LOCATION_POLL_MS);
   }
 
   function ensureUserLocationTracking(state) {
@@ -2079,14 +2110,16 @@
       state.userLocation = { ...(state.userLocation || {}), coords: cached, source: "shared", updatedAt: cached.ts || Date.now() };
     }
     if (state.userLocation?.coords) updateUserLocationMarker(state);
-    if (!navigator.geolocation || state.userLocationWatchId != null) return;
+    if (!navigator.geolocation) return;
+    startUserLocationPolling(state);
+    if (state.userLocationWatchId != null) return;
 
     const startWatch = () => {
       if (state.userLocationWatchId != null) return;
       state.userLocationWatchId = navigator.geolocation.watchPosition(
         (position) => setUserLocationCoords(state, position?.coords, "live-watch"),
         () => {},
-        { enableHighAccuracy: true, maximumAge: 5000, timeout: 12000 }
+        { enableHighAccuracy: true, maximumAge: 1000, timeout: 12000 }
       );
     };
 
@@ -2944,7 +2977,7 @@
       .rail-live-train-label.left .rail-live-train-copy{right:70px; justify-content:flex-end; text-align:right; padding-right:8px;}
       .rail-live-train-label.right .rail-live-train-connector{left:12px;}
       .rail-live-train-label.right .rail-live-train-copy{left:34px; justify-content:flex-start; text-align:left; padding-left:8px;}
-      .rail-live-user-location{position:absolute; left:50%; width:0; height:0; transform:translate(-50%,-50%); z-index:8; pointer-events:none; transition:top .9s cubic-bezier(.2,.8,.2,1); filter:drop-shadow(0 8px 14px rgba(37,99,235,.20));}
+      .rail-live-user-location{position:absolute; left:50%; width:0; height:0; transform:translate(-50%,-50%); z-index:8; pointer-events:none; transition:top 2.8s linear; filter:drop-shadow(0 8px 14px rgba(37,99,235,.20));}
       .rail-live-user-dot{position:absolute; left:-9px; top:-9px; width:18px; height:18px; border-radius:50%; background:#1a73e8; border:3px solid #fff; box-shadow:0 0 0 7px rgba(26,115,232,.18), 0 0 0 1px rgba(37,99,235,.28);}
       .rail-live-user-dot::after{content:""; position:absolute; inset:-11px; border-radius:50%; border:1px solid rgba(26,115,232,.24); animation:rail-live-user-pulse 1.9s ease-out infinite;}
       .rail-live-user-label{display:none;}
@@ -3044,6 +3077,8 @@
       userLocation: { coords: null, source: "", updatedAt: 0 },
       userLocationEnabled: readUserLocationEnabled(),
       userLocationWatchId: null,
+      userLocationPollTimer: null,
+      userLocationPollBusy: false,
       userLocationMarker: null,
       userLocationLastProjection: null,
       runRender: null,
