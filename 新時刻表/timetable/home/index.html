@@ -4899,7 +4899,7 @@ select.setting-input[id*="pick"] {
                 </div>
                 <div class="hero-weather-scene hero-visual-panel" id="heroWeatherScene" hidden>
                     <div class="hero-forecast-chart" id="heroForecastChart">
-                        <div class="hero-forecast-empty">更新位置後會顯示 24 小時趨勢。</div>
+                        <div class="hero-forecast-empty">24 小時趨勢更新中。</div>
                     </div>
                 </div>
             </div>
@@ -5867,7 +5867,32 @@ select.setting-input[id*="pick"] {
         const HOME_HERO_VISUAL_KEY = 'home_hero_visual_mode_v1';
         const HOME_CWA_AUTH = 'rdec-key-123-45678-011121314';
         const HOME_CWA_DATASTORE = 'https://opendata.cwa.gov.tw/api/v1/rest/datastore';
+        const HOME_CWA_FILEAPI = 'https://opendata.cwa.gov.tw/fileapi/v1/opendataapi';
         const HOME_CWA_TOWNSHIP_FORECAST_DATASET = 'F-D0047-089';
+        const HOME_CWA_2DAY_FORECAST_DATASETS = {
+            '宜蘭縣': 'F-D0047-001',
+            '桃園市': 'F-D0047-005',
+            '新竹縣': 'F-D0047-009',
+            '苗栗縣': 'F-D0047-013',
+            '彰化縣': 'F-D0047-017',
+            '南投縣': 'F-D0047-021',
+            '雲林縣': 'F-D0047-025',
+            '嘉義縣': 'F-D0047-029',
+            '屏東縣': 'F-D0047-033',
+            '台東縣': 'F-D0047-037',
+            '花蓮縣': 'F-D0047-041',
+            '澎湖縣': 'F-D0047-045',
+            '基隆市': 'F-D0047-049',
+            '新竹市': 'F-D0047-053',
+            '嘉義市': 'F-D0047-057',
+            '台北市': 'F-D0047-061',
+            '高雄市': 'F-D0047-065',
+            '新北市': 'F-D0047-069',
+            '台中市': 'F-D0047-073',
+            '台南市': 'F-D0047-077',
+            '連江縣': 'F-D0047-081',
+            '金門縣': 'F-D0047-085'
+        };
         const HOME_TOWNSHIP_ENDPOINT = 'https://api.nlsc.gov.tw/other/TownVillagePointQuery';
         let homeQuickResultState = { tr: null, thsr: null };
         let assistantSeatCache = {};
@@ -9282,6 +9307,11 @@ function toggleSettings(show) {
             return county || town ? `${county}|${town}` : '';
         }
 
+        function getHomeCwaTownshipForecastDatasetId(countyName) {
+            const key = normalizeHomeTownshipKeyPart(countyName);
+            return HOME_CWA_2DAY_FORECAST_DATASETS[key] || HOME_CWA_TOWNSHIP_FORECAST_DATASET;
+        }
+
         function persistSharedHomeGeoSnapshot(rawCoords, source = 'home') {
             const coords = normalizeHomeGeoCoords(rawCoords);
             if (!coords) return null;
@@ -10068,7 +10098,7 @@ function toggleSettings(show) {
 
         function buildHomeForecastChartSvg(items) {
             if (!Array.isArray(items) || !items.length) {
-                return '<div class="hero-forecast-empty">更新位置後會顯示 24 小時趨勢。</div>';
+                return '<div class="hero-forecast-empty">24 小時趨勢更新中。</div>';
             }
             const temps = items.map(item => Number(item.temp)).filter(Number.isFinite);
             const apparentTemps = items.map(item => Number(item.apparentTemp)).filter(Number.isFinite);
@@ -10422,13 +10452,84 @@ function toggleSettings(show) {
             return HOME_CWA_WEATHER_CODE_LABELS[value] || '';
         }
 
+        function toHomeArray(value) {
+            if (Array.isArray(value)) return value;
+            return value == null ? [] : [value];
+        }
+
+        function getHomeCwaField(source, keys) {
+            if (!source || typeof source !== 'object') return null;
+            for (const key of keys) {
+                const candidates = [
+                    key,
+                    key.charAt(0).toLowerCase() + key.slice(1),
+                    key.toLowerCase()
+                ];
+                for (const candidate of candidates) {
+                    if (Object.prototype.hasOwnProperty.call(source, candidate)) {
+                        const value = source[candidate];
+                        if (value !== undefined && value !== null && String(value).trim() !== '') return value;
+                    }
+                }
+            }
+            return null;
+        }
+
+        function getHomeCwaLocationName(location) {
+            return normalizeHomePlaceName(getHomeCwaField(location, ['LocationName']) || '');
+        }
+
+        function getHomeCwaGroupName(group) {
+            return normalizeHomePlaceName(getHomeCwaField(group, ['LocationsName']) || '');
+        }
+
+        function getHomeCwaLocationLat(location) {
+            return Number(getHomeCwaField(location, ['Latitude', 'Lat']));
+        }
+
+        function getHomeCwaLocationLon(location) {
+            return Number(getHomeCwaField(location, ['Longitude', 'Lon']));
+        }
+
+        function getHomeCwaElementName(element) {
+            return normalizeHomePlaceName(getHomeCwaField(element, ['ElementName']) || '');
+        }
+
+        function getHomeCwaGenericValues(timeItem) {
+            return toHomeArray(getHomeCwaField(timeItem, ['ElementValue'])).map((value) => {
+                if (value && typeof value === 'object') {
+                    const direct = getHomeCwaField(value, ['Value']);
+                    if (direct !== null) return direct;
+                }
+                return value;
+            }).filter((value) => value !== undefined && value !== null && String(value).trim() !== '');
+        }
+
+        function getHomeFirstNumericText(values) {
+            for (const value of values) {
+                const text = normalizeHomeCompareSymbols(value).trim();
+                if (text && /^-?\d+(?:\.\d+)?$/.test(text)) return text;
+            }
+            return null;
+        }
+
+        function getHomeFirstNonNumericText(values) {
+            for (const value of values) {
+                const text = normalizeHomePlaceName(value);
+                if (text && !/^-?\d+(?:\.\d+)?$/.test(text)) return text;
+            }
+            return null;
+        }
+
         function getHomeCwaLocations(data) {
-            const groups = Array.isArray(data?.records?.Locations)
-                ? data.records.Locations
-                : (data?.records?.Locations ? [data.records.Locations] : []);
+            const groups = [
+                ...toHomeArray(data?.records?.Locations),
+                ...toHomeArray(data?.records?.locations),
+                ...toHomeArray(data?.cwaopendata?.Dataset?.Locations)
+            ];
             const result = [];
             groups.forEach((group) => {
-                const locations = Array.isArray(group?.Location) ? group.Location : [];
+                const locations = toHomeArray(getHomeCwaField(group, ['Location']));
                 locations.forEach((location) => {
                     result.push({ group, location });
                 });
@@ -10445,19 +10546,19 @@ function toggleSettings(show) {
             const lonNum = Number(lon);
             const distanceOf = (entry) => {
                 const location = entry?.location || {};
-                const locationLat = Number(location.Latitude);
-                const locationLon = Number(location.Longitude);
+                const locationLat = getHomeCwaLocationLat(location);
+                const locationLon = getHomeCwaLocationLon(location);
                 if (!Number.isFinite(latNum) || !Number.isFinite(lonNum) || !Number.isFinite(locationLat) || !Number.isFinite(locationLon)) {
                     return Infinity;
                 }
                 return Math.hypot(locationLat - latNum, locationLon - lonNum);
             };
             const sameTown = targetTown
-                ? all.filter((entry) => normalizeHomeTownshipKeyPart(entry.location?.LocationName || '') === targetTown)
+                ? all.filter((entry) => normalizeHomeTownshipKeyPart(getHomeCwaLocationName(entry.location)) === targetTown)
                 : [];
             if (sameTown.length) {
                 const sameCounty = sameTown.filter((entry) => {
-                    const groupName = normalizeHomeTownshipKeyPart(entry.group?.LocationsName || '');
+                    const groupName = normalizeHomeTownshipKeyPart(getHomeCwaGroupName(entry.group));
                     return !targetCounty || groupName.includes(targetCounty) || targetCounty.includes(groupName);
                 });
                 return (sameCounty.length ? sameCounty : sameTown).sort((a, b) => distanceOf(a) - distanceOf(b))[0].location;
@@ -10465,43 +10566,68 @@ function toggleSettings(show) {
             return all.sort((a, b) => distanceOf(a) - distanceOf(b))[0].location;
         }
 
-        function getHomeCwaElementValue(timeItem, keys) {
-            const values = Array.isArray(timeItem?.ElementValue)
-                ? timeItem.ElementValue
-                : (timeItem?.ElementValue ? [timeItem.ElementValue] : []);
+        function getHomeCwaElementValue(timeItem, keys, element = null) {
+            const values = toHomeArray(getHomeCwaField(timeItem, ['ElementValue']));
             for (const value of values) {
                 for (const key of keys) {
-                    const direct = value?.[key];
+                    const direct = getHomeCwaField(value, [key]);
                     if (direct !== undefined && direct !== null && String(direct).trim() !== '') return direct;
                 }
+            }
+            const elementName = getHomeCwaElementName(element);
+            const genericValues = getHomeCwaGenericValues(timeItem);
+            if (!genericValues.length) return null;
+            const wants = (pattern) => keys.some((key) => pattern.test(key));
+            if ((/^T$/i.test(elementName) || elementName === '溫度') && wants(/^Temperature$/)) return genericValues[0];
+            if ((/^AT$/i.test(elementName) || /體感溫度/.test(elementName)) && wants(/ApparentTemperature/)) return genericValues[0];
+            if ((/^PoP/i.test(elementName) || /降雨機率/.test(elementName)) && wants(/ProbabilityOfPrecipitation/)) return genericValues[0];
+            if ((/^WS$/i.test(elementName) || /風速|風級|蒲福/.test(elementName)) && wants(/BeaufortScale|WindSpeed/)) return genericValues[0];
+            if ((/^Wx$/i.test(elementName) || /天氣現象/.test(elementName)) && wants(/^Weather$/)) {
+                return getHomeFirstNonNumericText(genericValues) || genericValues[0];
+            }
+            if ((/^Wx$/i.test(elementName) || /天氣現象/.test(elementName)) && wants(/WeatherCode/)) {
+                return getHomeFirstNumericText(genericValues);
+            }
+            if ((/^CI$/i.test(elementName) || /舒適度/.test(elementName)) && wants(/ComfortIndexDescription/)) {
+                return getHomeFirstNonNumericText(genericValues);
+            }
+            if ((/^CI$/i.test(elementName) || /舒適度/.test(elementName)) && wants(/^ComfortIndex$/)) {
+                return getHomeFirstNumericText(genericValues);
+            }
+            if (/天氣預報綜合描述|WeatherDescription/i.test(elementName) && wants(/WeatherDescription/)) {
+                return genericValues[0];
             }
             return null;
         }
 
         function getHomeCwaElement(location, keys, namePattern) {
-            const elements = Array.isArray(location?.WeatherElement) ? location.WeatherElement : [];
+            const elements = toHomeArray(getHomeCwaField(location, ['WeatherElement']));
             return elements.find((element) => {
-                const firstTime = Array.isArray(element?.Time) ? element.Time[0] : null;
-                const hasKey = firstTime && getHomeCwaElementValue(firstTime, keys) != null;
-                const name = normalizeHomePlaceName(element?.ElementName || '');
+                const firstTime = toHomeArray(getHomeCwaField(element, ['Time']))[0] || null;
+                const hasKey = firstTime && getHomeCwaElementValue(firstTime, keys, element) != null;
+                const name = getHomeCwaElementName(element);
                 return hasKey || (namePattern && namePattern.test(name));
             }) || null;
         }
 
+        function getHomeCwaTimes(element) {
+            return toHomeArray(getHomeCwaField(element, ['Time']));
+        }
+
         function getHomeCwaTimeMs(timeItem) {
-            return parseHomeTime(timeItem?.DataTime || timeItem?.StartTime);
+            return parseHomeTime(getHomeCwaField(timeItem, ['DataTime', 'StartTime']));
         }
 
         function findHomeCwaPeriodAt(times, timeMs) {
             if (!Array.isArray(times) || !times.length || timeMs == null) return null;
             return times.find((item) => {
-                const start = parseHomeTime(item?.StartTime || item?.DataTime);
-                const end = parseHomeTime(item?.EndTime || item?.DataTime);
+                const start = parseHomeTime(getHomeCwaField(item, ['StartTime', 'DataTime']));
+                const end = parseHomeTime(getHomeCwaField(item, ['EndTime', 'DataTime']));
                 if (start == null) return false;
                 if (end == null || end === start) return Math.abs(start - timeMs) < 60 * 60 * 1000;
                 return timeMs >= start && timeMs < end;
             }) || times.find((item) => {
-                const start = parseHomeTime(item?.StartTime || item?.DataTime);
+                const start = parseHomeTime(getHomeCwaField(item, ['StartTime', 'DataTime']));
                 return start != null && start >= timeMs;
             }) || times[0];
         }
@@ -10513,7 +10639,7 @@ function toggleSettings(show) {
             const weatherElement = getHomeCwaElement(location, ['Weather', 'WeatherCode'], /天氣現象/);
             const windElement = getHomeCwaElement(location, ['BeaufortScale', 'WindSpeed'], /風速/);
             const comfortElement = getHomeCwaElement(location, ['ComfortIndexDescription', 'ComfortIndex'], /舒適度/);
-            const tempTimes = Array.isArray(tempElement?.Time) ? tempElement.Time : [];
+            const tempTimes = getHomeCwaTimes(tempElement);
             if (!tempTimes.length) return [];
 
             let startIndex = tempTimes.findIndex((timeItem) => {
@@ -10522,11 +10648,11 @@ function toggleSettings(show) {
             });
             if (startIndex < 0) startIndex = 0;
 
-            const apparentTimes = Array.isArray(apparentElement?.Time) ? apparentElement.Time : [];
-            const rainTimes = Array.isArray(rainElement?.Time) ? rainElement.Time : [];
-            const weatherTimes = Array.isArray(weatherElement?.Time) ? weatherElement.Time : [];
-            const windTimes = Array.isArray(windElement?.Time) ? windElement.Time : [];
-            const comfortTimes = Array.isArray(comfortElement?.Time) ? comfortElement.Time : [];
+            const apparentTimes = getHomeCwaTimes(apparentElement);
+            const rainTimes = getHomeCwaTimes(rainElement);
+            const weatherTimes = getHomeCwaTimes(weatherElement);
+            const windTimes = getHomeCwaTimes(windElement);
+            const comfortTimes = getHomeCwaTimes(comfortElement);
             const items = [];
             let lastDateLabel = '';
             for (let idx = startIndex; idx < tempTimes.length && items.length < 12; idx += 2) {
@@ -10534,18 +10660,18 @@ function toggleSettings(show) {
                 const timeMs = getHomeCwaTimeMs(timeItem);
                 if (timeMs == null) continue;
                 const date = new Date(timeMs);
-                const temp = Number(getHomeCwaElementValue(timeItem, ['Temperature']));
+                const temp = Number(getHomeCwaElementValue(timeItem, ['Temperature'], tempElement));
                 const apparentAtTime = apparentTimes.find((item) => getHomeCwaTimeMs(item) === timeMs) || findHomeCwaPeriodAt(apparentTimes, timeMs);
-                const apparentTemp = Number(getHomeCwaElementValue(apparentAtTime, ['ApparentTemperature']));
+                const apparentTemp = Number(getHomeCwaElementValue(apparentAtTime, ['ApparentTemperature'], apparentElement));
                 const rainAtTime = findHomeCwaPeriodAt(rainTimes, timeMs);
-                const rainProbability = Number(getHomeCwaElementValue(rainAtTime, ['ProbabilityOfPrecipitation']));
+                const rainProbability = Number(getHomeCwaElementValue(rainAtTime, ['ProbabilityOfPrecipitation'], rainElement));
                 const weatherAtTime = findHomeCwaPeriodAt(weatherTimes, timeMs);
-                const weatherText = normalizeHomePlaceName(getHomeCwaElementValue(weatherAtTime, ['Weather']) || '');
-                const weatherCode = getHomeCwaElementValue(weatherAtTime, ['WeatherCode']);
+                const weatherText = normalizeHomePlaceName(getHomeCwaElementValue(weatherAtTime, ['Weather'], weatherElement) || '');
+                const weatherCode = getHomeCwaElementValue(weatherAtTime, ['WeatherCode'], weatherElement);
                 const windAtTime = findHomeCwaPeriodAt(windTimes, timeMs);
                 const comfortAtTime = comfortTimes.find((item) => getHomeCwaTimeMs(item) === timeMs) || findHomeCwaPeriodAt(comfortTimes, timeMs);
-                const windLevel = formatHomeCwaWindLevel(getHomeCwaElementValue(windAtTime, ['BeaufortScale']));
-                const comfortText = normalizeHomeComfortText(getHomeCwaElementValue(comfortAtTime, ['ComfortIndexDescription']));
+                const windLevel = formatHomeCwaWindLevel(getHomeCwaElementValue(windAtTime, ['BeaufortScale'], windElement));
+                const comfortText = normalizeHomeComfortText(getHomeCwaElementValue(comfortAtTime, ['ComfortIndexDescription'], comfortElement));
                 const visual = resolveHomeWeatherVisualText(weatherText || getHomeCwaWeatherCodeLabel(weatherCode), {
                     isNight: isHomeNightAtTime(timeMs)
                 });
@@ -10577,21 +10703,21 @@ function toggleSettings(show) {
             const comfortElement = getHomeCwaElement(location, ['ComfortIndexDescription', 'ComfortIndex'], /舒適度/);
             const nowMs = Date.now();
             const dayEndMs = nowMs + 24 * 60 * 60 * 1000;
-            const currentWeather = findHomeCwaPeriodAt(Array.isArray(weatherElement?.Time) ? weatherElement.Time : [], nowMs);
-            const currentRain = findHomeCwaPeriodAt(Array.isArray(rainElement?.Time) ? rainElement.Time : [], nowMs);
-            const comfortTimes = Array.isArray(comfortElement?.Time) ? comfortElement.Time : [];
+            const currentWeather = findHomeCwaPeriodAt(getHomeCwaTimes(weatherElement), nowMs);
+            const currentRain = findHomeCwaPeriodAt(getHomeCwaTimes(rainElement), nowMs);
+            const comfortTimes = getHomeCwaTimes(comfortElement);
             const currentComfort = normalizeHomeComfortText(
-                getHomeCwaElementValue(findHomeCwaPeriodAt(comfortTimes, nowMs), ['ComfortIndexDescription'])
+                getHomeCwaElementValue(findHomeCwaPeriodAt(comfortTimes, nowMs), ['ComfortIndexDescription'], comfortElement)
             );
-            const weatherText = normalizeHomePlaceName(getHomeCwaElementValue(currentWeather, ['Weather']) || '');
-            const weatherCode = getHomeCwaElementValue(currentWeather, ['WeatherCode']);
-            const tempTimes = Array.isArray(tempElement?.Time) ? tempElement.Time : [];
+            const weatherText = normalizeHomePlaceName(getHomeCwaElementValue(currentWeather, ['Weather'], weatherElement) || '');
+            const weatherCode = getHomeCwaElementValue(currentWeather, ['WeatherCode'], weatherElement);
+            const tempTimes = getHomeCwaTimes(tempElement);
             const temps = tempTimes
                 .filter((item) => {
                     const timeMs = getHomeCwaTimeMs(item);
                     return timeMs != null && timeMs >= nowMs && timeMs <= dayEndMs;
                 })
-                .map(item => Number(getHomeCwaElementValue(item, ['Temperature'])))
+                .map(item => Number(getHomeCwaElementValue(item, ['Temperature'], tempElement)))
                 .filter(Number.isFinite);
             const comfortSummary = summarizeHomeComfortTexts(
                 comfortTimes
@@ -10599,17 +10725,17 @@ function toggleSettings(show) {
                         const timeMs = getHomeCwaTimeMs(item);
                         return timeMs != null && timeMs >= nowMs && timeMs <= dayEndMs;
                     })
-                    .map(item => getHomeCwaElementValue(item, ['ComfortIndexDescription']))
+                    .map(item => getHomeCwaElementValue(item, ['ComfortIndexDescription'], comfortElement))
             ) || summarizeHomeComfortTexts((Array.isArray(forecastItems) ? forecastItems : []).map(item => item.comfortText));
-            const maxTemps = (Array.isArray(maxElement?.Time) ? maxElement.Time : [])
+            const maxTemps = getHomeCwaTimes(maxElement)
                 .slice(0, 2)
-                .map(item => Number(getHomeCwaElementValue(item, ['MaxTemperature', 'MaxT'])))
+                .map(item => Number(getHomeCwaElementValue(item, ['MaxTemperature', 'MaxT'], maxElement)))
                 .filter(Number.isFinite);
-            const minTemps = (Array.isArray(minElement?.Time) ? minElement.Time : [])
+            const minTemps = getHomeCwaTimes(minElement)
                 .slice(0, 2)
-                .map(item => Number(getHomeCwaElementValue(item, ['MinTemperature', 'MinT'])))
+                .map(item => Number(getHomeCwaElementValue(item, ['MinTemperature', 'MinT'], minElement)))
                 .filter(Number.isFinite);
-            const rainProbability = Number(getHomeCwaElementValue(currentRain, ['ProbabilityOfPrecipitation']));
+            const rainProbability = Number(getHomeCwaElementValue(currentRain, ['ProbabilityOfPrecipitation'], rainElement));
             return {
                 condition: weatherText || getHomeCwaWeatherCodeLabel(weatherCode) || '預報更新中',
                 tempMax: maxTemps.length ? Math.max(...maxTemps) : (temps.length ? Math.max(...temps) : null),
@@ -10724,24 +10850,57 @@ function toggleSettings(show) {
             renderHomeOpsTicker();
         }
 
-        async function fetchHomeWeatherForecast(lat, lon, township) {
-            const url = new URL(`${HOME_CWA_DATASTORE}/${HOME_CWA_TOWNSHIP_FORECAST_DATASET}`);
-            url.searchParams.set('Authorization', HOME_CWA_AUTH);
-            url.searchParams.set('format', 'JSON');
-            url.searchParams.set('elementName', '溫度,體感溫度,最高溫度,最低溫度,舒適度指數,風速,3小時降雨機率,天氣現象,天氣預報綜合描述');
+        function buildHomeCwaForecastRequestList(township) {
             const targetTown = normalizeHomePlaceName(township?.townName || township?.villageName || '');
-            if (targetTown) url.searchParams.set('locationName', targetTown);
-            const response = await fetch(url.toString());
-            if (!response.ok) throw new Error(`weather ${response.status}`);
-            const data = await response.json();
-            const location = findHomeCwaForecastLocation(data, township, lat, lon);
-            if (!location) throw new Error('weather location not found');
-            const forecast24hItems = buildHomeCwa24hForecastItems(location);
-            const summary = getHomeCwaForecastSummary(location, forecast24hItems);
-            return {
-                ...summary,
-                forecast24hItems
-            };
+            const targetDataset = getHomeCwaTownshipForecastDatasetId(township?.countyName || '');
+            const requests = [
+                { type: 'rest', dataset: targetDataset, useTown: true },
+                { type: 'file', dataset: targetDataset, useTown: false },
+                { type: 'rest', dataset: HOME_CWA_TOWNSHIP_FORECAST_DATASET, useTown: false }
+            ];
+            const seen = new Set();
+            return requests.filter((item) => {
+                const key = `${item.type}:${item.dataset}:${item.useTown ? targetTown : ''}`;
+                if (seen.has(key)) return false;
+                seen.add(key);
+                return true;
+            }).map((item) => {
+                const url = new URL(item.type === 'file'
+                    ? `${HOME_CWA_FILEAPI}/${item.dataset}`
+                    : `${HOME_CWA_DATASTORE}/${item.dataset}`);
+                url.searchParams.set('Authorization', HOME_CWA_AUTH);
+                url.searchParams.set('format', 'JSON');
+                if (item.type === 'rest') {
+                    url.searchParams.set('elementName', '溫度,體感溫度,舒適度指數,風速,3小時降雨機率,天氣現象,天氣預報綜合描述');
+                    if (item.useTown && targetTown) url.searchParams.set('locationName', targetTown);
+                }
+                return { ...item, url };
+            });
+        }
+
+        async function fetchHomeWeatherForecast(lat, lon, township) {
+            const requests = buildHomeCwaForecastRequestList(township);
+            let lastError = null;
+            for (const request of requests) {
+                try {
+                    const response = await fetch(request.url.toString());
+                    if (!response.ok) throw new Error(`weather ${request.dataset} ${response.status}`);
+                    const data = await response.json();
+                    const location = findHomeCwaForecastLocation(data, township, lat, lon);
+                    if (!location) throw new Error(`weather ${request.dataset} location not found`);
+                    const forecast24hItems = buildHomeCwa24hForecastItems(location);
+                    if (!forecast24hItems.length) throw new Error(`weather ${request.dataset} forecast empty`);
+                    const summary = getHomeCwaForecastSummary(location, forecast24hItems);
+                    return {
+                        ...summary,
+                        forecast24hItems
+                    };
+                } catch (error) {
+                    lastError = error;
+                    console.warn('fetchHomeWeatherForecast source failed', request.dataset, request.type, error);
+                }
+            }
+            throw lastError || new Error('weather forecast unavailable');
         }
 
         async function fetchHomeWeatherAlerts(countyName) {
@@ -10945,6 +11104,12 @@ function toggleSettings(show) {
                     if (!summaryTone) summaryTone = 'warn';
                 }
                 const summaryText = noticeParts.join('　');
+                const snapshotTownshipKey = getHomeTownshipKey(countyName, townName);
+                const canReuseCachedWeather = !!(cached?.townshipKey && cached.townshipKey === snapshotTownshipKey);
+                const freshForecastItems = Array.isArray(weather?.forecast24hItems) ? weather.forecast24hItems : [];
+                const cachedForecastItems = canReuseCachedWeather && Array.isArray(cached.forecast24hItems)
+                    ? cached.forecast24hItems
+                    : [];
 
                 const snapshot = {
                     ts: Date.now(),
@@ -10952,24 +11117,24 @@ function toggleSettings(show) {
                     lon,
                     countyName,
                     townName,
-                    townshipKey: getHomeTownshipKey(countyName, townName),
+                    townshipKey: snapshotTownshipKey,
                     place: formatHomeTownshipLabel(countyName, townName, countyName || '已取得位置'),
                     summary: summaryText,
                     summaryTone,
                     weatherAlertText: alert?.text || '',
                     weatherAlertDetails: Array.isArray(alert?.alerts) ? alert.alerts : [],
                     earthquakeText: earthquake?.tone === 'warn' ? (earthquake.text || '') : '',
-                    weatherCondition: forecastText !== '--' ? forecastText : '預報稍後更新',
-                    weatherRain: rainText !== '--' ? rainText : '降雨稍後更新',
+                    weatherCondition: forecastText !== '--' ? forecastText : (canReuseCachedWeather && cached.weatherCondition ? cached.weatherCondition : '預報稍後更新'),
+                    weatherRain: rainText !== '--' ? rainText : (canReuseCachedWeather && cached.weatherRain ? cached.weatherRain : '降雨稍後更新'),
                     weatherObservation: observationDisplay.main !== '--' ? observationDisplay.main : (visual?.label || '天氣稍後更新'),
                     weatherObservationMeta: observationDisplay.meta || '',
                     weatherObservationMetaCompact: observationDisplay.metaCompact || '',
                     weatherObservationRainAmount: formatHomeRainAmount(observation?.precipitation),
-                    weatherCurrentComfort: weather?.currentComfort || '',
-                    weatherComfortSummary: weather?.comfortSummary || '',
+                    weatherCurrentComfort: weather?.currentComfort || (canReuseCachedWeather ? (cached.weatherCurrentComfort || '') : ''),
+                    weatherComfortSummary: weather?.comfortSummary || (canReuseCachedWeather ? (cached.weatherComfortSummary || '') : ''),
                     uvIndex: resolveHomeUvIndex(observation, dailyUv),
                     weatherVisualType: visual?.type || (isHomeNightTime() ? 'clear-night' : 'partly'),
-                    forecast24hItems: Array.isArray(weather?.forecast24hItems) ? weather.forecast24hItems : []
+                    forecast24hItems: freshForecastItems.length ? freshForecastItems : cachedForecastItems
                 };
 
                 writeHomeLocationSnapshot(snapshot);
