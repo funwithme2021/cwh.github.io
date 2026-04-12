@@ -6658,7 +6658,8 @@ select.setting-input[id*="pick"] {
             const currentTemp = getHomeSnapshotCurrentTemp(snapshot);
             const hourly = getHomeSnapshotHourlyStats(snapshot);
             const apparentTemp = Number.isFinite(hourly.apparentTemp) ? hourly.apparentTemp : null;
-            const comfort = describeHomeComfort(currentTemp, apparentTemp);
+            const forecastComfort = normalizeHomeComfortText(snapshot.weatherCurrentComfort || '');
+            const comfort = forecastComfort ? `體感${forecastComfort}` : describeHomeComfort(currentTemp, apparentTemp);
             const weatherMain = String(snapshot.weatherObservation || snapshot.weatherCondition || '').replace(/\s+/g, ' ').trim();
             const rainText = String(snapshot.weatherRain || '').replace(/\s+/g, ' ').trim();
             const weatherBits = [];
@@ -9363,8 +9364,22 @@ function toggleSettings(show) {
             return `${Number.isInteger(rounded) ? rounded : rounded.toFixed(1)}度`;
         }
 
+        function normalizeHomeCompareSymbols(value) {
+            return String(value ?? '')
+                .replace(/&gt;\s*=/gi, '≥')
+                .replace(/&lt;\s*=/gi, '≤')
+                .replace(/&ge;/gi, '≥')
+                .replace(/&le;/gi, '≤')
+                .replace(/>\s*=/g, '≥')
+                .replace(/<\s*=/g, '≤')
+                .replace(/≧/g, '≥')
+                .replace(/≦/g, '≤')
+                .replace(/大[於于]等[於于]/g, '≥')
+                .replace(/小[於于]等[於于]/g, '≤');
+        }
+
         function normalizeHomePlaceName(value) {
-            return normalizeTRA(String(value || '').trim());
+            return normalizeTRA(normalizeHomeCompareSymbols(value).trim());
         }
 
         function formatHomeTownshipLabel(countyName, townName, fallback) {
@@ -9386,6 +9401,37 @@ function toggleSettings(show) {
             if (!Number.isFinite(num) || num < 0) return null;
             const rounded = Math.round(num * 10) / 10;
             return `${Number.isInteger(rounded) ? rounded : rounded.toFixed(1)} m/s`;
+        }
+
+        function normalizeHomeComfortText(value) {
+            return normalizeHomePlaceName(value || '').replace(/\s+/g, '').trim();
+        }
+
+        function getHomeComfortRank(value) {
+            const text = normalizeHomeComfortText(value);
+            if (!text) return 99;
+            if (/非常寒冷|嚴寒/.test(text)) return 0;
+            if (/寒冷/.test(text)) return 1;
+            if (/稍有寒意|偏冷/.test(text)) return 2;
+            if (/舒適/.test(text)) return 3;
+            if (/悶熱|偏熱/.test(text)) return 4;
+            if (/易中暑|炎熱/.test(text)) return 5;
+            if (/危險|酷熱/.test(text)) return 6;
+            return 50;
+        }
+
+        function summarizeHomeComfortTexts(values) {
+            const list = uniqueTexts((Array.isArray(values) ? values : [values]).map(normalizeHomeComfortText).filter(Boolean));
+            if (!list.length) return '';
+            if (list.length === 1) return list[0];
+            const sorted = [...list].sort((a, b) => getHomeComfortRank(a) - getHomeComfortRank(b));
+            return `${sorted[0]}至${sorted[sorted.length - 1]}`;
+        }
+
+        function formatHomeCwaWindLevel(value) {
+            const text = normalizeHomeCompareSymbols(value).trim().replace(/\s+/g, '');
+            if (!text || text === '--') return '';
+            return `${text}級`;
         }
 
         function getHomeUvLevel(value) {
@@ -9461,7 +9507,7 @@ function toggleSettings(show) {
         }
 
         function sanitizeHomeObservationMetaText(value) {
-            return String(value || '').trim().replace(/[；;]+$/u, '').trim();
+            return normalizeHomeCompareSymbols(value).trim().replace(/[；;]+$/u, '').trim();
         }
 
         function buildCompactHomeObservationMetaFromText(value) {
@@ -9595,6 +9641,10 @@ function toggleSettings(show) {
                     return '陰天';
                 case 'rain':
                     return '下雨';
+                case 'partly-rain':
+                    return '晴雨';
+                case 'cloud-rain':
+                    return '陰雨';
                 case 'thunder':
                     return '雷雨';
                 case 'fog':
@@ -9637,7 +9687,11 @@ function toggleSettings(show) {
             if (/低溫|寒流|冷氣團|寒冷/.test(text)) return { type: 'cold', label: '低溫' };
             if (/高溫|焚風|酷熱/.test(text)) return { type: 'heat', label: '高溫' };
             if (strongWind) return { type: 'wind', label: '強風' };
-            if (/雨|陣雨|毛雨/.test(text)) return { type: 'rain', label: '下雨' };
+            if (/雨|陣雨|毛雨/.test(text)) {
+                if (/晴/.test(text)) return { type: 'partly-rain', label: '短暫雨' };
+                if (/多雲|陰/.test(text)) return { type: 'cloud-rain', label: /陰/.test(text) ? '陰雨' : '陣雨' };
+                return { type: 'rain', label: '下雨' };
+            }
             if (/陰/.test(text)) return { type: 'cloudy', label: '陰天' };
             if (/多雲/.test(text)) return { type: 'partly', label: '多雲' };
             if (/晴/.test(text)) return { type: isNight ? 'clear-night' : 'clear', label: isNight ? '晴夜' : '晴朗' };
@@ -9670,6 +9724,7 @@ function toggleSettings(show) {
             if (label && label !== '--') parts.push(label);
             const tempRange = formatHomeTempRange(weather?.tempMin, weather?.tempMax);
             if (tempRange !== '--') parts.push(tempRange);
+            if (weather?.comfortSummary) parts.push(weather.comfortSummary);
             return parts.join(' · ') || '--';
         }
 
@@ -9682,7 +9737,7 @@ function toggleSettings(show) {
             return parts.join(' · ') || '--';
         }
 
-        function buildHomeObservationDisplay(observation) {
+        function buildHomeObservationDisplay(observation, forecastComfort) {
             if (!observation) return { main: '--', meta: '', metaCompact: '' };
             const visual = resolveHomeWeatherVisual({ observation });
             const mainParts = [];
@@ -9691,6 +9746,8 @@ function toggleSettings(show) {
             if (visual?.label) mainParts.push(visual.label);
             const tempText = formatHomeTempValue(observation.temp);
             if (tempText !== '--') mainParts.push(tempText);
+            const comfortText = normalizeHomeComfortText(forecastComfort);
+            if (comfortText) mainParts.push(comfortText);
             if (Number.isFinite(observation.humidity) && observation.humidity >= 0) {
                 const humidityText = `濕度${observation.humidity}%`;
                 metaParts.push(humidityText);
@@ -9894,6 +9951,31 @@ function toggleSettings(show) {
                                 <path d="M34 60l-4 10"/><path d="M48 62l-4 10"/><path d="M62 60l-4 10"/>
                             </g>
                         </svg>`;
+                case 'partly-rain':
+                    return `
+                        <svg viewBox="0 0 96 96" aria-hidden="true">
+                            <circle cx="58" cy="29" r="15" fill="${palette.sun}"/>
+                            <g stroke="${palette.sunStroke}" stroke-width="4" stroke-linecap="round">
+                                <path d="M58 8v8"/><path d="M36 29h8"/><path d="M72 29h8"/><path d="M42 13l6 6"/><path d="M70 47l6 6"/>
+                            </g>
+                            <ellipse cx="44" cy="50" rx="26" ry="15" fill="${palette.cloudDark}"/>
+                            <circle cx="29" cy="47" r="12" fill="${palette.cloudMid}"/>
+                            <circle cx="50" cy="41" r="15" fill="${palette.cloudLight}"/>
+                            <g stroke="${palette.rain}" stroke-width="4.5" stroke-linecap="round">
+                                <path d="M32 64l-4 9"/><path d="M48 66l-4 9"/><path d="M63 64l-4 9"/>
+                            </g>
+                        </svg>`;
+                case 'cloud-rain':
+                    return `
+                        <svg viewBox="0 0 96 96" aria-hidden="true">
+                            <ellipse cx="50" cy="40" rx="28" ry="16" fill="${palette.cloudDark}"/>
+                            <circle cx="34" cy="38" r="13" fill="${palette.cloudMid}"/>
+                            <circle cx="55" cy="32" r="16" fill="${palette.cloudLight}"/>
+                            <circle cx="69" cy="42" r="12" fill="${palette.cloudMid}"/>
+                            <g stroke="${palette.rain}" stroke-width="5" stroke-linecap="round">
+                                <path d="M30 60l-5 11"/><path d="M46 62l-5 11"/><path d="M62 60l-5 11"/><path d="M76 62l-5 11"/>
+                            </g>
+                        </svg>`;
                 case 'thunder':
                     return `
                         <svg viewBox="0 0 96 96" aria-hidden="true">
@@ -10004,11 +10086,11 @@ function toggleSettings(show) {
             const pointFill = isDark ? '#0F172A' : '#FFFFFF';
             const apparentColor = isDark ? '#FDBA74' : '#F97316';
             const width = 760;
-            const height = 334;
-            const left = 20;
-            const right = 20;
-            const top = 18;
-            const footerTop = 208;
+            const height = 396;
+            const left = 16;
+            const right = 16;
+            const top = 10;
+            const footerTop = 236;
             const footerBottom = height - 8;
             const plotBottom = footerTop - 20;
             const innerWidth = width - left - right;
@@ -10045,32 +10127,37 @@ function toggleSettings(show) {
             const pointsMarkup = pointData.map((point) => `
                 <g>
                     <circle cx="${point.x.toFixed(1)}" cy="${point.y.toFixed(1)}" r="4.8" fill="${pointFill}" stroke="#2563eb" stroke-width="2"/>
-                    <text x="${point.x.toFixed(1)}" y="${(point.y - 13).toFixed(1)}" text-anchor="middle" fill="${textMain}" font-size="11.5" font-weight="800">${point.temp == null ? '--' : `${point.temp}度`}</text>
+                    <text x="${point.x.toFixed(1)}" y="${(point.y + 18).toFixed(1)}" text-anchor="middle" fill="${textMain}" font-size="11.5" font-weight="800">${point.temp == null ? '--' : point.temp}</text>
                 </g>
             `).join('');
             const apparentPointsMarkup = pointData.filter((point) => Number.isFinite(point.apparentY)).map((point) => {
-                const labelY = point.apparentY <= point.y ? (point.apparentY - 10) : (point.apparentY + 14);
                 return `
                     <g>
                         <circle cx="${point.x.toFixed(1)}" cy="${point.apparentY.toFixed(1)}" r="3.2" fill="${isDark ? '#1E293B' : '#FFFFFF'}" stroke="${apparentColor}" stroke-width="1.6"/>
-                        <text x="${point.x.toFixed(1)}" y="${labelY.toFixed(1)}" text-anchor="middle" fill="${apparentColor}" font-size="10.5" font-weight="800">${point.apparentTemp == null ? '--' : `${point.apparentTemp}度`}</text>
+                        <text x="${point.x.toFixed(1)}" y="${(point.apparentY - 10).toFixed(1)}" text-anchor="middle" fill="${apparentColor}" font-size="10.5" font-weight="800">${point.apparentTemp == null ? '--' : point.apparentTemp}</text>
                     </g>
                 `;
             }).join('');
             const footerMarkup = pointData.map((point) => {
                 const dateY = footerTop + 10;
                 const hourY = footerTop + 32;
-                const iconY = footerTop + 38;
-                const rainY = footerTop + 84;
+                const iconY = footerTop + 39;
+                const rainY = footerTop + 83;
+                const windY = footerTop + 102;
+                const comfortY = footerTop + 120;
                 const dateText = point.dateLabel || ' ';
                 const rainText = point.rainProbability == null ? '--' : `${point.rainProbability}%`;
                 const rainColor = point.rainProbability >= 40 ? '#2563eb' : textMuted;
+                const windText = point.windLevel || '';
+                const comfortText = point.comfortText || '';
                 return `
                     <g>
                         <text x="${point.x.toFixed(1)}" y="${dateY}" text-anchor="middle" fill="${textMuted}" font-size="10" font-weight="700">${escapeHtml(dateText)}</text>
-                        <text x="${point.x.toFixed(1)}" y="${hourY}" text-anchor="middle" fill="${textMain}" font-size="19" font-weight="900">${escapeHtml(point.hourLabel)}</text>
-                        <svg x="${(point.x - 17).toFixed(1)}" y="${iconY.toFixed(1)}" width="34" height="34" viewBox="0 0 96 96" aria-hidden="true">${getHomeWeatherSvgInner(point.visualType)}</svg>
+                        <text x="${point.x.toFixed(1)}" y="${hourY}" text-anchor="middle" fill="${textMain}" font-size="17" font-weight="900">${escapeHtml(point.hourLabel)}</text>
+                        <svg x="${(point.x - 15).toFixed(1)}" y="${iconY.toFixed(1)}" width="30" height="30" viewBox="0 0 96 96" aria-hidden="true">${getHomeWeatherSvgInner(point.visualType)}</svg>
                         <text x="${point.x.toFixed(1)}" y="${rainY}" text-anchor="middle" fill="${rainColor}" font-size="12" font-weight="800">${rainText}</text>
+                        <text x="${point.x.toFixed(1)}" y="${windY}" text-anchor="middle" fill="${textMuted}" font-size="9.8" font-weight="800">${escapeHtml(windText)}</text>
+                        <text x="${point.x.toFixed(1)}" y="${comfortY}" text-anchor="middle" fill="${textMuted}" font-size="9.8" font-weight="800">${escapeHtml(comfortText)}</text>
                     </g>
                 `;
             }).join('');
@@ -10285,53 +10372,54 @@ function toggleSettings(show) {
             return records.find(item => String(item.stationId || '').trim() === id) || null;
         }
 
+        const HOME_CWA_WEATHER_CODE_LABELS = {
+            '01': '晴朗',
+            '02': '晴時多雲',
+            '03': '多雲時晴',
+            '04': '多雲',
+            '05': '多雲時陰',
+            '06': '陰時多雲',
+            '07': '陰天',
+            '08': '多雲陣雨',
+            '09': '多雲時陰陣雨',
+            '10': '陰時多雲陣雨',
+            '11': '陰有陣雨',
+            '12': '多雲短暫雨',
+            '13': '多雲時陰短暫雨',
+            '14': '陰時多雲短暫雨',
+            '15': '陰短暫雨',
+            '16': '多雲時晴短暫陣雨',
+            '17': '晴時多雲短暫陣雨',
+            '18': '多雲短暫陣雨',
+            '19': '多雲時陰短暫陣雨',
+            '20': '陰時多雲短暫陣雨',
+            '21': '陰短暫陣雨',
+            '22': '多雲時晴短暫雨',
+            '23': '晴時多雲短暫雨',
+            '24': '多雲短暫雨',
+            '25': '多雲時陰短暫雨',
+            '26': '陰時多雲短暫雨',
+            '27': '陰短暫雨',
+            '28': '多雲時晴短暫陣雨或雷雨',
+            '29': '晴時多雲短暫陣雨或雷雨',
+            '30': '多雲短暫陣雨或雷雨',
+            '31': '多雲時陰短暫陣雨或雷雨',
+            '32': '陰時多雲短暫陣雨或雷雨',
+            '33': '陰短暫陣雨或雷雨',
+            '34': '多雲時晴短暫雨或雷雨',
+            '35': '晴時多雲短暫雨或雷雨',
+            '36': '多雲短暫雨或雷雨',
+            '37': '多雲時陰短暫雨或雷雨',
+            '38': '陰時多雲短暫雨或雷雨',
+            '39': '陰短暫雨或雷雨',
+            '40': '陰時多雲有雨',
+            '41': '陰有雨',
+            '42': '陰有雷雨'
+        };
+
         function getHomeCwaWeatherCodeLabel(code) {
             const value = String(code || '').trim().padStart(2, '0');
-            const labels = {
-                '01': '晴朗',
-                '02': '晴時多雲',
-                '03': '多雲時晴',
-                '04': '多雲',
-                '05': '多雲時陰',
-                '06': '陰時多雲',
-                '07': '陰天',
-                '08': '陣雨',
-                '09': '雷雨',
-                '10': '陣雨',
-                '11': '雷陣雨',
-                '12': '陣雨',
-                '13': '雷陣雨',
-                '14': '陣雨',
-                '15': '雷陣雨',
-                '16': '陣雨',
-                '17': '雷陣雨',
-                '18': '陣雨',
-                '19': '雷陣雨',
-                '20': '陣雨',
-                '21': '雷陣雨',
-                '22': '陣雨',
-                '23': '雷陣雨',
-                '24': '陣雨',
-                '25': '雷陣雨',
-                '26': '陣雨',
-                '27': '雷陣雨',
-                '28': '陣雨',
-                '29': '雷陣雨',
-                '30': '陰有雨',
-                '31': '陰有雨',
-                '32': '陰有雨',
-                '33': '陰有雨',
-                '34': '陰有雨',
-                '35': '陰有雨',
-                '36': '陰有雨',
-                '37': '陰有雨',
-                '38': '陰有雨',
-                '39': '陰有雨',
-                '40': '陰有雨',
-                '41': '陰有雨',
-                '42': '下雪'
-            };
-            return labels[value] || '';
+            return HOME_CWA_WEATHER_CODE_LABELS[value] || '';
         }
 
         function getHomeCwaLocations(data) {
@@ -10423,6 +10511,8 @@ function toggleSettings(show) {
             const apparentElement = getHomeCwaElement(location, ['ApparentTemperature'], /體感溫度/);
             const rainElement = getHomeCwaElement(location, ['ProbabilityOfPrecipitation'], /降雨機率/);
             const weatherElement = getHomeCwaElement(location, ['Weather', 'WeatherCode'], /天氣現象/);
+            const windElement = getHomeCwaElement(location, ['BeaufortScale', 'WindSpeed'], /風速/);
+            const comfortElement = getHomeCwaElement(location, ['ComfortIndexDescription', 'ComfortIndex'], /舒適度/);
             const tempTimes = Array.isArray(tempElement?.Time) ? tempElement.Time : [];
             if (!tempTimes.length) return [];
 
@@ -10435,9 +10525,11 @@ function toggleSettings(show) {
             const apparentTimes = Array.isArray(apparentElement?.Time) ? apparentElement.Time : [];
             const rainTimes = Array.isArray(rainElement?.Time) ? rainElement.Time : [];
             const weatherTimes = Array.isArray(weatherElement?.Time) ? weatherElement.Time : [];
+            const windTimes = Array.isArray(windElement?.Time) ? windElement.Time : [];
+            const comfortTimes = Array.isArray(comfortElement?.Time) ? comfortElement.Time : [];
             const items = [];
             let lastDateLabel = '';
-            for (let idx = startIndex; idx < tempTimes.length && items.length < 8; idx += 3) {
+            for (let idx = startIndex; idx < tempTimes.length && items.length < 12; idx += 2) {
                 const timeItem = tempTimes[idx];
                 const timeMs = getHomeCwaTimeMs(timeItem);
                 if (timeMs == null) continue;
@@ -10450,6 +10542,10 @@ function toggleSettings(show) {
                 const weatherAtTime = findHomeCwaPeriodAt(weatherTimes, timeMs);
                 const weatherText = normalizeHomePlaceName(getHomeCwaElementValue(weatherAtTime, ['Weather']) || '');
                 const weatherCode = getHomeCwaElementValue(weatherAtTime, ['WeatherCode']);
+                const windAtTime = findHomeCwaPeriodAt(windTimes, timeMs);
+                const comfortAtTime = comfortTimes.find((item) => getHomeCwaTimeMs(item) === timeMs) || findHomeCwaPeriodAt(comfortTimes, timeMs);
+                const windLevel = formatHomeCwaWindLevel(getHomeCwaElementValue(windAtTime, ['BeaufortScale']));
+                const comfortText = normalizeHomeComfortText(getHomeCwaElementValue(comfortAtTime, ['ComfortIndexDescription']));
                 const visual = resolveHomeWeatherVisualText(weatherText || getHomeCwaWeatherCodeLabel(weatherCode), {
                     isNight: isHomeNightAtTime(timeMs)
                 });
@@ -10463,6 +10559,8 @@ function toggleSettings(show) {
                     temp: Number.isFinite(temp) ? Math.round(temp) : null,
                     apparentTemp: Number.isFinite(apparentTemp) ? Math.round(apparentTemp) : null,
                     rainProbability: Number.isFinite(rainProbability) ? Math.round(rainProbability) : null,
+                    windLevel,
+                    comfortText,
                     visualType: visual.type,
                     visualLabel: visual.label
                 });
@@ -10471,16 +10569,38 @@ function toggleSettings(show) {
         }
 
         function getHomeCwaForecastSummary(location, forecastItems) {
+            const tempElement = getHomeCwaElement(location, ['Temperature'], /^溫度$/);
             const weatherElement = getHomeCwaElement(location, ['Weather', 'WeatherCode'], /天氣現象/);
             const rainElement = getHomeCwaElement(location, ['ProbabilityOfPrecipitation'], /降雨機率/);
             const maxElement = getHomeCwaElement(location, ['MaxTemperature', 'MaxT'], /最高溫度/);
             const minElement = getHomeCwaElement(location, ['MinTemperature', 'MinT'], /最低溫度/);
+            const comfortElement = getHomeCwaElement(location, ['ComfortIndexDescription', 'ComfortIndex'], /舒適度/);
             const nowMs = Date.now();
+            const dayEndMs = nowMs + 24 * 60 * 60 * 1000;
             const currentWeather = findHomeCwaPeriodAt(Array.isArray(weatherElement?.Time) ? weatherElement.Time : [], nowMs);
             const currentRain = findHomeCwaPeriodAt(Array.isArray(rainElement?.Time) ? rainElement.Time : [], nowMs);
+            const comfortTimes = Array.isArray(comfortElement?.Time) ? comfortElement.Time : [];
+            const currentComfort = normalizeHomeComfortText(
+                getHomeCwaElementValue(findHomeCwaPeriodAt(comfortTimes, nowMs), ['ComfortIndexDescription'])
+            );
             const weatherText = normalizeHomePlaceName(getHomeCwaElementValue(currentWeather, ['Weather']) || '');
             const weatherCode = getHomeCwaElementValue(currentWeather, ['WeatherCode']);
-            const temps = (Array.isArray(forecastItems) ? forecastItems : []).map(item => Number(item.temp)).filter(Number.isFinite);
+            const tempTimes = Array.isArray(tempElement?.Time) ? tempElement.Time : [];
+            const temps = tempTimes
+                .filter((item) => {
+                    const timeMs = getHomeCwaTimeMs(item);
+                    return timeMs != null && timeMs >= nowMs && timeMs <= dayEndMs;
+                })
+                .map(item => Number(getHomeCwaElementValue(item, ['Temperature'])))
+                .filter(Number.isFinite);
+            const comfortSummary = summarizeHomeComfortTexts(
+                comfortTimes
+                    .filter((item) => {
+                        const timeMs = getHomeCwaTimeMs(item);
+                        return timeMs != null && timeMs >= nowMs && timeMs <= dayEndMs;
+                    })
+                    .map(item => getHomeCwaElementValue(item, ['ComfortIndexDescription']))
+            ) || summarizeHomeComfortTexts((Array.isArray(forecastItems) ? forecastItems : []).map(item => item.comfortText));
             const maxTemps = (Array.isArray(maxElement?.Time) ? maxElement.Time : [])
                 .slice(0, 2)
                 .map(item => Number(getHomeCwaElementValue(item, ['MaxTemperature', 'MaxT'])))
@@ -10494,6 +10614,8 @@ function toggleSettings(show) {
                 condition: weatherText || getHomeCwaWeatherCodeLabel(weatherCode) || '預報更新中',
                 tempMax: maxTemps.length ? Math.max(...maxTemps) : (temps.length ? Math.max(...temps) : null),
                 tempMin: minTemps.length ? Math.min(...minTemps) : (temps.length ? Math.min(...temps) : null),
+                currentComfort,
+                comfortSummary,
                 hourRainProbability: Number.isFinite(rainProbability) ? Math.round(rainProbability) : null,
                 hourRainAmount: null
             };
@@ -10606,7 +10728,9 @@ function toggleSettings(show) {
             const url = new URL(`${HOME_CWA_DATASTORE}/${HOME_CWA_TOWNSHIP_FORECAST_DATASET}`);
             url.searchParams.set('Authorization', HOME_CWA_AUTH);
             url.searchParams.set('format', 'JSON');
-            url.searchParams.set('elementName', '溫度,體感溫度,最高溫度,最低溫度,3小時降雨機率,天氣現象,天氣預報綜合描述');
+            url.searchParams.set('elementName', '溫度,體感溫度,最高溫度,最低溫度,舒適度指數,風速,3小時降雨機率,天氣現象,天氣預報綜合描述');
+            const targetTown = normalizeHomePlaceName(township?.townName || township?.villageName || '');
+            if (targetTown) url.searchParams.set('locationName', targetTown);
             const response = await fetch(url.toString());
             if (!response.ok) throw new Error(`weather ${response.status}`);
             const data = await response.json();
@@ -10809,7 +10933,7 @@ function toggleSettings(show) {
                 const visual = resolveHomeWeatherVisual({ observation, weather, alert });
                 const forecastText = buildHomeForecastText(weather, visual);
                 const rainText = buildHomeRainForecastText(weather);
-                const observationDisplay = buildHomeObservationDisplay(observation);
+                const observationDisplay = buildHomeObservationDisplay(observation, weather?.currentComfort);
                 const noticeParts = [];
                 let summaryTone = '';
                 if (alert?.tone === 'alert' && alert?.text) {
@@ -10841,6 +10965,8 @@ function toggleSettings(show) {
                     weatherObservationMeta: observationDisplay.meta || '',
                     weatherObservationMetaCompact: observationDisplay.metaCompact || '',
                     weatherObservationRainAmount: formatHomeRainAmount(observation?.precipitation),
+                    weatherCurrentComfort: weather?.currentComfort || '',
+                    weatherComfortSummary: weather?.comfortSummary || '',
                     uvIndex: resolveHomeUvIndex(observation, dailyUv),
                     weatherVisualType: visual?.type || (isHomeNightTime() ? 'clear-night' : 'partly'),
                     forecast24hItems: Array.isArray(weather?.forecast24hItems) ? weather.forecast24hItems : []
