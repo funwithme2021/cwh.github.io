@@ -9391,7 +9391,7 @@ function toggleSettings(show) {
             const num = Number(value);
             if (!Number.isFinite(num) || num <= -90) return '--';
             const rounded = Math.round(num * 10) / 10;
-            return `${Number.isInteger(rounded) ? rounded : rounded.toFixed(1)}度`;
+            return `${rounded.toFixed(1)}度`;
         }
 
         function normalizeHomeCompareSymbols(value) {
@@ -9461,6 +9461,7 @@ function toggleSettings(show) {
         function formatHomeCwaWindLevel(value) {
             const text = normalizeHomeCompareSymbols(value).trim().replace(/\s+/g, '');
             if (!text || text === '--') return '';
+            if (/級$/u.test(text)) return text;
             return `${text}級`;
         }
 
@@ -9769,30 +9770,49 @@ function toggleSettings(show) {
             return parts.join(' · ') || '--';
         }
 
-        function buildHomeObservationDisplay(observation, forecastComfort) {
-            if (!observation) return { main: '--', meta: '', metaCompact: '' };
-            const visual = resolveHomeWeatherVisual({ observation });
+        function buildHomeObservationDisplay(observation, forecastComfort, weatherFallback = null) {
+            const hasObservation = !!observation;
+            if (!hasObservation && !weatherFallback) return { main: '--', meta: '', metaCompact: '' };
+            const visual = resolveHomeWeatherVisual({ observation, weather: weatherFallback });
             const mainParts = [];
             const metaParts = [];
             const metaCompactParts = [];
-            if (visual?.label) mainParts.push(visual.label);
-            const tempText = formatHomeTempValue(observation.temp);
+            const label = normalizeHomePlaceName(observation?.weather || weatherFallback?.condition || visual?.label || '');
+            const tempValue = Number.isFinite(Number(observation?.temp))
+                ? Number(observation.temp)
+                : (Number.isFinite(Number(weatherFallback?.currentTemp)) ? Number(weatherFallback.currentTemp) : null);
+            const apparentValue = Number.isFinite(Number(weatherFallback?.currentApparentTemp))
+                ? Number(weatherFallback.currentApparentTemp)
+                : null;
+            if (label && label !== '--' && label !== '預報更新中') mainParts.push(label);
+            const tempText = formatHomeTempValue(tempValue);
             if (tempText !== '--') mainParts.push(tempText);
-            const comfortText = normalizeHomeComfortText(forecastComfort) || describeHomeComfort(observation.temp, null);
+            const comfortText = normalizeHomeComfortText(forecastComfort || weatherFallback?.currentComfort) || describeHomeComfort(tempValue, apparentValue);
             if (comfortText) mainParts.push(comfortText);
-            if (Number.isFinite(observation.humidity) && observation.humidity >= 0) {
-                const humidityText = `濕度${observation.humidity}%`;
+            const humidityValue = Number.isFinite(Number(observation?.humidity))
+                ? Number(observation.humidity)
+                : (Number.isFinite(Number(weatherFallback?.currentHumidity)) ? Number(weatherFallback.currentHumidity) : null);
+            if (Number.isFinite(humidityValue) && humidityValue >= 0) {
+                const humidityText = `濕度${Math.round(humidityValue)}%`;
                 metaParts.push(humidityText);
                 metaCompactParts.push(humidityText);
             }
-            const windText = formatHomeWindSpeed(observation.windSpeed);
-            const windLevel = getHomeWindLevel(observation.windSpeed);
+            const windValue = Number.isFinite(Number(observation?.windSpeed))
+                ? Number(observation.windSpeed)
+                : (Number.isFinite(Number(weatherFallback?.currentWindSpeed)) ? Number(weatherFallback.currentWindSpeed) : null);
+            const windText = formatHomeWindSpeed(windValue);
+            const windLevel = getHomeWindLevel(windValue);
+            const fallbackWindLevel = formatHomeCwaWindLevel(weatherFallback?.currentWindLevel);
             if (windText) {
                 metaParts.push(`風速${windText}${windLevel == null ? '' : ` (${windLevel}級)`}`);
                 metaCompactParts.push(windLevel == null ? `風速${windText}` : `風速${windLevel}級`);
+            } else if (fallbackWindLevel) {
+                metaParts.push(`風速${fallbackWindLevel}`);
+                metaCompactParts.push(`風速${fallbackWindLevel}`);
             }
-            const gustText = formatHomeWindSpeed(observation.windGust);
-            const gustLevel = getHomeWindLevel(observation.windGust);
+            const gustValue = Number.isFinite(Number(observation?.windGust)) ? Number(observation.windGust) : null;
+            const gustText = formatHomeWindSpeed(gustValue);
+            const gustLevel = getHomeWindLevel(gustValue);
             if (gustText) {
                 metaParts.push(`陣風${gustText}${gustLevel == null ? '' : ` (${gustLevel}級)`}`);
                 metaCompactParts.push(gustLevel == null ? `陣風${gustText}` : `陣風${gustLevel}級`);
@@ -10336,7 +10356,53 @@ function toggleSettings(show) {
             return response.json();
         }
 
-        async function fetchHomeObservation(lat, lon) {
+        function normalizeHomeObservationStation(station, lat, lon) {
+            const coords = getHomeObservationCoords(station);
+            if (!coords) return null;
+            const geoInfo = getHomeObservationGeoInfo(station);
+            const weatherElement = getHomeObservationWeatherElement(station);
+            const nowElement = getHomeCwaField(weatherElement, ['Now']) || {};
+            const temp = extractHomeNumericValue(getHomeObservationValue(station, ['AirTemperature', 'Temperature', 'TEMP']));
+            const humidity = extractHomeNumericValue(getHomeObservationValue(station, ['RelativeHumidity', 'HUMD']));
+            const precipitation = extractHomeNumericValue(
+                getHomeCwaField(nowElement, ['Precipitation']) ??
+                getHomeObservationValue(station, ['Precipitation', 'H_24R'])
+            );
+            const windSpeed = extractHomeNumericValue(getHomeObservationValue(station, ['WindSpeed', 'WDSD']));
+            const windGust = extractHomeObservationWindGust(weatherElement);
+            const uvIndex = extractHomeNumericValue(getHomeObservationValue(station, ['UVIndex', 'UVI']));
+            const obsTime = getHomeCwaField(getHomeCwaField(station, ['ObsTime']) || {}, ['DateTime'])
+                || getHomeCwaField(station, ['DateTime', 'ObsTime', 'time']);
+            return {
+                stationId: String(getHomeCwaField(station, ['StationID', 'StationId']) || '').trim(),
+                stationName: normalizeHomePlaceName(getHomeCwaField(station, ['StationName', 'LocationName']) || ''),
+                countyName: normalizeHomePlaceName(getHomeCwaField(geoInfo, ['CountyName']) || getHomeCwaField(station, ['CountyName', 'CITY']) || ''),
+                townName: normalizeHomePlaceName(getHomeCwaField(geoInfo, ['TownName']) || getHomeCwaField(station, ['TownName', 'TOWN']) || ''),
+                weather: normalizeHomePlaceName(getHomeObservationValue(station, ['Weather']) || ''),
+                temp: Number.isFinite(temp) && temp > -90 ? temp : null,
+                humidity: Number.isFinite(humidity) && humidity >= 0 ? Math.round(humidity) : null,
+                windSpeed: Number.isFinite(windSpeed) && windSpeed >= 0 ? windSpeed : null,
+                windGust: Number.isFinite(windGust) && windGust >= 0 ? windGust : null,
+                uvIndex: Number.isFinite(uvIndex) && uvIndex >= 0 ? uvIndex : null,
+                precipitation: Number.isFinite(precipitation) && precipitation >= 0 ? precipitation : null,
+                time: obsTime || '',
+                distance: Math.hypot(coords.lat - lat, coords.lon - lon)
+            };
+        }
+
+        function hasHomeObservationValue(item, field) {
+            if (!item) return false;
+            if (field === 'weather') return !!item.weather;
+            return Number.isFinite(Number(item[field]));
+        }
+
+        function pickHomeObservationField(base, candidates, field) {
+            if (hasHomeObservationValue(base, field)) return base[field];
+            const match = candidates.find(item => hasHomeObservationValue(item, field));
+            return match ? match[field] : (field === 'weather' ? '' : null);
+        }
+
+        async function fetchHomeObservation(lat, lon, township = null) {
             let data = null;
             let lastError = null;
             for (const type of ['rest', 'file']) {
@@ -10352,50 +10418,28 @@ function toggleSettings(show) {
             const stations = getHomeObservationStations(data);
             if (!stations.length) return null;
 
-            let nearest = null;
-            let minDist = Infinity;
-            stations.forEach((station) => {
-                const coords = getHomeObservationCoords(station);
-                if (!coords) return;
-                const tempValue = extractHomeNumericValue(getHomeObservationValue(station, ['AirTemperature', 'Temperature', 'TEMP']));
-                if (!Number.isFinite(tempValue) || tempValue <= -90) return;
-                const dist = Math.hypot(coords.lat - lat, coords.lon - lon);
-                if (dist < minDist) {
-                    minDist = dist;
-                    nearest = station;
-                }
-            });
-
+            const parsed = stations
+                .map(station => normalizeHomeObservationStation(station, lat, lon))
+                .filter(Boolean)
+                .sort((a, b) => a.distance - b.distance);
+            if (!parsed.length) return null;
+            const targetCounty = normalizeHomeTownshipKeyPart(township?.countyName || '');
+            const sameCounty = targetCounty
+                ? parsed.filter(item => normalizeHomeTownshipKeyPart(item.countyName) === targetCounty)
+                : [];
+            const fillPool = (sameCounty.length ? sameCounty : parsed).sort((a, b) => a.distance - b.distance);
+            const nearest = fillPool.find(item => hasHomeObservationValue(item, 'temp')) || fillPool[0] || parsed[0];
             if (!nearest) return null;
 
-            const geoInfo = getHomeObservationGeoInfo(nearest);
-            const weatherElement = getHomeObservationWeatherElement(nearest);
-            const nowElement = getHomeCwaField(weatherElement, ['Now']) || {};
-            const humidity = extractHomeNumericValue(getHomeObservationValue(nearest, ['RelativeHumidity', 'HUMD']));
-            const precipitation = extractHomeNumericValue(
-                getHomeCwaField(nowElement, ['Precipitation']) ??
-                getHomeObservationValue(nearest, ['Precipitation', 'H_24R'])
-            );
-            const windSpeed = extractHomeNumericValue(getHomeObservationValue(nearest, ['WindSpeed', 'WDSD']));
-            const windGust = extractHomeObservationWindGust(weatherElement);
-            const uvIndex = extractHomeNumericValue(getHomeObservationValue(nearest, ['UVIndex', 'UVI']));
-            const temp = extractHomeNumericValue(getHomeObservationValue(nearest, ['AirTemperature', 'Temperature', 'TEMP']));
-            const obsTime = getHomeCwaField(getHomeCwaField(nearest, ['ObsTime']) || {}, ['DateTime'])
-                || getHomeCwaField(nearest, ['DateTime', 'ObsTime', 'time']);
-
             return {
-                stationId: String(getHomeCwaField(nearest, ['StationID', 'StationId']) || '').trim(),
-                stationName: normalizeHomePlaceName(getHomeCwaField(nearest, ['StationName', 'LocationName']) || ''),
-                countyName: normalizeHomePlaceName(getHomeCwaField(geoInfo, ['CountyName']) || getHomeCwaField(nearest, ['CountyName', 'CITY']) || ''),
-                townName: normalizeHomePlaceName(getHomeCwaField(geoInfo, ['TownName']) || getHomeCwaField(nearest, ['TownName', 'TOWN']) || ''),
-                weather: normalizeHomePlaceName(getHomeObservationValue(nearest, ['Weather']) || ''),
-                temp,
-                humidity: Number.isFinite(humidity) && humidity >= 0 ? Math.round(humidity) : null,
-                windSpeed: Number.isFinite(windSpeed) && windSpeed >= 0 ? windSpeed : null,
-                windGust: Number.isFinite(windGust) && windGust >= 0 ? windGust : null,
-                uvIndex: Number.isFinite(uvIndex) && uvIndex >= 0 ? uvIndex : null,
-                precipitation: Number.isFinite(precipitation) && precipitation >= 0 ? precipitation : null,
-                time: obsTime || ''
+                ...nearest,
+                weather: normalizeHomePlaceName(pickHomeObservationField(nearest, fillPool, 'weather') || ''),
+                temp: pickHomeObservationField(nearest, fillPool, 'temp'),
+                humidity: pickHomeObservationField(nearest, fillPool, 'humidity'),
+                windSpeed: pickHomeObservationField(nearest, fillPool, 'windSpeed'),
+                windGust: pickHomeObservationField(nearest, fillPool, 'windGust'),
+                uvIndex: pickHomeObservationField(nearest, fillPool, 'uvIndex'),
+                precipitation: pickHomeObservationField(nearest, fillPool, 'precipitation')
             };
         }
 
@@ -10635,6 +10679,7 @@ function toggleSettings(show) {
             const wants = (pattern) => keys.some((key) => pattern.test(key));
             if ((/^T$/i.test(elementName) || elementName === '溫度') && wants(/^Temperature$/)) return genericValues[0];
             if ((/^AT$/i.test(elementName) || /體感溫度/.test(elementName)) && wants(/ApparentTemperature/)) return genericValues[0];
+            if ((/^RH$/i.test(elementName) || /相對濕度|濕度/.test(elementName)) && wants(/RelativeHumidity/)) return genericValues[0];
             if ((/^PoP/i.test(elementName) || /降雨機率/.test(elementName)) && wants(/ProbabilityOfPrecipitation/)) return genericValues[0];
             if ((/^WS$/i.test(elementName) || /風速|風級|蒲福/.test(elementName)) && wants(/BeaufortScale|WindSpeed/)) return genericValues[0];
             if ((/^Wx$/i.test(elementName) || /天氣現象/.test(elementName)) && wants(/^Weather$/)) {
@@ -10694,6 +10739,7 @@ function toggleSettings(show) {
             const weatherElement = getHomeCwaElement(location, ['Weather', 'WeatherCode'], /天氣現象/);
             const windElement = getHomeCwaElement(location, ['BeaufortScale', 'WindSpeed'], /風速/);
             const comfortElement = getHomeCwaElement(location, ['ComfortIndexDescription', 'ComfortIndex'], /舒適度/);
+            const humidityElement = getHomeCwaElement(location, ['RelativeHumidity'], /相對濕度|濕度/);
             const tempTimes = getHomeCwaTimes(tempElement);
             if (!tempTimes.length) return [];
 
@@ -10708,6 +10754,7 @@ function toggleSettings(show) {
             const weatherTimes = getHomeCwaTimes(weatherElement);
             const windTimes = getHomeCwaTimes(windElement);
             const comfortTimes = getHomeCwaTimes(comfortElement);
+            const humidityTimes = getHomeCwaTimes(humidityElement);
             const items = [];
             let lastDateLabel = '';
             for (let idx = startIndex; idx < tempTimes.length && items.length < 12; idx += 2) {
@@ -10725,8 +10772,10 @@ function toggleSettings(show) {
                 const weatherCode = getHomeCwaElementValue(weatherAtTime, ['WeatherCode'], weatherElement);
                 const windAtTime = findHomeCwaPeriodAt(windTimes, timeMs);
                 const comfortAtTime = comfortTimes.find((item) => getHomeCwaTimeMs(item) === timeMs) || findHomeCwaPeriodAt(comfortTimes, timeMs);
+                const humidityAtTime = humidityTimes.find((item) => getHomeCwaTimeMs(item) === timeMs) || findHomeCwaPeriodAt(humidityTimes, timeMs);
                 const windLevel = formatHomeCwaWindLevel(getHomeCwaElementValue(windAtTime, ['BeaufortScale'], windElement));
                 const comfortText = normalizeHomeComfortText(getHomeCwaElementValue(comfortAtTime, ['ComfortIndexDescription'], comfortElement));
+                const humidity = Number(getHomeCwaElementValue(humidityAtTime, ['RelativeHumidity'], humidityElement));
                 const visual = resolveHomeWeatherVisualText(weatherText || getHomeCwaWeatherCodeLabel(weatherCode), {
                     isNight: isHomeNightAtTime(timeMs)
                 });
@@ -10739,6 +10788,7 @@ function toggleSettings(show) {
                     hourLabel: formatHomeForecastHourLabel(date),
                     temp: Number.isFinite(temp) ? Math.round(temp) : null,
                     apparentTemp: Number.isFinite(apparentTemp) ? Math.round(apparentTemp) : null,
+                    humidity: Number.isFinite(humidity) ? Math.round(humidity) : null,
                     rainProbability: Number.isFinite(rainProbability) ? Math.round(rainProbability) : null,
                     windLevel,
                     comfortText,
@@ -10756,16 +10806,28 @@ function toggleSettings(show) {
             const maxElement = getHomeCwaElement(location, ['MaxTemperature', 'MaxT'], /最高溫度/);
             const minElement = getHomeCwaElement(location, ['MinTemperature', 'MinT'], /最低溫度/);
             const comfortElement = getHomeCwaElement(location, ['ComfortIndexDescription', 'ComfortIndex'], /舒適度/);
+            const apparentElement = getHomeCwaElement(location, ['ApparentTemperature'], /體感溫度/);
+            const humidityElement = getHomeCwaElement(location, ['RelativeHumidity'], /相對濕度|濕度/);
+            const windElement = getHomeCwaElement(location, ['BeaufortScale', 'WindSpeed'], /風速/);
             const nowMs = Date.now();
             const dayEndMs = nowMs + 24 * 60 * 60 * 1000;
             const currentWeather = findHomeCwaPeriodAt(getHomeCwaTimes(weatherElement), nowMs);
             const currentRain = findHomeCwaPeriodAt(getHomeCwaTimes(rainElement), nowMs);
+            const currentTempItem = findHomeCwaPeriodAt(getHomeCwaTimes(tempElement), nowMs);
+            const currentApparentItem = findHomeCwaPeriodAt(getHomeCwaTimes(apparentElement), nowMs);
+            const currentHumidityItem = findHomeCwaPeriodAt(getHomeCwaTimes(humidityElement), nowMs);
+            const currentWindItem = findHomeCwaPeriodAt(getHomeCwaTimes(windElement), nowMs);
             const comfortTimes = getHomeCwaTimes(comfortElement);
             const currentComfort = normalizeHomeComfortText(
                 getHomeCwaElementValue(findHomeCwaPeriodAt(comfortTimes, nowMs), ['ComfortIndexDescription'], comfortElement)
             );
             const weatherText = normalizeHomePlaceName(getHomeCwaElementValue(currentWeather, ['Weather'], weatherElement) || '');
             const weatherCode = getHomeCwaElementValue(currentWeather, ['WeatherCode'], weatherElement);
+            const currentTemp = Number(getHomeCwaElementValue(currentTempItem, ['Temperature'], tempElement));
+            const currentApparentTemp = Number(getHomeCwaElementValue(currentApparentItem, ['ApparentTemperature'], apparentElement));
+            const currentHumidity = Number(getHomeCwaElementValue(currentHumidityItem, ['RelativeHumidity'], humidityElement));
+            const currentWindSpeed = Number(getHomeCwaElementValue(currentWindItem, ['WindSpeed'], windElement));
+            const currentWindLevel = formatHomeCwaWindLevel(getHomeCwaElementValue(currentWindItem, ['BeaufortScale'], windElement));
             const tempTimes = getHomeCwaTimes(tempElement);
             const temps = tempTimes
                 .filter((item) => {
@@ -10793,6 +10855,11 @@ function toggleSettings(show) {
             const rainProbability = Number(getHomeCwaElementValue(currentRain, ['ProbabilityOfPrecipitation'], rainElement));
             return {
                 condition: weatherText || getHomeCwaWeatherCodeLabel(weatherCode) || '預報更新中',
+                currentTemp: Number.isFinite(currentTemp) ? Math.round(currentTemp * 10) / 10 : (forecastItems?.[0]?.temp ?? null),
+                currentApparentTemp: Number.isFinite(currentApparentTemp) ? Math.round(currentApparentTemp * 10) / 10 : (forecastItems?.[0]?.apparentTemp ?? null),
+                currentHumidity: Number.isFinite(currentHumidity) ? Math.round(currentHumidity) : (forecastItems?.[0]?.humidity ?? null),
+                currentWindSpeed: Number.isFinite(currentWindSpeed) ? currentWindSpeed : null,
+                currentWindLevel: currentWindLevel || forecastItems?.[0]?.windLevel || '',
                 tempMax: maxTemps.length ? Math.max(...maxTemps) : (temps.length ? Math.max(...temps) : null),
                 tempMin: minTemps.length ? Math.min(...minTemps) : (temps.length ? Math.min(...temps) : null),
                 currentComfort,
@@ -10926,7 +10993,7 @@ function toggleSettings(show) {
                 url.searchParams.set('Authorization', HOME_CWA_AUTH);
                 url.searchParams.set('format', 'JSON');
                 if (item.type === 'rest') {
-                    url.searchParams.set('elementName', '溫度,體感溫度,舒適度指數,風速,3小時降雨機率,天氣現象,天氣預報綜合描述');
+                    url.searchParams.set('elementName', '溫度,體感溫度,舒適度指數,相對濕度,風速,3小時降雨機率,天氣現象,天氣預報綜合描述');
                     if (item.useTown && targetTown) url.searchParams.set('locationName', targetTown);
                 }
                 return { ...item, url };
@@ -11114,7 +11181,7 @@ function toggleSettings(show) {
                 }
                 const [weatherResult, observationResult, earthquakeResult] = await Promise.allSettled([
                     fetchHomeWeatherForecast(lat, lon, township),
-                    fetchHomeObservation(lat, lon),
+                    fetchHomeObservation(lat, lon, township),
                     fetchHomeLatestEarthquake()
                 ]);
 
@@ -11147,7 +11214,7 @@ function toggleSettings(show) {
                 const visual = resolveHomeWeatherVisual({ observation, weather, alert });
                 const forecastText = buildHomeForecastText(weather, visual);
                 const rainText = buildHomeRainForecastText(weather);
-                const observationDisplay = buildHomeObservationDisplay(observation, weather?.currentComfort);
+                const observationDisplay = buildHomeObservationDisplay(observation, weather?.currentComfort, weather);
                 const noticeParts = [];
                 let summaryTone = '';
                 if (alert?.tone === 'alert' && alert?.text) {
