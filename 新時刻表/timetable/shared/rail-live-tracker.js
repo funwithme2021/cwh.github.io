@@ -1956,6 +1956,9 @@
       `;
       map.appendChild(marker);
     }
+    if (state.userLocationMarker && state.userLocationMarker !== marker && !state.userLocationMarker.isConnected) {
+      state.userLocationMarker = null;
+    }
     state.userLocationMarker = marker;
     return marker;
   }
@@ -1963,13 +1966,19 @@
   function updateUserLocationMarker(state) {
     const map = state.output.querySelector(".rail-live-map");
     const stations = state.segment?.stations || [];
-    const marker = state.userLocationMarker || map?.querySelector(".rail-live-user-location") || ensureUserLocationMarker(state);
+    const marker = map?.querySelector(".rail-live-user-location") || ensureUserLocationMarker(state);
     if (!map || !marker || !stations.length) return;
     if (!state.userLocationEnabled) {
       marker.hidden = true;
       return;
     }
-    const projection = projectUserLocationToRoute(state);
+    let projection = projectUserLocationToRoute(state);
+    const isFreshProjection = Boolean(projection);
+    if (projection) {
+      state.userLocationLastProjection = { ...projection, segmentId: state.segment?.id || "" };
+    } else if (state.userLocationLastProjection?.segmentId === (state.segment?.id || "")) {
+      projection = state.userLocationLastProjection;
+    }
     if (!projection) {
       marker.hidden = true;
       return;
@@ -1978,6 +1987,7 @@
     const mapHeight = map.clientHeight || getBoardHeight(stations);
     marker.hidden = false;
     marker.classList.toggle("is-far", projection.isFar);
+    marker.classList.toggle("is-stale", !isFreshProjection);
     marker.style.top = `${getBoardY(projection.positionIndex, denominator, mapHeight)}px`;
     marker.title = projection.title;
     const label = marker.querySelector(".rail-live-user-label");
@@ -2036,6 +2046,7 @@
       }
     }
     state.userLocationWatchId = null;
+    state.userLocationLastProjection = null;
     if (state.userLocationMarker) state.userLocationMarker.hidden = true;
   }
 
@@ -3034,6 +3045,7 @@
       userLocationEnabled: readUserLocationEnabled(),
       userLocationWatchId: null,
       userLocationMarker: null,
+      userLocationLastProjection: null,
       runRender: null,
       animationFrame: 0,
       animationScopeKey: "",

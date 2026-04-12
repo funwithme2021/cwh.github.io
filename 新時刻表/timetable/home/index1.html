@@ -4858,7 +4858,7 @@ select.setting-input[id*="pick"] {
                                 <strong class="hero-glance-name" id="heroLocationName">等待定位</strong>
                             </div>
                         </div>
-                        <button class="hero-glance-refresh" id="heroLocationRefreshBtn" type="button" onclick="refreshHomeLocationWeather({ prompt: true })">
+                        <button class="hero-glance-refresh" id="heroLocationRefreshBtn" type="button" onclick="refreshHomeLocationWeather({ prompt: true, force: true })">
                             <span class="hero-refresh-full">更新位置</span>
                             <span class="hero-refresh-short">更新</span>
                         </button>
@@ -5857,7 +5857,7 @@ select.setting-input[id*="pick"] {
         const HOME_LOCATION_CACHE_KEY = 'home_location_weather_v8';
         const HOME_SHARED_GEO_KEY = 'home_shared_geo_snapshot_v1';
         const HOME_LOCATION_WEATHER_STALE_MS = 15 * 60 * 1000;
-        const HOME_LOCATION_WEATHER_MOVE_METERS = 500;
+        const HOME_LOCATION_WEATHER_MOVE_METERS = 1000;
         const HOME_NEARBY_RAIL_STATUS_STALE_MS = 2 * 60 * 1000;
         const UI_TEXT_SCALE_KEY = 'ui_text_scale_v1';
         let homeGeoWatchId = null;
@@ -6516,30 +6516,110 @@ select.setting-input[id*="pick"] {
             const trStation = getNearestHomeSystemStation('tr', lat, lon);
             const thsrStation = getNearestHomeSystemStation('thsr', lat, lon);
 
-            if (trStation?.id) {
+            const normalizeDelayStationId = (value) => {
+                const text = String(value || '').trim();
+                if (!text) return '';
+                return /^\d+$/.test(text) ? String(Number(text)) : text.toUpperCase();
+            };
+            const normalizeDelayStationName = (value) => normalizeHomeDisplayText(value).replace(/\s+/g, '').replace(/台/g, '臺');
+            const getLiveBoardStationName = (row) => {
+                const source = row?.StationName || row?.Station?.StationName || {};
+                if (typeof source === 'string') return source;
+                return source?.Zh_tw || source?.ZhTw || source?.zh_tw || source?.Name || '';
+            };
+            const getLiveBoardDelayMinutes = (row) => {
+                const candidates = [
+                    row?.DelayTime,
+                    row?.DelayMinute,
+                    row?.DelayMinutes,
+                    row?.TrainDelay,
+                    row?.Delay,
+                    row?.Status
+                ];
+                for (const candidate of candidates) {
+                    if (candidate == null) continue;
+                    const direct = Number(candidate);
+                    if (Number.isFinite(direct)) return direct;
+                    const match = String(candidate).match(/(?:晚|延誤)?\s*(\d+(?:\.\d+)?)/);
+                    if (match) {
+                        const value = Number(match[1]);
+                        if (Number.isFinite(value)) return value;
+                    }
+                }
+                return 0;
+            };
+            const getNearbyDelayStations = (system, station) => {
+                if (!station) return [];
+                const stationLat = Number(station.lat);
+                const stationLon = Number(station.lon);
+                const maxMeters = system === 'thsr' ? 12000 : 6000;
+                const nearby = (Array.isArray(stationDB[system]) ? stationDB[system] : [])
+                    .map(item => ({
+                        ...item,
+                        distance: getHomeGeoDistanceMeters(
+                            { latitude: stationLat, longitude: stationLon },
+                            { latitude: Number(item.lat), longitude: Number(item.lon) }
+                        )
+                    }))
+                    .filter(item => Number.isFinite(item.distance) && item.distance <= maxMeters)
+                    .sort((a, b) => a.distance - b.distance)
+                    .slice(0, system === 'thsr' ? 2 : 4);
+                return uniqueTexts([station.name, ...nearby.map(item => item.name)])
+                    .map(name => nearby.find(item => item.name === name) || (name === station.name ? station : null))
+                    .filter(Boolean);
+            };
+            const rowMatchesDelayStation = (row, stationCandidates) => {
+                const rowId = normalizeDelayStationId(row?.StationID || row?.Station?.StationID);
+                const rowName = normalizeDelayStationName(getLiveBoardStationName(row));
+                return stationCandidates.some(candidate => {
+                    const stationId = normalizeDelayStationId(candidate?.id);
+                    const stationName = normalizeDelayStationName(candidate?.name);
+                    return (rowId && stationId && rowId === stationId) || (rowName && stationName && rowName === stationName);
+                });
+            };
+
+            const buildStationDelayText = async (system, station) => {
+                if (!station?.id) return '';
+                const systemLabel = system === 'thsr' ? '高鐵' : '臺鐵';
+                const endpoint = system === 'thsr'
+                    ? 'https://tdx.transportdata.tw/api/basic/v2/Rail/THSR/StationLiveBoard?%24format=JSON'
+                    : 'https://tdx.transportdata.tw/api/basic/v3/Rail/TRA/StationLiveBoard?%24format=JSON';
                 try {
-                    const res = await fetch('https://tdx.transportdata.tw/api/basic/v3/Rail/TRA/StationLiveBoard?%24format=JSON', { headers });
+                    const res = await fetch(endpoint, { headers });
                     if (res.ok) {
                         const data = await res.json();
-                        const rows = Array.isArray(data?.StationLiveBoards) ? data.StationLiveBoards : [];
-                        const stationRows = rows.filter(row => String(row?.StationID || '').trim() === String(trStation.id || '').trim());
+                        const rows = Array.isArray(data?.StationLiveBoards)
+                            ? data.StationLiveBoards
+                            : (Array.isArray(data?.StationLiveBoard) ? data.StationLiveBoard : []);
+                        const stationCandidates = getNearbyDelayStations(system, station);
+                        const stationRows = rows.filter(row => rowMatchesDelayStation(row, stationCandidates));
                         const delays = stationRows
-                            .map(row => Number(row?.DelayTime))
+                            .map(getLiveBoardDelayMinutes)
                             .filter(value => Number.isFinite(value) && value > 0);
                         const maxDelay = delays.length ? Math.max(...delays) : 0;
                         if (stationRows.length && delays.length) {
-                            parts.push(`臺鐵${normalizeHomeDisplayText(trStation.name)}站近 ${stationRows.length} 筆進站資料中 ${delays.length} 班延誤，最高約 ${Math.round(maxDelay)} 分`);
+                            const avgDelay = delays.reduce((sum, value) => sum + value, 0) / delays.length;
+                            const delayRatio = delays.length / stationRows.length;
+                            const levelText = delayRatio >= 0.5
+                                ? '延誤比例偏高'
+                                : delays.length >= 3
+                                    ? '多班延誤'
+                                    : '部分班次延誤';
+                            const adviceText = delayRatio >= 0.4 || delays.length >= 3 || maxDelay >= 10
+                                ? '建議提早 10 到 15 分鐘到站，轉乘不要壓線'
+                                : '建議預留轉乘時間';
+                            return `${systemLabel}${normalizeHomeDisplayText(station.name)}站周邊列車${levelText}，平均約延誤 ${Math.max(1, Math.round(avgDelay))} 分，${adviceText}`;
                         }
                     }
                 } catch (e) { }
-            }
+                return '';
+            };
 
-            if (thsrStation?.name) {
-                const thsrAlerts = Array.isArray(systemAlertState.thsr) ? systemAlertState.thsr : [];
-                if (thsrAlerts.length) {
-                    parts.push(`高鐵${normalizeHomeDisplayText(thsrStation.name)}站請留意高鐵營運異常公告`);
-                }
-            }
+            const delayTexts = await Promise.all([
+                buildStationDelayText('tr', trStation),
+                buildStationDelayText('thsr', thsrStation)
+            ]);
+            parts.push(...delayTexts.filter(Boolean));
 
             return uniqueTexts(parts).join('；');
         }
@@ -6550,7 +6630,7 @@ select.setting-input[id*="pick"] {
             const lon = Number(snap?.lon);
             if (!Number.isFinite(lat) || !Number.isFinite(lon) || homeNearbyRailStatusLoading) return;
             const key = `${Math.round(lat * 1000)}:${Math.round(lon * 1000)}`;
-            if (homeNearbyRailStatusCache.key === key && Date.now() - (Number(homeNearbyRailStatusCache.ts) || 0) < HOME_NEARBY_RAIL_STATUS_STALE_MS) return;
+            if (homeNearbyRailStatusCache.text && homeNearbyRailStatusCache.key === key && Date.now() - (Number(homeNearbyRailStatusCache.ts) || 0) < HOME_NEARBY_RAIL_STATUS_STALE_MS) return;
             homeNearbyRailStatusLoading = true;
             fetchHomeNearbyRailStatus(snap).then((text) => {
                 homeNearbyRailStatusCache = {
@@ -6570,7 +6650,7 @@ select.setting-input[id*="pick"] {
                 return {
                     summary: '出門提醒',
                     tone: 'normal',
-                    text: '完成定位後，這裡會整合所在地天氣、警特報、地震與附近臺鐵/高鐵狀態。'
+                    text: '完成定位後，這裡會整合所在地天氣、警特報與地震資訊。'
                 };
             }
 
@@ -6587,23 +6667,46 @@ select.setting-input[id*="pick"] {
             if (rainText && rainText !== '--') weatherBits.push(`未來 1 小時降雨 ${rainText}`);
 
             const weatherAdvice = buildHomeWeatherAdviceParts(snapshot);
-            const abnormalRail = uniqueTexts([
-                ...trAlerts.map(msg => `臺鐵${msg}`),
-                ...thsrAlerts.map(msg => `高鐵${msg}`)
-            ]);
             const nearbyRailText = getHomeNearbyRailCacheText(snapshot);
-            const railNeedsCaution = abnormalRail.length || /延誤|停駛|取消|異常|受阻|中斷|影響/.test(nearbyRailText);
-            const railText = nearbyRailText || (abnormalRail.length ? `${abnormalRail.slice(0, 2).join('；')}，通勤建議預留轉乘時間` : '');
+            const railNeedsCaution = /延誤/.test(nearbyRailText);
             const hasAlert = weatherAdvice.length || railNeedsCaution || /警示｜|地震｜/.test(String(snapshot.summary || ''));
             const summary = hasAlert ? '出門提醒' : '出門正常';
             const suggestions = [];
             if (weatherAdvice.length) suggestions.push(weatherAdvice.slice(0, 2).join('；'));
-            if (railNeedsCaution) suggestions.push('通勤建議預留轉乘時間，必要時改搭下一班或提早到站');
+            if (railNeedsCaution) suggestions.push('附近車站有延誤班次，通勤建議預留轉乘時間');
+            const rainProbability = extractHomeRainProbability(snapshot);
+            const uvText = formatHomeUvIndex(snapshot.uvIndex);
+            const normalAdvice = uniqueTexts([
+                !snapshot.weatherAlertText && !snapshot.earthquakeText
+                    ? '目前未看到影響所在地的天氣警特報或近期顯著地震'
+                    : '',
+                rainProbability != null && rainProbability <= 20
+                    ? '短時間降雨很低，正常出門即可'
+                    : '',
+                rainProbability != null && rainProbability > 20 && rainProbability < 40
+                    ? '短時間降雨不高，長時間步行可視情況備傘'
+                    : '',
+                rainProbability != null && rainProbability >= 40
+                    ? '短時間降雨機率偏高，出門建議帶傘並預留步行到站時間'
+                    : '',
+                comfort && /舒適/.test(comfort)
+                    ? '體感舒適，候車與步行轉乘負擔不高'
+                    : '',
+                uvText && Number(snapshot.uvIndex) >= 3
+                    ? `${uvText}，白天戶外轉乘可留意防曬`
+                    : '',
+                uvText && Number(snapshot.uvIndex) < 3
+                    ? `${uvText}，紫外線壓力低`
+                    : ''
+            ]);
+            const humanizedAdvice = weatherAdvice.length
+                ? weatherAdvice.slice(0, 4)
+                : normalAdvice.slice(0, 4);
 
             const body = [
                 `目前${place}${weatherBits.length ? weatherBits.join('，') : '天氣資料更新中'}`,
-                railText,
-                suggestions.length ? suggestions.join('；') : ''
+                humanizedAdvice.length ? humanizedAdvice.join('；') : '',
+                nearbyRailText
             ].filter(Boolean).join('。');
 
             return {
@@ -9663,14 +9766,14 @@ function toggleSettings(show) {
                     nowRainText,
                     rainProbability != null ? `未來 1 小時降雨 ${Math.round(rainProbability)}%` : ''
                 ].filter(Boolean).join('，');
-                advice.push(`${snapshot.weatherAlertText || '降雨警示'}，${rainPart || '請留意短延時強降雨'}，建議提早出門並避免壓線轉乘`);
+                advice.push(`${snapshot.weatherAlertText || '降雨警示'}，${rainPart || '請留意短延時強降雨'}，步行到站與轉乘請避開積水路段`);
             }
             if (/強風|陸上強風|長浪|風浪/.test(alertText)) {
-                advice.push(`${snapshot.weatherAlertText || '強風提醒'}，${windMeta || '請留意風勢變化'}，騎車或步行到站建議預留緩衝`);
+                advice.push(`${snapshot.weatherAlertText || '強風提醒'}，${windMeta || '請留意目前風速與陣風'}，騎車或步行到站請留意路樹與招牌`);
             }
             if (/高溫|炎熱|酷熱/.test(alertText) || Number(tempHigh) >= 36) {
                 const highText = Number.isFinite(tempHigh) ? `今日最高體感約 ${formatHomeTempValue(tempHigh)}` : '白天體感偏熱';
-                advice.push(`${snapshot.weatherAlertText || '高溫提醒'}，${highText}，轉乘步行請補水並避開長時間曝曬`);
+                advice.push(`${snapshot.weatherAlertText || '高溫提醒'}，${highText}，戶外候車與步行轉乘請補水並避開久曬`);
             }
             if (/低溫|寒流|冷氣團/.test(alertText) || Number(tempLow) <= 12) {
                 const lowText = Number.isFinite(tempLow) ? `未來 24 小時低溫約 ${formatHomeTempValue(tempLow)}` : '清晨與夜間偏冷';
@@ -10301,6 +10404,7 @@ function toggleSettings(show) {
                 }
                 renderHomeWeatherEmblem();
                 renderHome24hForecast([]);
+                renderHomeOpsTicker();
                 return;
             }
 
@@ -10316,6 +10420,7 @@ function toggleSettings(show) {
             }
             renderHomeWeatherEmblem(snapshot.weatherVisualType);
             renderHome24hForecast(Array.isArray(snapshot.forecast24hItems) ? snapshot.forecast24hItems : []);
+            renderHomeOpsTicker();
         }
 
         async function fetchHomeWeatherForecast(lat, lon) {
@@ -10502,9 +10607,12 @@ function toggleSettings(show) {
                 const sharedPayload = persistSharedHomeGeoSnapshot(coords, options.source || 'home');
                 if (sharedPayload?.ts) homeGeoLastStamp = sharedPayload.ts;
                 if (shouldUseCachedHomeLocationWeather(cached, coords, options)) {
-                    applyHomeLocationSnapshot(cached);
+                    const latestCached = { ...cached, lat, lon, lastLocatedAt: Date.now() };
+                    writeHomeLocationSnapshot(latestCached);
+                    applyHomeLocationSnapshot(latestCached);
+                    queueHomeNearbyRailStatusRefresh(latestCached);
                     ensureHomeGeoWatcher({ prompt });
-                    return cached;
+                    return latestCached;
                 }
 
                 const [townshipResult, weatherResult, observationResult, earthquakeResult] = await Promise.allSettled([
