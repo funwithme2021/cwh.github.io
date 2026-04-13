@@ -86,12 +86,7 @@
   }
 
   async function ensureMasterTableAccess() {
-    if (!window.RailFeatureGate?.ensureAccess) return true;
-    try {
-      return await window.RailFeatureGate.ensureAccess("master-table");
-    } catch (_) {
-      return false;
-    }
+    return true;
   }
 
   function escapeHtml(value) {

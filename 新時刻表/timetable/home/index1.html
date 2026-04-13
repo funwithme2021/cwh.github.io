@@ -1,7 +1,8 @@
 ﻿<!DOCTYPE html>
-<html lang="zh-Hant">
+<html lang="zh-Hant" translate="no" class="notranslate">
 <head>
     <meta charset="UTF-8">
+    <meta name="google" content="notranslate">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Real-Time Home Lab</title>
     <link rel="manifest" href="manifest.json">
@@ -417,6 +418,124 @@ select.setting-input[id*="pick"] {
             color: #06281e;
         }
         #homeNoticeModal .notice-actions button:hover{ transform: translateY(-1px); }
+
+        #homeHazardModal {
+            display:none;
+            position:fixed;
+            inset:0;
+            z-index:2650;
+            align-items:center;
+            justify-content:center;
+            padding:24px;
+            background:rgba(15,23,42,0.58);
+            backdrop-filter:blur(12px);
+            -webkit-backdrop-filter:blur(12px);
+        }
+        #homeHazardModal.show { display:flex; }
+        #homeHazardModal .hazard-dialog {
+            width:min(720px, 100%);
+            max-height:min(82vh, 760px);
+            overflow:auto;
+            border-radius:26px;
+            border:1px solid var(--glass-border);
+            background:var(--modal-bg);
+            color:var(--text-main);
+            box-shadow:0 34px 90px rgba(0,0,0,0.42);
+        }
+        #homeHazardModal .hazard-head {
+            display:flex;
+            justify-content:space-between;
+            gap:14px;
+            align-items:flex-start;
+            padding:20px 22px 18px;
+            border-bottom:1px solid var(--glass-border);
+            background:linear-gradient(135deg, rgba(59,130,246,.12), rgba(14,165,233,.06));
+        }
+        #homeHazardModal .hazard-head h3 { margin:0; font-size:1.18rem; font-weight:950; }
+        #homeHazardModal .hazard-head p { margin:4px 0 0; color:var(--text-muted); font-size:.9rem; }
+        #homeHazardModal .hazard-close {
+            border:1px solid var(--glass-border);
+            border-radius:14px;
+            background:rgba(255,255,255,.06);
+            color:var(--text-main);
+            padding:8px 12px;
+            font:inherit;
+            font-weight:900;
+            cursor:pointer;
+        }
+        #homeHazardModal .hazard-body { display:grid; gap:14px; padding:18px 20px 20px; }
+        #homeHazardModal .hazard-card {
+            display:grid;
+            gap:14px;
+            padding:16px;
+            border-radius:20px;
+            border:1px solid var(--glass-border);
+            background:
+                radial-gradient(circle at 8% 0%, rgba(96,165,250,.14), transparent 32%),
+                rgba(255,255,255,.045);
+        }
+        .light-mode #homeHazardModal .hazard-card {
+            background:
+                radial-gradient(circle at 8% 0%, rgba(37,99,235,.10), transparent 34%),
+                rgba(255,255,255,.88);
+        }
+        #homeHazardModal .hazard-card h4 { margin:0; font-size:1.05rem; font-weight:950; }
+        #homeHazardModal .hazard-card p { margin:0; color:var(--text-muted); line-height:1.7; }
+        #homeHazardModal .hazard-summary {
+            color:var(--text-main);
+            font-weight:900;
+            line-height:1.65;
+        }
+        #homeHazardModal .hazard-section-title {
+            margin:2px 0 -4px;
+            color:var(--text-muted);
+            font-size:.78rem;
+            font-weight:950;
+            letter-spacing:.08em;
+        }
+        #homeHazardModal .hazard-meta {
+            display:grid;
+            grid-template-columns:repeat(auto-fit, minmax(150px, 1fr));
+            gap:8px;
+        }
+        #homeHazardModal .hazard-meta div {
+            padding:10px 12px;
+            border-radius:14px;
+            background:rgba(148,163,184,.12);
+        }
+        #homeHazardModal .hazard-meta span {
+            display:block;
+            color:var(--text-muted);
+            font-size:.76rem;
+            font-weight:900;
+            margin-bottom:4px;
+        }
+        #homeHazardModal .hazard-meta strong { font-size:.94rem; }
+        #homeHazardModal .hazard-actions { display:flex; flex-wrap:wrap; gap:10px; }
+        #homeHazardModal .hazard-actions a {
+            display:inline-flex;
+            align-items:center;
+            justify-content:center;
+            min-height:38px;
+            padding:8px 13px;
+            border-radius:14px;
+            border:1px solid var(--glass-border);
+            color:var(--text-main);
+            text-decoration:none;
+            font-weight:900;
+            background:rgba(255,255,255,.06);
+        }
+        #homeHazardModal .hazard-image {
+            max-width:100%;
+            border-radius:16px;
+            border:1px solid var(--glass-border);
+            background:#fff;
+        }
+        .home-hazard-clickable {
+            cursor:pointer;
+            text-decoration:underline dotted currentColor;
+            text-underline-offset:3px;
+        }
 
 
  #splash-screen {
@@ -4750,7 +4869,7 @@ select.setting-input[id*="pick"] {
         }
     </style>
 </head>
-<body class="home-v2-body">
+<body class="home-v2-body notranslate" translate="no">
 <div id="splash-screen">
     <div class="splash-bg-decor"></div>
     <div class="splash-content">
@@ -5281,6 +5400,19 @@ select.setting-input[id*="pick"] {
                 <button onclick="closeHomeNotice()">我知道了</button>
                 <button class="primary" onclick="closeHomeNotice(); toggleSettings(true);">前往設定</button>
             </div>
+        </div>
+    </div>
+
+    <div id="homeHazardModal" onclick="closeHomeHazardModal()" aria-hidden="true">
+        <div class="hazard-dialog" role="dialog" aria-modal="true" aria-labelledby="homeHazardModalTitle" onclick="event.stopPropagation()">
+            <div class="hazard-head">
+                <div>
+                    <h3 id="homeHazardModalTitle">提醒詳情</h3>
+                    <p id="homeHazardModalSub">氣象署資料與出門建議</p>
+                </div>
+                <button class="hazard-close" type="button" onclick="closeHomeHazardModal()">關閉</button>
+            </div>
+            <div class="hazard-body" id="homeHazardModalBody"></div>
         </div>
     </div>
 
@@ -5854,7 +5986,7 @@ select.setting-input[id*="pick"] {
         const rotatingTextTimers = {};
         let assistantRouteCache = { date: '', tra: null, thsr: null };
         const HOME_QUICK_PAGE_SIZE = 3;
-        const HOME_LOCATION_CACHE_KEY = 'home_location_weather_v9';
+        const HOME_LOCATION_CACHE_KEY = 'home_location_weather_v15';
         const HOME_SHARED_GEO_KEY = 'home_shared_geo_snapshot_v1';
         const HOME_NEARBY_RAIL_STATUS_STALE_MS = 2 * 60 * 1000;
         const UI_TEXT_SCALE_KEY = 'ui_text_scale_v1';
@@ -6675,7 +6807,7 @@ select.setting-input[id*="pick"] {
                 return {
                     summary: '出門提醒',
                     tone: 'normal',
-                    text: '完成定位後，這裡會整合所在地天氣、警特報與地震資訊。'
+                    text: '完成定位後，這裡會整合所在地天氣與附近車站概況。'
                 };
             }
 
@@ -6684,28 +6816,22 @@ select.setting-input[id*="pick"] {
             const hourly = getHomeSnapshotHourlyStats(snapshot);
             const apparentTemp = Number.isFinite(hourly.apparentTemp) ? hourly.apparentTemp : null;
             const forecastComfort = normalizeHomeComfortText(snapshot.weatherCurrentComfort || '');
-            const comfort = forecastComfort ? `體感${forecastComfort}` : describeHomeComfort(currentTemp, apparentTemp);
+            const comfort = forecastComfort || describeHomeComfort(currentTemp, apparentTemp);
             const weatherMain = String(snapshot.weatherObservation || snapshot.weatherCondition || '').replace(/\s+/g, ' ').trim();
             const rainText = String(snapshot.weatherRain || '').replace(/\s+/g, ' ').trim();
             const weatherBits = [];
             if (weatherMain && weatherMain !== '--') weatherBits.push(weatherMain);
-            if (comfort) weatherBits.push(comfort);
+            if (comfort && !weatherMain.includes(comfort)) weatherBits.push(comfort);
             if (rainText && rainText !== '--') weatherBits.push(`未來 3 小時降雨 ${rainText}`);
 
-            const weatherAdvice = buildHomeWeatherAdviceParts(snapshot);
             const nearbyRailText = getHomeNearbyRailCacheText(snapshot);
             const railNeedsCaution = /延誤/.test(nearbyRailText);
-            const hasAlert = weatherAdvice.length || railNeedsCaution || /警示｜|地震｜/.test(String(snapshot.summary || ''));
-            const summary = hasAlert ? '出門提醒' : '出門正常';
-            const suggestions = [];
-            if (weatherAdvice.length) suggestions.push(weatherAdvice.slice(0, 2).join('；'));
-            if (railNeedsCaution) suggestions.push('附近車站有延誤班次，通勤建議預留轉乘時間');
             const rainProbability = extractHomeRainProbability(snapshot);
+            const rainNeedsCaution = rainProbability != null && rainProbability >= 40;
+            const hasAlert = railNeedsCaution || rainNeedsCaution;
+            const summary = hasAlert ? '出門提醒' : '出門正常';
             const uvText = formatHomeUvIndex(snapshot.uvIndex);
             const normalAdvice = uniqueTexts([
-                !snapshot.weatherAlertText && !snapshot.earthquakeText
-                    ? '目前未看到影響所在地的天氣警特報或近期顯著地震'
-                    : '',
                 rainProbability != null && rainProbability <= 20
                     ? '短時間降雨很低，正常出門即可'
                     : '',
@@ -6716,18 +6842,16 @@ select.setting-input[id*="pick"] {
                     ? '短時間降雨機率偏高，出門建議帶傘並預留步行到站時間'
                     : '',
                 comfort && /舒適/.test(comfort)
-                    ? '體感舒適，候車與步行轉乘負擔不高'
+                    ? '目前舒適，候車與步行轉乘負擔不高'
                     : '',
-                uvText && Number(snapshot.uvIndex) >= 3
+                uvText && Number(snapshot.uvIndex) >= 3 && Number(snapshot.uvIndex) < 6
                     ? `${uvText}，白天戶外轉乘可留意防曬`
                     : '',
                 uvText && Number(snapshot.uvIndex) > 0 && Number(snapshot.uvIndex) < 3
                     ? `${uvText}，紫外線壓力低`
                     : ''
             ]);
-            const humanizedAdvice = weatherAdvice.length
-                ? weatherAdvice.slice(0, 4)
-                : normalAdvice.slice(0, 4);
+            const humanizedAdvice = normalAdvice.slice(0, 3);
 
             const body = [
                 `目前${place}${weatherBits.length ? weatherBits.join('，') : '天氣資料更新中'}`,
@@ -6742,9 +6866,331 @@ select.setting-input[id*="pick"] {
             };
         }
 
+        function limitHomeNoticeText(text, maxLength = 110) {
+            const value = String(text || '').replace(/\s+/g, ' ').trim();
+            if (!value || value.length <= maxLength) return value;
+            return `${value.slice(0, maxLength).replace(/[，、；。\s]+$/u, '')}...`;
+        }
+
+        function normalizeHomeNoticeSentence(text) {
+            return normalizeHomePlaceName(text || '')
+                .replace(/\s+/g, ' ')
+                .replace(/。{2,}/g, '。')
+                .replace(/[。；;\s]+$/u, '')
+                .trim();
+        }
+
+        function collectUniqueHomeNoticeTexts(parts, exclusions = []) {
+            const result = [];
+            const blocked = normalizeHomeDetailList(exclusions).map(normalizeHomeNoticeSentence).filter(Boolean);
+            normalizeHomeDetailList(parts).map(normalizeHomeNoticeSentence).filter(Boolean).forEach((text) => {
+                if (blocked.some(item => item === text || item.includes(text))) return;
+                if (result.some(item => item === text || item.includes(text))) return;
+                for (let index = result.length - 1; index >= 0; index -= 1) {
+                    if (text.includes(result[index])) result.splice(index, 1);
+                }
+                result.push(text);
+            });
+            return result;
+        }
+
+        function joinHomeNoticeSentences(parts) {
+            const result = collectUniqueHomeNoticeTexts(parts);
+            return result.length ? `${result.join('。')}。` : '';
+        }
+
+        function formatHomeNoticeTime(value) {
+            const ms = Number(value);
+            if (!Number.isFinite(ms)) return '';
+            return new Date(ms).toLocaleString('zh-TW', {
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: false
+            });
+        }
+
+        function formatHomeMaybeTime(value) {
+            const ms = Number(value);
+            if (Number.isFinite(ms)) return formatHomeNoticeTime(ms);
+            const parsed = parseHomeTime(value);
+            return Number.isFinite(parsed) ? formatHomeNoticeTime(parsed) : normalizeHomePlaceName(value || '');
+        }
+
+        function normalizeHomeDetailList(value) {
+            if (Array.isArray(value)) return value.filter(Boolean);
+            return value ? [value] : [];
+        }
+
+        function buildHomeHazardActionsHtml(detail) {
+            const links = normalizeHomeDetailList(detail?.links);
+            return links.length
+                ? `<div class="hazard-actions">${links.map((link) => {
+                    const href = String(link?.href || '').trim();
+                    if (!/^https?:\/\//i.test(href)) return '';
+                    return `<a href="${escapeHtml(href)}" target="_blank" rel="noopener">${escapeHtml(link?.label || '查看完整資料')}</a>`;
+                }).join('')}</div>`
+                : '';
+        }
+
+        function buildHomeHazardCardHtml(detail) {
+            const fields = normalizeHomeDetailList(detail?.fields)
+                .filter(item => String(item?.value || '').trim());
+            const summary = normalizeHomeNoticeSentence(detail?.summary || '');
+            const paragraphs = collectUniqueHomeNoticeTexts(detail?.paragraphs, summary ? [summary] : []);
+            const imageUri = String(detail?.imageUri || '').trim();
+            const safeImage = /^https?:\/\//i.test(imageUri) ? imageUri : '';
+            return `
+                <article class="hazard-card">
+                    <div>
+                        <h4>${escapeHtml(detail?.title || '提醒詳情')}</h4>
+                        ${summary ? `<p class="hazard-summary">${escapeHtml(summary)}</p>` : ''}
+                    </div>
+                    ${fields.length ? `<div class="hazard-meta">${fields.map(item => `<div><span>${escapeHtml(item.label || '')}</span><strong>${escapeHtml(item.value || '')}</strong></div>`).join('')}</div>` : ''}
+                    ${paragraphs.length ? `<div class="hazard-section-title">補充與建議</div>${paragraphs.map(text => `<p>${escapeHtml(text)}</p>`).join('')}` : ''}
+                    ${safeImage ? `<img class="hazard-image" src="${escapeHtml(safeImage)}" alt="${escapeHtml(detail?.title || '提醒圖片')}">` : ''}
+                    ${buildHomeHazardActionsHtml(detail)}
+                </article>
+            `;
+        }
+
+        window.openHomeHazardModal = function(details) {
+            const list = normalizeHomeDetailList(details);
+            if (!list.length) return;
+            const modal = document.getElementById('homeHazardModal');
+            const titleEl = document.getElementById('homeHazardModalTitle');
+            const subEl = document.getElementById('homeHazardModalSub');
+            const bodyEl = document.getElementById('homeHazardModalBody');
+            if (!modal || !bodyEl) return;
+            if (titleEl) titleEl.textContent = list.length === 1 ? (list[0].title || '提醒詳情') : '提醒詳情';
+            if (subEl) subEl.textContent = list.length === 1 ? (list[0].subtitle || '氣象署資料與出門建議') : `共 ${list.length} 則提醒`;
+            bodyEl.innerHTML = list.map(buildHomeHazardCardHtml).join('');
+            modal.classList.add('show');
+            modal.setAttribute('aria-hidden', 'false');
+        };
+
+        window.closeHomeHazardModal = function() {
+            const modal = document.getElementById('homeHazardModal');
+            if (!modal) return;
+            modal.classList.remove('show');
+            modal.setAttribute('aria-hidden', 'true');
+        };
+
+        function setHomeHazardDetailTarget(element, details) {
+            if (!element) return;
+            const list = normalizeHomeDetailList(details);
+            element.classList.toggle('home-hazard-clickable', !!list.length);
+            if (!list.length) {
+                element.removeAttribute('role');
+                element.removeAttribute('tabindex');
+                element.onclick = null;
+                element.onkeydown = null;
+                return;
+            }
+            element.setAttribute('role', 'button');
+            element.setAttribute('tabindex', '0');
+            element.onclick = () => window.openHomeHazardModal(list);
+            element.onkeydown = (event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    window.openHomeHazardModal(list);
+                }
+            };
+        }
+
+        function getHomeAlertSlideTitle(alert) {
+            const raw = normalizeHomePlaceName(alert?.title || alert?.event || alert?.headline || '天氣警特報');
+            const source = `${raw} ${alert?.event || ''} ${alert?.headline || ''}`;
+            if (/高溫/.test(source)) return '高溫特報';
+            if (/低溫|寒流|冷氣團/.test(source)) return '低溫特報';
+            if (/豪雨/.test(source)) return '豪雨特報';
+            if (/大雨|雷雨|降雨|淹水|積水/.test(source)) return '大雨特報';
+            if (/強風|陸上強風|長浪|風浪/.test(source)) return '強風特報';
+            if (/颱風|熱帶性低氣壓/.test(source)) return '颱風警報';
+            if (/濃霧|能見度|霧/.test(source)) return '濃霧特報';
+            return raw || '天氣警特報';
+        }
+
+        function buildHomeAlertSlideDetail(alert, snapshot) {
+            const title = getHomeAlertSlideTitle(alert);
+            const context = getHomeAlertContextParts(alert, snapshot);
+            const base = limitHomeNoticeText(alert?.description || alert?.headline || title, 118);
+            return joinHomeNoticeSentences([base, ...context.slice(0, 2)]);
+        }
+
+        function getHomeAlertContextParts(alert, snapshot) {
+            const title = getHomeAlertSlideTitle(alert);
+            const combined = [
+                title,
+                alert?.headline,
+                alert?.description,
+                alert?.instruction
+            ].map(value => normalizeHomePlaceName(value)).filter(Boolean).join(' ');
+            const hourly = getHomeSnapshotHourlyStats(snapshot);
+            const rainProbability = extractHomeRainProbability(snapshot);
+            const nowRainText = snapshot?.weatherObservationRainAmount ? `目前雨量約 ${snapshot.weatherObservationRainAmount}` : '';
+            const windMeta = sanitizeHomeObservationMetaText(snapshot?.weatherObservationMeta || '');
+            const tempHigh = Number.isFinite(hourly.maxApparentTemp) ? hourly.maxApparentTemp : hourly.maxTemp;
+            const tempLow = hourly.minTemp;
+            const context = [];
+            if (/豪雨|大雨|雷雨|降雨|淹水|積水/.test(combined)) {
+                context.push([nowRainText, rainProbability != null ? `未來 3 小時降雨 ${Math.round(rainProbability)}%` : '留意短延時強降雨'].filter(Boolean).join('，'));
+                context.push('步行到站與轉乘請避開積水路段');
+            } else if (/強風|陸上強風|長浪|風浪/.test(combined)) {
+                context.push(windMeta || '請留意瞬間強陣風');
+                context.push('騎車或步行到站請留意路樹、招牌與月台風勢');
+            } else if (/高溫|炎熱|酷熱/.test(combined)) {
+                context.push(Number.isFinite(tempHigh) ? `今日最高體感約 ${formatHomeTempValue(tempHigh)}` : '白天體感偏熱');
+                context.push('戶外候車與步行轉乘請補水，避免長時間曝曬');
+            } else if (/低溫|寒流|冷氣團/.test(combined)) {
+                context.push(Number.isFinite(tempLow) ? `未來 24 小時低溫約 ${formatHomeTempValue(tempLow)}` : '清晨與夜間偏冷');
+                context.push('清晨候車請注意保暖');
+            } else if (/颱風|熱帶性低氣壓/.test(combined)) {
+                context.push(windMeta || '風雨可能增強');
+                context.push('班次可能受風雨調整，出門前請再確認停駛與改點公告');
+            } else if (/濃霧|能見度|霧/.test(combined)) {
+                context.push('能見度可能偏低');
+                context.push('步行、騎車與接駁移動請放慢，轉乘時間建議抓寬');
+            }
+            if (alert?.instruction) context.push(limitHomeNoticeText(alert.instruction, 96));
+            return uniqueTexts(context);
+        }
+
+        function buildHomeAlertDetailData(alert, snapshot, detailText) {
+            const title = getHomeAlertSlideTitle(alert);
+            const areaText = Array.isArray(alert?.areas) && alert.areas.length ? alert.areas.join('、') : '';
+            const context = getHomeAlertContextParts(alert, snapshot);
+            const fields = [
+                { label: '類型', value: alert?.event || title },
+                { label: '影響區域', value: areaText || snapshot?.place || '' },
+                { label: '發布單位', value: alert?.senderName || '中央氣象署' },
+                { label: '生效時間', value: formatHomeMaybeTime(alert?.effective || alert?.onset) },
+                { label: '有效至', value: formatHomeMaybeTime(alert?.expires) },
+                { label: '嚴重程度', value: alert?.severity || '' },
+                { label: '即時觀測', value: sanitizeHomeObservationMetaText(snapshot?.weatherObservationMeta || '') }
+            ];
+            const links = [];
+            if (alert?.web) links.push({ label: '查看氣象署完整資料', href: alert.web });
+            return {
+                title,
+                subtitle: '警特報詳情',
+                summary: alert?.headline || alert?.title || title,
+                fields,
+                paragraphs: [
+                    alert?.description,
+                    alert?.instruction,
+                    ...context
+                ],
+                links,
+                imageUri: alert?.imageUri || ''
+            };
+        }
+
+        const HOME_EARTHQUAKE_TRANSIT_ADVICE = '若遇站務巡檢、臨時慢行或電梯設備暫停，建議預留候車與轉乘時間';
+
+        function buildHomeEarthquakeNoticeDetail(snapshot) {
+            const detail = snapshot?.earthquakeDetails || {};
+            const report = normalizeHomeNoticeSentence(detail.reportContent || '');
+            if (report) return joinHomeNoticeSentences([report, HOME_EARTHQUAKE_TRANSIT_ADVICE]);
+            const parts = [];
+            if (detail.location) parts.push(detail.location);
+            if (Number.isFinite(Number(detail.magnitude))) parts.push(`M${Number(detail.magnitude).toFixed(1)}`);
+            if (Number.isFinite(Number(detail.depthKm))) parts.push(`深度${Number(detail.depthKm).toFixed(1)}公里`);
+            if (detail.intensity) parts.push(`最大震度${detail.intensity}`);
+            if (detail.originTimeMs) parts.push(formatHomeNoticeTime(detail.originTimeMs));
+            const intro = parts.length
+                ? parts.join(' · ')
+                : String(snapshot?.earthquakeText || '資料更新中').replace(/^近期顯著地震[:：]\s*/u, '');
+            const areaText = Array.isArray(detail.shakingAreas) && detail.shakingAreas.length
+                ? `主要有感：${detail.shakingAreas.map(area => `${area.name}${area.intensity}`).join('、')}`
+                : '';
+            return joinHomeNoticeSentences([
+                intro,
+                areaText,
+                HOME_EARTHQUAKE_TRANSIT_ADVICE
+            ]);
+        }
+
+        function buildHomeEarthquakeDetailData(snapshot, detailText) {
+            const detail = snapshot?.earthquakeDetails || {};
+            const areaText = Array.isArray(detail.shakingAreas) && detail.shakingAreas.length
+                ? detail.shakingAreas.map(area => `${area.name}${area.intensity}`).join('、')
+                : '';
+            const fields = [
+                { label: '震央', value: detail.location || '' },
+                { label: '規模', value: Number.isFinite(Number(detail.magnitude)) ? `M${Number(detail.magnitude).toFixed(1)}` : '' },
+                { label: '深度', value: Number.isFinite(Number(detail.depthKm)) ? `${Number(detail.depthKm).toFixed(1)}公里` : '' },
+                { label: '最大震度', value: detail.intensity || '' },
+                { label: '發生時間', value: detail.originTimeMs ? formatHomeNoticeTime(detail.originTimeMs) : '' },
+                { label: '主要有感', value: areaText },
+                { label: '報告編號', value: detail.reportNo || '' },
+                { label: '報告顏色', value: detail.reportColor || '' }
+            ];
+            const links = [];
+            if (detail.web) links.push({ label: '查看地震報告', href: detail.web });
+            if (detail.imageUri) links.push({ label: '開啟地震報告圖', href: detail.imageUri });
+            return {
+                title: '近期顯著地震',
+                subtitle: '中央氣象署地震報告',
+                summary: detail.reportContent || snapshot?.earthquakeText || '',
+                fields,
+                paragraphs: [
+                    HOME_EARTHQUAKE_TRANSIT_ADVICE
+                ],
+                links,
+                imageUri: detail.imageUri || ''
+            };
+        }
+
+        function buildHomeHazardReminderSlides(snapshot) {
+            if (!snapshot) return [];
+            const slides = [];
+            const alertDetails = Array.isArray(snapshot.weatherAlertDetails) ? snapshot.weatherAlertDetails : [];
+            alertDetails.slice(0, 3).forEach((alert) => {
+                const title = getHomeAlertSlideTitle(alert);
+                const detail = buildHomeAlertSlideDetail(alert, snapshot);
+                slides.push({
+                    label: '警特報',
+                    summary: title,
+                    detail,
+                    detailData: buildHomeAlertDetailData(alert, snapshot, detail)
+                });
+            });
+            if (!alertDetails.length && snapshot.weatherAlertText && !/目前無/.test(snapshot.weatherAlertText)) {
+                const alert = { title: snapshot.weatherAlertText, description: snapshot.weatherAlertText };
+                const detail = buildHomeAlertSlideDetail(alert, snapshot);
+                slides.push({
+                    label: '警特報',
+                    summary: getHomeAlertSlideTitle(alert),
+                    detail,
+                    detailData: buildHomeAlertDetailData(alert, snapshot, detail)
+                });
+            }
+            if (Number(snapshot.uvIndex) >= 6) {
+                slides.push({
+                    label: '天氣提醒',
+                    summary: '紫外線提醒',
+                    detail: `${formatHomeUvIndex(snapshot.uvIndex)}，白天步行轉乘請注意防曬與補水。`
+                });
+            }
+            if (snapshot.earthquakeText) {
+                const detail = buildHomeEarthquakeNoticeDetail(snapshot);
+                slides.push({
+                    label: '地震資訊',
+                    summary: '近期顯著地震',
+                    detail,
+                    detailData: buildHomeEarthquakeDetailData(snapshot, detail)
+                });
+            }
+            return slides.filter(item => item.detail);
+        }
+
         function renderHomeOpsTicker() {
             const trAlerts = Array.isArray(systemAlertState.tr) ? systemAlertState.tr : null;
             const thsrAlerts = Array.isArray(systemAlertState.thsr) ? systemAlertState.thsr : null;
+            const snapshot = readHomeLocationSnapshot();
+            const hazardSlides = buildHomeHazardReminderSlides(snapshot);
             let opsSlides = [];
 
             const buildOfficialSlide = (message) => {
@@ -6771,6 +7217,7 @@ select.setting-input[id*="pick"] {
                 const smartReminder = buildHomeSmartOpsReminder(trAlerts, thsrAlerts);
                 opsSlides = [
                     ...abnormalItems.map(buildOfficialSlide),
+                    ...hazardSlides,
                     {
                         label: '智能提醒',
                         summary: smartReminder.summary,
@@ -6780,11 +7227,14 @@ select.setting-input[id*="pick"] {
             } else {
                 const smartReminder = buildHomeSmartOpsReminder([], []);
                 if (smartReminder?.text) {
-                    opsSlides = [{
+                    opsSlides = [
+                        ...hazardSlides,
+                        {
                         label: '智能提醒',
                         summary: smartReminder.summary,
                         detail: smartReminder.text
-                    }];
+                        }
+                    ];
                 }
             }
 
@@ -6801,6 +7251,7 @@ select.setting-input[id*="pick"] {
                     if (heroOpsSummaryEl) heroOpsSummaryEl.textContent = slide.summary || '出門提醒';
                     heroOpsDetailEl.textContent = slide.detail || '';
                     heroOpsDetailEl.title = opsSlides.map(item => item.detail).join('\n');
+                    setHomeHazardDetailTarget(heroOpsDetailEl, slide.detailData || null);
                 });
             } else {
                 clearRotatingText('heroOpsDetail');
@@ -6809,6 +7260,7 @@ select.setting-input[id*="pick"] {
                 if (heroOpsDetailEl) {
                     heroOpsDetailEl.textContent = '正在同步臺鐵與高鐵的最新營運狀態。';
                     heroOpsDetailEl.title = '正在同步臺鐵與高鐵的最新營運狀態。';
+                    setHomeHazardDetailTarget(heroOpsDetailEl, null);
                 }
             }
         }
@@ -9307,6 +9759,59 @@ function toggleSettings(show) {
             return county || town ? `${county}|${town}` : '';
         }
 
+        function hasUsableHomeWeatherSnapshot(snapshot) {
+            if (!snapshot || typeof snapshot !== 'object') return false;
+            const hasForecast = Array.isArray(snapshot.forecast24hItems) && snapshot.forecast24hItems.length > 0;
+            const hasCondition = !!String(snapshot.weatherCondition || '').trim() && snapshot.weatherCondition !== '--';
+            const hasObservation = !!String(snapshot.weatherObservation || '').trim()
+                && snapshot.weatherObservation !== '--'
+                && snapshot.weatherObservation !== '觀測稍後更新';
+            return hasForecast || hasCondition || hasObservation;
+        }
+
+        function shouldReuseHomeWeatherForTownship(cached, townshipKey, options = {}) {
+            if (options.force) return false;
+            return !!(cached?.townshipKey && townshipKey && cached.townshipKey === townshipKey && hasUsableHomeWeatherSnapshot(cached));
+        }
+
+        function normalizeHomeObservationComfortDisplay(text, comfortOverride = '') {
+            const source = String(text || '').trim();
+            if (!source || source === '--') return source;
+            const tempMatch = source.match(/(-?\d+(?:\.\d+)?)\s*度/u);
+            if (!tempMatch) return source;
+            const temp = Number(tempMatch[1]);
+            const comfortText = normalizeHomeComfortText(comfortOverride || '') || describeHomeComfort(temp, null);
+            if (!comfortText) return source;
+            const leadingText = source.slice(0, tempMatch.index).trim();
+            const label = leadingText
+                .replace(/[·・．|、，,;；\s]+$/u, '')
+                .split(/[·・．|、，,;；]/u)
+                .map(item => item.trim())
+                .filter(Boolean)
+                .filter(item => !/體感|寒冷|偏冷|舒適|偏熱|炎熱|悶熱|寒意|中暑|酷熱|危險|嚴寒/u.test(item))
+                .shift() || '';
+            const parts = [label, formatHomeTempValue(temp), comfortText].filter(Boolean);
+            return parts.join(' · ');
+        }
+
+        function buildReusedHomeWeatherSnapshot(cached, coords, countyName, townName, source = 'home') {
+            const lat = Number(coords?.latitude ?? coords?.lat);
+            const lon = Number(coords?.longitude ?? coords?.lon);
+            const next = {
+                ...cached,
+                lat: Number.isFinite(lat) ? lat : cached.lat,
+                lon: Number.isFinite(lon) ? lon : cached.lon,
+                countyName: countyName || cached.countyName || '',
+                townName: townName || cached.townName || '',
+                townshipKey: getHomeTownshipKey(countyName || cached.countyName || '', townName || cached.townName || ''),
+                place: formatHomeTownshipLabel(countyName || cached.countyName || '', townName || cached.townName || '', cached.place || '已取得位置'),
+                weatherObservation: normalizeHomeObservationComfortDisplay(cached.weatherObservation || '', cached.weatherCurrentComfort || ''),
+                locationSource: String(source || 'home'),
+                locationTs: Date.now()
+            };
+            return next;
+        }
+
         function getHomeCwaTownshipForecastDatasetId(countyName) {
             const key = normalizeHomeTownshipKeyPart(countyName);
             return HOME_CWA_2DAY_FORECAST_DATASETS[key] || HOME_CWA_TOWNSHIP_FORECAST_DATASET;
@@ -9430,7 +9935,19 @@ function toggleSettings(show) {
             const num = Number(value);
             if (!Number.isFinite(num) || num < 0) return null;
             const rounded = Math.round(num * 10) / 10;
-            return `${Number.isInteger(rounded) ? rounded : rounded.toFixed(1)} m/s`;
+            return `${Number.isInteger(rounded) ? rounded : rounded.toFixed(1)}m/s`;
+        }
+
+        function calculateHomeApparentTemperature(temp, humidity, windSpeed) {
+            const tempValue = Number(temp);
+            const humidityValue = Number(humidity);
+            const windValue = Number(windSpeed);
+            if (!Number.isFinite(tempValue) || !Number.isFinite(humidityValue) || !Number.isFinite(windValue)) return null;
+            if (tempValue <= -90 || humidityValue < 0 || windValue < 0) return null;
+            const relativeHumidity = Math.min(100, humidityValue) / 100;
+            const vaporPressure = relativeHumidity * 6.105 * Math.exp((17.27 * tempValue) / (237.7 + tempValue));
+            const apparent = 1.04 * tempValue + 0.2 * vaporPressure - 0.65 * windValue - 2.7;
+            return Number.isFinite(apparent) ? Math.round(apparent * 10) / 10 : null;
         }
 
         function normalizeHomeComfortText(value) {
@@ -9736,13 +10253,16 @@ function toggleSettings(show) {
             const weather = options.weather || null;
             const alert = options.alert || null;
             const windSpeed = Number(observation?.windSpeed);
+            const windGust = Number(observation?.windGust);
             const alertText = normalizeHomePlaceName(alert?.text || '').replace(/\s+/g, '');
-            const strongWind = /強風|陸上強風|風勢/.test(alertText) || (Number.isFinite(windSpeed) && windSpeed >= 10.8);
+            const strongWind = /強風|陸上強風|風勢/.test(alertText)
+                || (Number.isFinite(windSpeed) && windSpeed >= 10.8)
+                || (Number.isFinite(windGust) && windGust >= 10.8);
             const isNight = isHomeNightTime();
             const candidates = [
                 String(observation?.weather || ''),
-                String(alert?.text || ''),
-                String(weather?.condition || '')
+                String(weather?.condition || ''),
+                String(alert?.text || '')
             ].map((value) => normalizeHomePlaceName(value).replace(/\s+/g, '')).filter(Boolean);
             if (!candidates.length) {
                 return resolveHomeWeatherVisualText('', { strongWind, isNight });
@@ -9770,45 +10290,39 @@ function toggleSettings(show) {
             return parts.join(' · ') || '--';
         }
 
-        function buildHomeObservationDisplay(observation, forecastComfort, weatherFallback = null) {
-            const hasObservation = !!observation;
-            if (!hasObservation && !weatherFallback) return { main: '--', meta: '', metaCompact: '' };
-            const visual = resolveHomeWeatherVisual({ observation, weather: weatherFallback });
+        function buildHomeObservationDisplay(observation, weather = null) {
+            if (!observation && !weather) return { main: '--', meta: '', metaCompact: '' };
+            const visual = resolveHomeWeatherVisual({ observation, weather });
             const mainParts = [];
             const metaParts = [];
             const metaCompactParts = [];
-            const label = normalizeHomePlaceName(observation?.weather || weatherFallback?.condition || visual?.label || '');
+            const label = normalizeHomePlaceName(observation?.weather || weather?.condition || visual?.label || '');
             const tempValue = Number.isFinite(Number(observation?.temp))
                 ? Number(observation.temp)
-                : (Number.isFinite(Number(weatherFallback?.currentTemp)) ? Number(weatherFallback.currentTemp) : null);
-            const apparentValue = Number.isFinite(Number(weatherFallback?.currentApparentTemp))
-                ? Number(weatherFallback.currentApparentTemp)
-                : null;
+                : (Number.isFinite(Number(weather?.currentTemp)) ? Number(weather.currentTemp) : null);
             if (label && label !== '--' && label !== '預報更新中') mainParts.push(label);
             const tempText = formatHomeTempValue(tempValue);
             if (tempText !== '--') mainParts.push(tempText);
-            const comfortText = normalizeHomeComfortText(forecastComfort || weatherFallback?.currentComfort) || describeHomeComfort(tempValue, apparentValue);
-            if (comfortText) mainParts.push(comfortText);
             const humidityValue = Number.isFinite(Number(observation?.humidity))
                 ? Number(observation.humidity)
-                : (Number.isFinite(Number(weatherFallback?.currentHumidity)) ? Number(weatherFallback.currentHumidity) : null);
+                : (Number.isFinite(Number(weather?.currentHumidity)) ? Number(weather.currentHumidity) : null);
             if (Number.isFinite(humidityValue) && humidityValue >= 0) {
                 const humidityText = `濕度${Math.round(humidityValue)}%`;
                 metaParts.push(humidityText);
                 metaCompactParts.push(humidityText);
             }
-            const windValue = Number.isFinite(Number(observation?.windSpeed))
-                ? Number(observation.windSpeed)
-                : (Number.isFinite(Number(weatherFallback?.currentWindSpeed)) ? Number(weatherFallback.currentWindSpeed) : null);
+            const windValue = Number.isFinite(Number(observation?.windSpeed)) ? Number(observation.windSpeed) : null;
+            const calculatedApparent = calculateHomeApparentTemperature(tempValue, humidityValue, windValue);
+            const fallbackApparent = Number.isFinite(Number(weather?.currentApparentTemp)) ? Number(weather.currentApparentTemp) : null;
+            const comfortText = Number.isFinite(calculatedApparent)
+                ? describeHomeComfort(tempValue, calculatedApparent)
+                : (normalizeHomeComfortText(weather?.currentComfort || '') || describeHomeComfort(tempValue, fallbackApparent));
+            if (comfortText) mainParts.push(comfortText);
             const windText = formatHomeWindSpeed(windValue);
             const windLevel = getHomeWindLevel(windValue);
-            const fallbackWindLevel = formatHomeCwaWindLevel(weatherFallback?.currentWindLevel);
             if (windText) {
                 metaParts.push(`風速${windText}${windLevel == null ? '' : ` (${windLevel}級)`}`);
                 metaCompactParts.push(windLevel == null ? `風速${windText}` : `風速${windLevel}級`);
-            } else if (fallbackWindLevel) {
-                metaParts.push(`風速${fallbackWindLevel}`);
-                metaCompactParts.push(`風速${fallbackWindLevel}`);
             }
             const gustValue = Number.isFinite(Number(observation?.windGust)) ? Number(observation.windGust) : null;
             const gustText = formatHomeWindSpeed(gustValue);
@@ -9818,9 +10332,11 @@ function toggleSettings(show) {
                 metaCompactParts.push(gustLevel == null ? `陣風${gustText}` : `陣風${gustLevel}級`);
             }
             return {
-                main: mainParts.join(' · ') || '--',
+                main: normalizeHomeObservationComfortDisplay(mainParts.join(' · '), comfortText) || '--',
                 meta: metaParts.join(' · '),
-                metaCompact: metaCompactParts.join(' · ')
+                metaCompact: metaCompactParts.join(' · '),
+                comfort: comfortText,
+                apparentTemp: Number.isFinite(calculatedApparent) ? calculatedApparent : fallbackApparent
             };
         }
 
@@ -9853,13 +10369,15 @@ function toggleSettings(show) {
         }
 
         function describeHomeComfort(temp, apparentTemp) {
-            const value = Number.isFinite(Number(apparentTemp)) ? Number(apparentTemp) : Number(temp);
+            const apparentValue = apparentTemp == null || apparentTemp === '' ? NaN : Number(apparentTemp);
+            const tempValue = temp == null || temp === '' ? NaN : Number(temp);
+            const value = Number.isFinite(apparentValue) ? apparentValue : tempValue;
             if (!Number.isFinite(value)) return '';
-            if (value >= 35) return '體感炎熱';
-            if (value >= 31) return '體感偏熱';
-            if (value <= 12) return '體感寒冷';
-            if (value <= 18) return '體感偏冷';
-            return '體感舒適';
+            if (value >= 35) return '炎熱';
+            if (value >= 31) return '偏熱';
+            if (value <= 12) return '寒冷';
+            if (value <= 18) return '偏冷';
+            return '舒適';
         }
 
         function extractHomeRainProbability(snapshot) {
@@ -9914,7 +10432,7 @@ function toggleSettings(show) {
                 advice.push(`${snapshot.weatherAlertText || '颱風提醒'}，班次可能受風雨調整，出門前請再確認停駛與改點公告`);
             }
             if (/地震｜|地震/.test(String(snapshot.summary || '')) && snapshot.earthquakeText) {
-                advice.push(`近期顯著地震：${snapshot.earthquakeText}，若遇臨時慢行或站務管制，建議預留候車時間`);
+                advice.push(`${snapshot.earthquakeText}，若遇臨時慢行或站務管制，建議預留候車時間`);
             }
             if (Number(snapshot.uvIndex) >= 6) {
                 advice.push(`${uvText}，白天步行轉乘請注意防曬與補水`);
@@ -10272,15 +10790,41 @@ function toggleSettings(show) {
             return text.replace(/^.+?\)\s*/, '').replace(/^.+?公里\s*/, '').trim();
         }
 
+        function getHomeEarthquakeIntensityValue(label) {
+            const match = String(label || '').match(/(\d+)/);
+            if (!match) return null;
+            const value = Number(match[1]);
+            return Number.isFinite(value) ? value : null;
+        }
+
+        function findHomeDeepValue(source, keys, depth = 0) {
+            if (source == null || depth > 8) return null;
+            if (Array.isArray(source)) {
+                for (const item of source) {
+                    const found = findHomeDeepValue(item, keys, depth + 1);
+                    if (found !== null && found !== undefined && String(found).trim() !== '') return found;
+                }
+                return null;
+            }
+            if (typeof source !== 'object') return null;
+            for (const key of keys) {
+                if (source[key] !== undefined && source[key] !== null && String(source[key]).trim() !== '') return source[key];
+            }
+            for (const value of Object.values(source)) {
+                const found = findHomeDeepValue(value, keys, depth + 1);
+                if (found !== null && found !== undefined && String(found).trim() !== '') return found;
+            }
+            return null;
+        }
+
         function getHomeEarthquakeMaxIntensity(shakingAreas) {
-            if (!Array.isArray(shakingAreas) || !shakingAreas.length) return '';
+            const areas = toHomeArray(shakingAreas);
+            if (!areas.length) return '';
             let maxValue = null;
             let maxLabel = '';
-            shakingAreas.forEach((area) => {
+            areas.forEach((area) => {
                 const label = String(area?.AreaIntensity || '').trim();
-                const match = label.match(/(\d+)/);
-                if (!match) return;
-                const value = Number(match[1]);
+                const value = getHomeEarthquakeIntensityValue(label);
                 if (!Number.isFinite(value)) return;
                 if (maxValue == null || value > maxValue) {
                     maxValue = value;
@@ -10288,6 +10832,26 @@ function toggleSettings(show) {
                 }
             });
             return maxLabel;
+        }
+
+        function getHomeEarthquakeTopAreas(shakingAreas) {
+            const areas = toHomeArray(shakingAreas);
+            if (!areas.length) return [];
+            return areas
+                .map((area) => {
+                    const intensity = normalizeHomePlaceName(area?.AreaIntensity || area?.StationIntensity || '');
+                    const value = getHomeEarthquakeIntensityValue(intensity);
+                    const name = normalizeHomePlaceName(area?.CountyName || area?.AreaName || area?.StationName || area?.AreaDesc || '');
+                    return {
+                        name,
+                        intensity,
+                        value: Number.isFinite(value) ? value : -1
+                    };
+                })
+                .filter(item => item.name && item.intensity && !/最大震度/.test(item.name))
+                .sort((a, b) => b.value - a.value || a.name.localeCompare(b.name, 'zh-Hant'))
+                .slice(0, 4)
+                .map(({ name, intensity }) => ({ name, intensity }));
         }
 
         async function fetchHomeTownship(lat, lon) {
@@ -10944,6 +11508,7 @@ function toggleSettings(show) {
             if (!snapshot) {
                 nameEl.textContent = '等待定位';
                 setHeroLocationSummary(summaryEl, '', '');
+                setHomeHazardDetailTarget(summaryEl, null);
                 if (conditionEl) conditionEl.textContent = '--';
                 if (rainEl) rainEl.textContent = '--';
                 if (observationEl) observationEl.textContent = '--';
@@ -10959,9 +11524,13 @@ function toggleSettings(show) {
 
             nameEl.textContent = snapshot.place || '已取得位置';
             setHeroLocationSummary(summaryEl, snapshot.summary || '', snapshot.summaryTone || '');
+            if (summaryEl) {
+                const hazardDetails = buildHomeHazardReminderSlides(snapshot).map(item => item.detailData).filter(Boolean);
+                setHomeHazardDetailTarget(summaryEl, hazardDetails);
+            }
             if (conditionEl) conditionEl.textContent = snapshot.weatherCondition || '--';
             if (rainEl) rainEl.textContent = snapshot.weatherRain || '--';
-            if (observationEl) observationEl.textContent = snapshot.weatherObservation || '--';
+            if (observationEl) observationEl.textContent = normalizeHomeObservationComfortDisplay(snapshot.weatherObservation || '', snapshot.weatherCurrentComfort || '') || '--';
             if (observationMetaEl) {
                 const metaText = getHomeObservationMetaForViewport(snapshot);
                 observationMetaEl.textContent = metaText;
@@ -11067,6 +11636,13 @@ function toggleSettings(show) {
                     headline: normalizeHomePlaceName(item?.headline || ''),
                     description: normalizeHomePlaceName(item?.description || item?.Description || ''),
                     instruction: normalizeHomePlaceName(item?.instruction || item?.Instruction || ''),
+                    areas: toHomeArray(item?.area).map(area => normalizeHomePlaceName(area?.areaDesc || '')).filter(Boolean),
+                    senderName: normalizeHomePlaceName(item?.senderName || item?.sender || ''),
+                    effective: item?.effective || '',
+                    onset: item?.onset || '',
+                    expires: item?.expires || '',
+                    web: normalizeHomePlaceName(item?.web || item?.Web || item?.identifier || ''),
+                    imageUri: normalizeHomePlaceName(item?.ReportImageURI || item?.imageUri || ''),
                     severity: String(item?.severity || '').trim(),
                     urgency: String(item?.urgency || '').trim()
                 };
@@ -11099,14 +11675,38 @@ function toggleSettings(show) {
             }
             const location = extractHomeEarthquakeLocation(item?.EarthquakeInfo?.Epicenter?.Location);
             const magnitudeValue = Number(item?.EarthquakeInfo?.EarthquakeMagnitude?.MagnitudeValue);
+            const depthKm = extractHomeNumericValue(
+                item?.EarthquakeInfo?.FocalDepth ??
+                findHomeDeepValue(item?.EarthquakeInfo, ['FocalDepth', 'Depth', 'EarthquakeDepth'])
+            );
             const intensity = getHomeEarthquakeMaxIntensity(item?.Intensity?.ShakingArea);
+            const shakingAreas = getHomeEarthquakeTopAreas(item?.Intensity?.ShakingArea);
+            const reportContent = normalizeHomePlaceName(
+                item?.ReportContent ||
+                item?.EarthquakeInfo?.EarthquakeLocation ||
+                findHomeDeepValue(item, ['ReportContent', 'EarthquakeLocation', 'Content']) ||
+                ''
+            );
             const parts = [];
             if (location) parts.push(normalizeHomePlaceName(location));
             if (Number.isFinite(magnitudeValue)) parts.push(`M${magnitudeValue.toFixed(1)}`);
-            if (intensity) parts.push(`最大${intensity}`);
+            if (intensity) parts.push(`最大震度${intensity}`);
             return {
                 text: parts.join(' · ') || '顯著地震更新中',
-                tone: 'warn'
+                tone: 'warn',
+                details: {
+                    location: normalizeHomePlaceName(location),
+                    magnitude: Number.isFinite(magnitudeValue) ? magnitudeValue : null,
+                    depthKm: Number.isFinite(depthKm) ? depthKm : null,
+                    intensity,
+                    shakingAreas,
+                    originTimeMs: originTime || null,
+                    reportContent,
+                    reportNo: normalizeHomePlaceName(item?.ReportNo || item?.EarthquakeNo || findHomeDeepValue(item, ['ReportNo', 'EarthquakeNo']) || ''),
+                    reportColor: normalizeHomePlaceName(item?.ReportColor || findHomeDeepValue(item, ['ReportColor']) || ''),
+                    web: normalizeHomePlaceName(item?.Web || findHomeDeepValue(item, ['Web', 'ReportURI', 'URI']) || ''),
+                    imageUri: normalizeHomePlaceName(item?.ReportImageURI || findHomeDeepValue(item, ['ReportImageURI', 'ReportImageUri', 'ImageURI']) || '')
+                }
             };
         }
 
@@ -11179,6 +11779,41 @@ function toggleSettings(show) {
                 } catch (townshipError) {
                     console.warn('fetchHomeTownship failed', townshipError);
                 }
+                const townshipCountyName = normalizeHomePlaceName(township?.countyName || '');
+                const townshipTownName = normalizeHomePlaceName(township?.townName || township?.villageName || '');
+                const townshipKey = getHomeTownshipKey(townshipCountyName, townshipTownName);
+                if (!options.force && !townshipKey && hasUsableHomeWeatherSnapshot(cached)) {
+                    const reusedSnapshot = buildReusedHomeWeatherSnapshot(
+                        cached,
+                        coords,
+                        cached.countyName || '',
+                        cached.townName || '',
+                        options.source || 'home'
+                    );
+                    writeHomeLocationSnapshot(reusedSnapshot);
+                    applyHomeLocationSnapshot(reusedSnapshot);
+                    applyHomeRailDeskDefaultOrigins().catch(() => {});
+                    queueHomeNearbyRailStatusRefresh(reusedSnapshot);
+                    ensureHomeGeoWatcher({ prompt });
+                    homeLocationWeatherSessionPrimed = true;
+                    return reusedSnapshot;
+                }
+                if (shouldReuseHomeWeatherForTownship(cached, townshipKey, options)) {
+                    const reusedSnapshot = buildReusedHomeWeatherSnapshot(
+                        cached,
+                        coords,
+                        townshipCountyName,
+                        townshipTownName,
+                        options.source || 'home'
+                    );
+                    writeHomeLocationSnapshot(reusedSnapshot);
+                    applyHomeLocationSnapshot(reusedSnapshot);
+                    applyHomeRailDeskDefaultOrigins().catch(() => {});
+                    queueHomeNearbyRailStatusRefresh(reusedSnapshot);
+                    ensureHomeGeoWatcher({ prompt });
+                    homeLocationWeatherSessionPrimed = true;
+                    return reusedSnapshot;
+                }
                 const [weatherResult, observationResult, earthquakeResult] = await Promise.allSettled([
                     fetchHomeWeatherForecast(lat, lon, township),
                     fetchHomeObservation(lat, lon, township),
@@ -11214,7 +11849,7 @@ function toggleSettings(show) {
                 const visual = resolveHomeWeatherVisual({ observation, weather, alert });
                 const forecastText = buildHomeForecastText(weather, visual);
                 const rainText = buildHomeRainForecastText(weather);
-                const observationDisplay = buildHomeObservationDisplay(observation, weather?.currentComfort, weather);
+                const observationDisplay = buildHomeObservationDisplay(observation, weather);
                 const noticeParts = [];
                 let summaryTone = '';
                 if (alert?.tone === 'alert' && alert?.text) {
@@ -11246,13 +11881,15 @@ function toggleSettings(show) {
                     weatherAlertText: alert?.text || '',
                     weatherAlertDetails: Array.isArray(alert?.alerts) ? alert.alerts : [],
                     earthquakeText: earthquake?.tone === 'warn' ? (earthquake.text || '') : '',
+                    earthquakeDetails: earthquake?.tone === 'warn' ? (earthquake.details || null) : null,
                     weatherCondition: forecastText !== '--' ? forecastText : (canReuseCachedWeather && cached.weatherCondition ? cached.weatherCondition : '預報稍後更新'),
                     weatherRain: rainText !== '--' ? rainText : (canReuseCachedWeather && cached.weatherRain ? cached.weatherRain : '降雨稍後更新'),
-                    weatherObservation: observationDisplay.main !== '--' ? observationDisplay.main : (visual?.label || '天氣稍後更新'),
+                    weatherObservation: observationDisplay.main !== '--' ? normalizeHomeObservationComfortDisplay(observationDisplay.main, weather?.currentComfort || '') : '觀測稍後更新',
                     weatherObservationMeta: observationDisplay.meta || '',
                     weatherObservationMetaCompact: observationDisplay.metaCompact || '',
                     weatherObservationRainAmount: formatHomeRainAmount(observation?.precipitation),
-                    weatherCurrentComfort: weather?.currentComfort || (canReuseCachedWeather ? (cached.weatherCurrentComfort || '') : ''),
+                    weatherCurrentComfort: observationDisplay.comfort || weather?.currentComfort || (canReuseCachedWeather ? (cached.weatherCurrentComfort || '') : ''),
+                    weatherCurrentApparentTemp: Number.isFinite(observationDisplay.apparentTemp) ? observationDisplay.apparentTemp : (weather?.currentApparentTemp ?? null),
                     weatherComfortSummary: weather?.comfortSummary || (canReuseCachedWeather ? (cached.weatherComfortSummary || '') : ''),
                     uvIndex: resolveHomeUvIndex(observation, dailyUv),
                     weatherVisualType: visual?.type || (isHomeNightTime() ? 'clear-night' : 'partly'),

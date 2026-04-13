@@ -173,12 +173,7 @@
   }
 
   async function ensureOperationDiagramAccess() {
-    if (!window.RailFeatureGate?.ensureAccess) return true;
-    try {
-      return await window.RailFeatureGate.ensureAccess("operation-diagram");
-    } catch (_) {
-      return false;
-    }
+    return true;
   }
 
   function nextFrame() {

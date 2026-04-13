@@ -117,13 +117,63 @@
     const lat = Number(raw.latitude ?? raw.lat);
     const lon = Number(raw.longitude ?? raw.lon);
     const accuracy = Number(raw.accuracy);
+    const rawSpeed = raw.speed;
+    const speed = rawSpeed === null || rawSpeed === undefined || rawSpeed === "" ? NaN : Number(rawSpeed);
     if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
     return {
       lat,
       lon,
       accuracy: Number.isFinite(accuracy) && accuracy >= 0 ? accuracy : null,
+      speed: Number.isFinite(speed) && speed >= 0 ? speed : null,
       ts: Number(raw.timestamp ?? raw.ts) || Date.now(),
     };
+  }
+
+  function coordsFromGeoPosition(position) {
+    const coords = position?.coords;
+    if (!coords) return null;
+    return {
+      latitude: coords.latitude,
+      longitude: coords.longitude,
+      accuracy: coords.accuracy,
+      speed: coords.speed,
+      timestamp: position?.timestamp,
+    };
+  }
+
+  function getGeoDistanceMeters(from, to) {
+    const a = normalizeGeoCoords(from);
+    const b = normalizeGeoCoords(to);
+    if (!a || !b) return null;
+    const avgLatRad = ((a.lat + b.lat) / 2) * Math.PI / 180;
+    const x = (b.lon - a.lon) * 111320 * Math.cos(avgLatRad);
+    const y = (b.lat - a.lat) * 111320;
+    return Math.hypot(x, y);
+  }
+
+  function estimateUserSpeedKmh(state, nextCoords) {
+    const directSpeed = Number(nextCoords?.speed);
+    if (Number.isFinite(directSpeed) && directSpeed >= 0) {
+      const kmh = directSpeed * 3.6;
+      return kmh <= 320 ? kmh : null;
+    }
+    const previous = state?.userLocation?.coords || null;
+    if (!previous) return null;
+    const elapsedSeconds = (Number(nextCoords?.ts) - Number(previous.ts)) / 1000;
+    if (!Number.isFinite(elapsedSeconds) || elapsedSeconds < 1.5 || elapsedSeconds > 60) return null;
+    const distanceMeters = getGeoDistanceMeters(previous, nextCoords);
+    if (!Number.isFinite(distanceMeters)) return null;
+    if (distanceMeters < 3) return 0;
+    const kmh = (distanceMeters / elapsedSeconds) * 3.6;
+    return kmh >= 0 && kmh <= 320 ? kmh : null;
+  }
+
+  function formatUserSpeedKmh(value) {
+    const speed = Number(value);
+    if (!Number.isFinite(speed)) return "";
+    if (speed < 1) return "0 km/h";
+    if (speed < 10) return `${speed.toFixed(1)} km/h`;
+    return `${Math.round(speed)} km/h`;
   }
 
   function readSharedGeoSnapshot() {
@@ -143,6 +193,7 @@
         lat: normalized.lat,
         lon: normalized.lon,
         accuracy: normalized.accuracy,
+        speed: normalized.speed,
         source: source || "live-tracker",
         ts: Date.now(),
       }));
@@ -1907,10 +1958,17 @@
 
   function maybeSwitchToUserRoute(state, coords, options = {}) {
     if (!state?.userLocationEnabled || state.system !== "tr" || !state.routeSelect) return false;
+    if (state.userRouteManualOverride && options.force !== true) return false;
     const best = findBestUserLocationSegment(state, coords);
     if (!best?.segment?.id || best.distanceMeters > USER_LOCATION_MAX_FAR_KM * 1000) return false;
     if (state.routeSelect.value === best.segment.id) return false;
-    state.routeSelect.value = best.segment.id;
+    state.isAutoSwitchingRoute = true;
+    try {
+      state.routeSelect.value = best.segment.id;
+      state.userRouteAutoApplied = true;
+    } finally {
+      state.isAutoSwitchingRoute = false;
+    }
     if (state.searchInput && parseExactTrainQuery(state.searchInput.value)) state.searchInput.value = "";
     if (options.render !== false && typeof state.runRender === "function") state.runRender();
     return true;
@@ -1928,14 +1986,17 @@
         : `${best.fromStation} → ${best.toStation}間`;
     const nearbyTrain = findNearestVisibleTrainForUser(state, best.positionIndex);
     const distanceKm = best.distanceMeters / 1000;
+    const speedText = formatUserSpeedKmh(state.userLocation?.speedKmh);
     return {
       ...best,
       label: "你的位置",
       stationLabel,
       nearbyTrain,
       isFar: distanceKm > USER_LOCATION_MAX_FAR_KM,
+      speedText,
       title: [
         `你的位置：${stationLabel}`,
+        speedText ? `推估移動時速：${speedText}` : "",
         nearbyTrain ? `可能接近 ${nearbyTrain.trainNo} 次` : "",
         Number.isFinite(best.distanceMeters) ? `距目前路線約 ${distanceKm >= 1 ? `${distanceKm.toFixed(1)} 公里` : `${Math.round(best.distanceMeters)} 公尺`}` : "",
         Number.isFinite(coords.accuracy) ? `定位精度約 ${Math.round(coords.accuracy)} 公尺` : "",
@@ -1953,7 +2014,7 @@
       marker.setAttribute("aria-label", "你的位置");
       marker.innerHTML = `
         <span class="rail-live-user-dot" aria-hidden="true"></span>
-        <span class="rail-live-user-label">你的位置</span>
+        <span class="rail-live-user-label" hidden></span>
       `;
       map.appendChild(marker);
     }
@@ -1993,20 +2054,25 @@
     marker.title = projection.title;
     const label = marker.querySelector(".rail-live-user-label");
     if (label) {
-      label.textContent = projection.nearbyTrain
-        ? `你的位置 · ${projection.nearbyTrain.trainNo}次附近`
-        : "你的位置";
+      label.textContent = projection.speedText || "";
+      label.hidden = !projection.speedText;
     }
   }
 
   function setUserLocationCoords(state, coords, source) {
     const normalized = normalizeGeoCoords(coords);
     if (!state || !normalized) return;
+    const now = Date.now();
+    const speedKmh = estimateUserSpeedKmh(state, normalized);
+    const previousSpeed = Number(state.userLocation?.speedKmh);
+    const previousUpdatedAt = Number(state.userLocation?.updatedAt);
+    const keepPreviousSpeed = Number.isFinite(previousSpeed) && Number.isFinite(previousUpdatedAt) && now - previousUpdatedAt < 15000;
     state.userLocation = {
       ...(state.userLocation || {}),
       coords: normalized,
+      speedKmh: Number.isFinite(speedKmh) ? speedKmh : (keepPreviousSpeed ? previousSpeed : null),
       source: source || "browser",
-      updatedAt: Date.now(),
+      updatedAt: now,
     };
     if (source !== "shared-storage") persistSharedGeoSnapshot(normalized, source || "live-tracker");
     if (!state.userLocationEnabled) return;
@@ -2015,16 +2081,12 @@
   }
 
   function readUserLocationEnabled() {
-    try {
-      return localStorage.getItem(USER_LOCATION_ENABLED_KEY) === "true";
-    } catch (_) {
-      return false;
-    }
+    return true;
   }
 
   function writeUserLocationEnabled(enabled) {
     try {
-      localStorage.setItem(USER_LOCATION_ENABLED_KEY, enabled ? "true" : "false");
+      localStorage.setItem(USER_LOCATION_ENABLED_KEY, "true");
     } catch (_) {
     }
   }
@@ -2058,17 +2120,19 @@
 
   function setUserLocationEnabled(state, enabled) {
     if (!state) return;
-    state.userLocationEnabled = Boolean(enabled);
-    writeUserLocationEnabled(state.userLocationEnabled);
+    state.userLocationEnabled = true;
+    writeUserLocationEnabled(true);
     syncUserLocationToggleButton(state);
-    if (!state.userLocationEnabled) {
-      stopUserLocationTracking(state);
-      return;
-    }
     const cached = readSharedGeoSnapshot();
     let switchedRoute = false;
     if (cached) {
-      state.userLocation = { ...(state.userLocation || {}), coords: cached, source: "shared", updatedAt: cached.ts || Date.now() };
+      state.userLocation = {
+        ...(state.userLocation || {}),
+        coords: cached,
+        speedKmh: cached.speed != null && Number.isFinite(Number(cached.speed)) ? Number(cached.speed) * 3.6 : null,
+        source: "shared",
+        updatedAt: cached.ts || Date.now(),
+      };
       switchedRoute = maybeSwitchToUserRoute(state, cached);
     }
     ensureUserLocationTracking(state);
@@ -2081,7 +2145,7 @@
     navigator.geolocation.getCurrentPosition(
       (position) => {
         state.userLocationPollBusy = false;
-        setUserLocationCoords(state, position?.coords, source);
+        setUserLocationCoords(state, coordsFromGeoPosition(position), source);
       },
       () => {
         state.userLocationPollBusy = false;
@@ -2107,7 +2171,13 @@
     }
     const cached = readSharedGeoSnapshot();
     if (cached && !state.userLocation?.coords) {
-      state.userLocation = { ...(state.userLocation || {}), coords: cached, source: "shared", updatedAt: cached.ts || Date.now() };
+      state.userLocation = {
+        ...(state.userLocation || {}),
+        coords: cached,
+        speedKmh: cached.speed != null && Number.isFinite(Number(cached.speed)) ? Number(cached.speed) * 3.6 : null,
+        source: "shared",
+        updatedAt: cached.ts || Date.now(),
+      };
     }
     if (state.userLocation?.coords) updateUserLocationMarker(state);
     if (!navigator.geolocation) return;
@@ -2117,7 +2187,7 @@
     const startWatch = () => {
       if (state.userLocationWatchId != null) return;
       state.userLocationWatchId = navigator.geolocation.watchPosition(
-        (position) => setUserLocationCoords(state, position?.coords, "live-watch"),
+        (position) => setUserLocationCoords(state, coordsFromGeoPosition(position), "live-watch"),
         () => {},
         { enableHighAccuracy: true, maximumAge: 1000, timeout: 12000 }
       );
@@ -2882,7 +2952,6 @@
       <div class="rail-live-toolbar">
         <div class="rail-live-control"><span>路線</span><select id="${escapeHtml(config.inputPrefix)}Route" class="rail-live-select">${routeOptions}</select></div>
         <div class="rail-live-control"><span>方向</span><select id="${escapeHtml(config.inputPrefix)}Direction" class="rail-live-select">${directionOptions}</select></div>
-        <div class="rail-live-control rail-live-location-control"><button type="button" class="rail-live-location-toggle" data-live-user-location-toggle="1" aria-pressed="false">顯示目前位置</button></div>
         <div class="rail-live-control rail-live-search"><div class="rail-live-search-field"><input id="${escapeHtml(config.inputPrefix)}Search" class="rail-live-input rail-live-input-has-btn" type="text" placeholder="搜尋車次、車種或起迄站"><button type="button" class="rail-live-search-locate" data-live-search-locate="1" aria-label="📍定位車次" title="📍定位車次">📍定位車次</button></div><button id="${escapeHtml(config.inputPrefix)}Render" class="btn-primary" type="button">刷新動態</button></div>
       </div>
       <div id="${escapeHtml(config.inputPrefix)}Output" class="rail-live-output"><div class="rail-live-empty">可直接顯示目前路線的列車動態與車站進出站提示。</div></div>
@@ -2980,8 +3049,9 @@
       .rail-live-user-location{position:absolute; left:50%; width:0; height:0; transform:translate(-50%,-50%); z-index:8; pointer-events:none; transition:top 2.8s linear; filter:drop-shadow(0 8px 14px rgba(37,99,235,.20));}
       .rail-live-user-dot{position:absolute; left:-9px; top:-9px; width:18px; height:18px; border-radius:50%; background:#1a73e8; border:3px solid #fff; box-shadow:0 0 0 7px rgba(26,115,232,.18), 0 0 0 1px rgba(37,99,235,.28);}
       .rail-live-user-dot::after{content:""; position:absolute; inset:-11px; border-radius:50%; border:1px solid rgba(26,115,232,.24); animation:rail-live-user-pulse 1.9s ease-out infinite;}
-      .rail-live-user-label{display:none;}
-      .dark-mode .rail-live-user-label{background:rgba(15,23,42,.88); border-color:rgba(96,165,250,.24); color:#bfdbfe;}
+      .rail-live-user-label{position:absolute; left:14px; top:0; z-index:1; display:inline-flex; align-items:center; min-height:18px; padding:0; color:#1d4ed8; text-shadow:0 1px 2px rgba(255,255,255,.92), 0 0 8px rgba(255,255,255,.72); font-size:.68rem; font-weight:950; white-space:nowrap; transform:translateY(-50%);}
+      .rail-live-user-label[hidden]{display:none!important;}
+      .dark-mode .rail-live-user-label{color:#93c5fd; text-shadow:0 1px 2px rgba(15,23,42,.9), 0 0 8px rgba(15,23,42,.78);}
       .rail-live-user-location.is-far{opacity:.58;}
       .rail-live-feed-head{padding:14px 16px; border-radius:18px;}
       .rail-live-feed-head h3{margin:0; font-size:1rem;}
@@ -3041,7 +3111,7 @@
         .rail-live-train-copy{width:150px; min-height:22px; top:-11px;}
         .rail-live-train-copy strong{font-size:.68rem;}
         .rail-live-station-name{font-size:.74rem; max-width:calc(50% - 34px);}
-        .rail-live-user-label{display:none;}
+        .rail-live-user-label{left:13px; top:0; min-height:18px; padding:0; font-size:.62rem;}
         .rail-live-modal{padding:14px;}
       }`;
     document.head.appendChild(style);
@@ -3081,6 +3151,9 @@
       userLocationPollBusy: false,
       userLocationMarker: null,
       userLocationLastProjection: null,
+      userRouteAutoApplied: false,
+      userRouteManualOverride: false,
+      isAutoSwitchingRoute: false,
       runRender: null,
       animationFrame: 0,
       animationScopeKey: "",
@@ -3134,6 +3207,8 @@
       });
     };
     state.runRender = run;
+    state.userLocationEnabled = true;
+    writeUserLocationEnabled(true);
     syncUserLocationToggleButton(state);
     tab.addEventListener("click", async () => {
       if (!(await ensureLiveTrackerAccess())) return;
@@ -3144,11 +3219,10 @@
       if (!(await ensureLiveTrackerAccess())) return;
       run();
     });
-    state.userLocationButton?.addEventListener("click", async () => {
-      if (!(await ensureLiveTrackerAccess())) return;
-      setUserLocationEnabled(state, !state.userLocationEnabled);
+    state.routeSelect?.addEventListener("change", () => {
+      if (!state.isAutoSwitchingRoute) state.userRouteManualOverride = true;
+      run();
     });
-    state.routeSelect?.addEventListener("change", run);
     state.directionSelect?.addEventListener("change", run);
     let timer = null;
     state.searchInput?.addEventListener("input", () => {
