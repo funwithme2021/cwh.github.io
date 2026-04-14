@@ -301,7 +301,7 @@ select.setting-input[id*="pick"] {
             display: flex; gap: 20px; transform: translateY(20px) scale(0.9); opacity: 0; visibility: hidden; transition: 0.3s; box-shadow: 0 20px 50px rgba(0,0,0,0.5);
         }
         .tools-popup.active { transform: translateY(0) scale(1); opacity: 1; visibility: visible; }
-        .tool-btn { display: flex; flex-direction: column; align-items: center; gap: 8px; text-decoration: none; width: 64px; color: var(--text-main); }
+        .tool-btn { display: flex; flex-direction: column; align-items: center; gap: 8px; text-decoration: none; width: 64px; color: var(--text-main); border:0; background:transparent; padding:0; font:inherit; cursor:pointer; }
         .tool-icon { width: 56px; height: 56px; background: rgba(255,255,255,0.05); border-radius: 20px; display: flex; align-items: center; justify-content: center; font-size: 1.8rem; border: 1px solid var(--glass-border); }
 
         #settingsModal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 2000; align-items: center; justify-content: center; backdrop-filter: blur(8px); opacity: 0; transition: opacity 0.3s; }
@@ -4994,7 +4994,7 @@ select.setting-input[id*="pick"] {
                             <small id="heroWeatherObservationMeta" hidden></small>
                         </div>
                         <div class="hero-weather-chip rain" id="heroWeatherRainCard">
-                            <span>3 小時降雨</span>
+                            <span>降雨</span>
                             <strong id="heroWeatherRain">--</strong>
                         </div>
                     </div>
@@ -5419,7 +5419,7 @@ select.setting-input[id*="pick"] {
 
     <div class="dock-container" id="floatingDock">
         <div class="tools-popup" id="toolsPopup">
-            <a href="https://www.cwa.gov.tw/V8/C/" target="_blank" class="tool-btn"><div class="tool-icon">🌥️</div><span class="tool-name">氣象</span></a>
+            <button type="button" class="tool-btn" onclick="openAppOverlay('weather')"><div class="tool-icon">Wx</div><span class="tool-name">氣象專區</span></button>
             <a href="https://web.metro.taipei/pages/assets/images/routemap2023n.png" target="_blank" class="tool-btn"><div class="tool-icon">🚇</div><span class="tool-name">北捷</span></a>
             <a href="https://www.tmrt.com.tw/" target="_blank" class="tool-btn"><div class="tool-icon">🚄</div><span class="tool-name">中捷</span></a>
             <a href="https://www.krtc.com.tw/" target="_blank" class="tool-btn"><div class="tool-icon">🚈</div><span class="tool-name">高捷</span></a>
@@ -5472,7 +5472,9 @@ select.setting-input[id*="pick"] {
               ? '../tr/tr.html'
               : sys === 'thsr'
                 ? '../thsr/thsr.html'
-                : './ai.html';
+                : sys === 'weather'
+                  ? '../../weather/index.html'
+                  : './ai.html';
           const q = new URLSearchParams();
           q.set('embed','1');
           if(params){
@@ -5506,7 +5508,7 @@ select.setting-input[id*="pick"] {
             window.closeAppOverlay();
             return;
           }
-          if(ev.data && ev.data.type === 'OPEN_OVERLAY' && (ev.data.sys === 'ai' || ev.data.sys === 'tr' || ev.data.sys === 'thsr')){
+          if(ev.data && ev.data.type === 'OPEN_OVERLAY' && (ev.data.sys === 'ai' || ev.data.sys === 'tr' || ev.data.sys === 'thsr' || ev.data.sys === 'weather')){
             window.openAppOverlay(ev.data.sys, ev.data.params || null, { skipRecent: true });
           }
         });
@@ -5514,7 +5516,7 @@ select.setting-input[id*="pick"] {
         // Back button
         window.addEventListener('popstate', (e) => {
           const h = (location.hash || '').replace('#','');
-          if(h === 'ai' || h === 'tr' || h === 'thsr'){
+          if(h === 'ai' || h === 'tr' || h === 'thsr' || h === 'weather'){
             // if navigating back into app, reopen without params
             window.openAppOverlay(h, (e.state && e.state.params) ? e.state.params : null, { skipRecent: true });
           }else{
@@ -5525,7 +5527,7 @@ select.setting-input[id*="pick"] {
         // On reload with hash
         window.addEventListener('load', () => {
           const h = (location.hash || '').replace('#','');
-          if(h === 'ai' || h === 'tr' || h === 'thsr'){
+          if(h === 'ai' || h === 'tr' || h === 'thsr' || h === 'weather'){
             window.openAppOverlay(h, readOverlayParamsFromUrl(), { skipRecent: true });
           }
         });
@@ -5988,6 +5990,7 @@ select.setting-input[id*="pick"] {
         const HOME_QUICK_PAGE_SIZE = 3;
         const HOME_LOCATION_CACHE_KEY = 'home_location_weather_v15';
         const HOME_SHARED_GEO_KEY = 'home_shared_geo_snapshot_v1';
+        const HOME_WEATHER_SAME_AREA_REFRESH_MS = 30 * 60 * 1000;
         const HOME_NEARBY_RAIL_STATUS_STALE_MS = 2 * 60 * 1000;
         const UI_TEXT_SCALE_KEY = 'ui_text_scale_v1';
         let homeGeoWatchId = null;
@@ -9514,6 +9517,11 @@ function toggleSettings(show) {
                 window.__homePortalMenuBound = true;
                 window.addEventListener('resize', syncHomePortalMenu);
                 window.addEventListener('resize', () => updateHomeScheduleHelperButtons());
+                document.getElementById('homePortalLinkGrid')?.addEventListener('click', (event) => {
+                    const link = event.target?.closest?.('.portal-link');
+                    if (!link || !window.matchMedia('(max-width: 860px)').matches) return;
+                    window.setTimeout(() => toggleHomePortalMenu(false), 0);
+                });
             }
             syncHomePortalMenu();
 
@@ -9745,6 +9753,8 @@ function toggleSettings(show) {
         function shouldUseCachedHomeLocationWeather(cached, coords, options = {}) {
             if (!cached || options.force) return false;
             if (coords || options.source === 'watch') return false;
+            const ageMs = Date.now() - (Number(cached.ts) || 0);
+            if (!Number.isFinite(ageMs) || ageMs >= HOME_WEATHER_SAME_AREA_REFRESH_MS) return false;
             if (!homeLocationWeatherSessionPrimed && (options.prompt || options.refreshOnOpen)) return false;
             return true;
         }
@@ -9771,7 +9781,15 @@ function toggleSettings(show) {
 
         function shouldReuseHomeWeatherForTownship(cached, townshipKey, options = {}) {
             if (options.force) return false;
-            return !!(cached?.townshipKey && townshipKey && cached.townshipKey === townshipKey && hasUsableHomeWeatherSnapshot(cached));
+            const ageMs = Date.now() - (Number(cached?.ts) || 0);
+            return !!(
+                cached?.townshipKey &&
+                townshipKey &&
+                cached.townshipKey === townshipKey &&
+                hasUsableHomeWeatherSnapshot(cached) &&
+                Number.isFinite(ageMs) &&
+                ageMs < HOME_WEATHER_SAME_AREA_REFRESH_MS
+            );
         }
 
         function normalizeHomeObservationComfortDisplay(text, comfortOverride = '') {
@@ -10281,11 +10299,11 @@ function toggleSettings(show) {
             return parts.join(' · ') || '--';
         }
 
-        function buildHomeRainForecastText(weather) {
-            if (!weather) return '--';
+        function buildHomeRainForecastText(weather, observation = null) {
+            if (!weather && !observation) return '--';
             const parts = [];
-            if (Number.isFinite(weather.hourRainProbability)) parts.push(`${weather.hourRainProbability}%`);
-            const amountText = formatHomeRainAmount(weather.hourRainAmount);
+            if (Number.isFinite(weather?.hourRainProbability)) parts.push(`${weather.hourRainProbability}%`);
+            const amountText = formatHomeRainAmount(observation?.precipitation);
             if (amountText) parts.push(amountText);
             return parts.join(' · ') || '--';
         }
@@ -10929,8 +10947,10 @@ function toggleSettings(show) {
             const temp = extractHomeNumericValue(getHomeObservationValue(station, ['AirTemperature', 'Temperature', 'TEMP']));
             const humidity = extractHomeNumericValue(getHomeObservationValue(station, ['RelativeHumidity', 'HUMD']));
             const precipitation = extractHomeNumericValue(
+                getHomeCwaField(weatherElement, ['DailyRainfall', 'DailyPrecipitation', 'H_24R']) ??
+                getHomeCwaField(station, ['DailyRainfall', 'DailyPrecipitation', 'H_24R']) ??
                 getHomeCwaField(nowElement, ['Precipitation']) ??
-                getHomeObservationValue(station, ['Precipitation', 'H_24R'])
+                getHomeObservationValue(station, ['Precipitation'])
             );
             const windSpeed = extractHomeNumericValue(getHomeObservationValue(station, ['WindSpeed', 'WDSD']));
             const windGust = extractHomeObservationWindGust(weatherElement);
@@ -11848,7 +11868,7 @@ function toggleSettings(show) {
 
                 const visual = resolveHomeWeatherVisual({ observation, weather, alert });
                 const forecastText = buildHomeForecastText(weather, visual);
-                const rainText = buildHomeRainForecastText(weather);
+                const rainText = buildHomeRainForecastText(weather, observation);
                 const observationDisplay = buildHomeObservationDisplay(observation, weather);
                 const noticeParts = [];
                 let summaryTone = '';

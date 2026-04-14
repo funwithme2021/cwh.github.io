@@ -13,6 +13,7 @@
   const SHARED_GEO_KEY = "home_shared_geo_snapshot_v1";
   const USER_LOCATION_ENABLED_KEY = "rail_live_user_location_enabled_v1";
   const USER_LOCATION_MAX_FAR_KM = 8;
+  const USER_LOCATION_ROUTE_DISPLAY_MAX_KM = 2;
   const USER_LOCATION_POLL_MS = 3000;
   const TRACKER_STATES = new Map();
   const TRA_TYPE_COLORS = {
@@ -1992,7 +1993,7 @@
       label: "你的位置",
       stationLabel,
       nearbyTrain,
-      isFar: distanceKm > USER_LOCATION_MAX_FAR_KM,
+      isFar: distanceKm > USER_LOCATION_ROUTE_DISPLAY_MAX_KM,
       speedText,
       title: [
         `你的位置：${stationLabel}`,
@@ -2036,12 +2037,17 @@
     }
     let projection = projectUserLocationToRoute(state);
     const isFreshProjection = Boolean(projection);
+    if (projection?.isFar) {
+      state.userLocationLastProjection = null;
+      marker.hidden = true;
+      return;
+    }
     if (projection) {
       state.userLocationLastProjection = { ...projection, segmentId: state.segment?.id || "" };
     } else if (state.userLocationLastProjection?.segmentId === (state.segment?.id || "")) {
       projection = state.userLocationLastProjection;
     }
-    if (!projection) {
+    if (!projection || projection.isFar) {
       marker.hidden = true;
       return;
     }
