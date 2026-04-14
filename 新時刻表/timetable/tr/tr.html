@@ -4286,9 +4286,10 @@ let __startEndDelegated = false;
     const today = new Date();
     const minD = new Date(today); minD.setDate(minD.getDate()-3);
     const maxD = new Date(today); maxD.setDate(maxD.getDate()+120);
+    const linkedDate = String(new URLSearchParams(window.location.search).get('date') || '').trim();
     el.min = fmtDate(minD);
     el.max = fmtDate(maxD);
-    el.value = fmtDate(today);
+    el.value = /^\d{4}-\d{2}-\d{2}$/.test(linkedDate) ? linkedDate : fmtDate(today);
     el.addEventListener('change', ()=>{
       refreshData(el.value);
       updateHeroSnapshot();
@@ -9824,20 +9825,6 @@ function initStartEndSorting(){
   async function switchQueryPanel(panelId){
     const resolvedPanelId = resolveStartEndPanelId(panelId);
     const activeTabTarget = resolveQueryTabTarget(panelId);
-    const featureMap = {
-      'panel-live-tracker': 'live-tracker',
-      'panel-master-table': 'master-table',
-      'panel-operation-diagram': 'operation-diagram'
-    };
-    const feature = featureMap[resolvedPanelId];
-    if(feature && window.RailFeatureGate?.ensureAccess){
-      try{
-        const allowed = await window.RailFeatureGate.ensureAccess(feature);
-        if(!allowed) return false;
-      }catch(_){
-        return false;
-      }
-    }
     document.querySelectorAll('.query-panel').forEach(el=>{
       if(!el || !el.id) return;
       el.classList.toggle('hidden', el.id !== resolvedPanelId);
@@ -11090,7 +11077,6 @@ document.addEventListener('click', (event) => {
 </script>
 
 <script charset="UTF-8" src="../shared/rail-assistant-common.js?v=20260319-utf8fix"></script>
-<script charset="UTF-8" src="../shared/rail-feature-gate.js?v=20260326-captcha8"></script>
   <script charset="UTF-8" src="../shared/rail-page-assistant.js?v=20260412-aiverify1"></script>
 <script charset="UTF-8" src="../shared/rail-network.js?v=20260404-autorefresh1"></script>
 <script charset="UTF-8" src="../shared/rail-master-table.js?v=20260404-autorefresh2"></script>

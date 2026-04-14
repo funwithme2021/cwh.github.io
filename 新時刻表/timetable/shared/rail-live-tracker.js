@@ -89,12 +89,7 @@
   }
 
   async function ensureLiveTrackerAccess() {
-    if (!window.RailFeatureGate?.ensureAccess) return true;
-    try {
-      return await window.RailFeatureGate.ensureAccess("live-tracker");
-    } catch (_) {
-      return false;
-    }
+    return true;
   }
 
   function readPageValue(expression) {
