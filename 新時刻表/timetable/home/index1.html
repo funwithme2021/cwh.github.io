@@ -659,6 +659,357 @@ select.setting-input[id*="pick"] {
     100% { transform: translate(-10%, -10%) rotate(360deg); }
 }
 
+/* Modern splash prototype kept for later, disabled while legacy splash is active.
+#splash-screen{
+    --splash-ink:#0f172a;
+    --splash-muted:#64748b;
+    --splash-blue:#2f6fb1;
+    --splash-cyan:#2c9ac9;
+    --splash-green:#78be20;
+    background:
+        radial-gradient(circle at 16% 12%, rgba(255,255,255,0.96), rgba(255,255,255,0) 28%),
+        radial-gradient(circle at 84% 22%, rgba(147,197,253,0.34), rgba(147,197,253,0) 32%),
+        linear-gradient(135deg, #eef5ff 0%, #f8fbff 46%, #c9d9ed 100%);
+}
+#splash-screen::before,
+#splash-screen::after{
+    content:"";
+    position:absolute;
+    inset:auto -10% -18% auto;
+    width:62%;
+    height:44%;
+    border-radius:50% 0 0 0;
+    background:linear-gradient(135deg, rgba(72,92,122,0.34), rgba(72,92,122,0));
+    transform:rotate(-9deg);
+    opacity:.55;
+}
+#splash-screen::after{
+    inset:12% -16% auto auto;
+    width:46%;
+    height:34%;
+    opacity:.22;
+    transform:rotate(-18deg);
+}
+.splash-bg-decor{
+    width:100%;
+    height:100%;
+    background:
+        linear-gradient(112deg, transparent 0 49%, rgba(47,75,112,0.18) 49.4% 50.2%, transparent 50.6% 100%),
+        linear-gradient(152deg, transparent 0 53%, rgba(47,75,112,0.22) 53.4% 54.1%, transparent 54.5% 100%),
+        radial-gradient(circle at 70% 36%, rgba(255,255,255,0.42), transparent 18%);
+    animation:splashAmbientDrift 12s ease-in-out infinite alternate;
+}
+.splash-content{
+    position:relative;
+    width:min(860px, calc(100% - 36px));
+    min-height:min(560px, calc(100dvh - 72px));
+    padding:42px clamp(22px, 5vw, 56px);
+    border:1px solid rgba(255,255,255,0.76);
+    border-radius:42px;
+    background:linear-gradient(135deg, rgba(255,255,255,0.86), rgba(239,246,255,0.72));
+    box-shadow:0 32px 90px rgba(44,68,105,0.24);
+    backdrop-filter:blur(22px);
+    justify-content:center;
+    gap:20px;
+}
+.splash-logo-wrap{
+    position:relative;
+    width:auto;
+    height:auto;
+    margin:0;
+    mix-blend-mode:normal;
+    transform:none;
+    opacity:1;
+    animation:splashBrandIn .72s cubic-bezier(.22,1,.36,1) both;
+}
+.splash-brand-row{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:16px;
+    animation:splashBrandIn .72s cubic-bezier(.22,1,.36,1) both;
+}
+.splash-brand-copy{
+    display:grid;
+    gap:3px;
+    text-align:left;
+}
+.splash-brand-copy strong{
+    color:var(--splash-ink);
+    font-size:1.12rem;
+    font-weight:950;
+    letter-spacing:.02em;
+}
+.splash-brand-copy span{
+    color:#73829a;
+    font-size:.72rem;
+    font-weight:900;
+    letter-spacing:.28em;
+}
+.splash-icon-img{
+    display:none;
+}
+.splash-logo-wrap::before{
+    content:"RT";
+    display:grid;
+    place-items:center;
+    width:58px;
+    height:58px;
+    border-radius:18px;
+    color:#fff;
+    font-size:1rem;
+    font-weight:950;
+    letter-spacing:.05em;
+    background:linear-gradient(135deg, #3f78d7, #2da8d8);
+    box-shadow:0 18px 40px rgba(47,111,177,.32);
+}
+.splash-logo-wrap::after{
+    display:none;
+}
+.splash-content::before{
+    display:none;
+}
+.splash-text-group{
+    opacity:1;
+    transform:none;
+    animation:splashFadeUp .72s ease-out .12s both;
+}
+.splash-title{
+    margin:0;
+    color:var(--splash-ink);
+    font-size:clamp(2.55rem, 7vw, 5.2rem);
+    line-height:.92;
+    letter-spacing:-.04em;
+    text-shadow:none;
+}
+.splash-tagline{
+    margin:14px 0 0;
+    color:#66758d;
+    font-size:clamp(.92rem, 2vw, 1.06rem);
+    font-weight:800;
+    letter-spacing:.08em;
+}
+.splash-rail-stage{
+    position:relative;
+    width:min(560px, 92vw);
+    height:190px;
+    margin:14px auto 2px;
+    overflow:hidden;
+    border-radius:34px;
+    background:linear-gradient(180deg, #dce9f7 0%, #c6d7eb 100%);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.8), 0 22px 50px rgba(69,91,122,.18);
+}
+.splash-rail-stage::before,
+.splash-rail-stage::after{
+    content:"";
+    position:absolute;
+    left:-12%;
+    right:-12%;
+    height:8px;
+    bottom:34px;
+    border-radius:999px;
+    background:#53637a;
+    transform:rotate(-9deg);
+    opacity:.72;
+}
+.splash-rail-stage::after{
+    bottom:6px;
+    height:10px;
+    transform:rotate(-21deg);
+    opacity:.48;
+}
+.splash-rail-line{
+    position:absolute;
+    left:-18%;
+    right:-18%;
+    bottom:56px;
+    height:7px;
+    border-radius:999px;
+    background:#65758e;
+    opacity:.68;
+    transform:rotate(-16deg);
+    overflow:hidden;
+}
+.splash-rail-line::after{
+    content:"";
+    position:absolute;
+    inset:0;
+    background:repeating-linear-gradient(90deg, transparent 0 22px, rgba(255,255,255,.62) 22px 34px, transparent 34px 58px);
+    animation:splashRailMotion 1.05s linear infinite;
+}
+.splash-train{
+    position:absolute;
+    left:50%;
+    top:62px;
+    width:min(390px, 76%);
+    height:112px;
+    border-radius:54px 78px 40px 34px;
+    background:linear-gradient(180deg, #ffffff 0%, #eef3f8 78%);
+    box-shadow:0 18px 42px rgba(45,61,84,.22);
+    transform:translateX(-50%);
+    animation:splashTrainEnter .92s cubic-bezier(.22,1,.36,1) both,
+              splashTrainFloat 3.2s ease-in-out .92s infinite;
+}
+.splash-train::after{
+    content:"";
+    position:absolute;
+    left:0;
+    right:0;
+    bottom:18px;
+    height:16px;
+    background:var(--splash-green);
+}
+.splash-train-badge{
+    position:absolute;
+    left:56px;
+    top:28px;
+    padding:6px 15px;
+    border-radius:999px;
+    color:#fff;
+    background:#434c5d;
+    font-size:.72rem;
+    font-weight:950;
+    letter-spacing:.1em;
+}
+.splash-train-window{
+    position:absolute;
+    right:54px;
+    top:42px;
+    min-width:168px;
+    padding:13px 22px;
+    border-radius:25px 40px 25px 25px;
+    color:#fff;
+    background:#2f3a4f;
+    font-size:.9rem;
+    font-weight:900;
+    letter-spacing:.04em;
+    text-align:left;
+}
+.splash-train-window::after{
+    content:"";
+    display:block;
+    width:72%;
+    height:6px;
+    margin-top:8px;
+    border-radius:999px;
+    background:rgba(255,255,255,.2);
+}
+.splash-status-container{
+    width:min(520px, 92%);
+    margin-top:4px;
+}
+.splash-loader-wrap{
+    width:100%;
+    height:12px;
+    margin:0;
+    border:1px solid rgba(68,92,126,.12);
+    background:rgba(255,255,255,.72);
+    box-shadow:inset 0 1px 2px rgba(15,23,42,.08);
+}
+.splash-loader-bar{
+    left:0;
+    width:var(--splash-progress, 6%);
+    background:linear-gradient(90deg, var(--splash-blue), var(--splash-cyan));
+    box-shadow:0 0 22px rgba(45,154,201,.42);
+    animation:none;
+    transition:width .72s cubic-bezier(.22,1,.36,1);
+}
+.splash-progress-meta{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    gap:12px;
+    margin-top:10px;
+    color:#64748b;
+    font-size:.78rem;
+    font-weight:900;
+    letter-spacing:.08em;
+}
+.splash-status{
+    margin-top:8px;
+    color:#32435b;
+    font-size:.94rem;
+    font-weight:900;
+    letter-spacing:.04em;
+}
+.splash-footer-info{
+    bottom:34px;
+}
+.splash-footer-info .v-num{
+    color:rgba(15,23,42,.44);
+    font-weight:800;
+}
+.splash-footer-info p{
+    color:rgba(71,85,105,.62);
+}
+@keyframes splashAmbientDrift{
+    from{ transform:translate3d(-1.5%, -1%, 0) scale(1.03); }
+    to{ transform:translate3d(1.5%, 1%, 0) scale(1.08); }
+}
+@keyframes splashBrandIn{
+    from{ opacity:0; transform:translateY(14px) scale(.92); }
+    to{ opacity:1; transform:translateY(0) scale(1); }
+}
+@keyframes splashFadeUp{
+    from{ opacity:0; transform:translateY(12px); }
+    to{ opacity:1; transform:translateY(0); }
+}
+@keyframes splashTrainFloat{
+    0%,100%{ transform:translateX(-50%) translateY(0); }
+    50%{ transform:translateX(-50%) translateY(-7px); }
+}
+@keyframes splashTrainEnter{
+    from{ opacity:0; transform:translateX(-124%) translateY(12px) scale(.94); }
+    to{ opacity:1; transform:translateX(-50%) translateY(0) scale(1); }
+}
+@keyframes splashRailMotion{
+    from{ transform:translateX(0); }
+    to{ transform:translateX(58px); }
+}
+@media (max-width: 640px){
+    .splash-content{
+        min-height:calc(100dvh - 34px);
+        border-radius:30px;
+        padding:30px 18px;
+    }
+    .splash-logo-wrap::before{
+        width:52px;
+        height:52px;
+        border-radius:16px;
+    }
+    .splash-brand-row{
+        gap:13px;
+    }
+    .splash-brand-copy strong{
+        font-size:1rem;
+    }
+    .splash-brand-copy span{
+        font-size:.62rem;
+        letter-spacing:.2em;
+    }
+    .splash-rail-stage{
+        height:168px;
+        border-radius:28px;
+    }
+    .splash-train{
+        width:86%;
+        height:96px;
+        top:58px;
+    }
+    .splash-train-badge{
+        left:38px;
+        top:24px;
+    }
+    .splash-train-window{
+        right:34px;
+        top:36px;
+        min-width:138px;
+        padding:11px 16px;
+        font-size:.78rem;
+    }
+}
+*/
+
     </style>
     <style>
         /* ===== 2026 Home redesign ===== */
@@ -4953,7 +5304,7 @@ select.setting-input[id*="pick"] {
         </div>
         
         <div class="splash-footer-info">
-            <span class="v-num">Version 26.0210.77</span>
+            <span class="v-num">Version 26.0414.01</span>
             <p>© 2026 Real-Time</p>
         </div>
     </div>
@@ -6070,6 +6421,9 @@ select.setting-input[id*="pick"] {
         const HOME_CWA_AUTH = 'rdec-key-123-45678-011121314';
         const HOME_CWA_DATASTORE = 'https://opendata.cwa.gov.tw/api/v1/rest/datastore';
         const HOME_CWA_FILEAPI = 'https://opendata.cwa.gov.tw/fileapi/v1/opendataapi';
+        const HOME_OBSERVATION_FIELD_CACHE_KEY = 'home_observation_field_cache_v1';
+        const HOME_OBSERVATION_FIELD_CACHE_MS = 3 * 60 * 60 * 1000;
+        const HOME_CWA_OBSERVATION_DATASETS = ['O-A0003-001', 'O-A0001-001', 'O-A0002-001'];
         const HOME_CWA_TOWNSHIP_FORECAST_DATASET = 'F-D0047-089';
         const HOME_CWA_2DAY_FORECAST_DATASETS = {
             '宜蘭縣': 'F-D0047-001',
@@ -10018,8 +10372,21 @@ function toggleSettings(show) {
                 .replace(/小[於于]等[於于]/g, '≤');
         }
 
+        function isHomeCwaMissingValue(value) {
+            const text = normalizeHomeCompareSymbols(value).trim();
+            if (!text) return true;
+            return /^(?:-9{2,}(?:\.0+)?|--+|N\/?A|NULL|NONE|缺測|無資料|資料缺漏)$/i.test(text);
+        }
+
         function normalizeHomePlaceName(value) {
+            if (isHomeCwaMissingValue(value)) return '';
             return normalizeTRA(normalizeHomeCompareSymbols(value).trim());
+        }
+
+        function normalizeHomeWeatherText(value) {
+            const text = normalizeHomePlaceName(value);
+            if (!text || /^-?\d+(?:\.\d+)?$/.test(text)) return '';
+            return text;
         }
 
         function formatHomeTownshipLabel(countyName, townName, fallback) {
@@ -10332,7 +10699,7 @@ function toggleSettings(show) {
         }
 
         function resolveHomeWeatherVisualText(textValue, options = {}) {
-            const text = normalizeHomePlaceName(textValue || '').replace(/\s+/g, '');
+            const text = normalizeHomeWeatherText(textValue || '').replace(/\s+/g, '');
             const strongWind = !!options.strongWind;
             const isNight = !!options.isNight;
             if (/雷/.test(text)) return { type: 'thunder', label: '雷雨' };
@@ -10368,7 +10735,7 @@ function toggleSettings(show) {
                 String(observation?.weather || ''),
                 String(weather?.condition || ''),
                 String(alert?.text || '')
-            ].map((value) => normalizeHomePlaceName(value).replace(/\s+/g, '')).filter(Boolean);
+            ].map((value) => normalizeHomeWeatherText(value).replace(/\s+/g, '')).filter(Boolean);
             if (!candidates.length) {
                 return resolveHomeWeatherVisualText('', { strongWind, isNight });
             }
@@ -10378,7 +10745,7 @@ function toggleSettings(show) {
         function buildHomeForecastText(weather, visual) {
             if (!weather && !visual) return '--';
             const parts = [];
-            const label = weather?.condition || visual?.label || '--';
+            const label = normalizeHomeWeatherText(weather?.condition || '') || visual?.label || '--';
             if (label && label !== '--') parts.push(label);
             const tempRange = formatHomeTempRange(weather?.tempMin, weather?.tempMax);
             if (tempRange !== '--') parts.push(tempRange);
@@ -10401,7 +10768,7 @@ function toggleSettings(show) {
             const mainParts = [];
             const metaParts = [];
             const metaCompactParts = [];
-            const label = normalizeHomePlaceName(observation?.weather || weather?.condition || visual?.label || '');
+            const label = normalizeHomeWeatherText(observation?.weather || '') || normalizeHomeWeatherText(weather?.condition || '') || normalizeHomeWeatherText(visual?.label || '');
             const tempValue = Number.isFinite(Number(observation?.temp))
                 ? Number(observation.temp)
                 : (Number.isFinite(Number(weather?.currentTemp)) ? Number(weather.currentTemp) : null);
@@ -10990,11 +11357,37 @@ function toggleSettings(show) {
             return getHomeCwaField(station, ['WeatherElement']) || {};
         }
 
+        function getHomeObservationRainfallElement(station) {
+            return getHomeCwaField(station, ['RainfallElement']) || {};
+        }
+
         function getHomeObservationValue(station, keys) {
             const weatherElement = getHomeObservationWeatherElement(station);
             const direct = getHomeCwaField(weatherElement, keys);
             if (direct !== null) return direct;
             return getHomeCwaField(station, keys);
+        }
+
+        function extractHomeObservationPrecipitation(station) {
+            const weatherElement = getHomeObservationWeatherElement(station);
+            const rainfallElement = getHomeObservationRainfallElement(station);
+            const weatherNow = getHomeCwaField(weatherElement, ['Now']) || {};
+            const rainfallNow = getHomeCwaField(rainfallElement, ['Now']) || {};
+            const rainfall24h = getHomeCwaField(rainfallElement, ['Past24hr', 'Past24Hour', 'Past24Hours']) || {};
+            const candidates = [
+                getHomeCwaField(weatherElement, ['DailyRainfall', 'DailyPrecipitation', 'H_24R']),
+                getHomeCwaField(rainfallElement, ['DailyRainfall', 'DailyPrecipitation', 'H_24R']),
+                getHomeCwaField(station, ['DailyRainfall', 'DailyPrecipitation', 'H_24R']),
+                getHomeCwaField(weatherNow, ['Precipitation', 'Rainfall']),
+                getHomeCwaField(rainfallNow, ['Precipitation', 'Rainfall']),
+                getHomeCwaField(rainfall24h, ['Precipitation', 'Rainfall']),
+                getHomeObservationValue(station, ['Precipitation', 'Rainfall'])
+            ];
+            for (const candidate of candidates) {
+                const value = extractHomeNumericValue(candidate);
+                if (Number.isFinite(value) && value >= 0) return value;
+            }
+            return null;
         }
 
         function getHomeObservationCoords(station) {
@@ -11014,10 +11407,10 @@ function toggleSettings(show) {
             return { lat, lon };
         }
 
-        async function fetchHomeObservationSource(type) {
+        async function fetchHomeObservationSource(type, dataset = 'O-A0003-001') {
             const url = new URL(type === 'file'
-                ? `${HOME_CWA_FILEAPI}/O-A0003-001`
-                : `${HOME_CWA_DATASTORE}/O-A0003-001`);
+                ? `${HOME_CWA_FILEAPI}/${dataset}`
+                : `${HOME_CWA_DATASTORE}/${dataset}`);
             url.searchParams.set('Authorization', HOME_CWA_AUTH);
             url.searchParams.set('format', 'JSON');
             const response = await fetch(url.toString());
@@ -11030,15 +11423,9 @@ function toggleSettings(show) {
             if (!coords) return null;
             const geoInfo = getHomeObservationGeoInfo(station);
             const weatherElement = getHomeObservationWeatherElement(station);
-            const nowElement = getHomeCwaField(weatherElement, ['Now']) || {};
             const temp = extractHomeNumericValue(getHomeObservationValue(station, ['AirTemperature', 'Temperature', 'TEMP']));
             const humidity = extractHomeNumericValue(getHomeObservationValue(station, ['RelativeHumidity', 'HUMD']));
-            const precipitation = extractHomeNumericValue(
-                getHomeCwaField(weatherElement, ['DailyRainfall', 'DailyPrecipitation', 'H_24R']) ??
-                getHomeCwaField(station, ['DailyRainfall', 'DailyPrecipitation', 'H_24R']) ??
-                getHomeCwaField(nowElement, ['Precipitation']) ??
-                getHomeObservationValue(station, ['Precipitation'])
-            );
+            const precipitation = extractHomeObservationPrecipitation(station);
             const windSpeed = extractHomeNumericValue(getHomeObservationValue(station, ['WindSpeed', 'WDSD']));
             const windGust = extractHomeObservationWindGust(weatherElement);
             const uvIndex = extractHomeNumericValue(getHomeObservationValue(station, ['UVIndex', 'UVI']));
@@ -11049,7 +11436,7 @@ function toggleSettings(show) {
                 stationName: normalizeHomePlaceName(getHomeCwaField(station, ['StationName', 'LocationName']) || ''),
                 countyName: normalizeHomePlaceName(getHomeCwaField(geoInfo, ['CountyName']) || getHomeCwaField(station, ['CountyName', 'CITY']) || ''),
                 townName: normalizeHomePlaceName(getHomeCwaField(geoInfo, ['TownName']) || getHomeCwaField(station, ['TownName', 'TOWN']) || ''),
-                weather: normalizeHomePlaceName(getHomeObservationValue(station, ['Weather']) || ''),
+                weather: normalizeHomeWeatherText(getHomeObservationValue(station, ['Weather']) || ''),
                 temp: Number.isFinite(temp) && temp > -90 ? temp : null,
                 humidity: Number.isFinite(humidity) && humidity >= 0 ? Math.round(humidity) : null,
                 windSpeed: Number.isFinite(windSpeed) && windSpeed >= 0 ? windSpeed : null,
@@ -11073,25 +11460,120 @@ function toggleSettings(show) {
             return match ? match[field] : (field === 'weather' ? '' : null);
         }
 
-        async function fetchHomeObservation(lat, lon, township = null) {
-            let data = null;
+        function getHomeObservationCacheKey(item) {
+            const id = String(item?.stationId || '').trim();
+            if (id) return id;
+            const name = normalizeHomeTownshipKeyPart(`${item?.countyName || ''}${item?.townName || ''}${item?.stationName || ''}`);
+            return name || '';
+        }
+
+        function readHomeObservationFieldCache() {
+            try {
+                const raw = JSON.parse(localStorage.getItem(HOME_OBSERVATION_FIELD_CACHE_KEY) || '{}');
+                return raw && typeof raw === 'object' ? raw : {};
+            } catch (e) {
+                return {};
+            }
+        }
+
+        function writeHomeObservationFieldCache(cache) {
+            try {
+                localStorage.setItem(HOME_OBSERVATION_FIELD_CACHE_KEY, JSON.stringify(cache || {}));
+            } catch (e) { }
+        }
+
+        function saveHomeObservationFieldCache(items) {
+            const now = Date.now();
+            const cache = readHomeObservationFieldCache();
+            const fields = ['weather', 'temp', 'humidity', 'windSpeed', 'windGust', 'uvIndex', 'precipitation'];
+            Object.keys(cache).forEach((key) => {
+                const savedAt = Number(cache[key]?.savedAt || 0);
+                if (!savedAt || now - savedAt > HOME_OBSERVATION_FIELD_CACHE_MS * 4) delete cache[key];
+            });
+            (Array.isArray(items) ? items : []).forEach((item) => {
+                const key = getHomeObservationCacheKey(item);
+                if (!key) return;
+                const record = cache[key] && typeof cache[key] === 'object' ? cache[key] : {};
+                let changed = false;
+                fields.forEach((field) => {
+                    if (!hasHomeObservationValue(item, field)) return;
+                    record[field] = item[field];
+                    changed = true;
+                });
+                if (!changed) return;
+                record.savedAt = now;
+                record.time = item.time || record.time || '';
+                record.stationName = item.stationName || record.stationName || '';
+                cache[key] = record;
+            });
+            writeHomeObservationFieldCache(cache);
+        }
+
+        function mergeHomeObservationCachedFields(items) {
+            const now = Date.now();
+            const cache = readHomeObservationFieldCache();
+            const fields = ['weather', 'temp', 'humidity', 'windSpeed', 'windGust', 'uvIndex', 'precipitation'];
+            return (Array.isArray(items) ? items : []).map((item) => {
+                const key = getHomeObservationCacheKey(item);
+                const record = key ? cache[key] : null;
+                const savedAt = Number(record?.savedAt || 0);
+                if (!record || !savedAt || now - savedAt > HOME_OBSERVATION_FIELD_CACHE_MS) return item;
+                const next = { ...item };
+                fields.forEach((field) => {
+                    if (!hasHomeObservationValue(next, field) && hasHomeObservationValue(record, field)) {
+                        next[field] = record[field];
+                    }
+                });
+                return next;
+            });
+        }
+
+        function buildHomeObservationFieldPool(nearest, fillPool, parsed) {
+            const seen = new Set();
+            const result = [];
+            [nearest, ...(Array.isArray(fillPool) ? fillPool : []), ...(Array.isArray(parsed) ? parsed : [])].forEach((item) => {
+                if (!item) return;
+                const key = `${item.sourceDataset || 'obs'}:${getHomeObservationCacheKey(item) || `${item.stationName || ''}-${item.distance}`}`;
+                if (seen.has(key)) return;
+                seen.add(key);
+                result.push(item);
+            });
+            return result;
+        }
+
+        async function fetchHomeObservationDataset(dataset) {
             let lastError = null;
             for (const type of ['rest', 'file']) {
                 try {
-                    data = await fetchHomeObservationSource(type);
-                    break;
+                    return await fetchHomeObservationSource(type, dataset);
                 } catch (error) {
                     lastError = error;
-                    console.warn('fetchHomeObservation source failed', type, error);
+                    console.warn('fetchHomeObservation source failed', dataset, type, error);
                 }
             }
-            if (!data) throw lastError || new Error('observation unavailable');
-            const stations = getHomeObservationStations(data);
+            throw lastError || new Error(`observation ${dataset} unavailable`);
+        }
+
+        async function fetchHomeObservation(lat, lon, township = null) {
+            const datasets = await Promise.allSettled(HOME_CWA_OBSERVATION_DATASETS.map(fetchHomeObservationDataset));
+            const stations = datasets.flatMap((result, index) => {
+                if (result.status === 'fulfilled') {
+                    return getHomeObservationStations(result.value).map(station => ({ station, sourceDataset: HOME_CWA_OBSERVATION_DATASETS[index] }));
+                }
+                console.warn('fetchHomeObservation dataset failed', HOME_CWA_OBSERVATION_DATASETS[index], result.reason);
+                return [];
+            });
             if (!stations.length) return null;
 
-            const parsed = stations
-                .map(station => normalizeHomeObservationStation(station, lat, lon))
+            const normalized = stations
+                .map(item => {
+                    const parsedStation = normalizeHomeObservationStation(item.station, lat, lon);
+                    return parsedStation ? { ...parsedStation, sourceDataset: item.sourceDataset } : null;
+                })
                 .filter(Boolean)
+                .sort((a, b) => a.distance - b.distance);
+            saveHomeObservationFieldCache(normalized);
+            const parsed = mergeHomeObservationCachedFields(normalized)
                 .sort((a, b) => a.distance - b.distance);
             if (!parsed.length) return null;
             const targetCounty = normalizeHomeTownshipKeyPart(township?.countyName || '');
@@ -11101,24 +11583,27 @@ function toggleSettings(show) {
             const fillPool = (sameCounty.length ? sameCounty : parsed).sort((a, b) => a.distance - b.distance);
             const nearest = fillPool.find(item => hasHomeObservationValue(item, 'temp')) || fillPool[0] || parsed[0];
             if (!nearest) return null;
+            const fieldPool = buildHomeObservationFieldPool(nearest, fillPool, parsed);
 
             return {
                 ...nearest,
-                weather: normalizeHomePlaceName(pickHomeObservationField(nearest, fillPool, 'weather') || ''),
-                temp: pickHomeObservationField(nearest, fillPool, 'temp'),
-                humidity: pickHomeObservationField(nearest, fillPool, 'humidity'),
-                windSpeed: pickHomeObservationField(nearest, fillPool, 'windSpeed'),
-                windGust: pickHomeObservationField(nearest, fillPool, 'windGust'),
-                uvIndex: pickHomeObservationField(nearest, fillPool, 'uvIndex'),
-                precipitation: pickHomeObservationField(nearest, fillPool, 'precipitation')
+                weather: normalizeHomeWeatherText(pickHomeObservationField(nearest, fieldPool, 'weather') || ''),
+                temp: pickHomeObservationField(nearest, fieldPool, 'temp'),
+                humidity: pickHomeObservationField(nearest, fieldPool, 'humidity'),
+                windSpeed: pickHomeObservationField(nearest, fieldPool, 'windSpeed'),
+                windGust: pickHomeObservationField(nearest, fieldPool, 'windGust'),
+                uvIndex: pickHomeObservationField(nearest, fieldPool, 'uvIndex'),
+                precipitation: pickHomeObservationField(nearest, fieldPool, 'precipitation')
             };
         }
 
         function extractHomeNumericValue(value) {
+            if (isHomeCwaMissingValue(value)) return null;
             const direct = Number((value && typeof value === 'object') ? (getHomeCwaField(value, ['Value']) ?? value) : value);
             if (Number.isFinite(direct)) return direct;
             const match = String(value ?? '').match(/-?\d+(?:\.\d+)?/);
-            return match ? Number(match[0]) : null;
+            if (!match || isHomeCwaMissingValue(match[0])) return null;
+            return Number(match[0]);
         }
 
         function collectHomeUvRecords(source, depth = 0) {
@@ -11218,6 +11703,7 @@ function toggleSettings(show) {
         };
 
         function getHomeCwaWeatherCodeLabel(code) {
+            if (isHomeCwaMissingValue(code)) return '';
             const value = String(code || '').trim().padStart(2, '0');
             return HOME_CWA_WEATHER_CODE_LABELS[value] || '';
         }
@@ -11238,7 +11724,7 @@ function toggleSettings(show) {
                 for (const candidate of candidates) {
                     if (Object.prototype.hasOwnProperty.call(source, candidate)) {
                         const value = source[candidate];
-                        if (value !== undefined && value !== null && String(value).trim() !== '') return value;
+                        if (value !== undefined && value !== null && String(value).trim() !== '' && !isHomeCwaMissingValue(value)) return value;
                     }
                 }
             }
@@ -11270,14 +11756,16 @@ function toggleSettings(show) {
                 if (value && typeof value === 'object') {
                     const direct = getHomeCwaField(value, ['Value']);
                     if (direct !== null) return direct;
+                    return null;
                 }
                 return value;
-            }).filter((value) => value !== undefined && value !== null && String(value).trim() !== '');
+            }).filter((value) => value !== undefined && value !== null && String(value).trim() !== '' && !isHomeCwaMissingValue(value));
         }
 
         function getHomeFirstNumericText(values) {
             for (const value of values) {
                 const text = normalizeHomeCompareSymbols(value).trim();
+                if (isHomeCwaMissingValue(text)) continue;
                 if (text && /^-?\d+(?:\.\d+)?$/.test(text)) return text;
             }
             return null;
@@ -11285,7 +11773,7 @@ function toggleSettings(show) {
 
         function getHomeFirstNonNumericText(values) {
             for (const value of values) {
-                const text = normalizeHomePlaceName(value);
+                const text = normalizeHomeWeatherText(value);
                 if (text && !/^-?\d+(?:\.\d+)?$/.test(text)) return text;
             }
             return null;
@@ -11439,7 +11927,7 @@ function toggleSettings(show) {
                 const rainAtTime = findHomeCwaPeriodAt(rainTimes, timeMs);
                 const rainProbability = Number(getHomeCwaElementValue(rainAtTime, ['ProbabilityOfPrecipitation'], rainElement));
                 const weatherAtTime = findHomeCwaPeriodAt(weatherTimes, timeMs);
-                const weatherText = normalizeHomePlaceName(getHomeCwaElementValue(weatherAtTime, ['Weather'], weatherElement) || '');
+                const weatherText = normalizeHomeWeatherText(getHomeCwaElementValue(weatherAtTime, ['Weather'], weatherElement) || '');
                 const weatherCode = getHomeCwaElementValue(weatherAtTime, ['WeatherCode'], weatherElement);
                 const windAtTime = findHomeCwaPeriodAt(windTimes, timeMs);
                 const comfortAtTime = comfortTimes.find((item) => getHomeCwaTimeMs(item) === timeMs) || findHomeCwaPeriodAt(comfortTimes, timeMs);
@@ -11492,7 +11980,7 @@ function toggleSettings(show) {
             const currentComfort = normalizeHomeComfortText(
                 getHomeCwaElementValue(findHomeCwaPeriodAt(comfortTimes, nowMs), ['ComfortIndexDescription'], comfortElement)
             );
-            const weatherText = normalizeHomePlaceName(getHomeCwaElementValue(currentWeather, ['Weather'], weatherElement) || '');
+            const weatherText = normalizeHomeWeatherText(getHomeCwaElementValue(currentWeather, ['Weather'], weatherElement) || '');
             const weatherCode = getHomeCwaElementValue(currentWeather, ['WeatherCode'], weatherElement);
             const currentTemp = Number(getHomeCwaElementValue(currentTempItem, ['Temperature'], tempElement));
             const currentApparentTemp = Number(getHomeCwaElementValue(currentApparentItem, ['ApparentTemperature'], apparentElement));
@@ -12415,6 +12903,8 @@ function toggleSettings(show) {
                         statusText.style.opacity = 1;
                         resolve();
                     }, 300);
+                } else {
+                    resolve();
                 }
             }, delay);
         });
