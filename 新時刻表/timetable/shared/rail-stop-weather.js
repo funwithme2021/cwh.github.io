@@ -56,9 +56,9 @@
       .modal-stop-weather-slot{display:inline-flex; align-items:center; margin-left:3px;}
       .modal-stop-weather-note{font-size:.74rem;}
       .rtq2-state .rail-stop-weather-note,
-      .modal-stop-state .rail-stop-weather-note{display:inline-flex; align-items:center; justify-content:flex-end; min-height:1.35em; width:100%; color:inherit; font-size:inherit; font-weight:inherit; line-height:inherit; text-align:right;}
+      .modal-stop-state .rail-stop-weather-note{display:inline-flex; align-items:center; justify-content:flex-start; min-height:1.35em; width:100%; color:inherit; font-size:inherit; font-weight:inherit; line-height:inherit; text-align:left;}
       .rtq2-state,
-      .modal-stop-state{display:flex; align-items:center; justify-content:flex-end; min-height:100%;}
+      .modal-stop-state{display:flex; align-items:center; justify-content:flex-start; min-height:100%; text-align:left;}
       .rtq2-station-main .rail-stop-weather-slot,
       .modal-stop-station-main .rail-stop-weather-slot{align-self:center;}
       body.dark-mode .rail-stop-weather-note{color:#a9bbd4;}
@@ -340,23 +340,28 @@
 
   function getWeatherType(text, targetMs) {
     const value = normalizeText(text);
-    if (/雷/.test(value)) return "thunder";
+    const hour = new Date(targetMs).getHours();
+    const isNight = hour >= 18 || hour < 6;
+    if (/雷/.test(value)) return isNight ? "thunder-night" : "thunder";
     if (/冰雹|雹/.test(value)) return "hail";
-    if (/雪|霰|積冰|暴風雪/.test(value)) return "snow";
-    if (/霧|霾|靄/.test(value)) return "fog";
+    if (/雪|霰|積冰|暴風雪/.test(value)) return isNight ? "snow-night" : "snow";
+    if (/霧|霾|靄/.test(value)) return isNight ? "fog-night" : "fog";
     if (/雨|陣雨|豪雨|毛雨/.test(value)) {
-      if (/晴/.test(value)) return "partly-rain";
-      if (/多雲|陰/.test(value)) return "cloud-rain";
-      return "rain";
+      if (/晴/.test(value)) return isNight ? "partly-rain-night" : "partly-rain";
+      if (/多雲/.test(value)) return isNight ? "cloud-rain-night" : "cloud-rain";
+      if (/陰/.test(value)) return "cloud-rain";
+      return isNight ? "rain-night" : "rain";
     }
     if (/陰/.test(value)) return "cloudy";
-    if (/多雲|雲/.test(value)) return "partly";
-    const hour = new Date(targetMs).getHours();
+    if (/多雲|雲/.test(value)) return isNight ? "partly-night" : "partly";
     if (/晴/.test(value)) return hour >= 18 || hour < 6 ? "clear-night" : "clear";
     return hour >= 18 || hour < 6 ? "clear-night" : "partly";
   }
 
   function getWeatherSvg(type) {
+    const rawType = String(type || "partly");
+    const isNightVisual = rawType.endsWith("-night") && rawType !== "clear-night";
+    const baseType = rawType === "clear-night" ? rawType : rawType.replace(/-night$/, "");
     const isDarkTheme = document.body?.classList?.contains("dark-mode");
     const palette = isDarkTheme
       ? {
@@ -389,7 +394,17 @@
           snow: "#E0F2FE",
           hail: "#E2E8F0",
         };
-    switch (String(type || "partly")) {
+    const moonShape = (cx, cy, r) => `
+            <circle cx="${cx}" cy="${cy}" r="${r}" fill="${palette.moon}"/>
+            <circle cx="${cx + r * 0.58}" cy="${cy - r * 0.32}" r="${r * 0.95}" fill="${palette.moonCut}"/>`;
+    const sunShape = (cx, cy, r) => `
+            <circle cx="${cx}" cy="${cy}" r="${r}" fill="${palette.sun}"/>
+            <g stroke="${palette.sunStroke}" stroke-width="4" stroke-linecap="round">
+              <path d="M${cx} ${cy - 21}v8"/><path d="M${cx - 22} ${cy}h8"/><path d="M${cx + 14} ${cy}h8"/><path d="M${cx - 16} ${cy - 16}l6 6"/><path d="M${cx + 12} ${cy + 18}l6 6"/>
+            </g>`;
+    const dayNightOrb = (cx, cy, r = 15) => isNightVisual ? moonShape(cx, cy, r) : sunShape(cx, cy, r);
+    const nightHint = isNightVisual ? moonShape(62, 25, 12) : "";
+    switch (baseType) {
       case "clear":
         return `
           <svg viewBox="0 0 96 96" aria-hidden="true">
@@ -402,8 +417,7 @@
       case "clear-night":
         return `
           <svg viewBox="0 0 96 96" aria-hidden="true">
-            <circle cx="46" cy="48" r="20" fill="${palette.moon}"/>
-            <circle cx="58" cy="41" r="19" fill="${palette.moonCut}"/>
+${moonShape(46, 48, 20)}
           </svg>`;
       case "cloudy":
         return `
@@ -416,6 +430,7 @@
       case "rain":
         return `
           <svg viewBox="0 0 96 96" aria-hidden="true">
+${nightHint}
             <ellipse cx="49" cy="42" rx="26" ry="15" fill="${palette.cloudDark}"/>
             <circle cx="34" cy="40" r="12" fill="${palette.cloudMid}"/>
             <circle cx="54" cy="34" r="15" fill="${palette.cloudLight}"/>
@@ -426,10 +441,7 @@
       case "partly-rain":
         return `
           <svg viewBox="0 0 96 96" aria-hidden="true">
-            <circle cx="58" cy="29" r="15" fill="${palette.sun}"/>
-            <g stroke="${palette.sunStroke}" stroke-width="4" stroke-linecap="round">
-              <path d="M58 8v8"/><path d="M36 29h8"/><path d="M72 29h8"/><path d="M42 13l6 6"/><path d="M70 47l6 6"/>
-            </g>
+${dayNightOrb(58, 29, 15)}
             <ellipse cx="44" cy="50" rx="26" ry="15" fill="${palette.cloudDark}"/>
             <circle cx="29" cy="47" r="12" fill="${palette.cloudMid}"/>
             <circle cx="50" cy="41" r="15" fill="${palette.cloudLight}"/>
@@ -440,6 +452,7 @@
       case "cloud-rain":
         return `
           <svg viewBox="0 0 96 96" aria-hidden="true">
+${nightHint}
             <ellipse cx="50" cy="40" rx="28" ry="16" fill="${palette.cloudDark}"/>
             <circle cx="34" cy="38" r="13" fill="${palette.cloudMid}"/>
             <circle cx="55" cy="32" r="16" fill="${palette.cloudLight}"/>
@@ -451,6 +464,7 @@
       case "thunder":
         return `
           <svg viewBox="0 0 96 96" aria-hidden="true">
+${nightHint}
             <ellipse cx="49" cy="40" rx="26" ry="15" fill="${palette.storm}"/>
             <circle cx="34" cy="38" r="12" fill="${palette.cloudMid}"/>
             <circle cx="54" cy="32" r="15" fill="${palette.cloudLight}"/>
@@ -462,6 +476,7 @@
       case "fog":
         return `
           <svg viewBox="0 0 96 96" aria-hidden="true">
+${nightHint}
             <ellipse cx="50" cy="38" rx="24" ry="14" fill="${palette.cloudMid}"/>
             <circle cx="35" cy="36" r="11" fill="${palette.cloudLight}"/>
             <circle cx="55" cy="31" r="14" fill="${isDarkTheme ? "#D6E3EE" : "#D2DCE4"}"/>
@@ -472,6 +487,7 @@
       case "snow":
         return `
           <svg viewBox="0 0 96 96" aria-hidden="true">
+${nightHint}
             <ellipse cx="49" cy="38" rx="24" ry="14" fill="${palette.cloudMid}"/>
             <circle cx="34" cy="36" r="11" fill="${palette.cloudLight}"/>
             <circle cx="55" cy="31" r="14" fill="${isDarkTheme ? "#E6F0FA" : "#DCE9F6"}"/>
@@ -494,10 +510,7 @@
       default:
         return `
           <svg viewBox="0 0 96 96" aria-hidden="true">
-            <circle cx="56" cy="30" r="16" fill="${palette.sun}"/>
-            <g stroke="${palette.sunStroke}" stroke-width="4" stroke-linecap="round">
-              <path d="M56 8v8"/><path d="M56 52v8"/><path d="M34 30h8"/><path d="M70 30h8"/>
-            </g>
+${dayNightOrb(56, 30, 16)}
             <ellipse cx="43" cy="56" rx="26" ry="15" fill="${palette.cloudDark}"/>
             <circle cx="28" cy="53" r="12" fill="${palette.cloudMid}"/>
             <circle cx="49" cy="47" r="15" fill="${palette.cloudLight}"/>

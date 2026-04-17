@@ -409,7 +409,9 @@
   font-size:.82rem;
   font-weight:900;
   line-height:1.35;
-  text-align:right;
+  text-align:left;
+  justify-self:start;
+  justify-items:start;
 }
 .rtq2-footer{
   display:flex;
