@@ -1445,7 +1445,7 @@
     line-height:1.05;
     word-break:break-word;
     display:flex;
-    align-items:baseline;
+      align-items:center;
     gap:6px;
     flex-wrap:wrap;
   }
@@ -2904,7 +2904,8 @@
 <script charset="UTF-8" src="./thsr.real-schedule.js?v=20260403-geo1"></script>
 <script charset="UTF-8" src="../shared/rail-station-query-common.js?v=20260327-station1"></script>
 <script charset="UTF-8" src="../shared/rail-station-timetable-v2.js?v=20260330-stationv2"></script>
-<script charset="UTF-8" src="../shared/rail-train-query-v2.js?v=20260329-trainquery2"></script>
+<script charset="UTF-8" src="../shared/rail-stop-weather.js?v=20260417-stopwx7"></script>
+<script charset="UTF-8" src="../shared/rail-train-query-v2.js?v=20260417-stopwx7"></script>
 <script charset="UTF-8" src="../shared/rail-origin-destination-query-v2.js?v=20260403-odquery2mobilecards10"></script>
 <script>
   let nameToId = {};
@@ -4428,10 +4429,14 @@
       }else if(isNextStop){
         stateText = '下一停靠';
       }
+      const weatherAbs = row.kind === 'terminal'
+        ? (Number.isFinite(row.arrAbs) ? row.arrAbs : row.eventAbs)
+        : (Number.isFinite(row.depAbs) ? row.depAbs : (Number.isFinite(row.arrAbs) ? row.arrAbs : row.eventAbs));
 
       return {
         seq: index + 1,
         station: row.station || '--',
+        weatherTimeMs: getStopWeatherTimeMs(originDateStr, weatherAbs),
         arrText,
         depText,
         stateText,
@@ -4702,6 +4707,14 @@
     return `${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}`;
   }
 
+  function getStopWeatherTimeMs(originDateStr, absMin){
+    if(!originDateStr || !Number.isFinite(absMin)) return null;
+    const dateStr = addDays(originDateStr, Math.floor(absMin / 1440));
+    const timeStr = formatAbsTime(absMin);
+    const value = Date.parse(`${dateStr}T${timeStr}:00+08:00`);
+    return Number.isFinite(value) ? value : null;
+  }
+
   function getThsrRouteStationsBetween(startStation, endStation){
     if(!startStation || !endStation) return [startStation, endStation].filter(Boolean);
     if(startStation === endStation) return [startStation];
@@ -4904,6 +4917,7 @@
       if(!modalCtx) return;
       showTrainDetails(modalCtx.trainNo, modalCtx.originDate, { showPassStops: !modalCtx.showPassStops });
     });
+    window.RailStopWeather?.decorate?.(document.getElementById('modalBody'));
   }
 
   function showTrainDetails(trainNo, originDateStr, options){
@@ -5011,6 +5025,14 @@
           if(row?.isCurrent) classes.push('is-current');
           if(primaryHintIndex === index && row?.stateText) classes.push('is-active');
           const inlineTag = index === 0 ? '起站' : (index === rows.length - 1 ? '終點' : '');
+          const weatherTimeMs = Number(row?.weatherTimeMs);
+          const weatherKey = `thsr-modal-${index}-${row?.station || ''}-${Number.isFinite(weatherTimeMs) ? Math.round(weatherTimeMs) : ''}`;
+          const weatherSlot = row?.station && Number.isFinite(weatherTimeMs)
+            ? `<span class="modal-stop-weather-slot" data-stop-weather="1" data-weather-key="${escapeTrainQueryHtml(weatherKey)}" data-weather-station="${escapeTrainQueryHtml(row.station)}" data-weather-time-ms="${Math.round(weatherTimeMs)}" data-weather-passed="${row?.isPassed ? '1' : '0'}"><span class="rail-stop-weather-chip" data-stop-weather-chip hidden></span></span>`
+            : '';
+          const weatherNote = row?.station && Number.isFinite(weatherTimeMs)
+            ? `<span class="modal-stop-state-text rail-stop-weather-note modal-stop-weather-note" data-stop-weather-note data-weather-key="${escapeTrainQueryHtml(weatherKey)}" data-weather-base-text="${escapeTrainQueryHtml(row?.stateText || '')}">${escapeTrainQueryHtml(row?.stateText || '')}</span>`
+            : `<span class="modal-stop-state-text">${escapeTrainQueryHtml(row?.stateText || '')}</span>`;
           return `
             <div class="${classes.join(' ')}">
               <div class="modal-stop-marker-col">
@@ -5020,7 +5042,7 @@
                 </div>
               </div>
               <div class="modal-stop-station-cell">
-                <div class="modal-stop-station-main"><span>${escapeTrainQueryHtml(row?.station || '--')}</span>${inlineTag ? `<span class="modal-stop-inline-tag">${escapeTrainQueryHtml(inlineTag)}</span>` : ''}</div>
+                <div class="modal-stop-station-main"><span>${escapeTrainQueryHtml(row?.station || '--')}</span>${inlineTag ? `<span class="modal-stop-inline-tag">${escapeTrainQueryHtml(inlineTag)}</span>` : ''}${weatherSlot}</div>
               </div>
               <div class="modal-stop-time-cell">
                 <div class="modal-stop-time-main ${!row?.arrText ? 'modal-stop-time-empty' : ''}">${escapeTrainQueryHtml(row?.arrText || '--')}</div>
@@ -5028,7 +5050,7 @@
               <div class="modal-stop-time-cell">
                 <div class="modal-stop-time-main ${!row?.depText ? 'modal-stop-time-empty' : ''}">${escapeTrainQueryHtml(row?.depText || '--')}</div>
               </div>
-              <div class="modal-stop-state modal-tone-${escapeTrainQueryHtml(normalizeModalTone(row?.stateTone))}">${escapeTrainQueryHtml(row?.stateText || '')}</div>
+              <div class="modal-stop-state modal-tone-${escapeTrainQueryHtml(normalizeModalTone(row?.stateTone))}">${weatherNote}</div>
             </div>
           `;
         }).join('')}
@@ -6673,7 +6695,7 @@ async function maybeFallbackTHSRBookingToWeb(options, errorText){
 <script charset="UTF-8" src="../shared/rail-network.js?v=20260404-autorefresh1"></script>
 <script charset="UTF-8" src="../shared/rail-master-table.js?v=20260404-autorefresh2"></script>
 <script charset="UTF-8" src="../shared/rail-operation-diagram.js?v=20260404-autorefresh2"></script>
-<script charset="UTF-8" src="../shared/rail-live-tracker.js?v=20260417-userloc-route5"></script>
+<script charset="UTF-8" src="../shared/rail-live-tracker.js?v=20260417-userloc-route7"></script>
 <script charset="UTF-8" src="../shared/rail-usage-footer.js?v=20260326-footer3"></script>
 <script>
 window.addEventListener('load', () => {

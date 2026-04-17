@@ -1,0 +1,162 @@
+﻿<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+
+
+        .section {
+ 
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+
+        }
+
+        h1 {
+            font-size: 24px;
+            margin-bottom: 10px;
+        }
+
+        p {
+            font-size: 16px;
+            line-height: 1.5;
+            color: #555;
+        }
+    
+        #five-image-container,
+        #color-color-image-container,
+        #yes-image-container,
+        #enhanced-color-image-container,
+        #image-container {
+    text-align: center;
+}
+        #five-image-container img,
+        #color-color-image-container img,
+        #yes-image-container img,
+        #image-container img,
+        #enhanced-color-image-container img {
+            max-width: 100%; /* 設定最大寬度為父容器寬度 */
+            max-height: 600px; /* 設定最大高度，你可以根據需要調整 */
+        }
+
+        .special-section {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .special-section > span {
+        flex: 1;
+    }
+    </style>
+    <title>颱風氣象整合網頁</title>
+    
+  <link rel="stylesheet" href="weather-shell.css">
+</head>
+<body>
+    <script>
+        function toggleSubcategories(category) {
+            var subcategoryList = document.querySelector('.' + category + '-subcategories');
+    var otherSubcategoryLists = document.querySelectorAll('.subcategories.show');
+    
+    otherSubcategoryLists.forEach(function(list) {
+        if (list !== subcategoryList) {
+            list.classList.remove('show');
+        }
+    });    
+    subcategoryList.classList.toggle('show');
+}       
+    </script>   
+ 
+    <main>
+    <section class="section special-section">
+        <span>
+        <h4>今日累積雨量</h4>
+        <div id="yes-image-container">
+            <!-- 這裡將插入動態生成的圖片 -->
+        </div>
+        </span>
+    </section>
+
+    <section class="section special-section">
+        <span>
+        <h4>兩日</h4>
+        <div id="color-color-image-container">
+            <!-- 這裡將插入動態生成的圖片 -->
+        </div></span>
+        
+        <span>
+        <h4>三日</h4>
+        <div id="enhanced-color-image-container">
+            <!-- 這裡將插入動態生成的圖片 -->
+        </div></span>
+
+        <span>
+        <h4>四日</h4>
+        <div id="image-container">
+            <!-- 這裡將插入動態生成的圖片 -->
+        </div></span>
+        <span>
+        <h4>五日</h4>
+        <div id="five-image-container">
+            <!-- 這裡將插入動態生成的圖片 -->
+        </div></span>
+    </section>
+
+ 
+
+  <script src="weather-shell.js" defer></script>
+</body>
+<script>
+    
+
+        // 這段程式碼用於動態生成圖片URL並插入圖片
+        function insertSatelliteImage(category, containerId) {
+            var currentDate = new Date();
+            var imageDate = new Date(currentDate - 31 * 60 * 1000); // 15分鐘前的時間
+            var year = imageDate.getFullYear();
+            var month = (imageDate.getMonth() + 1).toString().padStart(2, '0');
+            var day = imageDate.getDate().toString().padStart(2, '0');
+            var hours = imageDate.getHours().toString().padStart(2, '0');
+            var currentMinutes = Math.floor(imageDate.getMinutes() / 60) * 60;
+            
+            // 調整分鐘部分，使其為00、10、20、30、40或50
+            var minutes = currentMinutes >= 00 ? "00" : currentMinutes.toString().padStart(2, '0');
+            
+            var imageUrl = "";
+            if (category === "true-color") {
+                imageUrl = `https://www.cwa.gov.tw/Data/rainfall/${year}-${month}-${day}_${hours}${minutes}.QZM8.jpg`;
+            } else if (category === "enhanced-color") {
+                imageUrl = `https://www.cwa.gov.tw/Data/rainfall/${year}-${month}-${day}_${hours}${minutes}.QZL8.jpg`;
+            } else if (category === "color-color") {
+                imageUrl = `https://www.cwa.gov.tw/Data/rainfall/${year}-${month}-${day}_${hours}${minutes}.QZK8.jpg`;
+            } else if (category === "yes") {
+                imageUrl = `https://www.cwa.gov.tw/Data/rainfall/${year}-${month}-${day}_${hours}${minutes}.QZJ8.jpg`;
+            } else if (category === "five") {
+                imageUrl = `https://www.cwa.gov.tw/Data/rainfall/${year}-${month}-${day}_${hours}${minutes}.QZN8.jpg`;
+            }
+
+
+            var imageContainer = document.getElementById(containerId);
+            var imageElement = document.createElement("img");
+            imageElement.src = imageUrl;
+            imageElement.alt = `更新中(${category === "true-color" ? "更新中" : "真實色"})`;
+            imageContainer.appendChild(imageElement);
+        }
+    </script>
+    <script>
+        // 在頁面載入後，調用insertSatelliteImage函數
+        window.onload = function() {
+            insertSatelliteImage("enhanced-color", "enhanced-color-image-container");
+            insertSatelliteImage("true-color", "image-container");
+            insertSatelliteImage("color-color", "color-color-image-container");
+            insertSatelliteImage("yes", "yes-image-container");
+            insertSatelliteImage("five", "five-image-container");
+
+        };
+    </script>
+    
+    
+</html>

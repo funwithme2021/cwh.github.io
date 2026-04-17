@@ -361,7 +361,7 @@
 }
 .rtq2-station-main{
   display:flex;
-  align-items:baseline;
+  align-items:center;
   gap:8px;
   min-width:0;
 }
@@ -567,6 +567,23 @@ body.dark-mode .rtq2-table-row.is-next{
     return escapeHtml(fallback);
   }
 
+  function renderStopWeatherSlot(row, className = "rail-stop-weather-slot", weatherKey = "") {
+    const timeMs = Number(row?.weatherTimeMs);
+    if (!row || !row.station || !Number.isFinite(timeMs)) return "";
+    return `
+      <span class="${escapeHtml(className)}" data-stop-weather="1" data-weather-key="${escapeHtml(weatherKey)}" data-weather-station="${escapeHtml(row.station)}" data-weather-time-ms="${escapeHtml(String(Math.round(timeMs)))}" data-weather-passed="${row.isPassed ? "1" : "0"}">
+        <span class="rail-stop-weather-chip" data-stop-weather-chip hidden></span>
+      </span>
+    `;
+  }
+
+  function renderStopWeatherNoteSlot(row, weatherKey = "", stateHtml = "", stateText = "") {
+    const timeMs = Number(row?.weatherTimeMs);
+    const content = renderContent(stateHtml, stateText, "");
+    if (!row || !row.station || !Number.isFinite(timeMs)) return `<span class="rtq2-state-text">${content}</span>`;
+    return `<span class="rtq2-state-text rail-stop-weather-note" data-stop-weather-note data-weather-key="${escapeHtml(weatherKey)}" data-weather-base-text="${escapeHtml(stateText || "")}">${content}</span>`;
+  }
+
   function fallbackStopRows(result) {
     const list = Array.isArray(result.stops) ? result.stops : [];
     return list.map((stop, index, rows) => {
@@ -666,6 +683,11 @@ body.dark-mode .rtq2-table-row.is-next{
         if (row.isPass) classes.push("is-pass");
         if (row.isCurrent) classes.push("is-current");
         if (row.isNext) classes.push("is-next");
+        const weatherKey = `rtq2-${index}-${row.station || ""}-${Number(row.weatherTimeMs) || ""}`;
+        const noteContent = row.noteHtml != null || row.note
+          ? `<span class="rtq2-station-note-text">${renderContent(row.noteHtml, row.note, "")}</span>`
+          : "";
+        const weatherNote = renderStopWeatherNoteSlot(row, weatherKey, row.stateHtml, row.stateText);
         return `
           <div class="${classes.join(" ")}">
             <div class="rtq2-col-no">${escapeHtml(String(row.seq ?? index + 1))}</div>
@@ -673,8 +695,9 @@ body.dark-mode .rtq2-table-row.is-next{
               <div class="rtq2-station-main">
                 <span class="rtq2-station-name">${renderContent(row.stationHtml, row.station, "--")}</span>
                 ${row.stationMetaHtml != null || row.stationMeta ? `<span class="rtq2-station-meta">${renderContent(row.stationMetaHtml, row.stationMeta, "")}</span>` : ""}
+                ${renderStopWeatherSlot(row, "rail-stop-weather-slot", weatherKey)}
               </div>
-              ${row.noteHtml != null || row.note ? `<div class="rtq2-station-sub">${renderContent(row.noteHtml, row.note, "")}</div>` : ""}
+              ${noteContent ? `<div class="rtq2-station-sub">${noteContent}</div>` : ""}
             </div>
             <div class="rtq2-time-cell">
               <div class="rtq2-time-main ${(!row.arrHtml && !row.arrText) ? "rtq2-time-empty" : ""}">${renderContent(row.arrHtml, row.arrText, "--")}</div>
@@ -684,7 +707,9 @@ body.dark-mode .rtq2-table-row.is-next{
               <div class="rtq2-time-main ${(!row.depHtml && !row.depText) ? "rtq2-time-empty" : ""}">${renderContent(row.depHtml, row.depText, "--")}</div>
               ${row.depSubHtml != null || row.depSub ? `<div class="rtq2-time-sub">${renderContent(row.depSubHtml, row.depSub, "")}</div>` : ""}
             </div>
-            <div class="rtq2-state rtq2-tone-${escapeHtml(normalizeTone(row.stateTone))}">${renderContent(row.stateHtml, row.stateText, "")}</div>
+            <div class="rtq2-state rtq2-tone-${escapeHtml(normalizeTone(row.stateTone))}">
+              ${weatherNote}
+            </div>
           </div>
         `;
       })
@@ -864,6 +889,7 @@ body.dark-mode .rtq2-table-row.is-next{
       currentResult = result;
       results.innerHTML = renderResult(result);
       bindResultActions(result);
+      window.RailStopWeather?.decorate?.(results);
       if (typeof config.onStateChange === "function") {
         config.onStateChange({ trainNo: result.trainNo, found: true, showPassStops: uiState.showPassStops });
       }

@@ -2032,7 +2032,7 @@ td{ border-bottom: 1px solid rgba(255,255,255,0.06); }
       line-height:1.05;
       word-break:break-word;
       display:flex;
-      align-items:baseline;
+      align-items:center;
       gap:6px;
       flex-wrap:wrap;
     }
@@ -4192,7 +4192,8 @@ td{ border-bottom: 1px solid rgba(255,255,255,0.06); }
 <script charset="UTF-8" src="./train.real-schedule.js?v=20260404-stationlive1"></script>
 <script charset="UTF-8" src="../shared/rail-station-query-common.js?v=20260327-station1"></script>
 <script charset="UTF-8" src="../shared/rail-station-timetable-v2.js?v=20260330-stationv2"></script>
-<script charset="UTF-8" src="../shared/rail-train-query-v2.js?v=20260329-trainquery2"></script>
+<script charset="UTF-8" src="../shared/rail-stop-weather.js?v=20260417-stopwx7"></script>
+<script charset="UTF-8" src="../shared/rail-train-query-v2.js?v=20260417-stopwx7"></script>
 <script charset="UTF-8" src="../shared/rail-origin-destination-query-v2.js?v=20260403-odquery2mobilecards10"></script>
 <script>
   // ===== 全域 =====
@@ -4523,6 +4524,14 @@ function splitArrDep(stopRow){
     const hh = Math.floor(minute / 60);
     const mm = minute % 60;
     return `${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}`;
+  }
+
+  function getStopWeatherTimeMs(originDateStr, absMin){
+    if(!originDateStr || !Number.isFinite(absMin)) return null;
+    const dateStr = getStopDateStr(originDateStr, absMin);
+    const timeStr = formatAbsTime(absMin);
+    const value = Date.parse(`${dateStr}T${timeStr}:00+08:00`);
+    return Number.isFinite(value) ? value : null;
   }
 
   function getTraRouteStationsBetween(startStation, endStation){
@@ -8951,10 +8960,14 @@ function buildTraTrainQueryV2StopRows(trainNo, originDateStr, stops, runtimeCtx,
     const tone = /已過站|已通過|^通過$/.test(stateText)
       ? 'muted'
       : (/下一停靠|即將通過|即將發車|尚未發車|停靠中/.test(stateText) ? 'success' : 'neutral');
+    const weatherAbs = row.kind === 'terminal'
+      ? (Number.isFinite(arrivalAbs) ? arrivalAbs : arrivalAbsRaw)
+      : (Number.isFinite(departureAbs) ? departureAbs : (Number.isFinite(arrivalAbs) ? arrivalAbs : (Number.isFinite(departureAbsRaw) ? departureAbsRaw : arrivalAbsRaw)));
 
     return {
       seq: index + 1,
       station: row.station || '--',
+      weatherTimeMs: getStopWeatherTimeMs(originDateStr, weatherAbs),
       arrHtml,
       depHtml,
       stateText,
@@ -9327,6 +9340,14 @@ function filterTrainScheduleByNumberV2(trainNo){
           const inlineTag = index === 0 ? '起站' : (index === rows.length - 1 ? '終點' : '');
           const arrHtml = row?.arrHtml != null ? row.arrHtml : escapeTrainQueryHtml(row?.arrText || '--');
           const depHtml = row?.depHtml != null ? row.depHtml : escapeTrainQueryHtml(row?.depText || '--');
+          const weatherTimeMs = Number(row?.weatherTimeMs);
+          const weatherKey = `tr-modal-${index}-${row?.station || ''}-${Number.isFinite(weatherTimeMs) ? Math.round(weatherTimeMs) : ''}`;
+          const weatherSlot = row?.station && Number.isFinite(weatherTimeMs)
+            ? `<span class="modal-stop-weather-slot" data-stop-weather="1" data-weather-key="${escapeTrainQueryHtml(weatherKey)}" data-weather-station="${escapeTrainQueryHtml(row.station)}" data-weather-time-ms="${Math.round(weatherTimeMs)}" data-weather-passed="${row?.isPassed ? '1' : '0'}"><span class="rail-stop-weather-chip" data-stop-weather-chip hidden></span></span>`
+            : '';
+          const weatherNote = row?.station && Number.isFinite(weatherTimeMs)
+            ? `<span class="modal-stop-state-text rail-stop-weather-note modal-stop-weather-note" data-stop-weather-note data-weather-key="${escapeTrainQueryHtml(weatherKey)}" data-weather-base-text="${escapeTrainQueryHtml(row?.stateText || '')}">${escapeTrainQueryHtml(row?.stateText || '')}</span>`
+            : `<span class="modal-stop-state-text">${escapeTrainQueryHtml(row?.stateText || '')}</span>`;
           return `
             <div class="${classes.join(' ')}">
               <div class="modal-stop-marker-col">
@@ -9336,7 +9357,7 @@ function filterTrainScheduleByNumberV2(trainNo){
                 </div>
               </div>
               <div class="modal-stop-station-cell">
-                <div class="modal-stop-station-main"><span>${escapeTrainQueryHtml(row?.station || '--')}</span>${inlineTag ? `<span class="modal-stop-inline-tag">${escapeTrainQueryHtml(inlineTag)}</span>` : ''}</div>
+                <div class="modal-stop-station-main"><span>${escapeTrainQueryHtml(row?.station || '--')}</span>${inlineTag ? `<span class="modal-stop-inline-tag">${escapeTrainQueryHtml(inlineTag)}</span>` : ''}${weatherSlot}</div>
               </div>
               <div class="modal-stop-time-cell">
                 <div class="modal-stop-time-main ${(!row?.arrHtml && !row?.arrText) ? 'modal-stop-time-empty' : ''}">${arrHtml}</div>
@@ -9344,7 +9365,7 @@ function filterTrainScheduleByNumberV2(trainNo){
               <div class="modal-stop-time-cell">
                 <div class="modal-stop-time-main ${(!row?.depHtml && !row?.depText) ? 'modal-stop-time-empty' : ''}">${depHtml}</div>
               </div>
-              <div class="modal-stop-state modal-tone-${escapeTrainQueryHtml(normalizeModalTone(row?.stateTone))}">${escapeTrainQueryHtml(row?.stateText || '')}</div>
+              <div class="modal-stop-state modal-tone-${escapeTrainQueryHtml(normalizeModalTone(row?.stateTone))}">${weatherNote}</div>
             </div>
           `;
         }).join('')}
@@ -9515,6 +9536,7 @@ function filterTrainScheduleByNumberV2(trainNo){
       if(!modalCtx) return;
       showTrainDetails(modalCtx.trainNo, modalCtx.originDate, { showPassStops: !modalCtx.showPassStops });
     });
+    window.RailStopWeather?.decorate?.(body);
     modal.style.display='flex';
   }
 
@@ -11081,7 +11103,7 @@ document.addEventListener('click', (event) => {
 <script charset="UTF-8" src="../shared/rail-network.js?v=20260404-autorefresh1"></script>
 <script charset="UTF-8" src="../shared/rail-master-table.js?v=20260404-autorefresh2"></script>
 <script charset="UTF-8" src="../shared/rail-operation-diagram.js?v=20260404-autorefresh2"></script>
-  <script charset="UTF-8" src="../shared/rail-live-tracker.js?v=20260417-userloc-route5"></script>
+  <script charset="UTF-8" src="../shared/rail-live-tracker.js?v=20260417-userloc-route7"></script>
 <script charset="UTF-8" src="../shared/rail-usage-footer.js?v=20260326-footer3"></script>
 <script>
 window.addEventListener('load', () => {

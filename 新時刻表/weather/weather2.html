@@ -1,0 +1,167 @@
+﻿<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <div id="fb-root"></div>
+<script async defer crossorigin="anonymous" src="https://connect.facebook.net/zh_TW/sdk.js#xfbml=1&version=v17.0" nonce="92lOZ46u"></script>
+
+    <style>
+       
+        .section {
+      
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+          
+        }
+
+        h1 {
+            font-size: 24px;
+            margin-bottom: 10px;
+        }
+
+        p {
+            font-size: 16px;
+            line-height: 1.5;
+            color: #555;
+        }
+        .footer {
+          text-align: center;
+          padding: 10px;
+          background-color: #ffffff;
+          color: #fff;
+        }
+        
+    </style>
+    <title>颱風氣象預報中心</title>
+    <script>
+         function toggleSubcategories(category) {
+            var subcategoryList = document.querySelector('.' + category + '-subcategories');
+            var otherSubcategoryLists = document.querySelectorAll('.subcategories.show');
+            
+            otherSubcategoryLists.forEach(function(list) {
+                if (list !== subcategoryList) {
+                    list.classList.remove('show');
+                }
+            });
+            
+            subcategoryList.classList.toggle('show');
+        }
+    </script>
+  <link rel="stylesheet" href="weather-shell.css">
+</head>
+<body>
+
+    <main>
+        <section class="section">
+            <h3>今日天氣圖</h3>                 
+        </section>        
+        <section class="section">
+            <h3>後一日天氣圖</h3>                 
+        </section> 
+        <section class="section">
+            <h3>後二日天氣圖</h3>                 
+        </section>
+        <section class="section">
+            <h3>後三日天氣圖</h3>                 
+        </section>
+        <section class="section">
+            <h3>後四日天氣圖</h3>                 
+        </section>
+        <section class="section">
+            <h3>後五日天氣圖</h3>                
+        </section>
+        <section class="section">
+            <h3>後六日天氣圖</h3>                 
+        </section>
+        <section class="section">
+            <h3>後七日天氣圖</h3>                 
+        </section>
+     
+ 
+    <script>
+   window.onload = function() {
+    var currentUTC = new Date();
+    currentUTC.setUTCHours(currentUTC.getUTCHours() - 8 );  // UTC+0
+
+    var year = currentUTC.getUTCFullYear();
+    var month = (currentUTC.getUTCMonth() + 1).toString().padStart(2, '0');
+    var day = currentUTC.getUTCDate().toString().padStart(2, '0');
+
+    var formattedDate = year + '-' + month + day;
+    var formattedTime = "1200"; // 固定時間為 1200
+    
+    var imageUrlone = "https://www.cwa.gov.tw/Data/fcst_img/" + formattedDate +  "-" + formattedTime + "_A011HD_small.png";
+    var imageUrltwo = "https://www.cwa.gov.tw/Data/fcst_img/" + formattedDate +  "-" + formattedTime + "_A012HD_small.png";
+    var imageUrlthree = "https://www.cwa.gov.tw/Data/fcst_img/" + formattedDate +  "-" + formattedTime + "_A013HD_small.png";
+    var imageUrlfour = "https://www.cwa.gov.tw/Data/fcst_img/"+formattedDate+"-"+formattedTime+"_A014HD_small.png";
+    var imageUrlfive = "https://www.cwa.gov.tw/Data/fcst_img/" + formattedDate +  "-" + formattedTime + "_A015HD_small.png";
+    var imageUrlsix = "https://www.cwa.gov.tw/Data/fcst_img/" + formattedDate +  "-" + formattedTime + "_A016HD_small.png";
+    var imageUrlseven = "https://www.cwa.gov.tw/Data/fcst_img/" + formattedDate +  "-" + formattedTime + "_A017HD_small.png";
+    var imageUrleight = "https://www.cwa.gov.tw/Data/fcst_img/" + formattedDate +  "-" + formattedTime + "_A018HD_small.png";
+
+        
+
+        var oneSection = document.querySelector(".section:nth-child(1)"); // 選擇第一個 section
+        var twoSection = document.querySelector(".section:nth-child(2)"); // 選擇第二個 section
+        var threeSection = document.querySelector(".section:nth-child(3)"); // 選擇第3個 section
+        var fourSection = document.querySelector(".section:nth-child(4)"); // 選擇第4個 section
+        var fiveSection = document.querySelector(".section:nth-child(5)"); // 選擇第5個 section
+        var sixSection = document.querySelector(".section:nth-child(6)"); // 選擇第6個 section
+        var sevenSection = document.querySelector(".section:nth-child(7)"); // 選擇第7個 section
+        var eightSection = document.querySelector(".section:nth-child(8)"); // 選擇第8個 section
+    
+var oneSectionImg = document.createElement("img");
+oneSectionImg.src = imageUrlone; // 使用 imageUrlone
+oneSectionImg.style.width = "30%";
+oneSectionImg.alt = "今日天氣圖(更新中)";
+oneSection.appendChild(oneSectionImg);
+
+var twoSectionImg = document.createElement("img");
+twoSectionImg.src = imageUrltwo; // 使用 imageUrltwo
+twoSectionImg.style.width = "30%";
+twoSectionImg.alt = "後一日天氣圖(更新中)";
+twoSection.appendChild(twoSectionImg);
+
+var threeSectionImg = document.createElement("img");
+threeSectionImg.src = imageUrlthree; // 使用 imageUrltwo
+threeSectionImg.style.width = "30%";
+threeSectionImg.alt = "後二日天氣圖(更新中)";
+threeSection.appendChild(threeSectionImg);
+
+var fourSectionImg = document.createElement("img");
+fourSectionImg.src = imageUrlfour; // 使用 imageUrltwo
+fourSectionImg.style.width = "30%";
+fourSectionImg.alt = "後三日天氣圖(更新中)";
+fourSection.appendChild(fourSectionImg);
+
+var fiveSectionImg = document.createElement("img");
+fiveSectionImg.src = imageUrlfive; // 使用 imageUrltwo
+fiveSectionImg.style.width = "30%";
+fiveSectionImg.alt = "後四日天氣圖(更新中)";
+fiveSection.appendChild(fiveSectionImg);
+
+var sixSectionImg = document.createElement("img");
+sixSectionImg.src = imageUrlsix; // 使用 imageUrltwo
+sixSectionImg.style.width = "30%";
+sixSectionImg.alt = "後五日天氣圖(更新中)";
+sixSection.appendChild(sixSectionImg);
+
+var sevenSectionImg = document.createElement("img");
+sevenSectionImg.src = imageUrlseven; // 使用 imageUrltwo
+sevenSectionImg.style.width = "30%";
+sevenSectionImg.alt = "後六日天氣圖(更新中)";
+sevenSection.appendChild(sevenSectionImg);
+
+var eightSectionImg = document.createElement("img");
+eightSectionImg.src = imageUrleight; // 使用 imageUrltwo
+eightSectionImg.style.width = "30%";
+eightSectionImg.alt = "後七日天氣圖(更新中)";
+eightSection.appendChild(eightSectionImg);
+
+    };
+    </script>
+  <script src="weather-shell.js" defer></script>
+</body>
+</html>

@@ -1,0 +1,177 @@
+﻿<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <div id="fb-root"></div>
+<script async defer crossorigin="anonymous" src="https://connect.facebook.net/zh_TW/sdk.js#xfbml=1&version=v17.0" nonce="92lOZ46u"></script>
+
+    <style>
+        
+
+        .section {
+    
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 0px;
+
+        }
+
+        h1 {
+            font-size: 24px;
+            margin-bottom: 10px;
+        }
+
+        p {
+            font-size: 16px;
+            line-height: 1.5;
+            color: #555;
+        }
+        .footer {
+          text-align: center;
+          padding: 10px;
+          background-color: #ffffff;
+          color: #fff;
+        }
+        #color-color-image-container,
+        #yes-image-container,
+        #five-image-container,
+        #six-image-container,
+        #enhanced-color-image-container,
+        #image-container {
+    text-align: left;
+    margin-top: 0cm;
+}
+ 
+        #color-color-image-container img,
+        #yes-image-container img,
+        #five-image-container img,
+        #six-image-container img,
+        #image-container img,
+        #enhanced-color-image-container img {
+            max-width: 100%; /* 設定最大寬度為父容器寬度 */
+            max-height: 400px; /* 設定最大高度，你可以根據需要調整 */
+            margin-top: 0cm;
+        }
+    </style>
+    <title>颱風氣象預報中心</title>
+    <script>
+         function toggleSubcategories(category) {
+            var subcategoryList = document.querySelector('.' + category + '-subcategories');
+            var otherSubcategoryLists = document.querySelectorAll('.subcategories.show');
+            
+            otherSubcategoryLists.forEach(function(list) {
+                if (list !== subcategoryList) {
+                    list.classList.remove('show');
+                }
+            });
+            
+            subcategoryList.classList.toggle('show');
+        }
+    </script>
+  <link rel="stylesheet" href="weather-shell.css">
+</head>
+<body>
+
+    <main>
+
+
+        <section class="section">
+            <span>  <h3 >最新天氣圖</h3>
+                <div id="image-container">
+                    <!-- 這裡將插入動態生成的圖片 -->
+                </div></span>
+                 
+        </section>
+
+        <section class="section">
+            <span><h3 >最新地面天氣圖</h3>
+                <div id="enhanced-color-image-container">
+                    <!-- 這裡將插入動態生成的圖片 -->
+                </div></span>       
+        </section>
+
+    </main>
+  <script src="weather-shell.js" defer></script>
+</body>
+
+<script>
+    currentUTC.setUTCHours(currentUTC.getUTCHours() - 0 );
+    function insertSatelliteImage(category, containerId) {
+            var currentDate = new Date();
+            var imageDate = new Date(currentDate - 630 * 60 * 1000); // 14 minutes ago
+            var year = imageDate.getFullYear();
+            var year1 = year % 100; // Get the last two digits of the year
+            var month = (imageDate.getMonth() + 1).toString().padStart(2, '0');
+            var day = imageDate.getDate().toString().padStart(2, '0');
+            var hours = imageDate.getHours();
+            var currentDateAlt = new Date();
+
+            var imageDateAlt = new Date(currentDateAlt - 900 * 60 * 1000); // 30 minutes ago
+            var yearAlt = imageDateAlt.getFullYear();
+            var year1Alt = yearAlt % 100; // Get the last two digits of the year
+            var monthAlt = (imageDateAlt.getMonth() + 1).toString().padStart(2, '0');
+            var dayAlt = imageDateAlt.getDate().toString().padStart(2, '0');
+            var hoursAlt = imageDateAlt.getHours();
+
+            // Adjust hours to be 00, 06, 12, or 18
+            if (hours < 6) {
+                hours = 0;
+            } else if (hours < 12) {
+                hours = 6;
+            } else if (hours < 18) {
+                hours = 12;
+            } else {
+                hours = 18;
+            }
+            // Adjust hours to be 00, 06, 12, or 18
+            if (hoursAlt < 6) {
+                hoursAlt = 0;
+            } else if (hoursAlt < 12) {
+                hoursAlt = 6;
+            } else if (hoursAlt < 18) {
+                hoursAlt = 12;
+            } else {
+                hoursAlt = 18;
+            }
+
+            hoursAlt = hoursAlt.toString().padStart(2, '0');
+            var currentMinutesAlt = Math.floor(imageDateAlt.getMinutes() / 10) * 10;
+
+            hours = hours.toString().padStart(2, '0');
+            var currentMinutes = Math.floor(imageDate.getMinutes() / 10) * 10;
+
+            var imageUrl = "";
+            if (category === "true-color") {
+                imageUrl = `https://www.cwa.gov.tw/Data/fcst_img/FI04.png`;
+            } else if (category === "enhanced-color") {
+                imageUrl = `https://www.cwa.gov.tw/Data/fcst_img/${year}-${month}${day}-${hours}00_SFCcombo.jpg`;
+            } else if (category === "color-color") {
+                imageUrl = `https://npd.${year}${month}${day}${hours}_PSTRK.gif`;
+            } else if (category === "yes") {
+                imageUrl = `https://n${year}${month}${day}${hours}_PSTRK.gif`;
+            } else if (category === "five") {
+                imageUrl = `https://${year1Alt}${monthAlt}${dayAlt}${hoursAlt}.jpg`;
+            }
+
+            var imageContainer = document.getElementById(containerId);
+            var imageElement = document.createElement("img");
+            imageElement.src = imageUrl;
+            imageElement.alt = `更新中(${category === "true-color" ? "更新中" : "更新中"})`;
+            imageContainer.appendChild(imageElement);
+        }
+
+        
+    </script>
+    <script>
+        window.onload = function() {
+            insertSatelliteImage("enhanced-color", "enhanced-color-image-container");
+            insertSatelliteImage("true-color", "image-container");
+            insertSatelliteImage("color-color", "color-color-image-container");
+            insertSatelliteImage("yes", "yes-image-container");
+            insertSatelliteImage("five", "five-image-container");
+        };
+
+    
+    </script>
+</html>

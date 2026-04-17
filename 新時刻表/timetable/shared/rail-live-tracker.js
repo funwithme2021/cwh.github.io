@@ -20,6 +20,9 @@
   const TRA_VISUAL_MAX_EXTRA_PX = 44;
   const THSR_VISUAL_MIN_SEGMENT_KM = 24;
   const USER_LOCATION_POLL_MS = 3000;
+  const USER_SPEED_SAMPLE_LIMIT = 5;
+  const USER_SPEED_SAMPLE_MAX_AGE_MS = 45000;
+  const USER_SPEED_STOP_THRESHOLD_KMH = 2;
   const TRACKER_STATES = new Map();
   const TRA_TYPE_COLORS = {
     "新自強": "#7c3aed",
@@ -154,19 +157,69 @@
 
   function estimateUserSpeedKmh(state, nextCoords) {
     const directSpeed = Number(nextCoords?.speed);
-    if (Number.isFinite(directSpeed) && directSpeed >= 0) {
-      const kmh = directSpeed * 3.6;
-      return kmh <= 320 ? kmh : null;
-    }
     const previous = state?.userLocation?.coords || null;
-    if (!previous) return null;
-    const elapsedSeconds = (Number(nextCoords?.ts) - Number(previous.ts)) / 1000;
-    if (!Number.isFinite(elapsedSeconds) || elapsedSeconds < 1.5 || elapsedSeconds > 60) return null;
-    const distanceMeters = getGeoDistanceMeters(previous, nextCoords);
-    if (!Number.isFinite(distanceMeters)) return null;
-    if (distanceMeters < 3) return 0;
-    const kmh = (distanceMeters / elapsedSeconds) * 3.6;
-    return kmh >= 0 && kmh <= 320 ? kmh : null;
+    let inferredKmh = null;
+    if (previous) {
+      const elapsedSeconds = (Number(nextCoords?.ts) - Number(previous.ts)) / 1000;
+      if (Number.isFinite(elapsedSeconds) && elapsedSeconds >= 1.5 && elapsedSeconds <= 60) {
+        const distanceMeters = getGeoDistanceMeters(previous, nextCoords);
+        if (Number.isFinite(distanceMeters)) {
+          inferredKmh = distanceMeters < 3 ? 0 : (distanceMeters / elapsedSeconds) * 3.6;
+          if (!(inferredKmh >= 0 && inferredKmh <= 320)) inferredKmh = null;
+        }
+      }
+    }
+    if (Number.isFinite(directSpeed) && directSpeed >= 0) {
+      const directKmh = directSpeed * 3.6;
+      if (directKmh > 1.2 && directKmh <= 320) return directKmh;
+      if (Number.isFinite(inferredKmh)) return inferredKmh;
+      return directKmh <= 320 ? directKmh : null;
+    }
+    return Number.isFinite(inferredKmh) ? inferredKmh : null;
+  }
+
+  function getMedianNumber(values) {
+    const list = (Array.isArray(values) ? values : []).filter((value) => Number.isFinite(value)).sort((a, b) => a - b);
+    if (!list.length) return null;
+    const middle = Math.floor(list.length / 2);
+    return list.length % 2 ? list[middle] : (list[middle - 1] + list[middle]) / 2;
+  }
+
+  function smoothUserSpeedKmh(state, rawSpeedKmh, now) {
+    const raw = Number(rawSpeedKmh);
+    const previousStable = Number(state?.userLocationStableSpeedKmh);
+    const previousStableAt = Number(state?.userLocationStableSpeedAt);
+    if (!Number.isFinite(raw)) {
+      return Number.isFinite(previousStable) && Number.isFinite(previousStableAt) && now - previousStableAt < 12000
+        ? previousStable
+        : null;
+    }
+    const samples = Array.isArray(state.userLocationSpeedSamples) ? state.userLocationSpeedSamples : [];
+    const nextSamples = samples
+      .filter((sample) => Number.isFinite(sample?.value) && Number.isFinite(sample?.ts) && now - sample.ts <= USER_SPEED_SAMPLE_MAX_AGE_MS)
+      .concat({ value: clamp(raw, 0, 320), ts: now })
+      .slice(-USER_SPEED_SAMPLE_LIMIT);
+    state.userLocationSpeedSamples = nextSamples;
+    const medianSpeed = getMedianNumber(nextSamples.map((sample) => sample.value));
+    if (!Number.isFinite(medianSpeed)) return null;
+
+    if (medianSpeed < USER_SPEED_STOP_THRESHOLD_KMH) {
+      state.userLocationLowSpeedStreak = (Number(state.userLocationLowSpeedStreak) || 0) + 1;
+      if (state.userLocationLowSpeedStreak < 2) {
+        return Number.isFinite(previousStable) && previousStable >= USER_SPEED_STOP_THRESHOLD_KMH ? previousStable : null;
+      }
+      state.userLocationStableSpeedKmh = 0;
+      state.userLocationStableSpeedAt = now;
+      return 0;
+    }
+
+    state.userLocationLowSpeedStreak = 0;
+    const nextStable = Number.isFinite(previousStable) && Math.abs(previousStable - medianSpeed) < 0.6
+      ? previousStable
+      : medianSpeed;
+    state.userLocationStableSpeedKmh = nextStable;
+    state.userLocationStableSpeedAt = now;
+    return nextStable;
   }
 
   function formatUserSpeedKmh(value) {
@@ -2330,7 +2383,8 @@
     const normalized = normalizeGeoCoords(coords);
     if (!state || !normalized) return;
     const now = Date.now();
-    const speedKmh = estimateUserSpeedKmh(state, normalized);
+    const rawSpeedKmh = estimateUserSpeedKmh(state, normalized);
+    const speedKmh = smoothUserSpeedKmh(state, rawSpeedKmh, now);
     const previousSpeed = Number(state.userLocation?.speedKmh);
     const previousUpdatedAt = Number(state.userLocation?.updatedAt);
     const keepPreviousSpeed = Number.isFinite(previousSpeed) && Number.isFinite(previousUpdatedAt) && now - previousUpdatedAt < 15000;
@@ -3416,6 +3470,10 @@
       userLocationPollBusy: false,
       userLocationMarker: null,
       userLocationLastProjection: null,
+      userLocationSpeedSamples: [],
+      userLocationStableSpeedKmh: null,
+      userLocationStableSpeedAt: 0,
+      userLocationLowSpeedStreak: 0,
       userRouteAutoApplied: false,
       userRouteManualOverride: false,
       isAutoSwitchingRoute: false,

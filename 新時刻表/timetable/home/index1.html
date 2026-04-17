@@ -6418,7 +6418,7 @@ select.setting-input[id*="pick"] {
         let homeNearbyRailStatusLoading = false;
         let homeNearbyRailStatusCache = { ts: 0, key: '', text: '' };
         const HOME_HERO_VISUAL_KEY = 'home_hero_visual_mode_v1';
-        const HOME_CWA_AUTH = 'rdec-key-123-45678-011121314';
+        const HOME_CWA_AUTH = 'CWA-037FE620-63E1-4CAB-B159-84853F6CA215';
         const HOME_CWA_DATASTORE = 'https://opendata.cwa.gov.tw/api/v1/rest/datastore';
         const HOME_CWA_FILEAPI = 'https://opendata.cwa.gov.tw/fileapi/v1/opendataapi';
         const HOME_OBSERVATION_FIELD_CACHE_KEY = 'home_observation_field_cache_v1';
@@ -7689,6 +7689,13 @@ select.setting-input[id*="pick"] {
             }
         }
 
+        function fetchWithTimeout(url, options = {}, timeoutMs = 10000) {
+            const controller = new AbortController();
+            const timer = setTimeout(() => controller.abort(), timeoutMs);
+            return fetch(url, { ...options, signal: options.signal || controller.signal })
+                .finally(() => clearTimeout(timer));
+        }
+
         async function getTdxToken() {
             try {
                 const params = new URLSearchParams();
@@ -7696,11 +7703,11 @@ select.setting-input[id*="pick"] {
                 params.append('client_id', TDX_CONFIG.clientId);
                 params.append('client_secret', TDX_CONFIG.clientSecret);
 
-                const res = await fetch('https://tdx.transportdata.tw/auth/realms/TDXConnect/protocol/openid-connect/token', {
+                const res = await fetchWithTimeout('https://tdx.transportdata.tw/auth/realms/TDXConnect/protocol/openid-connect/token', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
                     body: params
-                });
+                }, 9000);
                 const data = await res.json();
                 if(data.access_token) {
                     tdxToken = data.access_token;
@@ -7728,9 +7735,9 @@ select.setting-input[id*="pick"] {
             const headers = { 'Authorization': `Bearer ${tdxToken}` };
             stationFetchPromise = (async () => {
                 try {
-                    const trRes = await fetch('https://tdx.transportdata.tw/api/basic/v3/Rail/TRA/Station?%24format=JSON', { headers });
+                    const trRes = await fetchWithTimeout('https://tdx.transportdata.tw/api/basic/v3/Rail/TRA/Station?%24format=JSON', { headers }, 9000);
                     const trData = await trRes.json();
-                    const thsrRes = await fetch('https://tdx.transportdata.tw/api/basic/v2/Rail/THSR/Station?%24format=JSON', { headers });
+                    const thsrRes = await fetchWithTimeout('https://tdx.transportdata.tw/api/basic/v2/Rail/THSR/Station?%24format=JSON', { headers }, 9000);
                     const thsrData = await thsrRes.json();
                     applyStationData({
                         tr: (trData.Stations || []).map(st => ({ id: st.StationID, name: st.StationName.Zh_tw, lat: st.StationPosition.PositionLat, lon: st.StationPosition.PositionLon })),
@@ -12892,6 +12899,32 @@ function toggleSettings(show) {
       window.onload = async () => {
     const splash = document.getElementById('splash-screen');
     const statusText = document.getElementById('splash-status-text');
+    let splashClosed = false;
+    let monitorStartedAfterSplash = false;
+
+    const closeSplash = (successFlag = false) => {
+        const startMonitorOnce = () => {
+            if (!successFlag || monitorStartedAfterSplash) return;
+            monitorStartedAfterSplash = true;
+            startMonitorSystem(true);
+        };
+        if (splashClosed) {
+            startMonitorOnce();
+            return;
+        }
+        splashClosed = true;
+        if (splash) {
+            splash.style.opacity = '0';
+            splash.style.pointerEvents = 'none';
+            setTimeout(() => {
+                splash.style.display = 'none';
+                startMonitorOnce();
+            }, 700);
+        } else if (successFlag) {
+            startMonitorOnce();
+        }
+    };
+    const splashFailsafe = setTimeout(() => closeSplash(false), 9000);
 
     const updateStatus = (text, delay) => {
         return new Promise(resolve => {
@@ -12941,18 +12974,8 @@ function toggleSettings(show) {
     await updateStatus("✨ 歡迎使用 ✨", 1000);
 
     // 3. 核心修正：確保隱藏 Splash Screen 並回到首頁畫面
-    setTimeout(() => {
-        if (splash) {
-            splash.style.opacity = '0';
-            splash.style.pointerEvents = 'none'; // 確保不會擋住底下的點擊
-            
-            // 等待過渡動畫完成後徹底從 DOM 或 視覺移除
-            setTimeout(() => {
-                splash.style.display = 'none';
-                if (success) startMonitorSystem(true);
-            }, 1000);
-        }
-    }, 1200);
+    clearTimeout(splashFailsafe);
+    setTimeout(() => closeSplash(success), 1200);
 };
     </script>
     <script charset="UTF-8" src="../shared/rail-network.js?v=20260329-thsrkm1"></script>
