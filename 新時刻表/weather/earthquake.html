@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>近期地震 | 氣象專區</title>
+  <link rel="stylesheet" href="weather-shell.css">
+  <script src="weather-shell.js" defer></script>
+</head>
+<body data-weather-page="earthquake">
+  <main class="weather-data-shell">
+    <section class="weather-data-hero">
+      <div>
+        <span class="weather-data-kicker">Earthquake</span>
+        <h1>近期地震</h1>
+        <p id="weatherDataSubtitle">顯示中央氣象署最新顯著有感地震報告。</p>
+      </div>
+      <div class="weather-data-actions">
+        <a class="weather-data-btn" href="index.html">工具首頁</a>
+        <button class="weather-data-btn primary" id="weatherDataRefresh" type="button">更新</button>
+      </div>
+    </section>
+    <section class="weather-data-grid" id="weatherDataContent"></section>
+  </main>
+  <script src="weather-data-page.js" defer></script>
+</body>
+</html>

@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>警特報 | 氣象專區</title>
+  <link rel="stylesheet" href="weather-shell.css">
+  <script src="weather-shell.js" defer></script>
+</head>
+<body data-weather-page="alerts">
+  <main class="weather-data-shell">
+    <section class="weather-data-hero">
+      <div>
+        <span class="weather-data-kicker">Warnings</span>
+        <h1>警特報</h1>
+        <p id="weatherDataSubtitle">依目前縣市整理有效中的氣象警特報。</p>
+      </div>
+      <div class="weather-data-actions">
+        <a class="weather-data-btn" href="index.html">工具首頁</a>
+        <button class="weather-data-btn primary" id="weatherDataRefresh" type="button">更新</button>
+      </div>
+    </section>
+    <section class="weather-data-grid" id="weatherDataContent"></section>
+  </main>
+  <script src="weather-data-page.js" defer></script>
+</body>
+</html>

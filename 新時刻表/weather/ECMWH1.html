@@ -1,0 +1,242 @@
+﻿<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+    
+    main {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .section {
+   
+         
+         
+
+        }
+
+        h1 {
+            font-size: 24px;
+            
+        }
+
+        p {
+            font-size: 16px;
+            line-height: 1.5;
+            color: #555;
+        }
+        .footer {
+          text-align: center;
+          padding: 10px;
+          background-color: #ffffff;
+          color: #fff;
+        }
+    </style>
+    <title>颱風氣象整合網頁</title>
+    <script>
+         function toggleSubcategories(category) {
+            var subcategoryList = document.querySelector('.' + category + '-subcategories');
+            var otherSubcategoryLists = document.querySelectorAll('.subcategories.show');
+            
+            otherSubcategoryLists.forEach(function(list) {
+                if (list !== subcategoryList) {
+                    list.classList.remove('show');
+                }
+            });
+            
+            subcategoryList.classList.toggle('show');
+        }
+    </script>
+  <link rel="stylesheet" href="weather-shell.css">
+</head>
+<body>
+   
+    <main>
+  
+
+        <section class="section ">          
+            <span>  
+                <h3 >最新</h3>
+                <div id="image-container">
+                    <!-- 這裡將插入動態生成的圖片 -->
+                </div></span> 
+        </section> 
+
+        <section class="section ">          
+            <span>  
+                <h3 >前六小時</h3>
+                <div id="enhanced-color-image-container">
+                    <!-- 這裡將插入動態生成的圖片 -->
+                </div></span> 
+        </section>
+
+        <section class="section ">          
+            <span>  
+                <h3 >前十二小時</h3>
+                <div id="color-color-image-container">
+                    <!-- 這裡將插入動態生成的圖片 -->
+                </div></span> 
+        </section>
+
+        <section class="section ">          
+            <span>  
+                <h3 >前十八小時</h3>
+                <div id="yes-image-container">
+                    <!-- 這裡將插入動態生成的圖片 -->
+                </div></span> 
+        </section>
+
+ 
+        <section class="section">
+            <span> <h3 >其他1</h3>                   
+                        <a href="https://www.ecmwf.int/en/forecasts/charts" target="_blank">ecmwf(forecasts)</a></p>   
+                        <a href="https://www.easterlywave.com/typhoon/ensemble/" target="_blank">ecmwf(typhoon)</a></p>                                   
+            </span>
+        </section>
+        <section class="section">
+            <span> <h3 >其他2</h3>                   
+                        <a href="https://www.weathernerds.org/tc_guidance/" target="_blank">weathernerds.org</a></p>                                      
+            </span>
+        </section>
+    </main>
+  <script src="weather-shell.js" defer></script>
+</body>
+<script>
+    window.onload = function() {
+        // 获取当前UTC时间
+        var currentUTC = new Date();
+        currentUTC.setUTCHours(currentUTC.getUTCHours() - 6 ); // 将时间增加3个小时
+
+        var formattedDate = currentUTC.toISOString().slice(0, 10).replace(/-/g, ""); // 格式化日期为YYYYMMDD
+        var formattedTime = currentUTC.getUTCHours() < 12 ? "0000" : "1200"; // 根据小时选择时间部分
+
+        // 构建图片URL
+        var imageUrl = "https://www.typhoon2000.ph/multi/models/" + formattedDate + formattedTime + "_ALL.PNG";
+
+        // 创建图片元素
+        var imgElement = document.createElement("img");
+        imgElement.src = imageUrl;
+        
+        
+
+        // 将图片插入到指定位置
+        var section = document.querySelector(".section");
+        section.appendChild(imgElement);
+    }
+</script>
+</script>
+<script>
+    currentUTC.setUTCHours(currentUTC.getUTCHours() + 0 );
+
+function insertSatelliteImage(category, containerId) {
+    var currentDate = new Date();
+    var imageDate = new Date(currentDate.getTime() - 900 * 60 * 1000); // 20 minutes ago
+    var year = imageDate.getFullYear();
+    var month = (imageDate.getMonth() + 1).toString().padStart(2, '0');
+    var day = imageDate.getDate().toString().padStart(2, '0');
+    var hours = imageDate.getHours().toString().padStart(2, '0');
+    var minutes = Math.floor(imageDate.getMinutes() / 10) * 10;
+
+    var imageDateAlt = new Date(currentDate.getTime() - 1380 * 60 * 1000); // 80 minutes ago
+    var yearAlt = imageDateAlt.getFullYear();
+    var monthAlt = (imageDateAlt.getMonth() + 1).toString().padStart(2, '0');
+    var dayAlt = imageDateAlt.getDate().toString().padStart(2, '0');
+    var hoursAlt = imageDateAlt.getHours().toString().padStart(2, '0');
+    var minutesAlt = Math.floor(imageDateAlt.getMinutes() / 10) * 10;
+
+    var imageDateAlt2 = new Date(currentDate.getTime() - 1800 * 60 * 1000); // 120 minutes ago
+    var yearAlt2 = imageDateAlt2.getFullYear();
+    var monthAlt2 = (imageDateAlt2.getMonth() + 1).toString().padStart(2, '0');
+    var dayAlt2 = imageDateAlt2.getDate().toString().padStart(2, '0');
+    var hoursAlt2 = imageDateAlt2.getHours().toString().padStart(2, '0');
+    var minutesAlt2 = Math.floor(imageDateAlt2.getMinutes() / 10) * 10;
+
+    var imageDateAlt3 = new Date(currentDate.getTime() - 2100 * 60 * 1000); // 180 minutes ago
+    var yearAlt3 = imageDateAlt3.getFullYear();
+    var monthAlt3 = (imageDateAlt3.getMonth() + 1).toString().padStart(2, '0');
+    var dayAlt3 = imageDateAlt3.getDate().toString().padStart(2, '0');
+    var hoursAlt3 = imageDateAlt3.getHours().toString().padStart(2, '0');
+    var minutesAlt3 = Math.floor(imageDateAlt3.getMinutes() / 10) * 10;
+
+     // Adjust hours to be 00, 06, 12, or 18
+     if (hours < 6) {
+        hours = "00";
+    } else if (hours < 12) {
+        hours = "06";
+    } else if (hours < 18) {
+        hours = "12";
+    } else {
+        hours = "18";
+    }
+
+    // Adjust hoursAlt to be 00, 06, 12, or 18
+    if (hoursAlt < 6) {
+        hoursAlt = "00";
+    } else if (hoursAlt < 12) {
+        hoursAlt = "06";
+    } else if (hoursAlt < 18) {
+        hoursAlt = "12";
+    } else {
+        hoursAlt = "18";
+    }
+
+    // Adjust hoursAlt2 to be 00, 06, 12, or 18
+    if (hoursAlt2 < 6) {
+        hoursAlt2 = "00";
+    } else if (hoursAlt2 < 12) {
+        hoursAlt2 = "06";
+    } else if (hoursAlt2 < 18) {
+        hoursAlt2 = "12";
+    } else {
+        hoursAlt2 = "18";
+    }
+
+    // Adjust hoursAlt3 to be 00, 06, 12, or 18
+    if (hoursAlt3 < 6) {
+        hoursAlt3 = "00";
+    } else if (hoursAlt3 < 12) {
+        hoursAlt3 = "06";
+    } else if (hoursAlt3 < 18) {
+        hoursAlt3 = "12";
+    } else {
+        hoursAlt3 = "18";
+    }
+
+ 
+
+        var imageUrl = "";
+        if (category === "true-color") {
+            imageUrl = `https://www.easterlywave.com/media/typhoon/ensemble/${year}${month}${day}${hours}/wpac.png`;
+        } else if (category === "enhanced-color") {
+            imageUrl = `https://www.easterlywave.com/media/typhoon/ensemble/${yearAlt}${monthAlt}${dayAlt}${hoursAlt}/wpac.png`;
+        } else if (category === "color-color") {
+            imageUrl = `https://www.easterlywave.com/media/typhoon/ensemble/${yearAlt2}${monthAlt2}${dayAlt2}${hoursAlt2}/wpac.png`;
+        } else if (category === "yes") {
+            imageUrl = `https://www.easterlywave.com/media/typhoon/ensemble/${yearAlt3}${monthAlt3}${dayAlt3}${hoursAlt3}/wpac.png`;
+        } else if (category === "five") {
+            imageUrl = `https://${yearAlt}${monthAlt}${dayAlt}`;
+        }
+
+        var imageContainer = document.getElementById(containerId);
+        var imageElement = document.createElement("img");
+        imageElement.src = imageUrl;
+        imageElement.alt = `更新中(${category === "true-color" ? "更新中" : "更新中"})`;
+        imageContainer.appendChild(imageElement);
+    }
+</script>
+
+    <script>
+         window.onload = function() {
+        insertSatelliteImage("enhanced-color", "enhanced-color-image-container");
+        insertSatelliteImage("true-color", "image-container");
+        insertSatelliteImage("color-color", "color-color-image-container");
+        insertSatelliteImage("yes", "yes-image-container");
+        insertSatelliteImage("five", "five-image-container");
+    };
+
+    
+    </script>
+</html>

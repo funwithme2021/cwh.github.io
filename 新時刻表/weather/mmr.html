@@ -1,0 +1,358 @@
+﻿<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>短時累積雨量 | 颱風氣象中心</title>
+
+<!-- ========= 共通樣式 ========= -->
+<style>
+:root{--primary:#174287;--bg:#f6f8fb;--surface:#fff;--text:#333;--sub:#555;--divider:#dfe3ea;}
+*,*::before,*::after{box-sizing:border-box;}
+body,h1,h2,p,ul,li{margin:0;padding:0;} ul{list-style:none;} a{text-decoration:none;color:inherit;}
+body{font-family:"Noto Sans TC","Segoe UI",Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);}
+main{max-width:1150px;margin:96px auto 0;padding:0 1rem 4rem;}
+
+header{position:fixed;top:0;left:0;right:0;background:var(--primary);box-shadow:0 2px 6px rgba(0,0,0,.18);z-index:999;}
+.nav-wrap{max-width:1150px;margin:0 auto;padding:.85rem 1rem;display:flex;align-items:center;justify-content:space-between;}
+.logo{color:#fff;font-weight:700;font-size:1.25rem;}
+.nav-links{display:flex;gap:1.15rem;}
+.nav-item{position:relative;}
+.nav-link{color:#fff;font-weight:600;padding:.2rem 0;}
+.nav-link:hover{opacity:.85;}
+.dropdown{position:absolute;top:calc(100% + 6px);left:0;background:var(--surface);border-radius:10px;box-shadow:0 4px 12px rgba(0,0,0,.1);padding:.75rem 0;display:none;flex-direction:column;min-width:220px;}
+.dropdown a{padding:.48rem 1.3rem;font-size:.93rem;color:var(--text);}
+.dropdown a:hover{background:rgba(23,66,135,.08);}
+.dropdown.show{display:flex;}
+
+.burger{display:none;width:24px;height:18px;flex-direction:column;justify-content:space-between;cursor:pointer;}
+.burger span{display:block;height:3px;background:#fff;border-radius:1.5px;}
+
+.drawer{position:fixed;right:0;top:0;bottom:0;width:260px;background:#fff;transform:translateX(100%);transition:.3s;z-index:998;box-shadow:-2px 0 10px rgba(0,0,0,.15);display:flex;flex-direction:column;overflow-y:auto;}
+.drawer.open{transform:translateX(0);}
+.drawer a{padding:.85rem 1.25rem;border-bottom:1px solid var(--divider);}
+.drawer a.toggle{font-weight:600;background:var(--bg);}
+.drawer .dropdown{position:static;transform:none;box-shadow:none;border-radius:0;padding:0;}
+/* section + grid */
+section{padding:3.5rem 0;border-bottom:1px solid var(--divider);}
+h1{text-align:center;font-size:1.9rem;color:var(--primary);}
+h2{font-size:1.35rem;margin:1.8rem 0 .8rem;color:var(--primary);}
+.grid-4,.grid-5{display:grid;gap:0;}
+.grid-4{grid-template-columns:repeat(4,1fr);}
+.grid-5{grid-template-columns:repeat(5,1fr);}
+img{width:100%;height:auto;display:block;}
+figcaption{font-size:.9rem;text-align:center;color:var(--sub);margin-top:.25rem;}
+/* 去掉 grid 最右邊分隔線 － 用 border-right 作分隔 */
+figure{position:relative;}
+figure:not(:last-child)::after{content:'';position:absolute;top:0;right:0;width:1px;height:100%;background:var(--divider);}
+
+footer{padding:3rem 1rem 1.5rem;text-align:center;color:#777;font-size:.88rem;}
+/* 內容示範 */
+h1{text-align:center;margin-top:1.5rem;font-size:1.9rem;color:var(--primary);}
+
+/* ========= 行動裝置專用 ========= */
+@media(max-width:768px){
+
+/* 導覽列：桌機→隱藏，漢堡顯示（與原本一致） */
+.nav-links{display:none;}
+.burger{display:flex;}
+
+/* 圖片排版：讓每張最少 260px，可自動換行、靠齊 */
+.grid-4,
+.grid-5{
+  grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); /* 260px≈半螢幕 */
+  gap:0;                              /* 仍然零間距 */
+}
+
+/* 去掉 figure 之間的垂直分隔線（改用下邊框較好看） */
+figure::after{display:none;}
+figure{border-bottom:1px solid var(--divider);}
+figure:last-child{border-bottom:none;}           /* 最後一張不要線 */
+
+/* 圖片顯示區塊一次只呈現一種模型（下拉切換） – 你現有 JS 已處理 */
+.model-ctrl{display:block;margin:1rem auto 0;max-width:280px;}
+}
+
+</style>
+  <link rel="stylesheet" href="weather-shell.css">
+</head>
+<body>
+
+<!-- ========== 導覽列（桌機＋手機抽屜） ========== -->
+<header>
+    <nav class="nav-wrap">
+      <div class="logo">颱風氣象中心</div>
+  
+      <ul class="nav-links">
+        <li class="nav-item"><a class="nav-link" href="index.html">首頁</a></li>
+  
+        <li class="nav-item">
+          <a class="nav-link" href="javascript:;" data-target="ty">颱風資訊 ▾</a>
+          <div class="dropdown" id="ty">
+            <a href="typhoon.html">系統定位</a>
+            <a href="http://www.typhoon2000.ph/multi/?name=NEPARTAK">各國路徑</a>
+            <a href="agency.html">各國系集</a>
+            <a href="cwa.html">台灣路徑</a>
+            <a href="https://www.jma.go.jp/bosai/map.html#3/29.688/145.195/&elem=root&typhoon=all&contents=typhoon">日本路徑</a>
+            <a href="http://typhoon.weather.com.cn/">中國路徑</a>
+            <a href="https://www.kma.go.kr/chn/weather/typoon/typhoon_5days.jsp">韓國路徑</a>
+            <a href="https://www.hko.gov.hk/tc/wxinfo/currwx/tc_gis.htm">香港路徑</a>
+            <a href="https://www.metoc.navy.mil/jtwc/jtwc.html">美軍路徑</a>
+          </div>
+        </li>
+  
+        <li class="nav-item">
+          <a class="nav-link" href="javascript:;" data-target="warning">颱風警報 ▾</a>
+          <div class="dropdown" id="warning">
+            <a href="ty.html">颱風警報</a>
+            <a href="tywind.html">風力預報</a>
+            <a href="tyrain.html">雨量預報</a>
+          </div>
+        </li>
+
+        <li class="nav-item"><a class="nav-link" href="east.html">衛星雲圖</a></li>
+  
+        <li class="nav-item">
+          <a class="nav-link" href="javascript:;" data-target="radar">迴波閃電 ▾</a>
+          <div class="dropdown" id="radar">
+            <a href="none.html">即時閃電</a>
+            <a href="rain.html">雷達迴波</a>
+            <a href="https://www.cwa.gov.tw/V8/C/W/OBS_Radar_rain.html">降雨雷達</a>
+          </div>
+        </li>
+  
+        <li class="nav-item">
+          <a class="nav-link" href="javascript:;" data-target="rain">降雨資訊 ▾</a>
+          <div class="dropdown" id="rain">
+            <a href="mmr.html">降雨預報</a>
+            <a href="mm.html">累積雨量</a>
+          </div>
+        </li>
+  
+        <li class="nav-item">
+          <a class="nav-link" href="javascript:;" data-target="wind">氣象觀測 ▾</a>
+          <div class="dropdown" id="wind">
+            <a href="wind.html">風力觀測</a>
+            <a href="mm.html">累積雨量</a>
+            <a href="wind3.html">氣溫觀測</a>
+            <a href="wind4.html">紫外線觀測</a>
+          </div>
+        </li>
+  
+        <li class="nav-item">
+          <a class="nav-link" href="javascript:;" data-target="weather">天氣圖資 ▾</a>
+          <div class="dropdown" id="weather">
+            <a href="weather.html">最新天氣圖</a>
+            <a href="fweather.html">一週天氣圖</a>
+            <a href="tropic1.html">駛流場圖</a>
+            <a href="tropic2.html">相對窩度</a>
+            <a href="tropic3.html">垂直風切</a>
+            <a href="tropic4.html">氣層風場</a>
+            <a href="tropic5.html">高層福散</a>
+            <a href="tropic6.html">海溫觀測</a>
+          </div>
+        </li>
+  
+        <li class="nav-item">
+          <a class="nav-link" href="javascript:;" data-target="ens">路徑系集 ▾</a>
+          <div class="dropdown" id="ens">
+            <a href="agency.html">各國系集</a>
+            <a href="https://www.ecmwf.int/en/forecasts/charts">ECMWH(1)</a>
+            <a href="https://www.easterlywave.com/typhoon/ensemble/">ECMWH(2)</a>
+            <a href="ECMWH.html">ECMWH</a>
+            <a href="https://www.weathernerds.org/tc_guidance/">GFS</a>
+            <a href="https://npd.cwa.gov.tw/">CWA(新)</a>
+            <a href="https://npd1.cwa.gov.tw/NPD/products_display/product?menu_index=0">CWA(舊)</a>
+            <a href="cwaty.html">CWA(颱風)</a>
+          </div>
+        </li>
+  
+        <li class="nav-item">
+          <a class="nav-link" href="javascript:;" data-target="common">常用網頁 ▾</a>
+          <div class="dropdown" id="common">
+            <a href="https://watch.ncdr.nat.gov.tw/watch_tracks_plot">NCDR</a>
+            <a href="https://qpeplus.cwa.gov.tw/pub/?fbclid=IwAR05ri2kydz23rShRlBCitsi_qAxK0sXoTknPuKt8o7GDCS3oQm81mq_tpI&r=154260">QPlus</a>
+            <a href="https://www.windy.com/zh-TW/-%E9%A1%AF%E7%A4%BA%EF%BC%8F%E6%96%B0%E5%A2%9E%E6%9B%B4%E5%A4%9A%E5%9C%96%E5%B1%A4/overlays?radar,24.457,120.432,6">Windy</a>
+            <a href="https://www.tropicaltidbits.com/storminfo/">Tropical Tidbits</a>
+            <a href="https://watch.ncdr.nat.gov.tw/watch_tracks_pro">路徑製圖</a>
+            <a href="draw.html">路徑製圖(專屬)</a>
+          </div>
+        </li>
+      </ul>
+  
+      <!-- burger -->
+      <div class="burger" id="burger"><span></span><span></span><span></span></div>
+    </nav>
+  </header>
+  
+  <!-- ── Mobile Drawer ─────────────────────────────────────────────── -->
+  <aside class="drawer" id="drawer">
+    <a href="index.html">首頁</a>
+    <a href="index.html">首頁</a>
+    <!-- ↓ 每個大項 + 子項 (依桌機內容完整複製) ↓ -->
+    <a class="toggle" href="javascript:;" data-target="d-ty">颱風資訊 ▼</a>
+    <div class="dropdown" id="d-ty">
+      <a href="typhoon.html">系統定位</a>
+      <a href="http://www.typhoon2000.ph/multi/?name=NEPARTAK">各國路徑</a>
+      <a href="agency.html">各國系集</a>
+      <a href="cwa.html">台灣路徑</a>
+      <a href="https://www.jma.go.jp/bosai/map.html#3/29.688/145.195/&elem=root&typhoon=all&contents=typhoon">日本路徑</a>
+      <a href="http://typhoon.weather.com.cn/">中國路徑</a>
+      <a href="https://www.kma.go.kr/chn/weather/typoon/typhoon_5days.jsp">韓國路徑</a>
+      <a href="https://www.hko.gov.hk/tc/wxinfo/currwx/tc_gis.htm">香港路徑</a>
+      <a href="https://www.metoc.navy.mil/jtwc/jtwc.html">美軍路徑</a>
+    </div>
+  
+    <a class="toggle" href="javascript:;" data-target="d-warning">颱風警報 ▼</a>
+    <div class="dropdown" id="d-warning">
+      <a href="ty.html">颱風警報</a>
+      <a href="tywind.html">風力預報</a>
+      <a href="tyrain.html">雨量預報</a>
+    </div>
+
+    <a href="east.html">衛星雲圖</a>
+  
+    <a class="toggle" href="javascript:;" data-target="d-radar">迴波閃電 ▼</a>
+    <div class="dropdown" id="d-radar">
+      <a href="none.html">即時閃電</a>
+      <a href="rain.html">雷達迴波</a>
+      <a href="https://www.cwa.gov.tw/V8/C/W/OBS_Radar_rain.html">降雨雷達</a>
+    </div>
+  
+    <a class="toggle" href="javascript:;" data-target="d-rain">降雨資訊 ▼</a>
+    <div class="dropdown" id="d-rain">
+      <a href="mmr.html">降雨預報</a>
+      <a href="mm.html">累積雨量</a>
+    </div>
+  
+    <a class="toggle" href="javascript:;" data-target="d-wind">氣象觀測 ▼</a>
+    <div class="dropdown" id="d-wind">
+      <a href="wind.html">風力觀測</a>
+      <a href="mm.html">累積雨量</a>
+      <a href="wind3.html">氣溫觀測</a>
+      <a href="wind4.html">紫外線觀測</a>
+    </div>
+  
+    <a class="toggle" href="javascript:;" data-target="d-weather">天氣圖資 ▼</a>
+    <div class="dropdown" id="d-weather">
+      <a href="weather.html">最新天氣圖</a>
+      <a href="fweather.html">一週天氣圖</a>
+      <a href="tropic1.html">駛流場圖</a>
+      <a href="tropic2.html">相對窩度</a>
+      <a href="tropic3.html">垂直風切</a>
+      <a href="tropic4.html">氣層風場</a>
+      <a href="tropic5.html">高層福散</a>
+      <a href="tropic6.html">海溫觀測</a>
+    </div>
+  
+    <a class="toggle" href="javascript:;" data-target="d-ens">路徑系集 ▼</a>
+    <div class="dropdown" id="d-ens">
+      <a href="agency.html">各國系集</a>
+      <a href="https://www.ecmwf.int/en/forecasts/charts">ECMWH(1)</a>
+      <a href="https://www.easterlywave.com/typhoon/ensemble/">ECMWH(2)</a>
+      <a href="ECMWH.html">ECMWH</a>
+      <a href="https://www.weathernerds.org/tc_guidance/">GFS</a>
+      <a href="https://npd.cwa.gov.tw/">CWA(新)</a>
+      <a href="https://npd1.cwa.gov.tw/NPD/products_display/product?menu_index=0">CWA(舊)</a>
+      <a href="cwaty.html">CWA(颱風)</a>
+    </div>
+  
+    <a class="toggle" href="javascript:;" data-target="d-common">常用網頁 ▼</a>
+    <div class="dropdown" id="d-common">
+      <a href="https://watch.ncdr.nat.gov.tw/watch_tracks_plot">NCDR</a>
+      <a href="https://qpeplus.cwa.gov.tw/pub/?fbclid=IwAR05ri2kydz23rShRlBCitsi_qAxK0sXoTknPuKt8o7GDCS3oQm81mq_tpI&r=154260">QPlus</a>
+      <a href="https://www.windy.com/zh-TW/-%E9%A1%AF%E7%A4%BA%EF%BC%8F%E6%96%B0%E5%A2%9E%E6%9B%B4%E5%A4%9A%E5%9C%96%E5%B1%A4/overlays?radar,24.457,120.432,6">Windy</a>
+      <a href="https://www.tropicaltidbits.com/storminfo/">Tropical Tidbits</a>
+      <a href="https://watch.ncdr.nat.gov.tw/watch_tracks_pro">路徑製圖</a>
+      <a href="draw.html">路徑製圖(專屬)</a>
+    </div>
+  </aside>
+
+<!-- ========= 內容示範 ========= -->
+<main><h1>短時累積雨量預報</h1>
+
+    <!-- 手機模型切換選單 -->
+    <select id="modelSel" class="model-ctrl" style="display:none">
+      <option value="qpf">中央氣象署 ─ 48 h 預報</option>
+      <option value="krid">NCDR雨量預報 (CWA)</option>
+      <option value="gauge">NCDR雨量預報</option>
+    </select>
+  
+    <!-- ---- 模型 1：QPF ---- -->
+    <section id="qpf" class="model-block">
+      <h2>中央氣象署 ─ 48 h 預報</h2>
+      <div class="grid-4">
+        <figure><img src="https://www.cwa.gov.tw/Data/fcst_img/QPF_ChFcstPrecip_12_12.png"><figcaption>0-12 h</figcaption></figure>
+        <figure><img src="https://www.cwa.gov.tw/Data/fcst_img/QPF_ChFcstPrecip_12_24.png"><figcaption>12-24 h</figcaption></figure>
+        <figure><img src="https://www.cwa.gov.tw/Data/fcst_img/QPF_ChFcstPrecip_12_36.png"><figcaption>24-36 h</figcaption></figure>
+        <figure><img src="https://www.cwa.gov.tw/Data/fcst_img/QPF_ChFcstPrecip_12_48.png"><figcaption>36-48 h</figcaption></figure>
+      </div>
+    </section>
+  
+    <!-- ---- 模型 2：KRIDMAP ---- -->
+    <section id="krid" class="model-block">
+      <h2>NCDR雨量預報 (CWA)</h2>
+      <div class="grid-5" id="gridK"></div>
+    </section>
+  
+    <!-- ---- 模型 3：RAINGAUGE ---- -->
+    <section id="gauge" class="model-block">
+      <h2>NCDR雨量預報</h2>
+      <div class="grid-5" id="gridG"></div>
+    </section></main>
+
+<!-- ========= 導覽互動 ========= -->
+<script>
+/* --- 桌機下拉 --- */
+document.querySelectorAll('.nav-link[data-target]').forEach(link=>{
+  link.onclick=e=>{
+    const box=document.getElementById(e.currentTarget.dataset.target);
+    document.querySelectorAll('.dropdown.show').forEach(d=>d!==box&&d.classList.remove('show'));
+    box.classList.toggle('show');
+  };
+});
+
+/* --- 漢堡/Drawer --- */
+const burger=document.getElementById('burger'),drawer=document.getElementById('drawer');
+burger.onclick=()=>drawer.classList.toggle('open');
+
+/* Drawer 展開子選單 */
+drawer.onclick=e=>{
+  const t=e.target.closest('.toggle'); if(!t) return;
+  const box=drawer.querySelector('#'+t.dataset.target);
+  drawer.querySelectorAll('.dropdown').forEach(d=>d!==box&&d.classList.remove('show'));
+  box.classList.toggle('show');
+};
+/* === 手機選單顯示判定 === */
+if(innerWidth<769) document.getElementById('modelSel').style.display='block';
+
+/* === 時間戳 === */
+function twNow(){return new Date(new Date().toLocaleString('en-US',{timeZone:'Asia/Taipei'}));}
+function ymd(d){return `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`;}
+function hm10(d){return `${String(d.getHours()).padStart(2,'0')}${String(Math.floor(d.getMinutes()/10)*10).padStart(2,'0')}`;}
+
+const stampK=(()=>{const d=new Date(twNow().getTime()-22*60000);return ymd(d)+hm10(d);})();
+const stampG=(()=>{const d=new Date(twNow().getTime()-18*60000);return ymd(d)+hm10(d);})();
+
+/* === 動態插圖 === */
+const dur=['01','03','06','12','24'];
+function fill(id,prefix,stamp){
+  dur.forEach(d=>{
+    document.getElementById(id).insertAdjacentHTML('beforeend',
+      `<figure><img src="https://watch.ncdr.nat.gov.tw/00_Wxmap/images/${prefix+d+'_'+stamp}.png"><figcaption>${d} h</figcaption></figure>`);
+  });
+}
+fill('gridK','kridmap_',stampK);
+fill('gridG','raingauge_',stampG);
+
+/* === 手機模型切換 === */
+if(innerWidth<769){
+  const sel=document.getElementById('modelSel');
+  const blocks={'qpf':document.getElementById('qpf'),'krid':document.getElementById('krid'),'gauge':document.getElementById('gauge')};
+  function show(key){Object.values(blocks).forEach(b=>b.style.display='none');blocks[key].style.display='block';}
+  show('qpf'); sel.onchange=e=>show(e.target.value);
+}
+</script>
+  <script src="weather-shell.js" defer></script>
+</body>
+</html>

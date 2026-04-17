@@ -1,0 +1,302 @@
+﻿<!-- contact.html – 只需與 contact.js 放在同資料夾 -->
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1.0" />
+<title>進度查詢系統</title>
+
+<!-- ================= 現代化 CSS ================= -->
+<style>
+/* -------- 色票 -------- */
+:root{
+  --bg:#f1f4f9; --surface:#ffffff; --text:#263238; --sub:#607d8b;
+  --primary:#3949ab; --primary-light:#5563c1; --accent:#ff5252;
+  --green:#2e7d32; --red:#d32f2f; --orange:#ff9800;
+}
+body.dark{
+  --bg:#1a1c23; --surface:#242731; --text:#e0e4ec; --sub:#9aa1b5;
+  --primary:#7c9bff; --primary-light:#9db2ff; --accent:#ff7979;
+}
+
+*{box-sizing:border-box;}
+body{
+  margin:0;font-family:'Inter','Noto Sans TC',Helvetica,Arial,sans-serif;
+  background:var(--bg);color:var(--text);transition:.3s;
+}
+button,input{font:inherit;font-size:1rem;}
+a{color:inherit;text-decoration:none;}
+
+/* -------- Header -------- */
+header{
+  position:sticky;top:0;z-index:10;
+  display:flex;justify-content:space-between;align-items:center;
+  padding:.9rem 1.6rem;background:var(--primary);color:#fff;
+  box-shadow:0 2px 8px rgba(0,0,0,.15);
+}
+.controls{display:flex;gap:.65rem;align-items:center;}
+.controls button{
+  background:rgba(255,255,255,.15);color:#fff;border:none;
+  padding:.42rem .9rem;border-radius:6px;cursor:pointer;
+  transition:.2s;
+}
+.controls button:hover{background:rgba(255,255,255,.25);}
+.hide{display:none !important;}          /* ← 最高優先權 */
+
+/* -------- Layout -------- */
+main{max-width:960px;margin:0 auto;padding:3rem 1rem;}
+.card{
+  background:var(--surface);border-radius:12px;padding:2rem 2.4rem;
+  box-shadow:0 6px 28px rgba(0,0,0,.07);
+}
+.card h2{margin-top:0;font-size:1.45rem;}
+.step{display:flex;align-items:flex-start;gap:.4rem;
+      font-size:.92rem;color:var(--sub);margin:.35rem 0;}
+.step span{font-weight:600;color:var(--primary-light);}
+
+.input-group{display:flex;gap:.6rem;margin:1.2rem 0 1.6rem;}
+.input-group input{
+  flex:1;padding:.65rem 1rem;border:2px solid var(--primary-light);
+  border-radius:8px;background:var(--surface);outline:none;
+  transition:border-color .2s,box-shadow .2s;
+}
+.input-group input:focus{
+  border-color:var(--primary);box-shadow:0 0 0 3px rgba(57,73,171,.18);
+}
+.primary-btn{
+  background:var(--primary);color:#fff;border:none;
+  padding:.65rem 1.2rem;border-radius:8px;cursor:pointer;
+  transition:.2s;
+}
+.primary-btn:hover{background:var(--primary-light);transform:translateY(-1px);}
+
+#errorMsg{color:var(--accent);font-weight:600;margin-top:.6rem;}
+
+#filterBar{display:flex;gap:.6rem;margin:1.1rem 0;flex-wrap:wrap;}
+#filterBar button{
+  border:1px solid var(--primary-light);background:var(--surface);
+  color:var(--text);padding:.45rem .9rem;border-radius:30px;
+  cursor:pointer;font-size:.9rem;transition:.2s;
+}
+#filterBar button.active,
+#filterBar button:hover{background:var(--primary);color:#fff;border-color:var(--primary);}
+
+table{
+  width:100%;border-collapse:collapse;background:var(--surface);
+  box-shadow:0 4px 20px rgba(0,0,0,.06);border-radius:12px;overflow:hidden;
+}
+th,td{padding:.85rem 1rem;border-bottom:1px solid var(--bg);}
+thead{background:rgba(57,73,171,.12);}
+tbody tr:hover{background:rgba(0,0,0,.04);}
+.status-replied{color:var(--green);font-weight:600;}
+.status-waiting{color:var(--red);font-weight:600;}
+.note-priority{color:var(--orange);font-weight:600;}
+
+/* -------- 行動版 (≤640px) -------- */
+@media(max-width:640px){
+  main{padding:2rem .6rem;}
+  .card{padding:1.6rem 1.4rem;}
+  table,tbody,tr,td{display:block;width:100%;}
+  th{display:none;}
+  tr{margin-bottom:1rem;border:1px solid var(--bg);border-radius:10px;
+     background:var(--surface);box-shadow:0 2px 8px rgba(0,0,0,.05);}
+  td{position:relative;padding:.85rem 1rem .85rem 48%;border:none;
+      border-bottom:1px solid rgba(0,0,0,.07);}
+  td:last-child{border-bottom:none;}
+  td::before{
+    content:attr(data-label);position:absolute;left:1rem;top:.85rem;
+    font-weight:600;color:var(--sub);font-size:.88rem;
+  }
+}
+</style>
+  <link rel="stylesheet" href="weather-shell.css">
+</head>
+
+<body>
+  <!-- -------- Header -------- -->
+  <header>
+    <h1 style="font-size:1.25rem;">📬 進度查詢</h1>
+    <div class="controls">
+      <button id="darkToggle" title="深夜模式">🌓</button>
+      <button id="logoutBtn" class="hide">登出</button>
+      <div id="google_translate_element"></div>
+    </div>
+  </header>
+
+  <main>
+    <!-- -------- 登入卡片 -------- -->
+    <section id="loginSection" class="card">
+      <h2>快速查詢你的私訊狀態</h2>
+      <div class="step"><span>①</span>輸入「私訊編號」或管理員代碼</div>
+      <div class="step"><span>②</span>按下查詢即可取得進度</div>
+
+      <div class="input-group">
+        <input type="text" id="pmId" placeholder="例如：1234567890" autocomplete="off">
+        <button id="submitBtn" class="primary-btn">查詢</button>
+      </div>
+      <p style="font-size:.85rem;color:var(--sub);margin-top:-.7rem;">
+
+      </p>
+      <p id="errorMsg" class="hide"></p>
+    </section>
+
+    <!-- -------- 結果區 -------- -->
+    <section id="resultSection" class="hide">
+      <h2 id="resultTitle" style="margin-bottom:.6rem;"></h2>
+
+      <div id="filterBar" class="hide">
+        <button data-filter="all" class="active">全部</button>
+        <button data-filter="replied">已回覆</button>
+        <button data-filter="waiting">尚未回覆</button>
+      </div>
+
+      <table id="msgTable">
+        <thead>
+          <tr>
+            <th>時間</th><th>使用者帳號</th><th>私訊編號</th>
+            <th>回覆進度</th><th>備註</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </section>
+  </main>
+
+  <!-- ================= 資料檔 ================= -->
+  <script src="contact.js"></script>
+
+  <!-- ================= 主邏輯 ================= -->
+  <script>
+  document.addEventListener('DOMContentLoaded',()=>{
+    /* ========= 快速選擇 ========= */
+    const $  = q=>document.querySelector(q);
+    const $$ = q=>document.querySelectorAll(q);
+
+    /* ========= DOM 元件 ========= */
+    const pmInput   = $('#pmId');
+    const loginCard = $('#loginSection');
+    const resultSec = $('#resultSection');
+    const filterBar = $('#filterBar');
+    const tbody     = $('#msgTable tbody');
+    const errorMsg  = $('#errorMsg');
+    const logoutBtn = $('#logoutBtn');
+
+    let currentRows = [];
+    let loggedIn    = false;
+
+    /* -------- 初始化：只顯示登入卡片 -------- */
+    toggleAuthUI();
+
+    /* -------- 深夜模式 -------- */
+    $('#darkToggle').onclick = () => document.body.classList.toggle('dark');
+
+    /* -------- 查詢 -------- */
+    $('#submitBtn').onclick = ()=>{
+      const id = pmInput.value.trim();
+      errorMsg.classList.add('hide');
+
+      if(id.length < 4 || id.length > 20){
+        return showErr('請輸入 4–20 位數字的私訊編號');
+      }
+
+      /* 管理員 */
+      if(id === '99887765'){
+        currentRows = [...messages].sort(byTimeDesc);
+        $('#resultTitle').textContent = '所有訊息（管理員）';
+        loggedIn = true;
+        toggleAuthUI();
+        renderTable(currentRows);
+        return;
+      }
+
+      /* 一般使用者 */
+      const rows = messages.filter(m=>m.pmId === id).sort(byTimeDesc);
+      if(rows.length === 0){
+        return showErr('查無資料，請確認編號或稍後再試(尚未入檔)');
+      }
+      currentRows = rows;
+      $('#resultTitle').textContent = `私訊編號 ${id} 的查詢結果`;
+      loggedIn = true;
+      toggleAuthUI();
+      renderTable(currentRows);
+    };
+
+    /* -------- 篩選 -------- */
+    filterBar.addEventListener('click',e=>{
+      if(e.target.tagName !== 'BUTTON') return;
+      $$('#filterBar button').forEach(b=>b.classList.remove('active'));
+      e.target.classList.add('active');
+
+      const f = e.target.dataset.filter;
+      let rows = currentRows;
+      if(f==='replied') rows = rows.filter(r=>r.status==='已回覆');
+      if(f==='waiting') rows = rows.filter(r=>r.status!=='已回覆');
+      renderTable(rows);
+    });
+
+    /* -------- 登出 -------- */
+    logoutBtn.onclick = ()=>{
+      loggedIn = false;
+      pmInput.value = '';
+      currentRows = [];
+      toggleAuthUI();
+    };
+
+    /* -------- 共用函式 -------- */
+    const byTimeDesc = (a,b)=>new Date(b.time)-new Date(a.time);
+    const waitingCnt = cur =>
+      messages.filter(m=>m.status!=='已回覆' && new Date(m.time)<new Date(cur.time)).length;
+
+    function renderTable(rows){
+      tbody.innerHTML = '';
+      rows.forEach(r=>{
+        const prog = r.status==='已回覆'
+          ? '已回覆'
+          : `尚須等候 ${waitingCnt(r)} 組`;
+
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td data-label="時間">${r.time.replace('T',' ').slice(0,19)}</td>
+          <td data-label="使用者帳號">${r.account}</td>
+          <td data-label="私訊編號">${r.pmId}</td>
+          <td data-label="回覆進度"
+              class="${r.status==='已回覆'?'status-replied':'status-waiting'}">
+              ${prog}
+          </td>
+          <td data-label="備註"
+              class="${r.note==='優先訊息'?'note-priority':''}">
+              ${r.note}
+          </td>`;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function showErr(msg){
+      errorMsg.innerHTML = msg;
+      errorMsg.classList.remove('hide');
+    }
+
+    /* -------- 區塊顯示控制 -------- */
+    function toggleAuthUI(){
+      loginCard.classList.toggle('hide',  loggedIn);
+      resultSec.classList.toggle('hide', !loggedIn);
+      filterBar.classList.toggle('hide', !loggedIn);
+      logoutBtn.classList.toggle('hide', !loggedIn);
+    }
+  });
+  </script>
+
+  <!-- ================= Google 翻譯：12 語言 ================= -->
+  <script>
+  function googleTranslateElementInit(){
+    new google.translate.TranslateElement({
+      pageLanguage:'zh-TW',
+      includedLanguages:'zh-TW,zh-CN,en,ja,ko,fr,de,es,th,vi,id,pt',
+      layout:google.translate.TranslateElement.InlineLayout.HORIZONTAL
+    },'google_translate_element');
+  }
+  </script>
+  <script src="https://translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"></script>
+  <script src="weather-shell.js" defer></script>
+</body>
+</html>

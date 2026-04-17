@@ -14,6 +14,11 @@
   const USER_LOCATION_ENABLED_KEY = "rail_live_user_location_enabled_v1";
   const USER_LOCATION_MAX_FAR_KM = 8;
   const USER_LOCATION_ROUTE_DISPLAY_MAX_KM = 2;
+  const USER_LOCATION_THSR_ROUTE_DISPLAY_MAX_KM = 8;
+  const TRA_VISUAL_EXTRA_BASE_KM = 2.4;
+  const TRA_VISUAL_EXTRA_PX_PER_KM = 5.2;
+  const TRA_VISUAL_MAX_EXTRA_PX = 44;
+  const THSR_VISUAL_MIN_SEGMENT_KM = 24;
   const USER_LOCATION_POLL_MS = 3000;
   const TRACKER_STATES = new Map();
   const TRA_TYPE_COLORS = {
@@ -1670,6 +1675,98 @@
     return Math.max(620, ((stations || []).length - 1) * 42 + MAP_PADDING_Y * 2);
   }
 
+  function getThsrStationAxisValue(stationName) {
+    const value = Number(getRailNetwork()?.getThsrStationMileage?.(stationName));
+    return Number.isFinite(value) ? value : null;
+  }
+
+  function getThsrVisualAxisValues(stations) {
+    const list = Array.isArray(stations) ? stations : [];
+    if (!list.length) return [];
+    const values = [0];
+    for (let index = 0; index < list.length - 1; index += 1) {
+      const current = getThsrStationAxisValue(list[index]);
+      const next = getThsrStationAxisValue(list[index + 1]);
+      const actualDistance = [current, next].every(Number.isFinite) ? Math.abs(next - current) : NaN;
+      const visualDistance = Number.isFinite(actualDistance)
+        ? Math.max(actualDistance, THSR_VISUAL_MIN_SEGMENT_KM)
+        : THSR_VISUAL_MIN_SEGMENT_KM;
+      values.push(values[index] + visualDistance);
+    }
+    return values;
+  }
+
+  function getTraVisualAxisValues(stations) {
+    const list = Array.isArray(stations) ? stations : [];
+    if (!list.length) return [];
+    const originalHeight = getBoardHeight(list);
+    const baseSegmentPx = Math.max(42, (originalHeight - MAP_PADDING_Y * 2) / Math.max(1, list.length - 1));
+    const values = [0];
+    for (let index = 0; index < list.length - 1; index += 1) {
+      const actualDistance = Number(getRailNetwork()?.getTraAdjacentDistance?.(list[index], list[index + 1]));
+      const extraPx = Number.isFinite(actualDistance) && actualDistance > TRA_VISUAL_EXTRA_BASE_KM
+        ? clamp((actualDistance - TRA_VISUAL_EXTRA_BASE_KM) * TRA_VISUAL_EXTRA_PX_PER_KM, 0, TRA_VISUAL_MAX_EXTRA_PX)
+        : 0;
+      const visualDistance = baseSegmentPx + extraPx;
+      values.push(values[index] + visualDistance);
+    }
+    return values;
+  }
+
+  function getStationAxisValue(system, stations, index) {
+    if (system === "thsr") {
+      const visualAxis = getThsrVisualAxisValues(stations);
+      const value = visualAxis[index];
+      if (Number.isFinite(value)) return value;
+    }
+    if (system === "tr") {
+      const visualAxis = getTraVisualAxisValues(stations);
+      const value = visualAxis[index];
+      if (Number.isFinite(value)) return value;
+    }
+    return index;
+  }
+
+  function getAxisRangeForStations(system, stations) {
+    const list = Array.isArray(stations) ? stations : [];
+    if (list.length < 2) return null;
+    const first = getStationAxisValue(system, list, 0);
+    const last = getStationAxisValue(system, list, list.length - 1);
+    const span = last - first;
+    if (![first, last, span].every(Number.isFinite) || span === 0) return null;
+    return { first, last, span };
+  }
+
+  function getPositionAxisValue(system, stations, positionIndex) {
+    const list = Array.isArray(stations) ? stations : [];
+    const raw = Number(positionIndex);
+    if (!Number.isFinite(raw)) return 0;
+    if (!["tr", "thsr"].includes(system) || list.length < 2) return raw;
+    const lower = Math.max(0, Math.min(list.length - 1, Math.floor(raw)));
+    const upper = Math.max(0, Math.min(list.length - 1, Math.ceil(raw)));
+    const lowerAxis = getStationAxisValue(system, list, lower);
+    const upperAxis = getStationAxisValue(system, list, upper);
+    if (![lowerAxis, upperAxis].every(Number.isFinite)) return raw;
+    if (lower === upper) return lowerAxis;
+    return lowerAxis + ((upperAxis - lowerAxis) * clamp(raw - lower, 0, 1));
+  }
+
+  function getBoardHeightForSystem(system, stations) {
+    if (system === "thsr") {
+      const range = getAxisRangeForStations(system, stations);
+      if (range) {
+        return Math.max(780, Math.min(1040, Math.abs(range.span) * 2.45 + MAP_PADDING_Y * 2));
+      }
+    }
+    if (system === "tr") {
+      const range = getAxisRangeForStations(system, stations);
+      if (range) {
+        return Math.max(getBoardHeight(stations), Math.ceil(Math.abs(range.span) + MAP_PADDING_Y * 2));
+      }
+    }
+    return getBoardHeight(stations);
+  }
+
   function renderTraTypeHTML(type) {
     const normalized = normalizeTraType(type);
     return `<span style="color:${escapeHtml(getTraTypeColor(normalized))};font-weight:700">${escapeHtml(normalized)}</span>`;
@@ -1902,6 +1999,18 @@
     return MAP_PADDING_Y + (index / denominator) * usableHeight;
   }
 
+  function getBoardYForPosition(system, stations, positionIndex, mapHeight) {
+    const list = Array.isArray(stations) ? stations : [];
+    const denominator = Math.max(1, list.length - 1);
+    if (!["tr", "thsr"].includes(system)) return getBoardY(positionIndex, denominator, mapHeight);
+    const range = getAxisRangeForStations(system, list);
+    if (!range) return getBoardY(positionIndex, denominator, mapHeight);
+    const axisValue = getPositionAxisValue(system, list, positionIndex);
+    if (!Number.isFinite(axisValue)) return getBoardY(positionIndex, denominator, mapHeight);
+    const usableHeight = Math.max(1, mapHeight - MAP_PADDING_Y * 2);
+    return MAP_PADDING_Y + clamp((axisValue - range.first) / range.span, 0, 1) * usableHeight;
+  }
+
   function findNearestVisibleTrainForUser(state, positionIndex) {
     const snapshots = state.visibleSnapshots || [];
     if (!Number.isFinite(positionIndex) || !snapshots.length) return null;
@@ -1952,15 +2061,171 @@
     return best;
   }
 
+  function getUserLocationDisplayMaxKm(system) {
+    return system === "thsr" ? USER_LOCATION_THSR_ROUTE_DISPLAY_MAX_KM : USER_LOCATION_ROUTE_DISPLAY_MAX_KM;
+  }
+
+  function getUserLocationStationThresholdKm(system, coords) {
+    const accuracyKm = Number(coords?.accuracy) > 0 ? Number(coords.accuracy) / 1000 : 0.08;
+    const minKm = system === "thsr" ? 0.25 : 0.12;
+    const maxKm = system === "thsr" ? 1.1 : 0.42;
+    return clamp((accuracyKm * 1.2) + 0.04, minKm, maxKm);
+  }
+
+  function findNearestUserLocationStation(state, coords) {
+    const normalizedCoords = normalizeGeoCoords(coords);
+    if (!state || !normalizedCoords) return null;
+    let best = null;
+    const seen = new Set();
+    getRouteGroupsForSystem(state.system).forEach((group) => {
+      (group.segments || []).forEach((segment) => {
+        (segment.stations || []).forEach((stationName) => {
+          const normalizedName = normalizeStationForSystem(state.system, stationName);
+          if (!normalizedName || seen.has(normalizedName)) return;
+          seen.add(normalizedName);
+          const stationGeo = getStationGeo(state.system, stationName);
+          if (!stationGeo) return;
+          const distanceMeters = getGeoDistanceMeters(normalizedCoords, stationGeo);
+          if (!Number.isFinite(distanceMeters)) return;
+          if (!best || distanceMeters < best.distanceMeters) {
+            best = {
+              stationName: normalizedName,
+              rawStationName: stationName,
+              geo: stationGeo,
+              distanceMeters,
+            };
+          }
+        });
+      });
+    });
+    return best;
+  }
+
+  function findSegmentContainingUserContext(state, context) {
+    if (!state || !context) return null;
+    let best = null;
+    getRouteGroupsForSystem(state.system).forEach((group) => {
+      (group.segments || []).forEach((segment) => {
+        const placement = placeUserLocationContextOnSegment(state.system, segment, context);
+        if (!placement) return;
+        const candidate = { ...segment, groupTitle: group.title, userPositionIndex: placement.positionIndex };
+        if (!best || Math.abs(placement.positionIndex - Math.round(placement.positionIndex)) < Math.abs((best.userPositionIndex || 0) - Math.round(best.userPositionIndex || 0))) {
+          best = candidate;
+        }
+      });
+    });
+    return best;
+  }
+
+  function findRouteSegmentById(state, segmentId) {
+    const targetId = String(segmentId || "");
+    if (!state || !targetId) return null;
+    let found = null;
+    getRouteGroupsForSystem(state.system).some((group) => (
+      (group.segments || []).some((segment) => {
+        if (String(segment?.id || "") !== targetId) return false;
+        found = { ...segment, groupTitle: group.title };
+        return true;
+      })
+    ));
+    return found;
+  }
+
+  function buildUserLocationContext(state, coords) {
+    const normalizedCoords = normalizeGeoCoords(coords);
+    if (!state || !normalizedCoords) return null;
+    const bestSegment = findBestUserLocationSegment(state, normalizedCoords);
+    const nearestStation = findNearestUserLocationStation(state, normalizedCoords);
+    const displayMaxMeters = getUserLocationDisplayMaxKm(state.system) * 1000;
+    const stationThresholdMeters = getUserLocationStationThresholdKm(state.system, normalizedCoords) * 1000;
+    const endpointStation =
+      bestSegment?.ratio <= 0.08
+        ? bestSegment.fromStation
+        : bestSegment?.ratio >= 0.92
+          ? bestSegment.toStation
+          : "";
+    const endpointMatchesNearest =
+      endpointStation &&
+      nearestStation?.stationName &&
+      normalizeStationForSystem(state.system, endpointStation) === nearestStation.stationName;
+    const stationLikely = nearestStation && (
+      nearestStation.distanceMeters <= stationThresholdMeters ||
+      (endpointMatchesNearest && nearestStation.distanceMeters <= displayMaxMeters && Number(bestSegment?.distanceMeters) <= displayMaxMeters)
+    );
+    if (stationLikely) {
+      const context = {
+        kind: "station",
+        stationName: nearestStation.stationName,
+        distanceMeters: nearestStation.distanceMeters,
+        nearestStation,
+        coords: normalizedCoords,
+        sourceSegment: bestSegment?.segment || null,
+      };
+      context.routeSegment = findSegmentContainingUserContext(state, context) || bestSegment?.segment || null;
+      return context;
+    }
+    if (!bestSegment || bestSegment.distanceMeters > displayMaxMeters) return null;
+    const context = {
+      kind: "segment",
+      fromStation: normalizeStationForSystem(state.system, bestSegment.fromStation),
+      toStation: normalizeStationForSystem(state.system, bestSegment.toStation),
+      ratio: clamp(Number(bestSegment.ratio), 0, 1),
+      distanceMeters: bestSegment.distanceMeters,
+      sourceSegment: bestSegment.segment || null,
+      routeSegment: bestSegment.segment || null,
+      coords: normalizedCoords,
+    };
+    return context;
+  }
+
+  function findStationIndexInSegment(system, stations, stationName) {
+    const target = normalizeStationForSystem(system, stationName);
+    if (!target) return -1;
+    return (stations || []).findIndex((station) => normalizeStationForSystem(system, station) === target);
+  }
+
+  function placeUserLocationContextOnSegment(system, segment, context) {
+    const stations = segment?.stations || [];
+    if (!context || !stations.length) return null;
+    if (context.kind === "station") {
+      const index = findStationIndexInSegment(system, stations, context.stationName);
+      return index >= 0 ? { positionIndex: index, stationName: stations[index] } : null;
+    }
+    if (context.kind !== "segment") return null;
+    const from = normalizeStationForSystem(system, context.fromStation);
+    const to = normalizeStationForSystem(system, context.toStation);
+    if (!from || !to) return null;
+    for (let index = 0; index < stations.length - 1; index += 1) {
+      const current = normalizeStationForSystem(system, stations[index]);
+      const next = normalizeStationForSystem(system, stations[index + 1]);
+      if (current === from && next === to) {
+        return { positionIndex: index + clamp(Number(context.ratio), 0, 1), fromStation: stations[index], toStation: stations[index + 1] };
+      }
+      if (current === to && next === from) {
+        return { positionIndex: index + (1 - clamp(Number(context.ratio), 0, 1)), fromStation: stations[index], toStation: stations[index + 1] };
+      }
+    }
+    return null;
+  }
+
+  function formatUserLocationContextLabel(context, placement) {
+    if (context?.kind === "station") return `${placement?.stationName || context.stationName}站附近`;
+    if (context?.kind === "segment") return `${placement?.fromStation || context.fromStation} → ${placement?.toStation || context.toStation}間`;
+    return "目前路線附近";
+  }
+
   function maybeSwitchToUserRoute(state, coords, options = {}) {
     if (!state?.userLocationEnabled || state.system !== "tr" || !state.routeSelect) return false;
     if (state.userRouteManualOverride && options.force !== true) return false;
-    const best = findBestUserLocationSegment(state, coords);
-    if (!best?.segment?.id || best.distanceMeters > USER_LOCATION_MAX_FAR_KM * 1000) return false;
-    if (state.routeSelect.value === best.segment.id) return false;
+    const context = buildUserLocationContext(state, coords);
+    const selectedSegment = findRouteSegmentById(state, state.routeSelect.value);
+    if (selectedSegment && placeUserLocationContextOnSegment(state.system, selectedSegment, context)) return false;
+    const targetSegment = context?.routeSegment || findSegmentContainingUserContext(state, context);
+    if (!targetSegment?.id || Number(context?.distanceMeters) > USER_LOCATION_MAX_FAR_KM * 1000) return false;
+    if (state.routeSelect.value === targetSegment.id) return false;
     state.isAutoSwitchingRoute = true;
     try {
-      state.routeSelect.value = best.segment.id;
+      state.routeSelect.value = targetSegment.id;
       state.userRouteAutoApplied = true;
     } finally {
       state.isAutoSwitchingRoute = false;
@@ -1973,28 +2238,28 @@
   function projectUserLocationToRoute(state) {
     const coords = state.userLocation?.coords || null;
     const stations = state.segment?.stations || [];
-    const best = projectCoordsToRouteSegment(state.system, coords, state.segment);
-    if (!best || stations.length < 2) return null;
-    const stationLabel = best.ratio <= 0.12
-      ? `${best.fromStation}站附近`
-      : best.ratio >= 0.88
-        ? `${best.toStation}站附近`
-        : `${best.fromStation} → ${best.toStation}間`;
-    const nearbyTrain = findNearestVisibleTrainForUser(state, best.positionIndex);
-    const distanceKm = best.distanceMeters / 1000;
+    const context = buildUserLocationContext(state, coords);
+    const placement = placeUserLocationContextOnSegment(state.system, state.segment, context);
+    if (!context || !placement || stations.length < 2) return null;
+    const stationLabel = formatUserLocationContextLabel(context, placement);
+    const nearbyTrain = findNearestVisibleTrainForUser(state, placement.positionIndex);
+    const distanceMeters = Number(context.distanceMeters);
+    const distanceKm = distanceMeters / 1000;
+    const displayMaxKm = getUserLocationDisplayMaxKm(state.system);
     const speedText = formatUserSpeedKmh(state.userLocation?.speedKmh);
     return {
-      ...best,
+      ...context,
+      ...placement,
       label: "你的位置",
       stationLabel,
       nearbyTrain,
-      isFar: distanceKm > USER_LOCATION_ROUTE_DISPLAY_MAX_KM,
+      isFar: distanceKm > displayMaxKm,
       speedText,
       title: [
         `你的位置：${stationLabel}`,
         speedText ? `推估移動時速：${speedText}` : "",
         nearbyTrain ? `可能接近 ${nearbyTrain.trainNo} 次` : "",
-        Number.isFinite(best.distanceMeters) ? `距目前路線約 ${distanceKm >= 1 ? `${distanceKm.toFixed(1)} 公里` : `${Math.round(best.distanceMeters)} 公尺`}` : "",
+        Number.isFinite(distanceMeters) ? `距目前路線約 ${distanceKm >= 1 ? `${distanceKm.toFixed(1)} 公里` : `${Math.round(distanceMeters)} 公尺`}` : "",
         Number.isFinite(coords.accuracy) ? `定位精度約 ${Math.round(coords.accuracy)} 公尺` : "",
       ].filter(Boolean).join("\n"),
     };
@@ -2039,19 +2304,20 @@
     }
     if (projection) {
       state.userLocationLastProjection = { ...projection, segmentId: state.segment?.id || "" };
-    } else if (state.userLocationLastProjection?.segmentId === (state.segment?.id || "")) {
+    } else if (!state.userLocation?.coords && state.userLocationLastProjection?.segmentId === (state.segment?.id || "")) {
       projection = state.userLocationLastProjection;
+    } else {
+      state.userLocationLastProjection = null;
     }
     if (!projection || projection.isFar) {
       marker.hidden = true;
       return;
     }
-    const denominator = Math.max(1, stations.length - 1);
-    const mapHeight = map.clientHeight || getBoardHeight(stations);
+    const mapHeight = map.clientHeight || getBoardHeightForSystem(state.system, stations);
     marker.hidden = false;
     marker.classList.toggle("is-far", projection.isFar);
     marker.classList.toggle("is-stale", !isFreshProjection);
-    marker.style.top = `${getBoardY(projection.positionIndex, denominator, mapHeight)}px`;
+    marker.style.top = `${getBoardYForPosition(state.system, stations, projection.positionIndex, mapHeight)}px`;
     marker.title = projection.title;
     const label = marker.querySelector(".rail-live-user-label");
     if (label) {
@@ -2646,11 +2912,10 @@
     if (!map) return;
     state.markerBindings = [];
     const stations = segment.stations || [];
-    const denominator = Math.max(1, stations.length - 1);
-    const mapHeight = map.clientHeight || getBoardHeight(stations);
+    const mapHeight = map.clientHeight || getBoardHeightForSystem(state.system, stations);
 
     stations.forEach((station, index) => {
-      const top = getBoardY(index, denominator, mapHeight);
+      const top = getBoardYForPosition(state.system, stations, index, mapHeight);
       const events = state.stationEvents.get(station) || [];
       const isSoon = events.some(
         (event) => event.kind !== "即將通過" && Number.isFinite(event.minutesAway) && event.minutesAway <= STATION_SOON_WINDOW
@@ -2670,7 +2935,7 @@
 
     const visibleSnapshots = getVisibleSnapshots(snapshots);
     visibleSnapshots.forEach((snapshot) => {
-      const anchorY = getBoardY(snapshot.positionIndex, denominator, mapHeight);
+      const anchorY = getBoardYForPosition(state.system, stations, snapshot.positionIndex, mapHeight);
       const side = getDirectionKey(state.system, snapshot.trainNo) === "even" || getDirectionKey(state.system, snapshot.trainNo) === "north" ? "left" : "right";
       const marker = document.createElement("button");
       marker.type = "button";
@@ -2746,8 +3011,7 @@
       const lastFrameMs = Number(state.lastAnimationFrameMs) || nowMs;
       state.animationDeltaSeconds = Math.max(0.016, Math.min(0.25, (nowMs - lastFrameMs) / 1000 || 0.016));
       state.lastAnimationFrameMs = nowMs;
-      const denominator = Math.max(1, stations.length - 1);
-      const mapHeight = map.clientHeight || getBoardHeight(stations);
+      const mapHeight = map.clientHeight || getBoardHeightForSystem(state.system, stations);
       state.markerBindings.forEach(({ marker, snapshot }) => {
         if (!marker?.isConnected || !snapshot) return;
         const rawPosition = getAnimatedSnapshotPosition(snapshot, state.renderedQueryDate);
@@ -2755,7 +3019,7 @@
         const stablePosition = animationMode.type === "stepped"
           ? getSteppedSnapshotPosition(state, snapshot, rawPosition, animationMode.cadenceSeconds)
           : getStableAnimatedSnapshotPosition(state, snapshot, rawPosition);
-        const anchorY = getBoardY(stablePosition, denominator, mapHeight);
+        const anchorY = getBoardYForPosition(state.system, stations, stablePosition, mapHeight);
         marker.style.top = `${anchorY}px`;
       });
       if (state.userLocationEnabled) updateUserLocationMarker(state);
@@ -2833,7 +3097,7 @@
         state.system === "tr" && queryDate === todayDateStr()
           ? "台鐵今日同步即時誤點；跨日列車會依發車日補入。"
           : "依目前查詢日期的班表推估位置；跨日列車會依發車日補入。";
-    const boardHeight = getBoardHeight(segment.stations);
+    const boardHeight = getBoardHeightForSystem(state.system, segment.stations);
     const feedHeight = Math.min(Math.max(420, boardHeight - 110), 760);
 
     return {
@@ -3048,9 +3312,9 @@
       .rail-live-train-label.right .rail-live-train-connector{left:12px;}
       .rail-live-train-label.right .rail-live-train-copy{left:34px; justify-content:flex-start; text-align:left; padding-left:8px;}
       .rail-live-user-location{position:absolute; left:50%; width:0; height:0; transform:translate(-50%,-50%); z-index:8; pointer-events:none; transition:top 2.8s linear; filter:drop-shadow(0 8px 14px rgba(37,99,235,.20));}
-      .rail-live-user-dot{position:absolute; left:-9px; top:-9px; width:18px; height:18px; border-radius:50%; background:#1a73e8; border:3px solid #fff; box-shadow:0 0 0 7px rgba(26,115,232,.18), 0 0 0 1px rgba(37,99,235,.28);}
-      .rail-live-user-dot::after{content:""; position:absolute; inset:-11px; border-radius:50%; border:1px solid rgba(26,115,232,.24); animation:rail-live-user-pulse 1.9s ease-out infinite;}
-      .rail-live-user-label{position:absolute; left:14px; top:0; z-index:1; display:inline-flex; align-items:center; min-height:18px; padding:0; color:#1d4ed8; text-shadow:0 1px 2px rgba(255,255,255,.92), 0 0 8px rgba(255,255,255,.72); font-size:.68rem; font-weight:950; white-space:nowrap; transform:translateY(-50%);}
+      .rail-live-user-dot{position:absolute; left:-6.5px; top:-6.5px; width:13px; height:13px; border-radius:50%; background:#1a73e8; border:2px solid #fff; box-shadow:0 0 0 5px rgba(26,115,232,.16), 0 0 0 1px rgba(37,99,235,.28);}
+      .rail-live-user-dot::after{content:""; position:absolute; inset:-8px; border-radius:50%; border:1px solid rgba(26,115,232,.24); animation:rail-live-user-pulse 1.9s ease-out infinite;}
+      .rail-live-user-label{position:absolute; left:11px; top:0; z-index:1; display:inline-flex; align-items:center; min-height:18px; padding:0; color:#1d4ed8; text-shadow:0 1px 2px rgba(255,255,255,.92), 0 0 8px rgba(255,255,255,.72); font-size:.68rem; font-weight:950; white-space:nowrap; transform:translateY(-50%);}
       .rail-live-user-label[hidden]{display:none!important;}
       .dark-mode .rail-live-user-label{color:#93c5fd; text-shadow:0 1px 2px rgba(15,23,42,.9), 0 0 8px rgba(15,23,42,.78);}
       .rail-live-user-location.is-far{opacity:.58;}
