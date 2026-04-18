@@ -11171,12 +11171,26 @@ ${dayNightOrb(56, 30, 16)}
             const slotWidth = items.length ? innerWidth / items.length : innerWidth;
             const xFor = (index) => left + slotWidth * index + slotWidth / 2;
             const yFor = (temp) => top + ((upper - temp) / span) * innerHeight;
-            const pointData = items.map((item, index) => ({
-                ...item,
-                x: xFor(index),
-                y: Number.isFinite(item.temp) ? yFor(item.temp) : top + innerHeight / 2,
-                apparentY: Number.isFinite(item.apparentTemp) ? yFor(item.apparentTemp) : null
-            }));
+            const pointData = items.map((item, index) => {
+                const tempValue = Number(item.temp);
+                const apparentValue = Number(item.apparentTemp);
+                return {
+                    ...item,
+                    tempValue: Number.isFinite(tempValue) ? tempValue : null,
+                    apparentValue: Number.isFinite(apparentValue) ? apparentValue : null,
+                    x: xFor(index),
+                    y: Number.isFinite(tempValue) ? yFor(tempValue) : top + innerHeight / 2,
+                    apparentY: Number.isFinite(apparentValue) ? yFor(apparentValue) : null
+                };
+            });
+            const labelYFor = (value, ownY, otherValue, fallbackAbove = false) => {
+                if (!Number.isFinite(value) || !Number.isFinite(ownY)) return ownY;
+                if (Number.isFinite(otherValue)) {
+                    if (value > otherValue) return ownY - 10;
+                    if (value < otherValue) return ownY + 18;
+                }
+                return fallbackAbove ? ownY - 10 : ownY + 18;
+            };
             const linePath = pointData.map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x.toFixed(1)} ${point.y.toFixed(1)}`).join(' ');
             const areaPath = `${linePath} L ${pointData[pointData.length - 1].x.toFixed(1)} ${plotBottom.toFixed(1)} L ${pointData[0].x.toFixed(1)} ${plotBottom.toFixed(1)} Z`;
             const apparentLinePoints = pointData.filter((point) => Number.isFinite(point.apparentY));
@@ -11195,14 +11209,14 @@ ${dayNightOrb(56, 30, 16)}
             const pointsMarkup = pointData.map((point) => `
                 <g>
                     <circle cx="${point.x.toFixed(1)}" cy="${point.y.toFixed(1)}" r="4.8" fill="${pointFill}" stroke="#2563eb" stroke-width="2"/>
-                    <text x="${point.x.toFixed(1)}" y="${(point.y + 18).toFixed(1)}" text-anchor="middle" fill="${textMain}" font-size="11.5" font-weight="800">${point.temp == null ? '--' : point.temp}</text>
+                    <text x="${point.x.toFixed(1)}" y="${labelYFor(point.tempValue, point.y, point.apparentValue).toFixed(1)}" text-anchor="middle" fill="${textMain}" font-size="11.5" font-weight="800">${point.temp == null ? '--' : point.temp}</text>
                 </g>
             `).join('');
             const apparentPointsMarkup = pointData.filter((point) => Number.isFinite(point.apparentY)).map((point) => {
                 return `
                     <g>
                         <circle cx="${point.x.toFixed(1)}" cy="${point.apparentY.toFixed(1)}" r="3.2" fill="${isDark ? '#1E293B' : '#FFFFFF'}" stroke="${apparentColor}" stroke-width="1.6"/>
-                        <text x="${point.x.toFixed(1)}" y="${(point.apparentY - 10).toFixed(1)}" text-anchor="middle" fill="${apparentColor}" font-size="10.5" font-weight="800">${point.apparentTemp == null ? '--' : point.apparentTemp}</text>
+                        <text x="${point.x.toFixed(1)}" y="${labelYFor(point.apparentValue, point.apparentY, point.tempValue, true).toFixed(1)}" text-anchor="middle" fill="${apparentColor}" font-size="10.5" font-weight="800">${point.apparentTemp == null ? '--' : point.apparentTemp}</text>
                     </g>
                 `;
             }).join('');
