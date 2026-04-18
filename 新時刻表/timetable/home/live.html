@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>即時動態</title>
+  <style>
+    :root {
+      --panel-bg: rgba(255, 255, 255, .92);
+      --panel-border: rgba(15, 23, 42, .14);
+      --text-main: #111827;
+      --text-muted: #4b5563;
+      --line-tra: #0f766e;
+      --line-thsr: #be185d;
+      --accent: #0f766e;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; margin: 0; }
+    body {
+      font-family: "Inter", "Noto Sans TC", "Microsoft JhengHei", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+      color: var(--text-main);
+      background: #edf2f7;
+      overflow: hidden;
+    }
+
+    .home-live-shell {
+      position: relative;
+      width: 100%;
+      height: 100svh;
+      min-height: 100vh;
+    }
+
+    .home-live-map {
+      position: absolute;
+      inset: 0;
+      z-index: 0;
+      background: #e6eef2;
+    }
+
+    .home-live-topbar {
+      position: absolute;
+      z-index: 550;
+      top: max(10px, env(safe-area-inset-top));
+      left: max(10px, env(safe-area-inset-left));
+      right: max(10px, env(safe-area-inset-right));
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 10px;
+      align-items: center;
+      pointer-events: none;
+    }
+
+    .home-live-title,
+    .home-live-actions {
+      background: var(--panel-bg);
+      border: 1px solid var(--panel-border);
+      box-shadow: 0 10px 28px rgba(15, 23, 42, .16);
+      backdrop-filter: blur(14px);
+    }
+
+    .home-live-title {
+      min-width: 0;
+      border-radius: 8px;
+      padding: 10px 12px;
+      pointer-events: auto;
+    }
+
+    .home-live-title h1 {
+      margin: 0;
+      font-size: 1rem;
+      line-height: 1.2;
+      font-weight: 900;
+      letter-spacing: 0;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .home-live-title-legend {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: #374151;
+      font-size: .74rem;
+      font-weight: 850;
+      line-height: 1;
+    }
+
+    .home-live-title-legend span {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .home-live-title-legend i {
+      display: inline-block;
+      width: 17px;
+      height: 3px;
+      border-radius: 999px;
+      background: currentColor;
+    }
+
+    .home-live-title p {
+      margin: 3px 0 0;
+      color: var(--text-muted);
+      font-size: .78rem;
+      line-height: 1.35;
+      letter-spacing: 0;
+      white-space: normal;
+    }
+
+    .home-live-actions {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      border-radius: 8px;
+      padding: 6px;
+      pointer-events: auto;
+    }
+
+    .home-live-action {
+      appearance: none;
+      border: 1px solid rgba(15, 23, 42, .16);
+      background: #fff;
+      color: #111827;
+      border-radius: 8px;
+      min-height: 34px;
+      padding: 0 10px;
+      font: inherit;
+      font-size: .82rem;
+      font-weight: 850;
+      letter-spacing: 0;
+      cursor: pointer;
+    }
+
+    .home-live-action:hover { border-color: rgba(15, 118, 110, .55); }
+    .home-live-action.primary {
+      color: #fff;
+      background: var(--accent);
+      border-color: var(--accent);
+    }
+
+    .home-live-legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 10px;
+      color: #374151;
+      font-size: .76rem;
+      font-weight: 750;
+    }
+
+    .home-live-legend span {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .home-live-legend i {
+      display: inline-block;
+      width: 18px;
+      height: 3px;
+      border-radius: 999px;
+      background: currentColor;
+    }
+
+    .home-live-detail-btn {
+      appearance: none;
+      border: 1px solid rgba(15, 118, 110, .3);
+      background: #fff;
+      color: #0f766e;
+      border-radius: 8px;
+      min-height: 34px;
+      padding: 0 11px;
+      margin-top: 10px;
+      font: inherit;
+      font-size: .82rem;
+      font-weight: 900;
+      letter-spacing: 0;
+      cursor: pointer;
+    }
+
+    .home-live-popup-line {
+      margin-top: 5px;
+      color: #374151;
+      font-size: .84rem;
+      line-height: 1.35;
+    }
+
+    .home-live-popup-line b {
+      color: #111827;
+      font-weight: 900;
+    }
+
+    .home-live-status-part {
+      font-weight: 950;
+    }
+
+    .home-live-status-sep {
+      padding: 0 3px;
+      color: #94a3b8;
+      font-weight: 900;
+    }
+
+    .home-live-station-label {
+      background: transparent !important;
+      border: 0 !important;
+    }
+
+    .home-live-station-label button {
+      display: inline-flex;
+      align-items: center;
+      gap: 2px;
+      border: 0;
+      padding: 0;
+      background: transparent;
+      color: #1f2937;
+      font: inherit;
+      font-size: .73rem;
+      font-weight: 900;
+      line-height: 1;
+      letter-spacing: 0;
+      white-space: nowrap;
+      cursor: pointer;
+      text-shadow: 0 1px 3px rgba(255, 255, 255, .98), 0 0 9px rgba(255, 255, 255, .86);
+    }
+
+    .home-live-station-label.has-alert button {
+      color: #b45309;
+    }
+
+    .home-live-station-label.is-busy button {
+      color: #dc2626;
+    }
+
+    .home-live-station-label.is-soon button {
+      color: #f97316;
+    }
+
+    .home-live-station-label .rail-transfer-badges {
+      margin: 0 0 0 1px;
+      gap: 1px;
+      flex-wrap: nowrap;
+    }
+
+    .home-live-station-label .rail-transfer-logo {
+      width: 9px;
+      height: 9px;
+    }
+
+    .home-live-station-popup h3 {
+      margin: 0;
+      font-size: .98rem;
+      line-height: 1.2;
+    }
+
+    .home-live-station-popup ul {
+      margin: 8px 0 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .home-live-station-popup li {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr);
+      gap: 6px;
+      align-items: baseline;
+      padding: 5px 0;
+      border-top: 1px solid rgba(15, 23, 42, .1);
+      font-size: .82rem;
+      line-height: 1.35;
+    }
+
+    .home-live-station-popup time {
+      color: #0f766e;
+      font-weight: 900;
+    }
+
+    .home-live-modal {
+      position: fixed;
+      inset: 0;
+      z-index: 900;
+      display: grid;
+      place-items: center;
+      padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+      background: rgba(15, 23, 42, .38);
+      backdrop-filter: blur(8px);
+    }
+
+    .home-live-modal.hidden {
+      display: none;
+    }
+
+    .home-live-modal-card {
+      width: min(720px, 100%);
+      max-height: min(82vh, 760px);
+      display: flex;
+      flex-direction: column;
+      border-radius: 8px;
+      border: 1px solid rgba(15, 23, 42, .14);
+      background: rgba(255, 255, 255, .96);
+      box-shadow: 0 24px 60px rgba(15, 23, 42, .28);
+      overflow: hidden;
+    }
+
+    .home-live-modal-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 14px 16px;
+      border-bottom: 1px solid rgba(15, 23, 42, .12);
+    }
+
+    .home-live-modal-head h2 {
+      margin: 0;
+      font-size: 1.05rem;
+      line-height: 1.3;
+      letter-spacing: 0;
+    }
+
+    .home-live-modal-head p {
+      margin: 4px 0 0;
+      color: #4b5563;
+      font-size: .82rem;
+      line-height: 1.45;
+    }
+
+    .home-live-modal-close {
+      appearance: none;
+      border: 1px solid rgba(15, 23, 42, .14);
+      background: #fff;
+      color: #111827;
+      border-radius: 8px;
+      min-width: 34px;
+      height: 34px;
+      font: inherit;
+      font-size: 1rem;
+      font-weight: 900;
+      cursor: pointer;
+    }
+
+    .home-live-modal-body {
+      overflow: auto;
+      padding: 14px 16px 16px;
+    }
+
+    .home-live-detail-summary {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+
+    .home-live-detail-summary div {
+      border: 1px solid rgba(15, 23, 42, .12);
+      border-radius: 8px;
+      padding: 9px 10px;
+      background: rgba(248, 250, 252, .86);
+      min-width: 0;
+    }
+
+    .home-live-detail-summary b {
+      display: block;
+      color: #6b7280;
+      font-size: .72rem;
+      line-height: 1.2;
+    }
+
+    .home-live-detail-summary span {
+      display: block;
+      margin-top: 4px;
+      color: #111827;
+      font-size: .86rem;
+      font-weight: 900;
+      line-height: 1.3;
+      overflow-wrap: anywhere;
+    }
+
+    .home-live-detail-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: .84rem;
+    }
+
+    .home-live-detail-table th,
+    .home-live-detail-table td {
+      padding: 8px 7px;
+      border-bottom: 1px solid rgba(15, 23, 42, .1);
+      text-align: left;
+      vertical-align: middle;
+      line-height: 1.35;
+    }
+
+    .home-live-detail-table th {
+      color: #6b7280;
+      font-size: .74rem;
+      font-weight: 900;
+    }
+
+    .home-live-detail-pass {
+      color: #64748b;
+    }
+
+    .home-live-status {
+      position: absolute;
+      z-index: 560;
+      right: max(10px, env(safe-area-inset-right));
+      bottom: max(12px, env(safe-area-inset-bottom));
+      max-width: min(380px, calc(100vw - 20px));
+      padding: 9px 11px;
+      border-radius: 8px;
+      background: rgba(17, 24, 39, .88);
+      color: #fff;
+      font-size: .78rem;
+      font-weight: 750;
+      line-height: 1.35;
+      box-shadow: 0 10px 28px rgba(15, 23, 42, .22);
+      opacity: 0;
+      transform: translateY(8px);
+      transition: opacity .18s ease, transform .18s ease;
+      pointer-events: none;
+    }
+
+    .home-live-status.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .home-live-train-marker,
+    .home-live-user-marker {
+      background: transparent !important;
+      border: 0 !important;
+      overflow: visible !important;
+    }
+
+    .leaflet-marker-icon.home-live-train-marker {
+      will-change: transform;
+    }
+
+    .leaflet-marker-icon.home-live-user-marker {
+      transition: transform 2.6s linear;
+      will-change: transform;
+    }
+
+    .home-live-train-marker button {
+      position: relative;
+      display: block;
+      width: 1px;
+      height: 1px;
+      border: 0;
+      background: transparent;
+      color: var(--train-color, #111827);
+      padding: 0;
+      font: inherit;
+      cursor: pointer;
+      pointer-events: auto;
+    }
+
+    .home-live-train-marker button::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 0;
+      height: 0;
+      border-left: 7px solid transparent;
+      border-right: 7px solid transparent;
+      border-bottom: 14px solid var(--train-color, #111827);
+      transform: translate(-50%, -50%) rotate(var(--train-angle, 0deg));
+      transform-origin: 50% 58%;
+      filter: drop-shadow(0 2px 3px rgba(15, 23, 42, .2));
+    }
+
+    .home-live-train-marker strong {
+      position: absolute;
+      left: 0;
+      top: 0;
+      min-width: max-content;
+      transform: var(--train-label-transform, translate(13px, -50%));
+      color: #0f172a;
+      font-size: .8rem;
+      font-weight: 950;
+      line-height: 1;
+      letter-spacing: 0;
+      text-shadow: 0 1px 3px rgba(255, 255, 255, .98), 0 0 9px rgba(255, 255, 255, .86);
+      pointer-events: auto;
+    }
+
+    .home-live-train-marker.is-active strong {
+      text-decoration: underline;
+      text-decoration-thickness: 2px;
+      text-underline-offset: 2px;
+    }
+
+    .home-live-user-marker .dot {
+      position: relative;
+      width: 16px;
+      height: 16px;
+      border-radius: 999px;
+      background: #2563eb;
+      border: 3px solid #fff;
+      box-shadow: 0 0 0 7px rgba(37, 99, 235, .18), 0 4px 10px rgba(30, 64, 175, .28);
+      transform: translate(-50%, -50%);
+    }
+
+    .home-live-user-marker .speed {
+      position: absolute;
+      left: 12px;
+      top: -10px;
+      min-width: max-content;
+      color: #1d4ed8;
+      font-size: .74rem;
+      font-weight: 900;
+      line-height: 1;
+      text-shadow: 0 1px 3px rgba(255, 255, 255, .98), 0 0 8px rgba(255, 255, 255, .85);
+    }
+
+    .leaflet-control-attribution {
+      font-size: 10px;
+    }
+
+    @media (max-width: 720px) {
+      .home-live-topbar {
+        grid-template-columns: 1fr;
+        gap: 8px;
+      }
+
+      .home-live-actions {
+        justify-content: flex-start;
+        width: max-content;
+        max-width: 100%;
+        gap: 4px;
+        padding: 4px;
+      }
+
+      .home-live-action {
+        flex: 0 0 auto;
+        min-height: 30px;
+        padding: 0 8px;
+        font-size: .76rem;
+      }
+
+      .home-live-station-label button {
+        font-size: .68rem;
+      }
+
+      .home-live-status {
+        left: max(10px, env(safe-area-inset-left));
+        right: max(10px, env(safe-area-inset-right));
+        bottom: max(10px, env(safe-area-inset-bottom));
+      }
+
+      .home-live-modal {
+        padding: 8px;
+      }
+
+      .home-live-modal-card {
+        max-height: 88vh;
+      }
+
+      .home-live-detail-summary {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .home-live-detail-table {
+        font-size: .78rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="home-live-shell" aria-label="即時動態">
+    <div id="homeLiveMap" class="home-live-map"></div>
+    <header class="home-live-topbar">
+      <div class="home-live-title">
+        <h1>
+          <span>即時動態</span>
+          <span class="home-live-title-legend" aria-label="路線圖例">
+            <span style="color: var(--line-tra);"><i></i>台鐵</span>
+            <span style="color: var(--line-thsr);"><i></i>高鐵</span>
+          </span>
+        </h1>
+        <p id="homeLiveSubtitle">台鐵與高鐵全線真實地圖</p>
+      </div>
+      <div class="home-live-actions" aria-label="地圖操作">
+        <button type="button" class="home-live-action" id="homeLiveLocate" aria-label="我的位置">定位</button>
+        <button type="button" class="home-live-action" id="homeLiveFit">全線</button>
+        <button type="button" class="home-live-action primary" id="homeLiveClose">回首頁</button>
+      </div>
+    </header>
+    <div class="home-live-status" id="homeLiveStatus" role="status" aria-live="polite"></div>
+    <div class="home-live-modal hidden" id="homeLiveModal" aria-hidden="true">
+      <section class="home-live-modal-card" role="dialog" aria-modal="true" aria-labelledby="homeLiveModalTitle">
+        <header class="home-live-modal-head">
+          <div>
+            <h2 id="homeLiveModalTitle">列車詳細資訊</h2>
+            <p id="homeLiveModalSubtitle"></p>
+          </div>
+          <button type="button" class="home-live-modal-close" id="homeLiveModalClose" aria-label="關閉">×</button>
+        </header>
+        <div class="home-live-modal-body" id="homeLiveModalBody"></div>
+      </section>
+    </div>
+  </main>
+
+  <script src="../shared/rail-network.js?v=20260419-live1"></script>
+  <script src="../shared/rail-station-context.js?v=20260419-live1"></script>
+  <script src="./home-live-map.js?v=20260419-live1"></script>
+</body>
+</html>

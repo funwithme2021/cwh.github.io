@@ -5374,8 +5374,8 @@ select.setting-input[id*="pick"] {
                 <button class="portal-link" type="button" onclick="openAppOverlay('tr')">臺鐵查詢</button>
                 <button class="portal-link" type="button" onclick="openAppOverlay('thsr')">高鐵查詢</button>
                 <button class="portal-link" type="button" onclick="openAppOverlay('ai')">智慧查詢</button>
+                <button class="portal-link" type="button" onclick="openAppOverlay('live')">即時動態</button>
                 <button class="portal-link" type="button" onclick="toggleSettings(true)">系統設定</button>
-                <button class="portal-link" type="button" onclick="toggleFloatingDock()">更多功能</button>
             </div>
         </section>
 
@@ -5843,18 +5843,12 @@ select.setting-input[id*="pick"] {
 
 
     <div class="dock-container" id="floatingDock">
-        <div class="tools-popup" id="toolsPopup">
-            <button type="button" class="tool-btn" onclick="openAppOverlay('weather')"><div class="tool-icon">Wx</div><span class="tool-name">氣象專區</span></button>
-            <a href="https://web.metro.taipei/pages/assets/images/routemap2023n.png" target="_blank" class="tool-btn"><div class="tool-icon">🚇</div><span class="tool-name">北捷</span></a>
-            <a href="https://www.tmrt.com.tw/" target="_blank" class="tool-btn"><div class="tool-icon">🚄</div><span class="tool-name">中捷</span></a>
-            <a href="https://www.krtc.com.tw/" target="_blank" class="tool-btn"><div class="tool-icon">🚈</div><span class="tool-name">高捷</span></a>
-        </div>
         <nav class="dock">
             <div class="dock-item" onclick="location.reload()">🏠</div>
             <div class="dock-item" onclick="goToSystem('tr')">🚆</div>
-            <div class="dock-item" onclick="toggleToolsPopup(event)" style="color: #facc15;">⚡</div>
-            <div class="dock-item" onclick="goToSystem('thsr')">🚅</div>
             <div class="dock-item" onclick="toggleSettings(true)">⚙️</div>
+            <div class="dock-item" onclick="goToSystem('thsr')">🚅</div>
+            <div class="dock-item" onclick="openAppOverlay('live')" style="color: #facc15;">⚡</div>
         </nav>
     </div>
 
@@ -5880,7 +5874,7 @@ select.setting-input[id*="pick"] {
       (function(){
         const overlay = document.getElementById('appOverlay');
         const frame = document.getElementById('appOverlayFrame');
-        const OVERLAY_APPS = new Set(['ai', 'tr', 'thsr', 'weather']);
+        const OVERLAY_APPS = new Set(['ai', 'tr', 'thsr', 'weather', 'live']);
 
         function readOverlayParamsFromUrl(){
           const q = new URLSearchParams(location.search);
@@ -5900,7 +5894,9 @@ select.setting-input[id*="pick"] {
                 ? '../thsr/thsr.html'
                 : sys === 'weather'
                   ? '../../weather/index.html'
-                  : './ai.html';
+                  : sys === 'live'
+                    ? './live.html'
+                    : './ai.html';
           const q = new URLSearchParams();
           q.set('embed','1');
           if(params){
