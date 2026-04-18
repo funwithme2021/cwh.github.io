@@ -163,17 +163,27 @@
     const style = document.createElement("style");
     style.id = STYLE_ID;
     style.textContent = `
-      .rail-transfer-badges{display:inline-flex;align-items:center;justify-content:flex-start;gap:2px;flex:0 0 100%;flex-wrap:wrap;margin:2px 0 0 0;vertical-align:middle}
-      .rail-transfer-logo{display:block;width:15px;height:15px;object-fit:contain;line-height:1;vertical-align:middle}
+      .rail-transfer-badges{display:inline-flex;align-items:center;justify-content:flex-start;gap:1px;flex:0 0 auto;flex-wrap:wrap;margin:0 0 0 4px;vertical-align:-2px}
+      .rail-transfer-logo{display:block;width:12px;height:12px;object-fit:contain;line-height:1;vertical-align:middle}
       .rail-station-weather-summary{display:inline-flex;align-items:center;gap:5px;max-width:100%;margin-left:8px;padding:4px 7px;border:1px solid color-mix(in srgb,var(--border,#cbd5e1) 82%,transparent);border-radius:8px;background:color-mix(in srgb,var(--bg-surface,#fff) 84%,transparent);color:var(--text-muted,#64748b);font-size:.76rem;font-weight:850;line-height:1.25;vertical-align:middle}
       .rail-station-weather-summary svg{width:18px;height:18px;flex:0 0 auto;overflow:visible}.rail-station-weather-summary strong{color:var(--text-main,#0f172a);font-weight:950}.rail-station-weather-summary .is-alert{color:#dc2626}.rail-station-weather-summary .is-muted{color:var(--text-muted,#64748b)}
-      .rail-summary-transfer-line{display:block;margin-top:4px;line-height:1}
+      .rail-summary-transfer-line{display:inline-flex;margin:0 4px 0 4px;line-height:1;vertical-align:middle}
       .rail-summary-transfer-line .rail-transfer-badges{display:inline-flex;flex:0 0 auto}
+      .rtq2-station-main .rail-transfer-logo,.modal-stop-station-main .rail-transfer-logo,.tl-station .rail-transfer-logo{width:11px;height:11px}
       .rail-station-context-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px}.rail-station-context-card{padding:12px;border:1px solid var(--border,#dbe3ef);border-radius:8px;background:var(--bg-surface,#fff)}.rail-station-context-card span{display:block;color:var(--text-muted,#64748b);font-size:.74rem;font-weight:800}.rail-station-context-card strong{display:block;margin-top:4px;color:var(--text-main,#0f172a);font-size:.92rem;line-height:1.45}
       body.dark-mode .rail-station-weather-summary{background:rgba(15,23,42,.72);border-color:rgba(148,163,184,.22)}
       body.dark-mode .rail-station-weather-summary strong{color:#f8fafc}
       .rtq2-station-main,.modal-stop-station-main{flex-wrap:wrap}
-      @media(max-width:720px){.rail-transfer-logo{width:14px;height:14px}.rail-station-weather-summary{display:flex;width:fit-content;margin:5px 0 0 0;font-size:.7rem}}
+      @media(max-width:720px){
+        .rail-transfer-logo{width:11px;height:11px}
+        .rail-station-weather-summary{display:flex;width:fit-content;margin:5px 0 0 0;font-size:.7rem}
+        .rtq2-station-name,.modal-stop-station-main > span:first-child{order:1}
+        .rtq2-station-meta,.modal-stop-inline-tag{order:2}
+        .rtq2-station-main [data-stop-weather],.modal-stop-station-main [data-stop-weather]{order:3}
+        .rtq2-station-main,.modal-stop-station-main{row-gap:0}
+        .rtq2-station-main .rail-transfer-badges,.modal-stop-station-main .rail-transfer-badges{order:4;flex:0 0 100%;margin:0;gap:1px;line-height:.7}
+        .rtq2-station-main .rail-transfer-logo,.modal-stop-station-main .rail-transfer-logo{width:10px;height:10px}
+      }
     `;
     document.head.appendChild(style);
   }
@@ -452,7 +462,6 @@
       chip.className = "rail-station-weather-summary";
       chip.dataset.stationWeatherSummary = "1";
       chip.textContent = "氣象讀取中";
-      node.appendChild(chip);
       const transferHtml = renderTransferBadges(station);
       if (transferHtml) {
         const transferLine = document.createElement("span");
@@ -460,6 +469,7 @@
         transferLine.innerHTML = transferHtml;
         node.appendChild(transferLine);
       }
+      node.appendChild(chip);
       getStationContext(station, getQueryTargetMs()).then((context) => {
         if (!chip.isConnected) return;
         chip.innerHTML = renderWeatherSummary(context);

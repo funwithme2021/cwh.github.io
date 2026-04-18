@@ -365,8 +365,6 @@
     if ('serviceWorker' in navigator) {
       if (canRegisterSW()) {
         navigator.serviceWorker.register(SW_PATH).catch((e) => console.warn('[monitor] sw register failed', e));
-      } else {
-        console.warn('[monitor] skip SW register on protocol:', window.location.protocol);
       }
     }
 

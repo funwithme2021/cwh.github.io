@@ -5,7 +5,14 @@
     <meta name="google" content="notranslate">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Real-Time Home Lab</title>
-    <link rel="manifest" href="manifest.json">
+    <script>
+      if (/^https?:$/.test(location.protocol)) {
+        const manifestLink = document.createElement('link');
+        manifestLink.rel = 'manifest';
+        manifestLink.href = 'manifest.json';
+        document.head.appendChild(manifestLink);
+      }
+    </script>
     <link rel="apple-touch-icon" sizes="192x192" href="icon-192.png">
     <link rel="apple-touch-icon" sizes="512x512" href="icon-512.png">
     <meta name="apple-mobile-web-app-title" content="Real-Time">
@@ -6669,15 +6676,9 @@ select.setting-input[id*="pick"] {
             }
             const urls = system === 'tr'
                 ? [
-                    'https://tdx.transportdata.tw/api/basic/v2/Rail/TRA/Alert?$format=JSON',
-                    'https://tdx.transportdata.tw/api/basic/v3/Rail/TRA/Alert?%24format=JSON',
-                    'https://tdx.transportdata.tw/api/basic/v2/Rail/TRA/AlertInfo?$format=JSON'
+                    'https://tdx.transportdata.tw/api/basic/v3/Rail/TRA/Alert?%24format=JSON'
                 ]
-                : [
-                    'https://tdx.transportdata.tw/api/basic/v2/Rail/THSR/Alert?$format=JSON',
-                    'https://tdx.transportdata.tw/api/basic/v3/Rail/THSR/Alert?%24format=JSON',
-                    'https://tdx.transportdata.tw/api/basic/v2/Rail/THSR/AlertInfo?$format=JSON'
-                ];
+                : [];
             const collected = [];
             for (const url of urls) {
                 if (Date.now() < Number(systemAlertEndpointBackoff[url] || 0)) continue;
@@ -7188,10 +7189,9 @@ select.setting-input[id*="pick"] {
 
             const buildStationDelayText = async (system, station) => {
                 if (!station?.id) return '';
+                if (system === 'thsr') return '';
                 const systemLabel = system === 'thsr' ? '高鐵' : '臺鐵';
-                const endpoint = system === 'thsr'
-                    ? 'https://tdx.transportdata.tw/api/basic/v2/Rail/THSR/StationLiveBoard?%24format=JSON'
-                    : 'https://tdx.transportdata.tw/api/basic/v3/Rail/TRA/StationLiveBoard?%24format=JSON';
+                const endpoint = 'https://tdx.transportdata.tw/api/basic/v3/Rail/TRA/StationLiveBoard?%24format=JSON';
                 try {
                     if (Date.now() < Number(systemAlertEndpointBackoff[endpoint] || 0)) return '';
                     const res = await fetchWithTimeout(endpoint, { headers }, 7000);
@@ -10315,7 +10315,7 @@ function toggleSettings(show) {
         }
 
         function shouldReuseHomeWeatherForTownship(cached, townshipKey, options = {}) {
-            if (options.force) return false;
+            if (options.force || options.prompt || options.refreshOnOpen) return false;
             const ageMs = Date.now() - (Number(cached?.ts) || 0);
             return !!(
                 cached?.townshipKey &&
@@ -10333,6 +10333,7 @@ function toggleSettings(show) {
             const tempMatch = source.match(/(-?\d+(?:\.\d+)?)\s*度/u);
             if (!tempMatch) return source;
             const temp = Number(tempMatch[1]);
+            const tempDecimals = /\.\d/.test(tempMatch[1]) ? 1 : 0;
             const comfortText = normalizeHomeComfortText(comfortOverride || '') || describeHomeComfort(temp, null);
             if (!comfortText) return source;
             const leadingText = source.slice(0, tempMatch.index).trim();
@@ -10343,8 +10344,30 @@ function toggleSettings(show) {
                 .filter(Boolean)
                 .filter(item => !/體感|寒冷|偏冷|舒適|偏熱|炎熱|悶熱|寒意|中暑|酷熱|危險|嚴寒/u.test(item))
                 .shift() || '';
-            const parts = [label, formatHomeTempValue(temp), comfortText].filter(Boolean);
+            const parts = [label, formatHomeTempValue(temp, { decimals: tempDecimals }), comfortText].filter(Boolean);
             return parts.join(' · ');
+        }
+
+        function formatHomeObservationDisplayFromSnapshot(snapshot) {
+            const source = String(snapshot?.weatherObservation || '').trim();
+            const observedTemp = Number(snapshot?.weatherObservationTemp);
+            if (!Number.isFinite(observedTemp) || !source || source === '--') {
+                return normalizeHomeObservationComfortDisplay(source, snapshot?.weatherCurrentComfort || '');
+            }
+            const tempText = formatHomeTempValue(observedTemp, { decimals: 1 });
+            const normalized = normalizeHomeObservationComfortDisplay(source, snapshot?.weatherCurrentComfort || '');
+            if (!normalized || normalized === '--') return tempText;
+            if (/-?\d+(?:\.\d+)?\s*度/u.test(normalized)) {
+                return normalized.replace(/-?\d+(?:\.\d+)?\s*度/u, tempText);
+            }
+            return `${normalized} · ${tempText}`;
+        }
+
+        function normalizeHomeForecastTempDisplay(text) {
+            return String(text || '').replace(
+                /(-?\d+)(?:\.0+)?\s*-\s*(-?\d+)(?:\.0+)?\s*度/g,
+                (_, low, high) => `${low}-${high}度`
+            );
         }
 
         function buildReusedHomeWeatherSnapshot(cached, coords, countyName, townName, source = 'home') {
@@ -10358,6 +10381,7 @@ function toggleSettings(show) {
                 townName: townName || cached.townName || '',
                 townshipKey: getHomeTownshipKey(countyName || cached.countyName || '', townName || cached.townName || ''),
                 place: formatHomeTownshipLabel(countyName || cached.countyName || '', townName || cached.townName || '', cached.place || '已取得位置'),
+                weatherCondition: normalizeHomeForecastTempDisplay(cached.weatherCondition || ''),
                 weatherObservation: normalizeHomeObservationComfortDisplay(cached.weatherObservation || '', cached.weatherCurrentComfort || ''),
                 locationSource: String(source || 'home'),
                 locationTs: Date.now()
@@ -10438,18 +10462,21 @@ function toggleSettings(show) {
             return Number.isFinite(num) ? num.toFixed(3) : '--';
         }
 
-        function formatHomeTempRange(min, max) {
+        function formatHomeTempRange(min, max, options = {}) {
             const low = Number(min);
             const high = Number(max);
             if (!Number.isFinite(low) || !Number.isFinite(high)) return '--';
-            return `${low.toFixed(1)}-${high.toFixed(1)}度`;
+            const decimals = Math.max(0, Number(options.decimals) || 0);
+            return `${low.toFixed(decimals)}-${high.toFixed(decimals)}度`;
         }
 
-        function formatHomeTempValue(value) {
+        function formatHomeTempValue(value, options = {}) {
             const num = Number(value);
             if (!Number.isFinite(num) || num <= -90) return '--';
-            const rounded = Math.round(num * 10) / 10;
-            return `${rounded.toFixed(1)}度`;
+            const decimals = Math.max(0, Number(options.decimals) || 0);
+            const factor = 10 ** decimals;
+            const rounded = Math.round(num * factor) / factor;
+            return `${rounded.toFixed(decimals)}度`;
         }
 
         function normalizeHomeCompareSymbols(value) {
@@ -10875,7 +10902,7 @@ function toggleSettings(show) {
                 ? Number(observation.temp)
                 : (Number.isFinite(Number(weather?.currentTemp)) ? Number(weather.currentTemp) : null);
             if (label && label !== '--' && label !== '預報更新中') mainParts.push(label);
-            const tempText = formatHomeTempValue(tempValue);
+            const tempText = formatHomeTempValue(tempValue, { decimals: Number.isFinite(Number(observation?.temp)) ? 1 : 0 });
             if (tempText !== '--') mainParts.push(tempText);
             const humidityValue = Number.isFinite(Number(observation?.humidity))
                 ? Number(observation.humidity)
@@ -11296,14 +11323,14 @@ ${dayNightOrb(56, 30, 16)}
             const pointsMarkup = pointData.map((point) => `
                 <g>
                     <circle cx="${point.x.toFixed(1)}" cy="${point.y.toFixed(1)}" r="4.8" fill="${pointFill}" stroke="#2563eb" stroke-width="2"/>
-                    <text x="${point.x.toFixed(1)}" y="${labelYFor(point.tempValue, point.y, point.apparentValue).toFixed(1)}" text-anchor="middle" fill="${textMain}" font-size="11.5" font-weight="800">${point.temp == null ? '--' : point.temp}</text>
+                    <text x="${point.x.toFixed(1)}" y="${labelYFor(point.tempValue, point.y, point.apparentValue).toFixed(1)}" text-anchor="middle" fill="${textMain}" font-size="11.5" font-weight="800">${point.temp == null ? '--' : Math.round(point.temp)}</text>
                 </g>
             `).join('');
             const apparentPointsMarkup = pointData.filter((point) => Number.isFinite(point.apparentY)).map((point) => {
                 return `
                     <g>
                         <circle cx="${point.x.toFixed(1)}" cy="${point.apparentY.toFixed(1)}" r="3.2" fill="${isDark ? '#1E293B' : '#FFFFFF'}" stroke="${apparentColor}" stroke-width="1.6"/>
-                        <text x="${point.x.toFixed(1)}" y="${labelYFor(point.apparentValue, point.apparentY, point.tempValue, true).toFixed(1)}" text-anchor="middle" fill="${apparentColor}" font-size="10.5" font-weight="800">${point.apparentTemp == null ? '--' : point.apparentTemp}</text>
+                        <text x="${point.x.toFixed(1)}" y="${labelYFor(point.apparentValue, point.apparentY, point.tempValue, true).toFixed(1)}" text-anchor="middle" fill="${apparentColor}" font-size="10.5" font-weight="800">${point.apparentTemp == null ? '--' : Math.round(point.apparentTemp)}</text>
                     </g>
                 `;
             }).join('');
@@ -12250,9 +12277,9 @@ ${dayNightOrb(56, 30, 16)}
                 const hazardDetails = buildHomeHazardReminderSlides(snapshot).map(item => item.detailData).filter(Boolean);
                 setHomeHazardDetailTarget(summaryEl, hazardDetails);
             }
-            if (conditionEl) conditionEl.textContent = snapshot.weatherCondition || '--';
+            if (conditionEl) conditionEl.textContent = normalizeHomeForecastTempDisplay(snapshot.weatherCondition || '--') || '--';
             if (rainEl) rainEl.textContent = snapshot.weatherRain || '--';
-            if (observationEl) observationEl.textContent = normalizeHomeObservationComfortDisplay(snapshot.weatherObservation || '', snapshot.weatherCurrentComfort || '') || '--';
+            if (observationEl) observationEl.textContent = formatHomeObservationDisplayFromSnapshot(snapshot) || '--';
             if (observationMetaEl) {
                 const metaText = getHomeObservationMetaForViewport(snapshot);
                 observationMetaEl.textContent = metaText;
@@ -12604,9 +12631,10 @@ ${dayNightOrb(56, 30, 16)}
                     weatherAlertDetails: Array.isArray(alert?.alerts) ? alert.alerts : [],
                     earthquakeText: earthquake?.tone === 'warn' ? (earthquake.text || '') : '',
                     earthquakeDetails: earthquake?.tone === 'warn' ? (earthquake.details || null) : null,
-                    weatherCondition: forecastText !== '--' ? forecastText : (canReuseCachedWeather && cached.weatherCondition ? cached.weatherCondition : '預報稍後更新'),
+                    weatherCondition: forecastText !== '--' ? forecastText : (canReuseCachedWeather && cached.weatherCondition ? normalizeHomeForecastTempDisplay(cached.weatherCondition) : '預報稍後更新'),
                     weatherRain: rainText !== '--' ? rainText : (canReuseCachedWeather && cached.weatherRain ? cached.weatherRain : '降雨稍後更新'),
                     weatherObservation: observationDisplay.main !== '--' ? normalizeHomeObservationComfortDisplay(observationDisplay.main, weather?.currentComfort || '') : '觀測稍後更新',
+                    weatherObservationTemp: Number.isFinite(Number(observation?.temp)) ? Number(observation.temp) : null,
                     weatherObservationMeta: observationDisplay.meta || '',
                     weatherObservationMetaCompact: observationDisplay.metaCompact || '',
                     weatherObservationRainAmount: formatHomeRainAmount(observation?.precipitation),
@@ -13102,7 +13130,7 @@ ${dayNightOrb(56, 30, 16)}
     <script charset="UTF-8" src="../shared/rail-network.js?v=20260329-thsrkm1"></script>
     <script charset="UTF-8" src="../shared/rail-assistant-common.js?v=20260319-utf8fix"></script>
     <script charset="UTF-8" src="./assistant-embed-bridge.js?v=20260412-aiverify1"></script>
-     <script charset="UTF-8" src="../monitor.js?v=20260319-utf8fix"></script>
+     <script charset="UTF-8" src="../monitor.js?v=20260419-filesilence1"></script>
     <script charset="UTF-8" src="../shared/rail-usage-footer.js?v=20260326-footer3"></script>
 </body>
 </html>

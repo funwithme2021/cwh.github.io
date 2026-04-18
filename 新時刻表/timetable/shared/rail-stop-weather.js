@@ -539,7 +539,8 @@ ${dayNightOrb(56, 30, 16)}
   function formatTemp(value, decimals = 0) {
     const temp = numeric(value);
     if (!Number.isFinite(temp)) return "";
-    return `${temp.toFixed(decimals > 0 ? decimals : 1)}度`;
+    const places = Math.max(0, Number(decimals) || 0);
+    return `${temp.toFixed(places)}度`;
   }
 
   function makeForecastParts(forecastLocation, targetMs) {
@@ -612,7 +613,7 @@ ${dayNightOrb(56, 30, 16)}
     }
     const hasObsTemp = obs && Number.isFinite(Number(obs.temp));
     const weatherText = normalizeText(obs?.weather || "") || forecastParts.wx;
-    const tempText = hasObsTemp ? formatTemp(obs.temp, 1) : formatTemp(forecastParts.temp, 1);
+    const tempText = hasObsTemp ? formatTemp(obs.temp, 1) : formatTemp(forecastParts.temp, 0);
     const rainText = Number.isFinite(forecastParts.pop) ? `雨 ${Math.round(forecastParts.pop)}%` : "";
     if (!weatherText && !tempText && !rainText) return null;
     const type = getWeatherType(weatherText, targetMs);
