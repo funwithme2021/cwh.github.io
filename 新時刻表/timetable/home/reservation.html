@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>預約搭乘</title>
+  <style>
+    :root{
+      --bg:#eef5f7;
+      --surface:#ffffff;
+      --surface-soft:#f5fafb;
+      --text:#102027;
+      --muted:#60717a;
+      --border:#d7e3e8;
+      --rail:#0f766e;
+      --rail-2:#2563eb;
+      --warn:#c2410c;
+      --danger:#dc2626;
+      --shadow:0 18px 38px rgba(16,32,39,.10);
+      font-family:"Inter","Noto Sans TC","Microsoft JhengHei",system-ui,sans-serif;
+    }
+    body.dark-mode{
+      --bg:#111827;
+      --surface:#17212b;
+      --surface-soft:#1e2b36;
+      --text:#ecf7f8;
+      --muted:#a4b8bf;
+      --border:#2f4350;
+      --shadow:0 20px 46px rgba(0,0,0,.28);
+    }
+    *{box-sizing:border-box}
+    body{margin:0;min-height:100vh;background:linear-gradient(180deg,#eef5f7,#e8f0f3 42%,#f7fbfb);color:var(--text)}
+    body.dark-mode{background:linear-gradient(180deg,#111827,#14232a 46%,#101820)}
+    button,input,select{font:inherit}
+    button{cursor:pointer}
+    .shell{width:min(1180px,calc(100% - 28px));margin:0 auto;padding:20px 0 34px}
+    .topbar{position:sticky;top:0;z-index:20;margin:0 -14px 18px;padding:12px 14px;background:color-mix(in srgb,var(--bg) 86%,transparent);backdrop-filter:blur(18px);display:flex;align-items:center;justify-content:space-between;gap:12px;border-bottom:1px solid color-mix(in srgb,var(--border) 76%,transparent)}
+    .brand{display:flex;align-items:center;gap:10px;min-width:0}
+    .brand-mark{width:38px;height:38px;border-radius:8px;background:linear-gradient(135deg,#0f766e,#2563eb);display:grid;place-items:center;color:#fff;font-weight:950;letter-spacing:0}
+    .brand h1{margin:0;font-size:1.2rem;line-height:1.2}
+    .brand span{display:block;color:var(--muted);font-size:.78rem;font-weight:800;margin-top:2px}
+    .top-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+    .btn{border:1px solid var(--border);background:var(--surface);color:var(--text);border-radius:8px;min-height:38px;padding:0 12px;font-weight:850}
+    .btn.primary{border-color:transparent;background:linear-gradient(135deg,#0f766e,#2563eb);color:#fff}
+    .btn.danger{color:#b91c1c;border-color:color-mix(in srgb,#dc2626 28%,var(--border));background:color-mix(in srgb,#fee2e2 48%,var(--surface))}
+    .layout{display:grid;grid-template-columns:minmax(320px,.78fr) minmax(0,1.22fr);gap:16px;align-items:start}
+    .panel{background:var(--surface);border:1px solid var(--border);border-radius:8px;box-shadow:var(--shadow)}
+    .panel-head{padding:16px 18px;border-bottom:1px solid var(--border);display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+    .panel-head h2{margin:0;font-size:1.04rem}
+    .panel-head p{margin:5px 0 0;color:var(--muted);font-size:.82rem;line-height:1.6}
+    .form{padding:16px 18px;display:grid;gap:12px}
+    .field{display:grid;gap:6px}
+    .field span{color:var(--muted);font-size:.76rem;font-weight:850}
+    .input{width:100%;height:42px;border:1px solid var(--border);border-radius:8px;background:var(--surface-soft);color:var(--text);padding:0 12px;outline:none}
+    .input:focus{border-color:#0f766e;box-shadow:0 0 0 3px color-mix(in srgb,#0f766e 16%,transparent)}
+    .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    .grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+    .form-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:4px}
+    .summary-strip{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:16px}
+    .metric{padding:14px;border:1px solid var(--border);border-radius:8px;background:var(--surface)}
+    .metric span{display:block;color:var(--muted);font-size:.74rem;font-weight:850}
+    .metric strong{display:block;margin-top:4px;font-size:1.25rem}
+    .stack{display:grid;gap:12px}
+    .ride-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;box-shadow:var(--shadow);overflow:hidden}
+    .ride-card.is-today{border-color:color-mix(in srgb,#0f766e 42%,var(--border))}
+    .ride-head{padding:15px 16px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;border-bottom:1px solid var(--border)}
+    .ride-title{min-width:0}
+    .ride-title-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+    .system-pill{display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:7px;color:#fff;font-size:.72rem;font-weight:950}
+    .system-pill.tr{background:#2563eb}.system-pill.thsr{background:#e86f00}
+    .ride-title strong{font-size:1.08rem}
+    .ride-route{margin-top:5px;color:var(--muted);font-size:.84rem;font-weight:800}
+    .ride-date{text-align:right;color:var(--muted);font-size:.78rem;font-weight:850;white-space:nowrap}
+    .ride-date strong{display:block;color:var(--text);font-size:1rem;margin-bottom:2px}
+    .ride-body{padding:14px 16px;display:grid;gap:12px}
+    .context-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    .station-box{border:1px solid var(--border);border-radius:8px;background:var(--surface-soft);padding:12px;min-width:0}
+    .station-box h3{margin:0 0 8px;font-size:.92rem;display:flex;align-items:center;gap:5px;flex-wrap:wrap}
+    .weather-line{min-height:28px;display:flex;align-items:center;gap:6px;color:var(--muted);font-size:.8rem;font-weight:850;flex-wrap:wrap}
+    .weather-line svg{width:22px;height:22px;overflow:visible}
+    .info-list{display:grid;gap:5px;margin-top:9px;color:var(--muted);font-size:.78rem;line-height:1.45}
+    .info-list b{color:var(--text)}
+    .metro-board{border:1px solid var(--border);border-radius:8px;background:linear-gradient(135deg,color-mix(in srgb,#0f766e 8%,var(--surface)),var(--surface));padding:12px;display:grid;gap:8px}
+    .metro-board h3{margin:0;font-size:.92rem}
+    .metro-row{display:flex;align-items:center;justify-content:space-between;gap:10px;border-top:1px solid color-mix(in srgb,var(--border) 72%,transparent);padding-top:8px;color:var(--muted);font-size:.8rem;font-weight:850}
+    .metro-row:first-of-type{border-top:0;padding-top:0}
+    .metro-row strong{color:var(--text);font-size:.96rem}
+    .ride-actions{display:flex;gap:8px;flex-wrap:wrap;padding-top:2px}
+    .empty{padding:20px;border:1px dashed var(--border);border-radius:8px;background:var(--surface);color:var(--muted);line-height:1.7}
+    .tabs{display:flex;gap:8px;margin:16px 0 10px;flex-wrap:wrap}
+    .tab{border:1px solid var(--border);background:var(--surface);color:var(--muted);border-radius:8px;height:36px;padding:0 12px;font-weight:850}
+    .tab.is-active{background:#0f766e;color:#fff;border-color:#0f766e}
+    .compact-list{display:grid;gap:8px}
+    .compact-item{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center;border:1px solid var(--border);border-radius:8px;background:var(--surface);padding:11px 12px}
+    .compact-item strong{display:block}.compact-item span{display:block;color:var(--muted);font-size:.78rem;margin-top:3px}
+    @media(max-width:860px){.layout{grid-template-columns:1fr}.summary-strip{grid-template-columns:1fr 1fr}.context-row{grid-template-columns:1fr}.topbar{position:static}.ride-head{grid-template-columns:1fr}.ride-date{text-align:left}.grid-3{grid-template-columns:1fr}.grid-2{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-mark">Go</div>
+        <div>
+          <h1>預約搭乘</h1>
+          <span>班次、座位、天氣與轉乘提醒集中管理</span>
+        </div>
+      </div>
+      <div class="top-actions">
+        <button class="btn" type="button" onclick="closePage()">返回首頁</button>
+        <button class="btn" type="button" onclick="toggleTheme()">切換主題</button>
+      </div>
+    </header>
+
+    <div class="summary-strip">
+      <div class="metric"><span>今天搭乘</span><strong id="todayCount">0</strong></div>
+      <div class="metric"><span>未來預約</span><strong id="futureCount">0</strong></div>
+      <div class="metric"><span>歷史紀錄</span><strong id="historyCount">0</strong></div>
+    </div>
+
+    <main class="layout">
+      <section class="panel">
+        <div class="panel-head">
+          <div>
+            <h2 id="formTitle">新增搭乘</h2>
+            <p>輸入搭乘日期、車次、起訖站與座位。今天的行程會自動整理到主畫面。</p>
+          </div>
+        </div>
+        <form class="form" id="rideForm">
+          <input type="hidden" id="editingId">
+          <div class="grid-2">
+            <label class="field"><span>系統</span><select class="input" id="system" required><option value="tr">臺鐵</option><option value="thsr">高鐵</option></select></label>
+            <label class="field"><span>搭乘日期</span><input class="input" id="rideDate" type="date" required></label>
+          </div>
+          <div class="grid-2">
+            <label class="field"><span>車次</span><input class="input" id="trainNo" type="text" inputmode="numeric" placeholder="例如 152、0609" required></label>
+            <label class="field"><span>出發時間（選填）</span><input class="input" id="departTime" type="time"></label>
+          </div>
+          <div class="grid-2">
+            <label class="field"><span>出發站</span><input class="input" id="origin" type="text" list="stationOptions" placeholder="例如 臺北" required></label>
+            <label class="field"><span>抵達站</span><input class="input" id="destination" type="text" list="stationOptions" placeholder="例如 臺中" required></label>
+          </div>
+          <div class="grid-3">
+            <label class="field"><span>車廂</span><input class="input" id="carNo" type="text" placeholder="例如 5"></label>
+            <label class="field"><span>座位</span><input class="input" id="seatNo" type="text" placeholder="例如 12A"></label>
+            <label class="field"><span>票種/備註</span><input class="input" id="note" type="text" placeholder="自由座、靠窗..."></label>
+          </div>
+          <div class="form-actions">
+            <button class="btn primary" type="submit">儲存搭乘</button>
+            <button class="btn" type="button" onclick="resetForm()">清空</button>
+          </div>
+        </form>
+        <datalist id="stationOptions"></datalist>
+      </section>
+
+      <section>
+        <div class="panel-head" style="padding-left:0;padding-right:0;border:0">
+          <div>
+            <h2>今天搭乘</h2>
+            <p>出發前看天氣、警特報、轉乘動線與抵達站捷運進站倒數。</p>
+          </div>
+        </div>
+        <div class="stack" id="todayTrips"></div>
+
+        <div class="tabs" role="tablist" aria-label="搭乘列表">
+          <button class="tab is-active" type="button" data-view="future">未來預約</button>
+          <button class="tab" type="button" data-view="history">歷史搭乘</button>
+        </div>
+        <div class="compact-list" id="secondaryTrips"></div>
+      </section>
+    </main>
+  </div>
+
+  <script charset="UTF-8" src="../shared/rail-network.js?v=20260418-reserve1"></script>
+  <script charset="UTF-8" src="../shared/rail-stop-weather.js?v=20260417-stopwx9"></script>
+  <script charset="UTF-8" src="../shared/rail-station-context.js?v=20260418-context1"></script>
+  <script>
+    const STORAGE_KEY = "rail_ride_reservations_v1";
+    const state = { view: "future", trips: [] };
+    const stationFallback = [
+      "南港","臺北","台北","板橋","桃園","新竹","苗栗","臺中","台中","彰化","雲林","嘉義","臺南","台南","左營","新左營","高雄",
+      "松山","萬華","六家","豐富","新烏日","沙崙","美術館","鼓山","橋頭","鳳山","屏東","宜蘭","花蓮","臺東"
+    ];
+
+    function todayStr(){
+      const d = new Date();
+      return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+    }
+
+    function escapeHtml(value){
+      return String(value ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;");
+    }
+
+    function readTrips(){
+      try{
+        const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+        return Array.isArray(parsed) ? parsed : [];
+      }catch(_){ return []; }
+    }
+
+    function writeTrips(trips){
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(trips));
+    }
+
+    function makeId(){
+      return `ride-${Date.now().toString(36)}-${Math.random().toString(36).slice(2,8)}`;
+    }
+
+    function parseTargetMs(trip, stationRole){
+      const date = String(trip.date || todayStr());
+      const time = stationRole === "destination" ? "" : String(trip.departTime || "");
+      if(date === todayStr() && !time) return Date.now();
+      const parsed = Date.parse(`${date}T${time || "12:00"}:00+08:00`);
+      return Number.isFinite(parsed) ? parsed : Date.now();
+    }
+
+    function systemLabel(system){ return system === "thsr" ? "高鐵" : "臺鐵"; }
+
+    function seatText(trip){
+      const parts = [];
+      if(trip.carNo) parts.push(`${trip.carNo}車`);
+      if(trip.seatNo) parts.push(`${trip.seatNo}座`);
+      if(trip.note) parts.push(trip.note);
+      return parts.join(" · ") || "尚未輸入座位";
+    }
+
+    function sortTrips(list){
+      return list.slice().sort((a,b) => String(a.date || "").localeCompare(String(b.date || "")) || String(a.departTime || "99:99").localeCompare(String(b.departTime || "99:99")));
+    }
+
+    function renderTransferBadges(station, system){
+      return window.RailStationContext?.renderTransferBadges?.(station, { system }) || "";
+    }
+
+    function renderFacilities(station){
+      const data = window.RailStationContext?.getStationFacilities?.(station) || { exits: [], accessibility: [] };
+      const exits = (data.exits || []).slice(0,3).map((item) => escapeHtml(item)).join("、") || "依站內標示";
+      const access = (data.accessibility || []).slice(0,3).map((item) => escapeHtml(item)).join("、") || "可洽站務協助";
+      return `<div class="info-list"><div><b>出入口</b> ${exits}</div><div><b>無障礙</b> ${access}</div></div>`;
+    }
+
+    function tripCard(trip){
+      const isToday = trip.date === todayStr();
+      return `
+        <article class="ride-card ${isToday ? "is-today" : ""}" data-trip-id="${escapeHtml(trip.id)}">
+          <div class="ride-head">
+            <div class="ride-title">
+              <div class="ride-title-row">
+                <span class="system-pill ${escapeHtml(trip.system)}">${escapeHtml(systemLabel(trip.system))}</span>
+                <strong>${escapeHtml(trip.trainNo)} 次</strong>
+              </div>
+              <div class="ride-route">${escapeHtml(trip.origin)} → ${escapeHtml(trip.destination)} · ${escapeHtml(seatText(trip))}</div>
+            </div>
+            <div class="ride-date"><strong>${escapeHtml(trip.departTime || "--:--")}</strong>${escapeHtml(trip.date)}</div>
+          </div>
+          <div class="ride-body">
+            <div class="context-row">
+              <section class="station-box">
+                <h3>出發 ${escapeHtml(trip.origin)} ${renderTransferBadges(trip.origin, trip.system)}</h3>
+                <div class="weather-line" data-weather-for="${escapeHtml(trip.id)}" data-station="${escapeHtml(trip.origin)}" data-role="origin">氣象讀取中</div>
+                ${renderFacilities(trip.origin)}
+              </section>
+              <section class="station-box">
+                <h3>抵達 ${escapeHtml(trip.destination)} ${renderTransferBadges(trip.destination, trip.system)}</h3>
+                <div class="weather-line" data-weather-for="${escapeHtml(trip.id)}" data-station="${escapeHtml(trip.destination)}" data-role="destination">氣象讀取中</div>
+                ${renderFacilities(trip.destination)}
+              </section>
+            </div>
+            <section class="metro-board" data-metro-for="${escapeHtml(trip.id)}" data-station="${escapeHtml(trip.destination)}">
+              <h3>抵達站捷運即時進站</h3>
+              <div class="metro-row"><span>正在整理轉乘系統</span><strong>--</strong></div>
+            </section>
+            <div class="ride-actions">
+              <button class="btn primary" type="button" onclick="openTrainDetail('${escapeHtml(trip.id)}')">查看列車詳細資訊</button>
+              <button class="btn" type="button" onclick="editTrip('${escapeHtml(trip.id)}')">修改</button>
+              <button class="btn danger" type="button" onclick="deleteTrip('${escapeHtml(trip.id)}')">刪除</button>
+            </div>
+          </div>
+        </article>
+      `;
+    }
+
+    function compactItem(trip){
+      return `
+        <article class="compact-item">
+          <div>
+            <strong>${escapeHtml(trip.date)} ${escapeHtml(trip.departTime || "--:--")} · ${escapeHtml(systemLabel(trip.system))} ${escapeHtml(trip.trainNo)} 次</strong>
+            <span>${escapeHtml(trip.origin)} → ${escapeHtml(trip.destination)} · ${escapeHtml(seatText(trip))}</span>
+          </div>
+          <div class="ride-actions">
+            <button class="btn" type="button" onclick="editTrip('${escapeHtml(trip.id)}')">修改</button>
+            <button class="btn danger" type="button" onclick="deleteTrip('${escapeHtml(trip.id)}')">刪除</button>
+          </div>
+        </article>
+      `;
+    }
+
+    function render(){
+      const today = todayStr();
+      const todayTrips = sortTrips(state.trips.filter((trip) => trip.date === today));
+      const futureTrips = sortTrips(state.trips.filter((trip) => trip.date > today));
+      const historyTrips = sortTrips(state.trips.filter((trip) => trip.date < today)).reverse();
+      document.getElementById("todayCount").textContent = todayTrips.length;
+      document.getElementById("futureCount").textContent = futureTrips.length;
+      document.getElementById("historyCount").textContent = historyTrips.length;
+      document.getElementById("todayTrips").innerHTML = todayTrips.length
+        ? todayTrips.map(tripCard).join("")
+        : `<div class="empty">今天沒有預約搭乘。新增一筆今天的車次後，這裡會顯示天氣、警特報、出入口和抵達站轉乘資訊。</div>`;
+      const secondary = state.view === "history" ? historyTrips : futureTrips;
+      document.getElementById("secondaryTrips").innerHTML = secondary.length
+        ? secondary.map(compactItem).join("")
+        : `<div class="empty">${state.view === "history" ? "目前沒有歷史搭乘紀錄。" : "目前沒有未來預約。"}</div>`;
+      renderWeather();
+      renderMetro();
+    }
+
+    async function renderWeather(){
+      const cards = Array.from(document.querySelectorAll("[data-weather-for]"));
+      await Promise.all(cards.map(async (node) => {
+        const trip = state.trips.find((item) => item.id === node.dataset.weatherFor);
+        if(!trip) return;
+        const station = node.dataset.station || "";
+        const role = node.dataset.role || "origin";
+        const targetMs = parseTargetMs(trip, role);
+        const context = await window.RailStationContext?.getStationContext?.(station, targetMs, { system: trip.system });
+        if(!context || !node.isConnected) return;
+        node.innerHTML = window.RailStationContext.renderWeatherSummary(context);
+        node.title = context.alert?.text ? `${station}：${context.alert.text}` : `${station}：目前無警特報`;
+      }));
+    }
+
+    function formatRemain(seconds){
+      const value = Math.max(0, Math.round(Number(seconds) || 0));
+      const min = Math.floor(value / 60);
+      const sec = value % 60;
+      return `${min}分${String(sec).padStart(2,"0")}秒`;
+    }
+
+    function renderMetro(){
+      document.querySelectorAll("[data-metro-for]").forEach((node) => {
+        const trip = state.trips.find((item) => item.id === node.dataset.metroFor);
+        if(!trip) return;
+        const station = node.dataset.station || trip.destination;
+        const rows = window.RailStationContext?.getMetroArrivalPreview?.(station, { system: trip.system }) || [];
+        node.innerHTML = `<h3>抵達站捷運即時進站</h3>` + (rows.length
+          ? rows.map((row) => `<div class="metro-row"><span>${escapeHtml(row.name)} ${escapeHtml(row.label)}</span><strong>${escapeHtml(formatRemain(row.remainSeconds))}</strong></div>`).join("") + `<div class="info-list"><div>若無即時資料，會以常見班距推估；實際進站仍以現場與業者公告為準。</div></div>`
+          : `<div class="metro-row"><span>此站暫無已整理捷運/輕軌轉乘</span><strong>--</strong></div>`);
+      });
+    }
+
+    function collectForm(){
+      return {
+        id: document.getElementById("editingId").value || makeId(),
+        system: document.getElementById("system").value,
+        date: document.getElementById("rideDate").value,
+        trainNo: document.getElementById("trainNo").value.trim(),
+        departTime: document.getElementById("departTime").value,
+        origin: document.getElementById("origin").value.trim(),
+        destination: document.getElementById("destination").value.trim(),
+        carNo: document.getElementById("carNo").value.trim(),
+        seatNo: document.getElementById("seatNo").value.trim(),
+        note: document.getElementById("note").value.trim(),
+        updatedAt: Date.now(),
+      };
+    }
+
+    function resetForm(){
+      document.getElementById("rideForm").reset();
+      document.getElementById("rideDate").value = todayStr();
+      document.getElementById("editingId").value = "";
+      document.getElementById("formTitle").textContent = "新增搭乘";
+    }
+
+    window.editTrip = function(id){
+      const trip = state.trips.find((item) => item.id === id);
+      if(!trip) return;
+      document.getElementById("editingId").value = trip.id;
+      document.getElementById("system").value = trip.system || "tr";
+      document.getElementById("rideDate").value = trip.date || todayStr();
+      document.getElementById("trainNo").value = trip.trainNo || "";
+      document.getElementById("departTime").value = trip.departTime || "";
+      document.getElementById("origin").value = trip.origin || "";
+      document.getElementById("destination").value = trip.destination || "";
+      document.getElementById("carNo").value = trip.carNo || "";
+      document.getElementById("seatNo").value = trip.seatNo || "";
+      document.getElementById("note").value = trip.note || "";
+      document.getElementById("formTitle").textContent = "修改搭乘";
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    };
+
+    window.deleteTrip = function(id){
+      const trip = state.trips.find((item) => item.id === id);
+      if(!trip) return;
+      if(!confirm(`刪除 ${trip.date} ${systemLabel(trip.system)} ${trip.trainNo} 次？`)) return;
+      state.trips = state.trips.filter((item) => item.id !== id);
+      writeTrips(state.trips);
+      render();
+      resetForm();
+    };
+
+    window.openTrainDetail = function(id){
+      const trip = state.trips.find((item) => item.id === id);
+      if(!trip) return;
+      const params = { trainNo: trip.trainNo, train: trip.trainNo, date: trip.date, start: trip.origin, end: trip.destination };
+      if(window.parent && window.parent !== window){
+        window.parent.postMessage({ type: "OPEN_OVERLAY", sys: trip.system, params }, "*");
+        return;
+      }
+      const base = trip.system === "thsr" ? "../thsr/thsr.html" : "../tr/tr.html";
+      location.href = `${base}?${new URLSearchParams({ embed: "1", ...params }).toString()}`;
+    };
+
+    window.closePage = function(){
+      if(window.parent && window.parent !== window){
+        window.parent.postMessage("APP_CLOSE", "*");
+      }else{
+        location.href = "./index.html";
+      }
+    };
+
+    window.toggleTheme = function(){
+      document.body.classList.toggle("dark-mode");
+      localStorage.setItem("reservation_theme", document.body.classList.contains("dark-mode") ? "dark" : "light");
+    };
+
+    function setupStations(){
+      const list = document.getElementById("stationOptions");
+      const names = new Set(stationFallback);
+      if(Array.isArray(window.stationGeoList)){
+        window.stationGeoList.forEach((item) => { if(item?.name) names.add(item.name); });
+      }
+      list.innerHTML = Array.from(names).sort((a,b) => a.localeCompare(b, "zh-Hant")).map((name) => `<option value="${escapeHtml(name)}"></option>`).join("");
+    }
+
+    function init(){
+      if(localStorage.getItem("reservation_theme") === "dark") document.body.classList.add("dark-mode");
+      state.trips = readTrips();
+      document.getElementById("rideDate").value = todayStr();
+      setupStations();
+      document.getElementById("rideForm").addEventListener("submit", (event) => {
+        event.preventDefault();
+        const next = collectForm();
+        if(!next.date || !next.trainNo || !next.origin || !next.destination) return;
+        const index = state.trips.findIndex((item) => item.id === next.id);
+        if(index >= 0) state.trips[index] = next;
+        else state.trips.push(next);
+        writeTrips(state.trips);
+        resetForm();
+        render();
+      });
+      document.querySelectorAll(".tab").forEach((button) => {
+        button.addEventListener("click", () => {
+          state.view = button.dataset.view || "future";
+          document.querySelectorAll(".tab").forEach((tab) => tab.classList.toggle("is-active", tab === button));
+          render();
+        });
+      });
+      render();
+      window.setInterval(renderMetro, 1000);
+    }
+
+    init();
+  </script>
+</body>
+</html>

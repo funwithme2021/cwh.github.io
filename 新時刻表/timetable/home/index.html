@@ -5367,6 +5367,7 @@ select.setting-input[id*="pick"] {
                 <button class="portal-link" type="button" onclick="openAppOverlay('tr')">臺鐵查詢</button>
                 <button class="portal-link" type="button" onclick="openAppOverlay('thsr')">高鐵查詢</button>
                 <button class="portal-link" type="button" onclick="openAppOverlay('ai')">智慧查詢</button>
+                <button class="portal-link" type="button" onclick="openAppOverlay('reserve')" hidden>預約搭乘</button>
                 <button class="portal-link" type="button" onclick="toggleSettings(true)">系統設定</button>
                 <button class="portal-link" type="button" onclick="toggleFloatingDock()">更多功能</button>
             </div>
@@ -5873,6 +5874,7 @@ select.setting-input[id*="pick"] {
       (function(){
         const overlay = document.getElementById('appOverlay');
         const frame = document.getElementById('appOverlayFrame');
+        const OVERLAY_APPS = new Set(['ai', 'tr', 'thsr', 'weather']);
 
         function readOverlayParamsFromUrl(){
           const q = new URLSearchParams(location.search);
@@ -5904,6 +5906,7 @@ select.setting-input[id*="pick"] {
         }
 
         window.openAppOverlay = function(sys, params, options){
+          if(!OVERLAY_APPS.has(sys)) return;
           // lazy load / update src each time (so query params update)
           frame.src = buildUrl(sys, params);
           overlay.classList.add('show');
@@ -5926,7 +5929,7 @@ select.setting-input[id*="pick"] {
             window.closeAppOverlay();
             return;
           }
-          if(ev.data && ev.data.type === 'OPEN_OVERLAY' && (ev.data.sys === 'ai' || ev.data.sys === 'tr' || ev.data.sys === 'thsr' || ev.data.sys === 'weather')){
+          if(ev.data && ev.data.type === 'OPEN_OVERLAY' && OVERLAY_APPS.has(ev.data.sys)){
             window.openAppOverlay(ev.data.sys, ev.data.params || null, { skipRecent: true });
           }
         });
@@ -5934,7 +5937,7 @@ select.setting-input[id*="pick"] {
         // Back button
         window.addEventListener('popstate', (e) => {
           const h = (location.hash || '').replace('#','');
-          if(h === 'ai' || h === 'tr' || h === 'thsr' || h === 'weather'){
+          if(OVERLAY_APPS.has(h)){
             // if navigating back into app, reopen without params
             window.openAppOverlay(h, (e.state && e.state.params) ? e.state.params : null, { skipRecent: true });
           }else{
@@ -5945,7 +5948,7 @@ select.setting-input[id*="pick"] {
         // On reload with hash
         window.addEventListener('load', () => {
           const h = (location.hash || '').replace('#','');
-          if(h === 'ai' || h === 'tr' || h === 'thsr' || h === 'weather'){
+          if(OVERLAY_APPS.has(h)){
             window.openAppOverlay(h, readOverlayParamsFromUrl(), { skipRecent: true });
           }
         });
@@ -10355,7 +10358,7 @@ function toggleSettings(show) {
             const low = Number(min);
             const high = Number(max);
             if (!Number.isFinite(low) || !Number.isFinite(high)) return '--';
-            return `${Math.round(low)}-${Math.round(high)}度`;
+            return `${low.toFixed(1)}-${high.toFixed(1)}度`;
         }
 
         function formatHomeTempValue(value) {
@@ -11985,8 +11988,8 @@ ${dayNightOrb(56, 30, 16)}
                     timeText: date.toISOString(),
                     dateLabel,
                     hourLabel: formatHomeForecastHourLabel(date),
-                    temp: Number.isFinite(temp) ? Math.round(temp) : null,
-                    apparentTemp: Number.isFinite(apparentTemp) ? Math.round(apparentTemp) : null,
+                    temp: Number.isFinite(temp) ? Math.round(temp * 10) / 10 : null,
+                    apparentTemp: Number.isFinite(apparentTemp) ? Math.round(apparentTemp * 10) / 10 : null,
                     humidity: Number.isFinite(humidity) ? Math.round(humidity) : null,
                     rainProbability: Number.isFinite(rainProbability) ? Math.round(rainProbability) : null,
                     windLevel,

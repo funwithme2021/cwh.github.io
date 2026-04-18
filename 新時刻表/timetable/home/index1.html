@@ -10355,7 +10355,7 @@ function toggleSettings(show) {
             const low = Number(min);
             const high = Number(max);
             if (!Number.isFinite(low) || !Number.isFinite(high)) return '--';
-            return `${Math.round(low)}-${Math.round(high)}度`;
+            return `${low.toFixed(1)}-${high.toFixed(1)}度`;
         }
 
         function formatHomeTempValue(value) {
@@ -11985,8 +11985,8 @@ ${dayNightOrb(56, 30, 16)}
                     timeText: date.toISOString(),
                     dateLabel,
                     hourLabel: formatHomeForecastHourLabel(date),
-                    temp: Number.isFinite(temp) ? Math.round(temp) : null,
-                    apparentTemp: Number.isFinite(apparentTemp) ? Math.round(apparentTemp) : null,
+                    temp: Number.isFinite(temp) ? Math.round(temp * 10) / 10 : null,
+                    apparentTemp: Number.isFinite(apparentTemp) ? Math.round(apparentTemp * 10) / 10 : null,
                     humidity: Number.isFinite(humidity) ? Math.round(humidity) : null,
                     rainProbability: Number.isFinite(rainProbability) ? Math.round(rainProbability) : null,
                     windLevel,

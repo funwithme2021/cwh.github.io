@@ -12,6 +12,13 @@
   const MAP_PADDING_Y = 36;
   const SHARED_GEO_KEY = "home_shared_geo_snapshot_v1";
   const USER_LOCATION_ENABLED_KEY = "rail_live_user_location_enabled_v1";
+  const LIVE_VIEW_MODE_KEY = "rail_live_view_mode_v1";
+  const LEAFLET_CSS_URL = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
+  const LEAFLET_JS_URL = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
+  const MAP_TILE_URL = "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png";
+  const MAP_TILE_ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>';
+  const TDX_RAIL_SHAPE_CACHE_KEY = "rail_live_tdx_shape_v1";
+  const TDX_RAIL_SHAPE_CACHE_MS = 7 * 24 * 60 * 60 * 1000;
   const USER_LOCATION_MAX_FAR_KM = 8;
   const USER_LOCATION_ROUTE_DISPLAY_MAX_KM = 2;
   const USER_LOCATION_THSR_ROUTE_DISPLAY_MAX_KM = 8;
@@ -44,6 +51,8 @@
     "團體列車": "#0ea5e9",
   };
   const THSR_DIRECTION_COLORS = { north: "#11f6a6", south: "#ff41dc" };
+  let leafletLoadPromise = null;
+  let tdxRailShapePromise = null;
 
   function getTrackerPanelConfig() {
     return {
@@ -64,6 +73,251 @@
       return delayMinutes >= 5 && delayMinutes <= 10;
     });
     return hasModerateDelay ? DELAY_REFRESH_MS : REFRESH_MS;
+  }
+
+  function readLiveViewMode() {
+    try {
+      return localStorage.getItem(LIVE_VIEW_MODE_KEY) === "geo" ? "geo" : "line";
+    } catch (_) {
+      return "line";
+    }
+  }
+
+  function writeLiveViewMode(mode) {
+    try {
+      localStorage.setItem(LIVE_VIEW_MODE_KEY, mode === "geo" ? "geo" : "line");
+    } catch (_) {
+    }
+  }
+
+  function loadLeaflet() {
+    if (window.L?.map) return Promise.resolve(window.L);
+    if (leafletLoadPromise) return leafletLoadPromise;
+    leafletLoadPromise = new Promise((resolve, reject) => {
+      if (!document.querySelector(`link[href="${LEAFLET_CSS_URL}"]`)) {
+        const link = document.createElement("link");
+        link.rel = "stylesheet";
+        link.href = LEAFLET_CSS_URL;
+        document.head.appendChild(link);
+      }
+
+      const finish = () => {
+        if (window.L?.map) resolve(window.L);
+        else reject(new Error("Leaflet 尚未載入完成"));
+      };
+      const existing = document.querySelector(`script[src="${LEAFLET_JS_URL}"]`);
+      if (existing) {
+        if (window.L?.map) finish();
+        else {
+          existing.addEventListener("load", finish, { once: true });
+          existing.addEventListener("error", () => reject(new Error("Leaflet 載入失敗")), { once: true });
+        }
+        return;
+      }
+
+      const script = document.createElement("script");
+      script.src = LEAFLET_JS_URL;
+      script.async = true;
+      script.onload = finish;
+      script.onerror = () => reject(new Error("Leaflet 載入失敗"));
+      document.head.appendChild(script);
+    });
+    return leafletLoadPromise;
+  }
+
+  function readTdxShapeCache() {
+    try {
+      const cached = JSON.parse(localStorage.getItem(TDX_RAIL_SHAPE_CACHE_KEY) || "null");
+      if (!cached?.savedAt || !cached?.data) return null;
+      if (Date.now() - Number(cached.savedAt || 0) > TDX_RAIL_SHAPE_CACHE_MS) return null;
+      return cached.data;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function writeTdxShapeCache(data) {
+    try {
+      localStorage.setItem(TDX_RAIL_SHAPE_CACHE_KEY, JSON.stringify({ savedAt: Date.now(), data }));
+    } catch (_) {
+    }
+  }
+
+  async function getTdxTokenForLiveMap() {
+    try {
+      if (typeof window.getTDXAccessToken === "function") {
+        const token = await window.getTDXAccessToken();
+        if (token) return token;
+      }
+      if (typeof window.getTdxToken === "function") {
+        const token = await window.getTdxToken();
+        if (token) return token;
+      }
+      if (typeof window.getAccessToken === "function") {
+        const token = await window.getAccessToken();
+        if (token) return token;
+      }
+    } catch (_) {
+    }
+    return window.tdxToken || "";
+  }
+
+  function isTaiwanLatLng(lat, lon) {
+    return Number.isFinite(lat) && Number.isFinite(lon) && lat >= 20 && lat <= 26.5 && lon >= 118 && lon <= 123.5;
+  }
+
+  function toLeafletLatLngPair(pair) {
+    if (Array.isArray(pair) && pair.length >= 2) {
+      const first = Number(pair[0]);
+      const second = Number(pair[1]);
+      if (isTaiwanLatLng(second, first)) return [second, first];
+      if (isTaiwanLatLng(first, second)) return [first, second];
+      return null;
+    }
+    if (pair && typeof pair === "object") {
+      const lat = Number(pair.lat ?? pair.latitude ?? pair.Latitude ?? pair.PositionLat);
+      const lon = Number(pair.lon ?? pair.lng ?? pair.longitude ?? pair.Longitude ?? pair.PositionLon);
+      return isTaiwanLatLng(lat, lon) ? [lat, lon] : null;
+    }
+    return null;
+  }
+
+  function isCoordinatePair(value) {
+    return Array.isArray(value) && value.length >= 2 && Number.isFinite(Number(value[0])) && Number.isFinite(Number(value[1]));
+  }
+
+  function coordinatesToLines(coords) {
+    if (!Array.isArray(coords)) return [];
+    if (isCoordinatePair(coords)) {
+      const point = toLeafletLatLngPair(coords);
+      return point ? [[point]] : [];
+    }
+    if (coords.length && coords.every(isCoordinatePair)) {
+      const line = coords.map(toLeafletLatLngPair).filter(Boolean);
+      return line.length >= 2 ? [line] : [];
+    }
+    return coords.flatMap((item) => coordinatesToLines(item)).filter((line) => line.length >= 2);
+  }
+
+  function parseWktLineBody(body) {
+    const line = String(body || "")
+      .split(",")
+      .map((pair) => {
+        const parts = pair.trim().split(/\s+/).map(Number);
+        return toLeafletLatLngPair(parts);
+      })
+      .filter(Boolean);
+    return line.length >= 2 ? line : null;
+  }
+
+  function parseWktGeometry(value) {
+    const text = String(value || "").trim();
+    if (!text) return [];
+    const multi = text.match(/^MULTILINESTRING\s*\(([\s\S]+)\)$/i);
+    if (multi) {
+      return (multi[1].match(/\([^()]+\)/g) || [])
+        .map((part) => parseWktLineBody(part.replace(/[()]/g, "")))
+        .filter(Boolean);
+    }
+    const single = text.match(/^LINESTRING\s*\(([\s\S]+)\)$/i);
+    if (single) {
+      const line = parseWktLineBody(single[1]);
+      return line ? [line] : [];
+    }
+    return [];
+  }
+
+  function parseShapeGeometry(value) {
+    if (!value) return [];
+    if (typeof value === "string") {
+      const wktLines = parseWktGeometry(value);
+      if (wktLines.length) return wktLines;
+      try {
+        return parseShapeGeometry(JSON.parse(value));
+      } catch (_) {
+        return [];
+      }
+    }
+    if (Array.isArray(value)) return coordinatesToLines(value);
+    if (typeof value === "object") {
+      const coordinates = value.coordinates || value.Coordinates;
+      if (coordinates) return coordinatesToLines(coordinates);
+      const geometry = value.geometry || value.Geometry || value.geojson || value.GeoJSON || value.shape || value.Shape;
+      if (geometry && geometry !== value) return parseShapeGeometry(geometry);
+    }
+    return [];
+  }
+
+  function extractShapeLines(data) {
+    const records = Array.isArray(data)
+      ? data
+      : data?.Shapes || data?.shapes || data?.records || data?.Records || data?.data || data?.Data || [];
+    const lines = [];
+    (Array.isArray(records) ? records : []).forEach((record) => {
+      const candidates = [
+        record?.Geometry,
+        record?.geometry,
+        record?.GeoJSON,
+        record?.geojson,
+        record?.Shape,
+        record?.shape,
+        record?.RouteGeometry,
+        record?.LineString,
+        record,
+      ];
+      candidates.some((candidate) => {
+        const parsed = parseShapeGeometry(candidate);
+        if (!parsed.length) return false;
+        lines.push(...parsed);
+        return true;
+      });
+    });
+    return lines.filter((line) => line.length >= 2);
+  }
+
+  async function fetchTdxShapeLines(system, token) {
+    if (!token) return [];
+    const code = system === "thsr" ? "THSR" : "TRA";
+    const endpoints = [
+      `https://tdx.transportdata.tw/api/basic/v3/Rail/${code}/Shape?%24format=JSON`,
+      `https://tdx.transportdata.tw/api/basic/v2/Rail/${code}/Shape?%24format=JSON`,
+      `https://tdx.transportdata.tw/api/basic/v3/Rail/${code}/Shape?$format=JSON`,
+      `https://tdx.transportdata.tw/api/basic/v2/Rail/${code}/Shape?$format=JSON`,
+    ];
+    const headers = { Authorization: `Bearer ${token}` };
+    for (const url of endpoints) {
+      try {
+        const response = await fetch(url, { headers });
+        if (!response.ok) continue;
+        const data = await response.json();
+        const lines = extractShapeLines(data);
+        if (lines.length) return lines;
+      } catch (_) {
+      }
+    }
+    return [];
+  }
+
+  async function loadTdxRailShapes() {
+    if (tdxRailShapePromise) return tdxRailShapePromise;
+    tdxRailShapePromise = (async () => {
+      const cached = readTdxShapeCache() || {};
+      const data = { ...cached };
+      const token = await getTdxTokenForLiveMap();
+      if (!token) return data;
+      let changed = false;
+      for (const system of ["tr", "thsr"]) {
+        if (Array.isArray(data[system]) && data[system].length) continue;
+        const lines = await fetchTdxShapeLines(system, token);
+        if (lines.length) {
+          data[system] = lines;
+          changed = true;
+        }
+      }
+      if (changed) writeTdxShapeCache(data);
+      return data;
+    })();
+    return tdxRailShapePromise;
   }
 
   function startTrackerRefreshLoop(state, run) {
@@ -268,6 +522,372 @@
     const found = list.find((item) => normalizeStationForSystem(system, item?.name) === normalizedName);
     if (!found || !Number.isFinite(Number(found.lat)) || !Number.isFinite(Number(found.lon))) return null;
     return { name: normalizedName, lat: Number(found.lat), lon: Number(found.lon) };
+  }
+
+  function destroyGeoMap(state) {
+    try {
+      if (state?.leafletMap && state.realMapUserMoved) {
+        const center = state.leafletMap.getCenter?.();
+        const zoom = state.leafletMap.getZoom?.();
+        if (center && Number.isFinite(zoom)) {
+          state.realMapView = { lat: center.lat, lng: center.lng, zoom };
+        }
+      }
+      state?.leafletMap?.remove?.();
+    } catch (_) {
+    }
+    if (state) state.leafletMap = null;
+    if (state) state.realMapUserMarker = null;
+    if (state) state.realMapMarkerBindings = [];
+    if (state) state.realMapRouteLines = [];
+  }
+
+  function getAllGeoSegments(system) {
+    const segments = [];
+    getRouteGroupsForSystem(system).forEach((group) => {
+      (group.segments || []).forEach((segment) => {
+        if (Array.isArray(segment?.stations) && segment.stations.length >= 2) {
+          segments.push({ ...segment, groupTitle: group.title });
+        }
+      });
+    });
+    return segments;
+  }
+
+  function getAllGeoStations(system) {
+    const seen = new Map();
+    getAllGeoSegments(system).forEach((segment) => {
+      (segment.stations || []).forEach((station) => {
+        const geo = getStationGeo(system, station);
+        if (!geo) return;
+        const key = normalizeStationForSystem(system, station);
+        if (!key || seen.has(key)) return;
+        seen.set(key, { station: key, lat: geo.lat, lon: geo.lon });
+      });
+    });
+    return Array.from(seen.values());
+  }
+
+  function buildFallbackGeoLines(system) {
+    return getAllGeoSegments(system)
+      .map((segment) =>
+        (segment.stations || [])
+          .map((station) => {
+            const geo = getStationGeo(system, station);
+            return geo ? [geo.lat, geo.lon] : null;
+          })
+          .filter(Boolean)
+      )
+      .filter((line) => line.length >= 2);
+  }
+
+  async function getRouteLinesForRealMap(system) {
+    const fallback = buildFallbackGeoLines(system);
+    try {
+      const shapes = await loadTdxRailShapes();
+      const tdxLines = Array.isArray(shapes?.[system]) ? shapes[system] : [];
+      return tdxLines.length ? { lines: tdxLines, source: "tdx", fallback } : { lines: fallback, source: "station", fallback };
+    } catch (_) {
+      return { lines: fallback, source: "station", fallback };
+    }
+  }
+
+  function latLngDistanceKm(a, b) {
+    const meters = getGeoDistanceMeters(
+      { lat: Array.isArray(a) ? a[0] : a?.lat, lon: Array.isArray(a) ? a[1] : a?.lon },
+      { lat: Array.isArray(b) ? b[0] : b?.lat, lon: Array.isArray(b) ? b[1] : b?.lon }
+    );
+    return Number.isFinite(meters) ? meters / 1000 : Number.POSITIVE_INFINITY;
+  }
+
+  function findNearestLineIndex(line, geo) {
+    let best = null;
+    (line || []).forEach((point, index) => {
+      const distanceKm = latLngDistanceKm(point, geo);
+      if (!best || distanceKm < best.distanceKm) best = { index, distanceKm };
+    });
+    return best;
+  }
+
+  function pointAtRatioOnLine(line, ratio) {
+    const points = (line || []).filter(Boolean);
+    if (!points.length) return null;
+    if (points.length === 1) return points[0];
+    const distances = [];
+    let total = 0;
+    for (let index = 0; index < points.length - 1; index += 1) {
+      const distance = latLngDistanceKm(points[index], points[index + 1]);
+      const safeDistance = Number.isFinite(distance) ? distance : 0;
+      distances.push(safeDistance);
+      total += safeDistance;
+    }
+    if (total <= 0) return points[0];
+    let target = total * clamp(ratio, 0, 1);
+    for (let index = 0; index < distances.length; index += 1) {
+      if (target > distances[index]) {
+        target -= distances[index];
+        continue;
+      }
+      const segmentRatio = distances[index] > 0 ? target / distances[index] : 0;
+      const from = points[index];
+      const to = points[index + 1];
+      return [
+        from[0] + (to[0] - from[0]) * segmentRatio,
+        from[1] + (to[1] - from[1]) * segmentRatio,
+      ];
+    }
+    return points[points.length - 1];
+  }
+
+  function getLatLngHeadingAngle(from, to) {
+    const fromPoint = Array.isArray(from) ? from : [from?.lat, from?.lon ?? from?.lng];
+    const toPoint = Array.isArray(to) ? to : [to?.lat, to?.lon ?? to?.lng];
+    const fromLat = Number(fromPoint[0]);
+    const fromLon = Number(fromPoint[1]);
+    const toLat = Number(toPoint[0]);
+    const toLon = Number(toPoint[1]);
+    if (![fromLat, fromLon, toLat, toLon].every(Number.isFinite)) return 0;
+    const avgLatRad = ((fromLat + toLat) / 2) * Math.PI / 180;
+    const dx = (toLon - fromLon) * Math.cos(avgLatRad);
+    const dy = toLat - fromLat;
+    if (Math.abs(dx) < 0.000001 && Math.abs(dy) < 0.000001) return 0;
+    return Math.atan2(dx, dy) * 180 / Math.PI;
+  }
+
+  function getDirectionalTrainLabelTransform(angle) {
+    const normalized = ((Number(angle) || 0) % 360 + 360) % 360;
+    if (normalized >= 45 && normalized < 135) return "translate(-50%,13px)";
+    if (normalized >= 135 && normalized < 225) return "translate(13px,-50%)";
+    if (normalized >= 225 && normalized < 315) return "translate(-50%,calc(-100% - 13px))";
+    return "translate(calc(-100% - 13px),-50%)";
+  }
+
+  function pointAtRatioOnLineWithAngle(line, ratio) {
+    const points = (line || []).filter(Boolean);
+    if (!points.length) return null;
+    if (points.length === 1) return { latLng: points[0], angle: 0 };
+    const distances = [];
+    let total = 0;
+    for (let index = 0; index < points.length - 1; index += 1) {
+      const distance = latLngDistanceKm(points[index], points[index + 1]);
+      const safeDistance = Number.isFinite(distance) ? distance : 0;
+      distances.push(safeDistance);
+      total += safeDistance;
+    }
+    if (total <= 0) return { latLng: points[0], angle: getLatLngHeadingAngle(points[0], points[1]) };
+    let target = total * clamp(ratio, 0, 1);
+    for (let index = 0; index < distances.length; index += 1) {
+      if (target > distances[index]) {
+        target -= distances[index];
+        continue;
+      }
+      const segmentRatio = distances[index] > 0 ? target / distances[index] : 0;
+      const from = points[index];
+      const to = points[index + 1];
+      return {
+        latLng: [
+          from[0] + (to[0] - from[0]) * segmentRatio,
+          from[1] + (to[1] - from[1]) * segmentRatio,
+        ],
+        angle: getLatLngHeadingAngle(from, to),
+      };
+    }
+    const lastIndex = points.length - 1;
+    return {
+      latLng: points[lastIndex],
+      angle: getLatLngHeadingAngle(points[lastIndex - 1], points[lastIndex]),
+    };
+  }
+
+  function interpolateOnRouteLines(system, routeLines, fromGeo, toGeo, ratio) {
+    if (!fromGeo || !toGeo) return null;
+    const straight = [
+      fromGeo.lat + (toGeo.lat - fromGeo.lat) * clamp(ratio, 0, 1),
+      fromGeo.lon + (toGeo.lon - fromGeo.lon) * clamp(ratio, 0, 1),
+    ];
+    if (fromGeo.name === toGeo.name || (fromGeo.lat === toGeo.lat && fromGeo.lon === toGeo.lon)) return [fromGeo.lat, fromGeo.lon];
+    const maxDistanceKm = system === "thsr" ? 18 : 6;
+    let best = null;
+    (routeLines || []).forEach((line) => {
+      const fromHit = findNearestLineIndex(line, fromGeo);
+      const toHit = findNearestLineIndex(line, toGeo);
+      if (!fromHit || !toHit || fromHit.index === toHit.index) return;
+      const score = fromHit.distanceKm + toHit.distanceKm;
+      if (fromHit.distanceKm > maxDistanceKm || toHit.distanceKm > maxDistanceKm) return;
+      if (!best || score < best.score) best = { line, fromIndex: fromHit.index, toIndex: toHit.index, score };
+    });
+    if (!best) return straight;
+    const fromIndex = Math.min(best.fromIndex, best.toIndex);
+    const toIndex = Math.max(best.fromIndex, best.toIndex);
+    const subline = best.fromIndex <= best.toIndex
+      ? best.line.slice(fromIndex, toIndex + 1)
+      : best.line.slice(fromIndex, toIndex + 1).reverse();
+    return pointAtRatioOnLine(subline, ratio) || straight;
+  }
+
+  function interpolatePlacementOnRouteLines(system, routeLines, fromGeo, toGeo, ratio) {
+    if (!fromGeo || !toGeo) return null;
+    const straight = {
+      latLng: [
+        fromGeo.lat + (toGeo.lat - fromGeo.lat) * clamp(ratio, 0, 1),
+        fromGeo.lon + (toGeo.lon - fromGeo.lon) * clamp(ratio, 0, 1),
+      ],
+      angle: getLatLngHeadingAngle([fromGeo.lat, fromGeo.lon], [toGeo.lat, toGeo.lon]),
+    };
+    if (fromGeo.name === toGeo.name || (fromGeo.lat === toGeo.lat && fromGeo.lon === toGeo.lon)) {
+      return { latLng: [fromGeo.lat, fromGeo.lon], angle: straight.angle };
+    }
+    const maxDistanceKm = system === "thsr" ? 18 : 6;
+    let best = null;
+    (routeLines || []).forEach((line) => {
+      const fromHit = findNearestLineIndex(line, fromGeo);
+      const toHit = findNearestLineIndex(line, toGeo);
+      if (!fromHit || !toHit || fromHit.index === toHit.index) return;
+      const score = fromHit.distanceKm + toHit.distanceKm;
+      if (fromHit.distanceKm > maxDistanceKm || toHit.distanceKm > maxDistanceKm) return;
+      if (!best || score < best.score) best = { line, fromIndex: fromHit.index, toIndex: toHit.index, score };
+    });
+    if (!best) return straight;
+    const fromIndex = Math.min(best.fromIndex, best.toIndex);
+    const toIndex = Math.max(best.fromIndex, best.toIndex);
+    const subline = best.fromIndex <= best.toIndex
+      ? best.line.slice(fromIndex, toIndex + 1)
+      : best.line.slice(fromIndex, toIndex + 1).reverse();
+    return pointAtRatioOnLineWithAngle(subline, ratio) || straight;
+  }
+
+  function findStationIndex(system, stations, stationName) {
+    const target = normalizeStationForSystem(system, stationName);
+    if (!target) return -1;
+    return (stations || []).findIndex((station) => normalizeStationForSystem(system, station) === target);
+  }
+
+  function findSnapshotPointPairForPosition(snapshot, positionIndex) {
+    const points = Array.isArray(snapshot?.points) ? snapshot.points : [];
+    const target = Number(positionIndex);
+    if (!Number.isFinite(target) || points.length < 2) return null;
+    for (let index = 0; index < points.length - 1; index += 1) {
+      const current = points[index];
+      const next = points[index + 1];
+      const fromIndex = Number(current?.routeIndex);
+      const toIndex = Number(next?.routeIndex);
+      if (!Number.isFinite(fromIndex) || !Number.isFinite(toIndex) || fromIndex === toIndex) continue;
+      const min = Math.min(fromIndex, toIndex);
+      const max = Math.max(fromIndex, toIndex);
+      if (target < min || target > max) continue;
+      return {
+        fromStation: current.station,
+        toStation: next.station,
+        ratio: clamp((target - fromIndex) / (toIndex - fromIndex), 0, 1),
+      };
+    }
+    return null;
+  }
+
+  function getSnapshotGeoProgress(state, snapshot, positionIndexOverride) {
+    const targetFrom = normalizeStationForSystem(state.system, snapshot?.currentFrom);
+    const targetTo = normalizeStationForSystem(state.system, snapshot?.currentTo);
+    const overridePosition = Number(positionIndexOverride);
+    const animatedPosition = Number.isFinite(overridePosition)
+      ? overridePosition
+      : getAnimatedSnapshotPosition(snapshot, state?.renderedQueryDate);
+    const points = Array.isArray(snapshot?.points) ? snapshot.points : [];
+    for (let index = 0; index < points.length - 1; index += 1) {
+      const current = points[index];
+      const next = points[index + 1];
+      if (
+        normalizeStationForSystem(state.system, current?.station) !== targetFrom ||
+        normalizeStationForSystem(state.system, next?.station) !== targetTo ||
+        !Number.isFinite(current?.routeIndex) ||
+        !Number.isFinite(next?.routeIndex) ||
+        current.routeIndex === next.routeIndex ||
+        !Number.isFinite(animatedPosition)
+      ) {
+        continue;
+      }
+      return clamp((animatedPosition - current.routeIndex) / (next.routeIndex - current.routeIndex), 0, 1);
+    }
+    const stations = state?.segment?.stations || [];
+    const fromIndex = findStationIndex(state.system, stations, snapshot?.currentFrom);
+    const toIndex = findStationIndex(state.system, stations, snapshot?.currentTo);
+    if (fromIndex >= 0 && toIndex >= 0 && fromIndex !== toIndex && Number.isFinite(animatedPosition)) {
+      return clamp((animatedPosition - fromIndex) / (toIndex - fromIndex), 0, 1);
+    }
+    const fromStop = (snapshot?.fullTimedStops || []).find((stop) => normalizeStationForSystem(state.system, stop?.name) === normalizeStationForSystem(state.system, snapshot?.currentFrom));
+    const toStop = (snapshot?.fullTimedStops || []).find((stop) => normalizeStationForSystem(state.system, stop?.name) === normalizeStationForSystem(state.system, snapshot?.currentTo));
+    const departureMinute = getStopDepartureMinute(fromStop);
+    const arrivalMinute = getStopArrivalMinute(toStop);
+    const nowMinute = getRelativeNowExactMinute(snapshot?.originDate, snapshot?.queryDate || state?.renderedQueryDate || getQueryDate());
+    if (Number.isFinite(departureMinute) && Number.isFinite(arrivalMinute) && arrivalMinute > departureMinute && Number.isFinite(nowMinute)) {
+      return clamp((nowMinute - departureMinute) / (arrivalMinute - departureMinute), 0, 1);
+    }
+    return clamp(Number(snapshot?.completionRatio) || 0, 0, 1);
+  }
+
+  function getTrainLatLng(state, snapshot, routeLines, options = {}) {
+    return getTrainMapPlacement(state, snapshot, routeLines, options)?.latLng || null;
+  }
+
+  function getTrainMapPlacement(state, snapshot, routeLines, options = {}) {
+    if (!snapshot) return null;
+    const rawPosition = Number(options.positionIndex);
+    const positionIndex = Number.isFinite(rawPosition)
+      ? rawPosition
+      : getAnimatedSnapshotPosition(snapshot, state?.renderedQueryDate);
+    const pointPair = findSnapshotPointPairForPosition(snapshot, positionIndex);
+    const fromStation = pointPair?.fromStation || snapshot.currentFrom || snapshot.firstStation;
+    const toStation = pointPair?.toStation || snapshot.currentTo || snapshot.currentFrom || snapshot.lastStation;
+    const fromGeo = getStationGeo(state.system, fromStation);
+    const toGeo = getStationGeo(state.system, toStation);
+    if (!fromGeo && !toGeo) return null;
+    if (!fromGeo) return { latLng: [toGeo.lat, toGeo.lon], angle: 0 };
+    if (!toGeo) return { latLng: [fromGeo.lat, fromGeo.lon], angle: 0 };
+    const ratio = pointPair ? pointPair.ratio : getSnapshotGeoProgress(state, snapshot, positionIndex);
+    return interpolatePlacementOnRouteLines(state.system, routeLines, fromGeo, toGeo, ratio);
+  }
+
+  function getRealMapUserTitle(state, coords) {
+    const speedText = formatUserSpeedKmh(state?.userLocation?.speedKmh);
+    return [
+      "你的位置",
+      speedText ? `目前時速：${speedText}` : "",
+      Number.isFinite(coords?.accuracy) ? `定位精度約 ${Math.round(coords.accuracy)} 公尺` : "",
+    ].filter(Boolean).join("\n");
+  }
+
+  function updateRealMapUserMarker(state) {
+    const L = window.L;
+    const map = state?.leafletMap || null;
+    if (!L?.marker || !map) return;
+    if (!state.userLocationEnabled) {
+      state.realMapUserMarker?.remove?.();
+      state.realMapUserMarker = null;
+      return;
+    }
+    const coords = normalizeGeoCoords(state.userLocation?.coords);
+    if (!coords) return;
+    const latLng = [coords.lat, coords.lon];
+    const speedText = formatUserSpeedKmh(state.userLocation?.speedKmh);
+    if (!state.realMapUserMarker) {
+      state.realMapUserMarker = L.marker(latLng, {
+        zIndexOffset: 1600,
+        interactive: false,
+        icon: L.divIcon({
+          className: "rail-live-real-user-marker",
+          html: `<span class="rail-live-real-user-pin"><span class="rail-live-real-user-dot" aria-hidden="true"></span><span class="rail-live-real-user-speed">${escapeHtml(speedText)}</span></span>`,
+          iconSize: [1, 1],
+          iconAnchor: [0, 0],
+        }),
+      }).addTo(map);
+    } else {
+      state.realMapUserMarker.setLatLng(latLng);
+    }
+    const markerElement = state.realMapUserMarker.getElement?.();
+    if (markerElement) {
+      markerElement.title = getRealMapUserTitle(state, coords);
+      const label = markerElement.querySelector(".rail-live-real-user-speed");
+      if (label) label.textContent = speedText;
+    }
   }
 
   function projectGeoPointToSegment(point, fromPoint, toPoint) {
@@ -2268,6 +2888,7 @@
   }
 
   function maybeSwitchToUserRoute(state, coords, options = {}) {
+    if (state?.viewMode === "geo") return false;
     if (!state?.userLocationEnabled || state.system !== "tr" || !state.routeSelect) return false;
     if (state.userRouteManualOverride && options.force !== true) return false;
     const context = buildUserLocationContext(state, coords);
@@ -2340,6 +2961,10 @@
   }
 
   function updateUserLocationMarker(state) {
+    if (state?.viewMode === "geo") {
+      updateRealMapUserMarker(state);
+      return;
+    }
     const map = state.output.querySelector(".rail-live-map");
     const stations = state.segment?.stations || [];
     const marker = map?.querySelector(".rail-live-user-location") || ensureUserLocationMarker(state);
@@ -2756,6 +3381,11 @@
   function setFocusedSnapshot(state, trainNo, originDate, options) {
     const key = makeTrainKey(trainNo, originDate);
     state.selectedTrainKey = key;
+    if (state.viewMode === "geo") {
+      refreshGeoFocusPanel(state);
+      focusGeoTrainMarker(state, trainNo, originDate);
+      return;
+    }
     if (state.variant === "modern") renderTrackerV2Sidebars(state);
     if (options?.highlight === false) return;
     focusTrainOnBoard(state, trainNo, originDate, { scroll: options?.scroll !== false });
@@ -3039,6 +3669,260 @@
     }
   }
 
+  function getGeoPointSet(state, stations) {
+    const resolved = (stations || []).map((station, index) => {
+      const geo = getStationGeo(state.system, station);
+      return geo
+        ? { station, index, lat: geo.lat, lon: geo.lon, hasGeo: true }
+        : { station, index, lat: null, lon: null, hasGeo: false };
+    });
+    const geoPoints = resolved.filter((item) => item.hasGeo);
+    if (geoPoints.length < 2) {
+      return resolved.map((item, index) => ({
+        ...item,
+        x: 50,
+        y: 8 + (stations.length <= 1 ? 42 : (index / (stations.length - 1)) * 84),
+      }));
+    }
+    const minLat = Math.min(...geoPoints.map((item) => item.lat));
+    const maxLat = Math.max(...geoPoints.map((item) => item.lat));
+    const minLon = Math.min(...geoPoints.map((item) => item.lon));
+    const maxLon = Math.max(...geoPoints.map((item) => item.lon));
+    const latSpan = Math.max(maxLat - minLat, 0.01);
+    const lonSpan = Math.max(maxLon - minLon, 0.01);
+    return resolved.map((item, index) => {
+      if (!item.hasGeo) {
+        return {
+          ...item,
+          x: 50,
+          y: 8 + (stations.length <= 1 ? 42 : (index / (stations.length - 1)) * 84),
+        };
+      }
+      return {
+        ...item,
+        x: 7 + ((item.lon - minLon) / lonSpan) * 86,
+        y: 7 + ((maxLat - item.lat) / latSpan) * 86,
+      };
+    });
+  }
+
+  function interpolateGeoPoint(points, positionIndex) {
+    if (!points.length) return { x: 50, y: 50 };
+    const clamped = Math.max(0, Math.min(points.length - 1, Number(positionIndex) || 0));
+    const fromIndex = Math.floor(clamped);
+    const toIndex = Math.min(points.length - 1, Math.ceil(clamped));
+    const from = points[fromIndex] || points[0];
+    const to = points[toIndex] || from;
+    const ratio = clamped - fromIndex;
+    return {
+      x: from.x + (to.x - from.x) * ratio,
+      y: from.y + (to.y - from.y) * ratio,
+    };
+  }
+
+  function focusGeoTrainMarker(state, trainNo, originDate) {
+    const key = makeTrainKey(trainNo, originDate);
+    const map = state.output.querySelector(".rail-live-map");
+    if (!map) return;
+    map.querySelectorAll(".rail-live-real-train-marker.is-active").forEach((item) => item.classList.remove("is-active"));
+    const escapedKey = window.CSS?.escape ? window.CSS.escape(key) : key.replace(/([^\w-])/g, "\\$1");
+    const markerButton = map.querySelector(`.rail-live-real-train-marker button[data-train-key="${escapedKey}"]`);
+    const marker = markerButton?.closest?.(".rail-live-real-train-marker");
+    if (!marker) return;
+    marker.classList.add("is-active");
+    window.clearTimeout(state.focusTimer);
+    state.focusTimer = window.setTimeout(() => marker.classList.remove("is-active"), 2400);
+  }
+
+  function refreshGeoFocusPanel(state) {
+    const focusHost = state.output.querySelector("[data-live-v2-focus]");
+    if (!focusHost) return;
+    const focusedSnapshot = resolveFocusedSnapshot(state, state.visibleSnapshots || []);
+    focusHost.innerHTML = buildFocusCardHTML(state.system, focusedSnapshot);
+    focusHost.querySelectorAll("[data-train-focus]").forEach((button) => {
+      button.addEventListener("click", (event) => {
+        event.stopPropagation();
+        const value = button.getAttribute("data-train-focus") || "";
+        const [trainNo, originDate] = value.split("|");
+        setFocusedSnapshot(state, trainNo, originDate, { scroll: true });
+      });
+    });
+    focusHost.querySelectorAll("[data-train-detail]").forEach((button) => {
+      button.addEventListener("click", (event) => {
+        event.stopPropagation();
+        const trainNo = button.getAttribute("data-train-detail");
+        const originDate = button.getAttribute("data-origin-date");
+        setFocusedSnapshot(state, trainNo, originDate, { scroll: false });
+        openTrainDetail(trainNo, originDate);
+      });
+    });
+    updateSelectedTrainStyling(state);
+  }
+
+  async function renderGeoBoard(state, segment, snapshots) {
+    const mapHost = state.output.querySelector(".rail-live-map");
+    if (!mapHost) return;
+    state.markerBindings = [];
+    state.realMapMarkerBindings = [];
+    state.realMapRouteLines = [];
+    destroyGeoMap(state);
+    mapHost.classList.add("rail-live-real-map");
+    mapHost.innerHTML = `<div class="rail-live-map-loading">正在載入真實地圖...</div>`;
+
+    try {
+      const L = await loadLeaflet();
+      mapHost.innerHTML = "";
+      const routeData = await getRouteLinesForRealMap(state.system);
+      const routeLines = routeData.lines || [];
+      const fallbackLines = routeData.fallback || [];
+      const drawLines = routeLines.length ? routeLines : fallbackLines;
+      const map = L.map(mapHost, {
+        zoomControl: true,
+        scrollWheelZoom: true,
+        attributionControl: true,
+      });
+      state.leafletMap = map;
+      L.tileLayer(MAP_TILE_URL, {
+        maxZoom: 19,
+        attribution: MAP_TILE_ATTRIBUTION,
+      }).addTo(map);
+
+      const lineColor = state.system === "thsr" ? "#d946ef" : "#0f766e";
+      const bounds = L.latLngBounds([]);
+      drawLines.forEach((line) => {
+        if (!Array.isArray(line) || line.length < 2) return;
+        L.polyline(line, {
+          color: lineColor,
+          weight: state.system === "thsr" ? 5 : 3,
+          opacity: routeData.source === "tdx" ? 0.78 : 0.62,
+          lineCap: "round",
+          lineJoin: "round",
+        }).addTo(map);
+        line.forEach((point) => bounds.extend(point));
+      });
+
+      getAllGeoStations(state.system).forEach((point) => {
+        const events = state.stationEvents.get(point.station) || [];
+        const hasSoon = events.some((event) => event.kind !== "即將通過" && Number.isFinite(event.minutesAway) && event.minutesAway <= STATION_SOON_WINDOW);
+        const latLng = [point.lat, point.lon];
+        const stationColor = hasSoon ? "#ef4444" : events.length ? "#f59e0b" : lineColor;
+        L.circleMarker(latLng, {
+          radius: hasSoon ? 5.5 : 4.5,
+          color: "#ffffff",
+          weight: 2,
+          fillColor: stationColor,
+          fillOpacity: 0.95,
+        })
+          .addTo(map)
+          .on("click", () => renderStationDetail(state, point.station));
+        const badges = window.RailStationContext?.renderTransferBadges?.(point.station, { system: state.system }) || "";
+        L.marker(latLng, {
+          interactive: true,
+          icon: L.divIcon({
+            className: `rail-live-real-station-label ${events.length ? "has-alert" : ""} ${hasSoon ? "is-soon" : ""}`,
+            html: `<span>${escapeHtml(point.station)}${badges}</span>`,
+            iconSize: [1, 1],
+            iconAnchor: [-8, 8],
+          }),
+        })
+          .addTo(map)
+          .on("click", () => renderStationDetail(state, point.station));
+        bounds.extend(latLng);
+      });
+
+      const mapRouteLines = routeLines.length ? routeLines : fallbackLines;
+      state.realMapRouteLines = mapRouteLines;
+      const visibleSnapshots = state.visibleSnapshots || getVisibleSnapshots(snapshots);
+      resolveFocusedSnapshot(state, visibleSnapshots);
+      visibleSnapshots.forEach((snapshot) => {
+        const placement = getTrainMapPlacement(state, snapshot, mapRouteLines);
+        if (!placement?.latLng) return;
+        const trainLatLng = placement.latLng;
+        const trainKey = makeTrainKey(snapshot.trainNo, snapshot.originDate);
+        const color = getEntryColor(state.system, snapshot);
+        const isSelected = state.selectedTrainKey === trainKey;
+        const angle = Number.isFinite(placement.angle) ? placement.angle : 0;
+        const trainTypeText = state.system === "tr" ? normalizeTraType(snapshot.type) : (snapshot.type || "高鐵");
+        const trainLabel = `${snapshot.trainNo} ${trainTypeText}`.trim();
+        const labelTransform = getDirectionalTrainLabelTransform(angle);
+        const marker = L.marker(trainLatLng, {
+          zIndexOffset: isSelected ? 1300 : 900,
+          icon: L.divIcon({
+            className: `rail-live-real-train-marker ${isSelected ? "is-active" : ""} ${snapshot.isSoonStop ? "is-blinking" : ""}`,
+            html: `<button type="button" style="--rail-live-color:${escapeHtml(color)};--rail-live-angle:${escapeHtml(angle.toFixed(1))}deg;--rail-live-label-transform:${escapeHtml(labelTransform)}" data-train-key="${escapeHtml(trainKey)}" title="${escapeHtml(buildSnapshotLocationLine(snapshot))}"><span class="rail-live-real-train-arrow" aria-hidden="true"></span><strong>${escapeHtml(trainLabel)}</strong></button>`,
+            iconSize: [1, 1],
+            iconAnchor: [0, 0],
+          }),
+        }).addTo(map);
+        marker.on("click", () => {
+          state.selectedTrainKey = trainKey;
+          refreshGeoFocusPanel(state);
+          focusGeoTrainMarker(state, snapshot.trainNo, snapshot.originDate);
+          openTrainDetail(snapshot.trainNo, snapshot.originDate || snapshot.queryDate);
+        });
+        state.realMapMarkerBindings.push({ marker, snapshot, routeLines: mapRouteLines });
+        bounds.extend(trainLatLng);
+      });
+
+      updateRealMapUserMarker(state);
+      ensureUserLocationTracking(state);
+
+      if (state.realMapUserMoved && state.realMapView) {
+        map.setView([state.realMapView.lat, state.realMapView.lng], state.realMapView.zoom, { animate: false });
+      } else if (bounds.isValid()) {
+        map.fitBounds(bounds.pad(0.08), { animate: false });
+      } else {
+        map.setView([23.7, 121], 7);
+      }
+      window.setTimeout(() => {
+        map.invalidateSize();
+        map.on("dragstart zoomstart", () => {
+          state.realMapUserMoved = true;
+          const center = map.getCenter();
+          state.realMapView = { lat: center.lat, lng: center.lng, zoom: map.getZoom() };
+        });
+        map.on("moveend zoomend", () => {
+          if (!state.realMapUserMoved) return;
+          const center = map.getCenter();
+          state.realMapView = { lat: center.lat, lng: center.lng, zoom: map.getZoom() };
+        });
+      }, 80);
+    } catch (error) {
+      console.error("rail live real map failed", error);
+      mapHost.innerHTML = `<div class="rail-live-empty">真實地圖載入失敗，請確認網路可連線至地圖服務後再試。</div>`;
+    }
+  }
+
+  async function renderGeoTracker(state, data) {
+    const focusedSnapshot = resolveFocusedSnapshot(state, data.visibleSnapshots || []);
+    const systemLabel = state.system === "tr" ? "台鐵" : "高鐵";
+    const sourceNote = "";
+    destroyGeoMap(state);
+    state.output.innerHTML = `
+      <div class="rail-live-geo-layout">
+        <article class="rail-live-v2-section rail-live-geo-focus-shell">
+          <div class="rail-live-v2-section-head">
+            <div><h3>焦點列車</h3><p>地圖會顯示目前範圍內全部列車；點列車可切換焦點並查看詳情。</p></div>
+            <button type="button" class="rail-live-mini-btn rail-live-locate-btn" data-live-locate-train="1">定位車次</button>
+          </div>
+          <div class="rail-live-v2-section-body" data-live-v2-focus>${buildFocusCardHTML(state.system, focusedSnapshot)}</div>
+        </article>
+        <section class="rail-live-board rail-live-real-board">
+          <div class="rail-live-board-head">
+            <div><h3>${escapeHtml(systemLabel)}全線真實地圖</h3><p>${escapeHtml(sourceNote)}</p></div>
+            <div class="rail-live-board-note">${escapeHtml(`${data.updatedAt} 更新`)}</div>
+          </div>
+          <div class="rail-live-map rail-live-real-map" aria-label="${escapeHtml(systemLabel)}全線真實地圖"></div>
+        </section>
+      </div>
+    `;
+    await renderGeoBoard(state, data.segment, data.snapshots);
+    updateRealMapUserMarker(state);
+    bindRenderedOutput(state);
+    bindTrackerV2Output(state);
+    updateSelectedTrainStyling(state);
+  }
+
   function stopBoardAnimation(state) {
     if (state.animationFrame) {
       window.cancelAnimationFrame(state.animationFrame);
@@ -3046,6 +3930,48 @@
     }
     state.lastAnimationFrameMs = 0;
     state.animationDeltaSeconds = 0.016;
+  }
+
+  function updateRealMapTrainMarkerVisual(marker, placement) {
+    if (!marker || !placement?.latLng) return;
+    marker.setLatLng(placement.latLng);
+    const angle = Number.isFinite(placement.angle) ? placement.angle : 0;
+    const button = marker.getElement?.()?.querySelector?.(".rail-live-real-train-marker button");
+    if (!button) return;
+    button.style.setProperty("--rail-live-angle", `${angle.toFixed(1)}deg`);
+    button.style.setProperty("--rail-live-label-transform", getDirectionalTrainLabelTransform(angle));
+  }
+
+  function runRealMapAnimation(state) {
+    stopBoardAnimation(state);
+    const tick = () => {
+      if (state.panel.classList.contains("hidden")) {
+        state.animationFrame = 0;
+        return;
+      }
+      const bindings = Array.isArray(state.realMapMarkerBindings) ? state.realMapMarkerBindings : [];
+      if (!state.leafletMap || (!bindings.length && (!state.userLocationEnabled || !state.userLocation?.coords))) {
+        state.animationFrame = 0;
+        return;
+      }
+      const nowMs = typeof performance !== "undefined" && typeof performance.now === "function" ? performance.now() : Date.now();
+      const lastFrameMs = Number(state.lastAnimationFrameMs) || nowMs;
+      state.animationDeltaSeconds = Math.max(0.016, Math.min(0.25, (nowMs - lastFrameMs) / 1000 || 0.016));
+      state.lastAnimationFrameMs = nowMs;
+      bindings.forEach(({ marker, snapshot, routeLines }) => {
+        if (!marker || !snapshot) return;
+        const rawPosition = getAnimatedSnapshotPosition(snapshot, state.renderedQueryDate);
+        const animationMode = getSnapshotAnimationMode(snapshot);
+        const stablePosition = animationMode.type === "stepped"
+          ? getSteppedSnapshotPosition(state, snapshot, rawPosition, animationMode.cadenceSeconds)
+          : getStableAnimatedSnapshotPosition(state, snapshot, rawPosition);
+        const placement = getTrainMapPlacement(state, snapshot, routeLines || state.realMapRouteLines || [], { positionIndex: stablePosition });
+        updateRealMapTrainMarkerVisual(marker, placement);
+      });
+      if (state.userLocationEnabled) updateRealMapUserMarker(state);
+      state.animationFrame = window.requestAnimationFrame(tick);
+    };
+    tick();
   }
 
   function runBoardAnimation(state) {
@@ -3096,7 +4022,7 @@
     if (userRouteCoords) maybeSwitchToUserRoute(state, userRouteCoords, { render: false });
     const queryText = String(state.searchInput.value || "").trim();
     const exactTrainQuery = parseExactTrainQuery(queryText);
-    const directionValue = state.directionSelect.value || "all";
+    const directionValue = state.viewMode === "geo" ? "all" : state.directionSelect.value || "all";
     const allEntries = buildEntries(state.system, scheduleSources);
     const directionalEntries = exactTrainQuery
       ? allEntries
@@ -3112,6 +4038,14 @@
         state.routeSelect.value = target.segment.id;
       }
       state.selectedTrainKey = makeTrainKey(target.entry.trainNo, target.entry.originDate);
+    } else if (state.viewMode === "geo") {
+      const geoStations = getAllGeoStations(state.system).map((item) => item.station);
+      segment = {
+        id: `${state.system}-geo-all`,
+        title: state.system === "tr" ? "台鐵全線" : "高鐵全線",
+        subtitle: "真實地圖模式",
+        stations: geoStations.length ? geoStations : (groups[0]?.segments?.[0]?.stations || []),
+      };
     } else {
       groups.some((group) => (group.segments || []).some((candidate) => (candidate.id === state.routeSelect.value ? ((segment = { ...candidate, groupTitle: group.title }), true) : false)));
       if (!segment) {
@@ -3123,9 +4057,19 @@
     if (!segment?.stations?.length) {
       return { errorHtml: `<div class="rail-live-empty">此路線站點資料尚未完成。</div>` };
     }
-    const routeEntries = directionalEntries.filter((entry) => matchesSegmentEntry(entry, segment));
-    const projectedEntries = routeEntries.flatMap((entry) => buildRouteProjections(entry, segment.stations, state.system, queryDate));
-    const sharedStationSnapshots = buildSharedStationOnlySnapshots(directionalEntries, segment, state.system, queryDate);
+    const projectedEntries = state.viewMode === "geo" && !exactTrainQuery
+      ? directionalEntries.flatMap((entry) => {
+          const routeStations = Array.isArray(entry.fullPathStations) && entry.fullPathStations.length
+            ? entry.fullPathStations
+            : expandEntryPathStations(state.system, entry.stops || []);
+          return buildRouteProjections(entry, routeStations, state.system, queryDate);
+        })
+      : directionalEntries
+          .filter((entry) => matchesSegmentEntry(entry, segment))
+          .flatMap((entry) => buildRouteProjections(entry, segment.stations, state.system, queryDate));
+    const sharedStationSnapshots = state.viewMode === "geo" && !exactTrainQuery
+      ? []
+      : buildSharedStationOnlySnapshots(directionalEntries, segment, state.system, queryDate);
 
     const snapshots = dedupeCircularSnapshots(
       projectedEntries
@@ -3176,6 +4120,13 @@
       }
       const { segment, snapshots, visibleSnapshots, note, boardHeight, feedHeight, updatedAt } = data;
 
+      if (state.viewMode === "geo") {
+        await renderGeoTracker(state, data);
+        runRealMapAnimation(state);
+        return;
+      }
+
+      destroyGeoMap(state);
       state.output.innerHTML = `
         <div class="rail-live-summary">
           <div class="rail-live-chip"><span>更新時間</span><strong>${updatedAt}</strong><small>${escapeHtml(note)}</small></div>
@@ -3219,6 +4170,13 @@
       }
       const { segment, snapshots, boardHeight, feedHeight, updatedAt } = data;
 
+      if (state.viewMode === "geo") {
+        await renderGeoTracker(state, data);
+        runRealMapAnimation(state);
+        return;
+      }
+
+      destroyGeoMap(state);
       state.output.innerHTML = `
         <div class="rail-live-v2-layout">
           <article class="rail-live-v2-section rail-live-v2-focus-shell">
@@ -3269,8 +4227,9 @@
       <div class="section-title">${escapeHtml(config.title)}</div>
       ${lead ? `<p class="rail-live-lead">${lead}</p>` : ""}
       <div class="rail-live-toolbar">
-        <div class="rail-live-control"><span>路線</span><select id="${escapeHtml(config.inputPrefix)}Route" class="rail-live-select">${routeOptions}</select></div>
-        <div class="rail-live-control"><span>方向</span><select id="${escapeHtml(config.inputPrefix)}Direction" class="rail-live-select">${directionOptions}</select></div>
+        <div class="rail-live-control rail-live-route-control"><span>路線</span><select id="${escapeHtml(config.inputPrefix)}Route" class="rail-live-select">${routeOptions}</select></div>
+        <div class="rail-live-control rail-live-direction-control"><span>方向</span><select id="${escapeHtml(config.inputPrefix)}Direction" class="rail-live-select">${directionOptions}</select></div>
+        <div class="rail-live-control rail-live-view-control"><span>模式</span><button type="button" class="rail-live-view-btn" data-live-view-mode="line">線形</button><button type="button" class="rail-live-view-btn" data-live-view-mode="geo">地圖</button></div>
         <div class="rail-live-control rail-live-search"><div class="rail-live-search-field"><input id="${escapeHtml(config.inputPrefix)}Search" class="rail-live-input rail-live-input-has-btn" type="text" placeholder="搜尋車次、車種或起迄站"><button type="button" class="rail-live-search-locate" data-live-search-locate="1" aria-label="📍定位車次" title="📍定位車次">📍定位車次</button></div><button id="${escapeHtml(config.inputPrefix)}Render" class="btn-primary" type="button">刷新動態</button></div>
       </div>
       <div id="${escapeHtml(config.inputPrefix)}Output" class="rail-live-output"><div class="rail-live-empty">可直接顯示目前路線的列車動態與車站進出站提示。</div></div>
@@ -3296,6 +4255,9 @@
       .rail-live-toolbar{display:flex; flex-wrap:wrap; gap:10px;}
       .rail-live-control{display:flex; align-items:center; gap:8px; padding:10px 12px; border-radius:16px; border:1px solid var(--border); background:var(--bg-body);}
       .rail-live-control span{font-size:.85rem; color:var(--text-muted); font-weight:700; white-space:nowrap;}
+      .rail-live-view-control{gap:6px;}
+      .rail-live-view-btn{height:34px; padding:0 11px; border:1px solid var(--border); border-radius:10px; background:var(--bg-surface); color:var(--text-main); font:inherit; font-size:.8rem; font-weight:900; cursor:pointer;}
+      .rail-live-view-btn.is-active{background:linear-gradient(135deg,#0f766e,#2563eb); border-color:transparent; color:#fff;}
       .rail-live-select,.rail-live-input{height:38px; border-radius:12px; border:1px solid var(--border); background:var(--bg-surface); color:var(--text-main); padding:0 12px; font:inherit;}
       .rail-live-search{flex:1 1 320px; justify-content:flex-end;}
       .rail-live-search-field{position:relative; flex:1 1 180px; min-width:180px;}
@@ -3344,6 +4306,31 @@
       .rail-live-board-head p{margin:4px 0 0; color:var(--text-muted); font-size:.84rem;}
       .rail-live-board-note{font-size:.78rem; color:var(--text-muted); font-weight:700;}
       .rail-live-map{position:relative; border-radius:20px; border:1px solid color-mix(in srgb, var(--border) 85%, transparent); background:linear-gradient(180deg, color-mix(in srgb, var(--bg-body) 92%, transparent), color-mix(in srgb, var(--bg-surface) 84%, transparent)); overflow:hidden;}
+      .rail-live-panel[data-live-view-mode="geo"] .rail-live-route-control,.rail-live-panel[data-live-view-mode="geo"] .rail-live-direction-control{display:none;}
+      .rail-live-geo-layout{display:grid; grid-template-columns:minmax(0,1fr); gap:14px; align-items:start;}
+      .rail-live-geo-focus-shell{width:100%;}
+      .rail-live-real-board{width:100%; padding:14px; border-radius:8px;}
+      .rail-live-real-map{width:100%; height:min(72vh,760px)!important; min-height:560px; border-radius:8px; background:#e7edf4; overflow:hidden;}
+      .rail-live-real-map .leaflet-container,.rail-live-real-map.leaflet-container{font-family:inherit;}
+      .rail-live-map-loading{position:absolute; inset:0; display:grid; place-items:center; color:var(--text-muted); font-size:.86rem; font-weight:850;}
+      .rail-live-real-station-label{background:transparent!important; border:0!important; box-shadow:none!important; color:var(--text-main); white-space:nowrap;}
+      .rail-live-real-station-label span{display:inline-flex; align-items:center; gap:3px; color:var(--text-main); font-size:.74rem; font-weight:950; line-height:1; text-shadow:0 1px 3px rgba(255,255,255,.95),0 0 8px rgba(255,255,255,.78);}
+      .rail-live-real-station-label.is-soon span{color:#dc2626;}
+      .rail-live-real-station-label.has-alert span{color:#b45309;}
+      .rail-live-real-station-label .rail-transfer-badges{margin-left:2px; gap:2px;}
+      .rail-live-real-station-label .rail-transfer-logo{width:13px; height:13px; filter:drop-shadow(0 1px 2px rgba(255,255,255,.9));}
+      .rail-live-real-train-marker{background:transparent!important; border:0!important;}
+      .rail-live-real-train-marker button{position:relative; display:block; width:1px; height:1px; border:0; background:transparent; color:var(--text-main); padding:0; font:inherit; cursor:pointer;}
+      .rail-live-real-train-arrow{position:absolute; left:-9px; top:-9px; display:block; width:18px; height:18px; background:var(--rail-live-color); clip-path:polygon(50% 0,100% 100%,0 100%); transform:rotate(var(--rail-live-angle,0deg)); filter:drop-shadow(0 3px 4px rgba(15,23,42,.28));}
+      .rail-live-real-train-marker button strong{position:absolute; left:0; top:0; min-width:max-content; transform:var(--rail-live-label-transform,translate(13px,-50%)); font-size:.82rem; font-weight:950; line-height:1; text-shadow:0 1px 3px rgba(255,255,255,.98),0 0 10px rgba(255,255,255,.86);}
+      .rail-live-real-train-marker.is-active button strong{text-decoration:underline; text-decoration-thickness:2px;}
+      .rail-live-real-user-marker{background:transparent!important; border:0!important; transition:transform 2.8s linear; filter:drop-shadow(0 8px 16px rgba(37,99,235,.26));}
+      .rail-live-real-user-pin{position:absolute; left:0; top:0; display:inline-flex; align-items:center; gap:7px; transform:translate(-50%,-50%); color:#1d4ed8; pointer-events:none;}
+      .rail-live-real-user-dot{position:relative; width:15px; height:15px; border-radius:50%; background:#1a73e8; border:2px solid #fff; box-shadow:0 0 0 6px rgba(26,115,232,.18),0 0 0 1px rgba(37,99,235,.34);}
+      .rail-live-real-user-dot::after{content:""; position:absolute; inset:-8px; border-radius:50%; border:1px solid rgba(26,115,232,.24); animation:rail-live-user-pulse 1.9s ease-out infinite;}
+      .rail-live-real-user-speed{font-size:.74rem; font-weight:950; white-space:nowrap; text-shadow:0 1px 3px rgba(255,255,255,.98),0 0 10px rgba(255,255,255,.86);}
+      .rail-live-real-user-speed:empty{display:none;}
+      .dark-mode .rail-live-real-station-label span,.dark-mode .rail-live-real-train-marker button strong,.dark-mode .rail-live-real-user-speed{color:#f8fafc; text-shadow:0 1px 3px rgba(15,23,42,.96),0 0 8px rgba(15,23,42,.86);}
       .rail-live-line{position:absolute; top:var(--rail-live-line-top, 24px); bottom:var(--rail-live-line-bottom, 24px); left:50%; transform:translateX(-50%); width:8px; border-radius:999px; background:linear-gradient(180deg, rgba(96,128,191,0.92), rgba(113,146,219,0.76));}
       .rail-live-board-empty{position:absolute; top:14px; left:14px; right:14px; padding:12px 14px; border-radius:14px; background:rgba(255,255,255,0.82); color:var(--text-muted); font-size:.84rem; line-height:1.7;}
       .rail-live-station{position:absolute; left:0; right:0; transform:translateY(-50%); display:flex; align-items:center; justify-content:center; background:none; border:none; padding:0; cursor:pointer;}
@@ -3430,6 +4417,9 @@
         .rail-live-train-copy{width:150px; min-height:22px; top:-11px;}
         .rail-live-train-copy strong{font-size:.68rem;}
         .rail-live-station-name{font-size:.74rem; max-width:calc(50% - 34px);}
+        .rail-live-real-map{min-height:420px; height:68vh!important;}
+        .rail-live-real-station-label span{font-size:.68rem;}
+        .rail-live-real-station-label .rail-transfer-logo{width:12px; height:12px;}
         .rail-live-user-label{left:13px; top:0; min-height:18px; padding:0; font-size:.62rem;}
         .rail-live-modal{padding:14px;}
       }`;
@@ -3446,6 +4436,7 @@
       directionSelect: panel.querySelector(`#${config.inputPrefix}Direction`),
       searchInput: panel.querySelector(`#${config.inputPrefix}Search`),
       renderButton: panel.querySelector(`#${config.inputPrefix}Render`),
+      viewButtons: Array.from(panel.querySelectorAll("[data-live-view-mode]")),
       userLocationButton: panel.querySelector("[data-live-user-location-toggle]"),
       output: panel.querySelector(`#${config.inputPrefix}Output`),
       modal: panel.querySelector(`#${config.inputPrefix}Modal`),
@@ -3474,9 +4465,16 @@
       userLocationStableSpeedKmh: null,
       userLocationStableSpeedAt: 0,
       userLocationLowSpeedStreak: 0,
+      leafletMap: null,
+      realMapUserMarker: null,
+      realMapMarkerBindings: [],
+      realMapRouteLines: [],
+      realMapUserMoved: false,
+      realMapView: null,
       userRouteAutoApplied: false,
       userRouteManualOverride: false,
       isAutoSwitchingRoute: false,
+      viewMode: readLiveViewMode(),
       runRender: null,
       animationFrame: 0,
       animationScopeKey: "",
@@ -3518,6 +4516,15 @@
     return { tab, panel };
   }
 
+  function syncLiveViewButtons(state) {
+    if (state?.panel) state.panel.dataset.liveViewMode = state.viewMode || "line";
+    (state.viewButtons || []).forEach((button) => {
+      const active = button.dataset.liveViewMode === state.viewMode;
+      button.classList.toggle("is-active", active);
+      button.setAttribute("aria-pressed", active ? "true" : "false");
+    });
+  }
+
   function bindTrackerPanel(state, tab) {
     const render = state.variant === "modern" ? renderTrackerV2 : renderTracker;
     const run = () => {
@@ -3530,6 +4537,7 @@
       });
     };
     state.runRender = run;
+    syncLiveViewButtons(state);
     state.userLocationEnabled = true;
     writeUserLocationEnabled(true);
     syncUserLocationToggleButton(state);
@@ -3547,6 +4555,16 @@
       run();
     });
     state.directionSelect?.addEventListener("change", run);
+    (state.viewButtons || []).forEach((button) => {
+      button.addEventListener("click", () => {
+        const nextMode = button.dataset.liveViewMode === "geo" ? "geo" : "line";
+        if (state.viewMode === nextMode) return;
+        state.viewMode = nextMode;
+        writeLiveViewMode(nextMode);
+        syncLiveViewButtons(state);
+        run();
+      });
+    });
     let timer = null;
     state.searchInput?.addEventListener("input", () => {
       clearTimeout(timer);
