@@ -3896,7 +3896,7 @@
   async function renderGeoTracker(state, data) {
     const focusedSnapshot = resolveFocusedSnapshot(state, data.visibleSnapshots || []);
     const systemLabel = state.system === "tr" ? "台鐵" : "高鐵";
-    const sourceNote = "";
+    const sourceNote =  "站點使用經緯度；路線優先套用 TDX Shape，無法取得時以站點連線備援。";
     destroyGeoMap(state);
     state.output.innerHTML = `
       <div class="rail-live-geo-layout">
