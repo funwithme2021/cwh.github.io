@@ -3609,8 +3609,9 @@
       button.className = `rail-live-station ${events.length ? "has-alert" : ""} ${events.some((event) => event.kind === "停靠中" || event.kind === "已到終點") ? "is-busy" : ""} ${isSoon ? "is-soon" : ""} ${state.activeStation === station ? "active" : ""}`;
       button.style.top = `${top}px`;
       button.dataset.station = station;
+      const transferBadges = window.RailStationContext?.renderTransferBadges?.(station, { system: state.system }) || "";
       button.innerHTML = `
-        <span class="rail-live-station-name">${escapeHtml(isSoon ? `${station}🔜` : station)}</span>
+        <span class="rail-live-station-name"><span class="rail-live-station-title">${escapeHtml(isSoon ? `${station}🔜` : station)}</span>${transferBadges ? `<span class="rail-live-station-transfer">${transferBadges}</span>` : ""}</span>
         <span class="rail-live-station-node"></span>
       `;
       button.addEventListener("click", () => renderStationDetail(state, station));
@@ -3896,7 +3897,6 @@
   async function renderGeoTracker(state, data) {
     const focusedSnapshot = resolveFocusedSnapshot(state, data.visibleSnapshots || []);
     const systemLabel = state.system === "tr" ? "台鐵" : "高鐵";
-    const sourceNote =  "站點使用經緯度；路線優先套用 TDX Shape，無法取得時以站點連線備援。";
     destroyGeoMap(state);
     state.output.innerHTML = `
       <div class="rail-live-geo-layout">
@@ -3909,7 +3909,7 @@
         </article>
         <section class="rail-live-board rail-live-real-board">
           <div class="rail-live-board-head">
-            <div><h3>${escapeHtml(systemLabel)}全線真實地圖</h3><p>${escapeHtml(sourceNote)}</p></div>
+            <div><h3>${escapeHtml(systemLabel)}全線真實地圖</h3></div>
             <div class="rail-live-board-note">${escapeHtml(`${data.updatedAt} 更新`)}</div>
           </div>
           <div class="rail-live-map rail-live-real-map" aria-label="${escapeHtml(systemLabel)}全線真實地圖"></div>
@@ -4334,7 +4334,11 @@
       .rail-live-line{position:absolute; top:var(--rail-live-line-top, 24px); bottom:var(--rail-live-line-bottom, 24px); left:50%; transform:translateX(-50%); width:8px; border-radius:999px; background:linear-gradient(180deg, rgba(96,128,191,0.92), rgba(113,146,219,0.76));}
       .rail-live-board-empty{position:absolute; top:14px; left:14px; right:14px; padding:12px 14px; border-radius:14px; background:rgba(255,255,255,0.82); color:var(--text-muted); font-size:.84rem; line-height:1.7;}
       .rail-live-station{position:absolute; left:0; right:0; transform:translateY(-50%); display:flex; align-items:center; justify-content:center; background:none; border:none; padding:0; cursor:pointer;}
-      .rail-live-station-name{position:absolute; right:calc(50% + 18px); max-width:calc(50% - 38px); text-align:right; font-size:.84rem; font-weight:800; color:var(--text-main);}
+      .rail-live-station-name{position:absolute; right:calc(50% + 18px); max-width:calc(50% - 38px); display:flex; flex-direction:column; align-items:flex-end; gap:3px; text-align:right; font-size:.84rem; font-weight:800; color:var(--text-main);}
+      .rail-live-station-title{display:block; line-height:1.2;}
+      .rail-live-station-transfer{display:flex; justify-content:flex-end; line-height:1;}
+      .rail-live-station-transfer .rail-transfer-badges{display:inline-flex; flex:0 0 auto; justify-content:flex-end; gap:2px; margin:0;}
+      .rail-live-station-transfer .rail-transfer-logo{width:11px; height:11px;}
       .rail-live-station-node{width:12px; height:12px; border-radius:50%; background:var(--bg-surface); border:3px solid rgba(92,122,183,0.95);}
       .rail-live-station.has-alert .rail-live-station-node{border-color:#f59e0b;}
       .rail-live-station.is-busy .rail-live-station-node{border-color:#ef4444;}
@@ -4417,6 +4421,7 @@
         .rail-live-train-copy{width:150px; min-height:22px; top:-11px;}
         .rail-live-train-copy strong{font-size:.68rem;}
         .rail-live-station-name{font-size:.74rem; max-width:calc(50% - 34px);}
+        .rail-live-station-transfer .rail-transfer-logo{width:10px; height:10px;}
         .rail-live-real-map{min-height:420px; height:68vh!important;}
         .rail-live-real-station-label span{font-size:.68rem;}
         .rail-live-real-station-label .rail-transfer-logo{width:12px; height:12px;}

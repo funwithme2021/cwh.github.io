@@ -4192,8 +4192,8 @@ td{ border-bottom: 1px solid rgba(255,255,255,0.06); }
   </div>
 </div>
 
-<script charset="UTF-8" src="./train.real-schedule.js?v=20260404-stationlive1"></script>
-<script charset="UTF-8" src="../shared/rail-station-query-common.js?v=20260327-station1"></script>
+<script charset="UTF-8" src="./train.real-schedule.js?v=20260419-tdxgate1"></script>
+<script charset="UTF-8" src="../shared/rail-station-query-common.js?v=20260419-common1"></script>
 <script charset="UTF-8" src="../shared/rail-station-timetable-v2.js?v=20260330-stationv2"></script>
 <script charset="UTF-8" src="../shared/rail-stop-weather.js?v=20260418-stopwx10"></script>
 <script charset="UTF-8" src="../shared/rail-station-context.js?v=20260419-context4"></script>
@@ -5338,6 +5338,9 @@ function splitArrDep(stopRow){
 
 
 let _tdxTokenCache = { token: '', exp: 0 }; // exp: ms epoch
+let _tdxTokenPromise = null;
+let _tdxTokenCooldownUntil = 0;
+const _TDX_TOKEN_CACHE_KEY = 'tdx_access_token_cache_v1';
 let _deeplinkInFlight = false;
 let _deeplinkCooldownUntil = 0; // ms epoch
 function _getDeeplinkCooldownMs(resp){
@@ -5347,12 +5350,40 @@ function _getDeeplinkCooldownMs(resp){
   return 12000; // default 12s
 }
 
+function _readSharedTdxAccessToken() {
+  try {
+    const cached = JSON.parse(localStorage.getItem(_TDX_TOKEN_CACHE_KEY) || 'null');
+    const token = String(cached?.token || '');
+    const exp = Number(cached?.expiresAt || 0);
+    if(token && cached?.clientId === TDX_CONFIG.clientId && Date.now() < exp - 30000) {
+      _tdxTokenCache = { token, exp };
+      return token;
+    }
+  } catch(_) {}
+  return '';
+}
+
+function _writeSharedTdxAccessToken(token, expiresInSeconds) {
+  const exp = Date.now() + Math.max(0, Number(expiresInSeconds) || 0) * 1000;
+  _tdxTokenCache = { token: token || '', exp };
+  try {
+    localStorage.setItem(_TDX_TOKEN_CACHE_KEY, JSON.stringify({
+      token: _tdxTokenCache.token,
+      expiresAt: exp,
+      clientId: TDX_CONFIG.clientId
+    }));
+  } catch(_) {}
+}
+
 // 修改 test.html 內的 getTDXAccessToken，確保它能抓到 token
 async function getTDXAccessToken(force = false) {
   // 檢查是否已有快取且未過期
   if (!force && _tdxTokenCache.token && Date.now() < _tdxTokenCache.exp - 30000) {
     return _tdxTokenCache.token;
   }
+  if (!force && _readSharedTdxAccessToken()) return _tdxTokenCache.token;
+  if (!force && _tdxTokenPromise) return _tdxTokenPromise;
+  if (!force && Date.now() < _tdxTokenCooldownUntil) return "";
 
   const tokenUrl = 'https://tdx.transportdata.tw/auth/realms/TDXConnect/protocol/openid-connect/token';
   const body = new URLSearchParams({
@@ -5361,24 +5392,32 @@ async function getTDXAccessToken(force = false) {
     client_secret: TDX_CONFIG.clientSecret // 使用密鑰
   });
 
-  try {
+  _tdxTokenPromise = (async () => {
+    try {
     const res = await fetch(tokenUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: body
     });
 
-    if (!res.ok) throw new Error("認證失敗，請檢查 Key 是否正確");
+    if (!res.ok) {
+      if(res.status === 429) _tdxTokenCooldownUntil = Date.now() + 60000;
+      throw new Error(`認證失敗 HTTP ${res.status}`);
+    }
 
     const data = await res.json();
-    _tdxTokenCache = {
-      token: data.access_token,
-      exp: Date.now() + (data.expires_in * 1000)
-    };
-    return data.access_token;
-  } catch (err) {
-    console.error("TDX Auth Error:", err);
-    return "";
+    _writeSharedTdxAccessToken(data.access_token, data.expires_in);
+    return _tdxTokenCache.token;
+    } catch (err) {
+      console.error("TDX Auth Error:", err);
+      return "";
+    }
+  })();
+
+  try {
+    return await _tdxTokenPromise;
+  } finally {
+    _tdxTokenPromise = null;
   }
 }
 
@@ -6015,8 +6054,7 @@ function renderHistory(){
     await fetchRealData(prevDate);
     prevSchedule = (typeof structuredClone==='function') ? structuredClone(window.trainSchedule) : JSON.parse(JSON.stringify(window.trainSchedule||{}));
 
-    // 抓完再抓回當天（避免 UI 其他功能誤用到 prev）
-    await fetchRealData(dateStr);
+    // 抓完直接還原當天資料，避免同一日期再打一次 TDX。
     window.trainSchedule = baseSchedule;
 
     // 查今天，或查昨天但列車可能仍在運行時，也要抓即時誤點
@@ -11107,7 +11145,7 @@ document.addEventListener('click', (event) => {
 <script charset="UTF-8" src="../shared/rail-network.js?v=20260404-autorefresh1"></script>
 <script charset="UTF-8" src="../shared/rail-master-table.js?v=20260404-autorefresh2"></script>
 <script charset="UTF-8" src="../shared/rail-operation-diagram.js?v=20260404-autorefresh2"></script>
-  <script charset="UTF-8" src="../shared/rail-live-tracker.js?v=20260419-realmap6"></script>
+  <script charset="UTF-8" src="../shared/rail-live-tracker.js?v=20260419-realmap7"></script>
 <script charset="UTF-8" src="../shared/rail-usage-footer.js?v=20260326-footer3"></script>
 <script>
 window.addEventListener('load', () => {

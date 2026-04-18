@@ -5367,7 +5367,6 @@ select.setting-input[id*="pick"] {
                 <button class="portal-link" type="button" onclick="openAppOverlay('tr')">臺鐵查詢</button>
                 <button class="portal-link" type="button" onclick="openAppOverlay('thsr')">高鐵查詢</button>
                 <button class="portal-link" type="button" onclick="openAppOverlay('ai')">智慧查詢</button>
-                <button class="portal-link" type="button" onclick="openAppOverlay('reserve')" hidden>預約搭乘</button>
                 <button class="portal-link" type="button" onclick="toggleSettings(true)">系統設定</button>
                 <button class="portal-link" type="button" onclick="toggleFloatingDock()">更多功能</button>
             </div>
@@ -6406,6 +6405,16 @@ select.setting-input[id*="pick"] {
         let cachedTrainList = { tra: null, thsr: null }; 
         let cachedTrainOptionList = { tra: null, thsr: null };
         let systemAlertState = { tr: null, thsr: null };
+        let tdxTokenExpireAt = 0;
+        let tdxTokenPromise = null;
+        let tdxTokenBackoffUntil = 0;
+        const TDX_TOKEN_CACHE_KEY = 'tdx_access_token_cache_v1';
+        const TDX_TOKEN_REFRESH_BUFFER_MS = 30 * 1000;
+        const TDX_TOKEN_RATE_LIMIT_BACKOFF_MS = 60 * 1000;
+        const SYSTEM_ALERT_CACHE_MS = 90 * 1000;
+        const SYSTEM_ALERT_ENDPOINT_404_BACKOFF_MS = 10 * 60 * 1000;
+        const systemAlertMessageCache = {};
+        const systemAlertEndpointBackoff = {};
         const rotatingTextTimers = {};
         let assistantRouteCache = { date: '', tra: null, thsr: null };
         const HOME_QUICK_PAGE_SIZE = 3;
@@ -6653,6 +6662,11 @@ select.setting-input[id*="pick"] {
             return null;
         }
         async function fetchAlertMessages(system, headers) {
+            const cacheKey = system === 'thsr' ? 'thsr' : 'tr';
+            const cached = systemAlertMessageCache[cacheKey];
+            if (cached && Date.now() - Number(cached.ts || 0) < SYSTEM_ALERT_CACHE_MS) {
+                return (cached.messages || []).slice();
+            }
             const urls = system === 'tr'
                 ? [
                     'https://tdx.transportdata.tw/api/basic/v2/Rail/TRA/Alert?$format=JSON',
@@ -6666,16 +6680,26 @@ select.setting-input[id*="pick"] {
                 ];
             const collected = [];
             for (const url of urls) {
+                if (Date.now() < Number(systemAlertEndpointBackoff[url] || 0)) continue;
                 try {
-                    const res = await fetch(url, { headers });
-                    if (!res.ok) continue;
+                    const res = await fetchWithTimeout(url, { headers }, 7000);
+                    if (!res.ok) {
+                        if (res.status === 404) systemAlertEndpointBackoff[url] = Date.now() + SYSTEM_ALERT_ENDPOINT_404_BACKOFF_MS;
+                        if (res.status === 429) {
+                            systemAlertEndpointBackoff[url] = Date.now() + TDX_TOKEN_RATE_LIMIT_BACKOFF_MS;
+                            break;
+                        }
+                        continue;
+                    }
                     const data = await res.json();
                     const records = normalizeAlertRecords(data);
                     if (!records) continue;
                     collected.push(...records.map(buildAlertMessage));
                 } catch (e) {}
             }
-            return uniqueTexts(collected);
+            const messages = uniqueTexts(collected);
+            systemAlertMessageCache[cacheKey] = { ts: Date.now(), messages };
+            return messages.slice();
         }
         function summarizeMessages(messages, maxItems = 2) {
             const unique = uniqueTexts(messages);
@@ -7169,7 +7193,8 @@ select.setting-input[id*="pick"] {
                     ? 'https://tdx.transportdata.tw/api/basic/v2/Rail/THSR/StationLiveBoard?%24format=JSON'
                     : 'https://tdx.transportdata.tw/api/basic/v3/Rail/TRA/StationLiveBoard?%24format=JSON';
                 try {
-                    const res = await fetch(endpoint, { headers });
+                    if (Date.now() < Number(systemAlertEndpointBackoff[endpoint] || 0)) return '';
+                    const res = await fetchWithTimeout(endpoint, { headers }, 7000);
                     if (res.ok) {
                         const data = await res.json();
                         const rows = Array.isArray(data?.StationLiveBoards)
@@ -7194,6 +7219,8 @@ select.setting-input[id*="pick"] {
                                 : '建議預留轉乘時間';
                             return `${systemLabel}${normalizeHomeDisplayText(station.name)}站周邊列車${levelText}，平均約延誤 ${Math.max(1, Math.round(avgDelay))} 分，${adviceText}`;
                         }
+                    } else if (res.status === 404 || res.status === 429) {
+                        systemAlertEndpointBackoff[endpoint] = Date.now() + (res.status === 404 ? SYSTEM_ALERT_ENDPOINT_404_BACKOFF_MS : TDX_TOKEN_RATE_LIMIT_BACKOFF_MS);
                     }
                 } catch (e) { }
                 return '';
@@ -7699,27 +7726,84 @@ select.setting-input[id*="pick"] {
                 .finally(() => clearTimeout(timer));
         }
 
-        async function getTdxToken() {
+        function readSharedTdxToken() {
             try {
-                const params = new URLSearchParams();
-                params.append('grant_type', 'client_credentials');
-                params.append('client_id', TDX_CONFIG.clientId);
-                params.append('client_secret', TDX_CONFIG.clientSecret);
-
-                const res = await fetchWithTimeout('https://tdx.transportdata.tw/auth/realms/TDXConnect/protocol/openid-connect/token', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                    body: params
-                }, 9000);
-                const data = await res.json();
-                if(data.access_token) {
-                    tdxToken = data.access_token;
-                    checkSystemAlerts();
-                    fetchAllStations();
-                    return true;
+                const cached = JSON.parse(localStorage.getItem(TDX_TOKEN_CACHE_KEY) || 'null');
+                const expiresAt = Number(cached?.expiresAt || 0);
+                const token = String(cached?.token || '');
+                if (
+                    token &&
+                    cached?.clientId === TDX_CONFIG.clientId &&
+                    Date.now() < expiresAt - TDX_TOKEN_REFRESH_BUFFER_MS
+                ) {
+                    tdxToken = token;
+                    tdxTokenExpireAt = expiresAt;
+                    window.tdxToken = tdxToken;
+                    return token;
                 }
-            } catch (e) { console.error("Token Error:", e); }
-            return false;
+            } catch (e) { }
+            return '';
+        }
+
+        function writeSharedTdxToken(token, expiresInSeconds) {
+            const expiresAt = Date.now() + Math.max(0, Number(expiresInSeconds) || 0) * 1000;
+            tdxToken = token || null;
+            tdxTokenExpireAt = expiresAt;
+            window.tdxToken = tdxToken;
+            try {
+                localStorage.setItem(TDX_TOKEN_CACHE_KEY, JSON.stringify({
+                    token,
+                    expiresAt,
+                    clientId: TDX_CONFIG.clientId
+                }));
+            } catch (e) { }
+        }
+
+        async function getTdxToken(force = false) {
+            if (
+                !force &&
+                tdxToken &&
+                Date.now() < tdxTokenExpireAt - TDX_TOKEN_REFRESH_BUFFER_MS
+            ) {
+                return true;
+            }
+            if (!force && readSharedTdxToken()) return true;
+            if (!force && tdxTokenPromise) return tdxTokenPromise;
+            if (!force && Date.now() < tdxTokenBackoffUntil) return false;
+
+            tdxTokenPromise = (async () => {
+                try {
+                    const params = new URLSearchParams();
+                    params.append('grant_type', 'client_credentials');
+                    params.append('client_id', TDX_CONFIG.clientId);
+                    params.append('client_secret', TDX_CONFIG.clientSecret);
+
+                    const res = await fetchWithTimeout('https://tdx.transportdata.tw/auth/realms/TDXConnect/protocol/openid-connect/token', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                        body: params
+                    }, 9000);
+                    if (!res.ok) {
+                        if (res.status === 429) tdxTokenBackoffUntil = Date.now() + TDX_TOKEN_RATE_LIMIT_BACKOFF_MS;
+                        const errorText = await res.text().catch(() => '');
+                        throw new Error(`TDX token HTTP ${res.status}${errorText ? ` ${errorText}` : ''}`);
+                    }
+                    const data = await res.json();
+                    if (data.access_token) {
+                        writeSharedTdxToken(data.access_token, data.expires_in);
+                        return true;
+                    }
+                } catch (e) {
+                    console.error("Token Error:", e);
+                }
+                return false;
+            })();
+
+            try {
+                return await tdxTokenPromise;
+            } finally {
+                tdxTokenPromise = null;
+            }
         }
 
         async function fetchAllStations(force = false) {
@@ -13001,6 +13085,7 @@ ${dayNightOrb(56, 30, 16)}
     await updateStatus("正在更新全台車站資料...", 600);
     if (success) {
         try { await fetchAllStations(); } catch (e) { }
+        checkSystemAlerts().catch(() => {});
         if (typeof window.refreshHomeLocationWeather === 'function') window.refreshHomeLocationWeather({ silent: true });
         ensureHomeGeoWatcher();
     }

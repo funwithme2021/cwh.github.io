@@ -30,6 +30,11 @@ window.trainSchedule = {};
 // 全域變數，保持與原網頁邏輯銜接
 let accessToken = "";
 let accessTokenExpireAt = 0;
+let accessTokenPromise = null;
+let accessTokenBackoffUntil = 0;
+const TDX_TOKEN_CACHE_KEY = 'tdx_access_token_cache_v1';
+const TDX_TOKEN_REFRESH_BUFFER_MS = 30 * 1000;
+const TDX_TOKEN_RATE_LIMIT_BACKOFF_MS = 60 * 1000;
 let stationMap = {}; // ID 轉 中文名
 let liveDelayMap = {};
 let stationLiveBoardMap = {};
@@ -107,6 +112,36 @@ function normalizeTraTypeName(typeName) {
 // 1. 取得 TDX 存取權杖 (Access Token)
 function isAccessTokenValid() {
     return !!accessToken && Date.now() < (accessTokenExpireAt - 30000);
+}
+
+function readSharedAccessToken() {
+    try {
+        const cached = JSON.parse(localStorage.getItem(TDX_TOKEN_CACHE_KEY) || 'null');
+        const token = String(cached?.token || '');
+        const expiresAt = Number(cached?.expiresAt || 0);
+        if (
+            token &&
+            cached?.clientId === TDX_CONFIG.clientId &&
+            Date.now() < expiresAt - TDX_TOKEN_REFRESH_BUFFER_MS
+        ) {
+            accessToken = token;
+            accessTokenExpireAt = expiresAt;
+            return token;
+        }
+    } catch (_) {}
+    return "";
+}
+
+function writeSharedAccessToken(token, expiresInSeconds) {
+    accessToken = token || "";
+    accessTokenExpireAt = Date.now() + Math.max(0, Number(expiresInSeconds) || 0) * 1000;
+    try {
+        localStorage.setItem(TDX_TOKEN_CACHE_KEY, JSON.stringify({
+            token: accessToken,
+            expiresAt: accessTokenExpireAt,
+            clientId: TDX_CONFIG.clientId
+        }));
+    } catch (_) {}
 }
 
 function getTdxClientId() {
@@ -232,6 +267,49 @@ async function getAccessToken(force = false) {
     }
 }
 
+getAccessToken = async function(force = false) {
+    if (!force && isAccessTokenValid()) return accessToken;
+    if (!force && readSharedAccessToken()) return accessToken;
+    if (!force && accessTokenPromise) return accessTokenPromise;
+    if (!force && Date.now() < accessTokenBackoffUntil) return "";
+
+    accessTokenPromise = (async () => {
+        try {
+            const params = new URLSearchParams();
+            params.append('grant_type', 'client_credentials');
+            params.append('client_id', TDX_CONFIG.clientId);
+            params.append('client_secret', TDX_CONFIG.clientSecret);
+
+            const res = await fetch("https://tdx.transportdata.tw/auth/realms/TDXConnect/protocol/openid-connect/token", {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: params
+            });
+
+            if (!res.ok) {
+                if (res.status === 429) accessTokenBackoffUntil = Date.now() + TDX_TOKEN_RATE_LIMIT_BACKOFF_MS;
+                const errorText = await res.text().catch(() => "");
+                throw new Error(`Token fetch failed: ${res.status} ${errorText}`);
+            }
+
+            const data = await res.json();
+            writeSharedAccessToken(data.access_token || "", data.expires_in);
+            return accessToken;
+        } catch (error) {
+            accessToken = "";
+            accessTokenExpireAt = 0;
+            console.error("Critical Error (getAccessToken):", error);
+            return "";
+        }
+    })();
+
+    try {
+        return await accessTokenPromise;
+    } finally {
+        accessTokenPromise = null;
+    }
+};
+
 async function updateStationLiveBoard(token) {
     try {
         const stationRes = await fetch("https://tdx.transportdata.tw/api/basic/v3/Rail/TRA/StationLiveBoard?%24format=JSON", {
@@ -281,13 +359,15 @@ async function initStationMap() {
         const res = await fetch("https://tdx.transportdata.tw/api/basic/v3/Rail/TRA/Station?%24format=JSON", {
             headers: buildTdxAuthHeaders(token, { includeApiKey: false })
         });
+        if (!res.ok) throw new Error(`Station fetch failed: ${res.status}`);
         const data = await res.json();
 
         // ✅ 重建並寫回 window.stationMap，確保 HTML 端拿得到
         window.stationMap = {};
         window.stationGeoList = [];
         window.stationGeoMap = {};
-        data.Stations.forEach(s => {
+        const rows = Array.isArray(data?.Stations) ? data.Stations : [];
+        rows.forEach(s => {
             const name = s?.StationName?.Zh_tw || '';
             const lat = Number(s?.StationPosition?.PositionLat);
             const lon = Number(s?.StationPosition?.PositionLon);
@@ -313,12 +393,14 @@ async function fetchRealData(date) {
     try {
         const url = `https://tdx.transportdata.tw/api/basic/v3/Rail/TRA/DailyTrainTimetable/TrainDate/${date}?%24format=JSON`;
         const res = await fetch(url, { headers: buildTdxAuthHeaders(token, { includeApiKey: false }) });
+        if (!res.ok) throw new Error(`DailyTrainTimetable fetch failed: ${res.status}`);
         const data = await res.json();
 
         const translated = {};
 
         // 這裡對應你貼出的 TrainTimetables 結構
-        data.TrainTimetables.forEach(item => {
+        const rows = Array.isArray(data?.TrainTimetables) ? data.TrainTimetables : [];
+        rows.forEach(item => {
             const info = item.TrainInfo;
             const trainNo = info.TrainNo;
 
@@ -357,10 +439,12 @@ async function updateLiveDelay() {
         const res = await fetch("https://tdx.transportdata.tw/api/basic/v3/Rail/TRA/TrainLiveBoard?%24format=JSON", {
             headers: buildTdxAuthHeaders(token, { includeApiKey: false })
         });
+        if (!res.ok) throw new Error(`TrainLiveBoard fetch failed: ${res.status}`);
         const data = await res.json();
         liveDelayMap = {};
         liveBoardMap = {};
-        data.TrainLiveBoards.forEach(b => {
+        const rows = Array.isArray(data?.TrainLiveBoards) ? data.TrainLiveBoards : [];
+        rows.forEach(b => {
             const trainNo = String(b?.TrainNo || '').trim();
             if (!trainNo) return;
             const delayMin = Number(b?.DelayTime);
