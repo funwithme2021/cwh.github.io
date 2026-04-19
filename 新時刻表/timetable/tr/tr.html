@@ -6110,6 +6110,8 @@ function renderHistory(){
       originDateByKey[key] = prevDate;
       scheduleKeyList.push({ key, trainNo, originDate: prevDate, data: prevSchedule[trainNo] });
     });
+    transferScheduleIndexCache = null;
+    transferDateMinuteBaseCache.clear();
 
     fillStationDatalist('');
     fillTrainDatalist('');
@@ -6392,6 +6394,8 @@ function renderHistory(){
 // ===== 點對點 / 轉乘 =====
   let currentStartEndList=[];
   let currentTransferList=[];
+  let transferScheduleIndexCache = null;
+  const transferDateMinuteBaseCache = new Map();
 
   function runStartEndSearch(){
   return new Promise((resolve)=>{
@@ -6543,6 +6547,167 @@ const stopsCount = ei - si - 1;
     }
     currentStartEndList = list;
   }
+
+function getTransferExactKey(station){
+  return `e:${normTW(station)}`;
+}
+
+function getTransferDisplayKey(station){
+  return `d:${displayTraStationName(station)}`;
+}
+
+function pushTransferIndex(map, key, index){
+  if(!key) return;
+  if(!map.has(key)) map.set(key, []);
+  map.get(key).push(index);
+}
+
+function findTransferIndexInList(indices, startAt){
+  if(!Array.isArray(indices)) return -1;
+  const from = Math.max(0, Number(startAt) || 0);
+  for(let i=0;i<indices.length;i++){
+    const index = indices[i];
+    if(index >= from) return index;
+  }
+  return -1;
+}
+
+function findIndexedTraStopIndex(entry, station, startAt = 0){
+  if(!entry) return -1;
+  const exact = findTransferIndexInList(entry.exactStopMap.get(getTransferExactKey(station)), startAt);
+  if(exact >= 0) return exact;
+  return findTransferIndexInList(entry.displayStopMap.get(getTransferDisplayKey(station)), startAt);
+}
+
+function getIndexedTraStopIndices(entry, station){
+  if(!entry) return [];
+  const exact = entry.exactStopMap.get(getTransferExactKey(station));
+  if(Array.isArray(exact) && exact.length) return exact;
+  return entry.displayStopMap.get(getTransferDisplayKey(station)) || [];
+}
+
+function getTransferDateMinuteBase(dateStr){
+  const key = String(dateStr || '');
+  if(transferDateMinuteBaseCache.has(key)) return transferDateMinuteBaseCache.get(key);
+  const date = parseDateYMD(key);
+  const value = date ? Math.round(date.getTime() / 60000) : null;
+  transferDateMinuteBaseCache.set(key, value);
+  return value;
+}
+
+function getTransferGlobalMinute(originDate, absMin){
+  if(absMin === null || absMin === undefined) return null;
+  const base = getTransferDateMinuteBase(originDate);
+  if(base === null || base === undefined) return null;
+  return base + Number(absMin);
+}
+
+function buildTransferScheduleEntry(inst){
+  const data = inst?.data;
+  const stops = data?.['車站時間'] || [];
+  if(!data || stops.length < 2) return null;
+
+  const abs = buildAbsArrDep(stops);
+  const exactStopMap = new Map();
+  const displayStopMap = new Map();
+  const meta = stops.map((row, index)=>{
+    const ad = splitArrDep(row);
+    const station = row?.[0] || '';
+    pushTransferIndex(exactStopMap, getTransferExactKey(station), index);
+    pushTransferIndex(displayStopMap, getTransferDisplayKey(station), index);
+    return {
+      row,
+      station,
+      arr: ad.arr || '',
+      dep: ad.dep || '',
+      arrAbs: abs.absArr[index],
+      depAbs: abs.absDep[index],
+    };
+  });
+
+  return {
+    inst,
+    key: inst.key,
+    trainNo: String(inst.trainNo),
+    originDate: inst.originDate,
+    data,
+    type: data['車種'],
+    rawType: data['原始車種'] || '',
+    stops,
+    meta,
+    exactStopMap,
+    displayStopMap,
+  };
+}
+
+function getTransferScheduleIndex(){
+  const key = (scheduleKeyList || []).map((inst)=>inst?.key || '').join('|');
+  if(transferScheduleIndexCache?.key === key) return transferScheduleIndexCache;
+  const entries = (scheduleKeyList || [])
+    .map(buildTransferScheduleEntry)
+    .filter(Boolean);
+  transferScheduleIndexCache = { key, entries };
+  return transferScheduleIndexCache;
+}
+
+function addSecondLegCandidate(map, key, candidate){
+  if(!key) return;
+  if(!map.has(key)) map.set(key, []);
+  map.get(key).push(candidate);
+}
+
+function buildTransferSecondLegIndex(entries, ed){
+  const map = new Map();
+  entries.forEach(entry2=>{
+    getIndexedTraStopIndices(entry2, ed).forEach(eIdx2=>{
+      if(eIdx2 <= 0) return;
+      const endMeta = entry2.meta[eIdx2];
+      const endArrAbs = endMeta.arrAbs ?? endMeta.depAbs;
+      const endArrStr = endMeta.arr || endMeta.dep || '--';
+      const endGlobal = getTransferGlobalMinute(entry2.originDate, endArrAbs);
+      if(endArrAbs === null || endArrAbs === undefined || endGlobal === null) return;
+
+      for(let midIdx=0; midIdx<eIdx2; midIdx++){
+        const midMeta = entry2.meta[midIdx];
+        const midDepAbs = midMeta.depAbs ?? midMeta.arrAbs;
+        const midDepStr = midMeta.dep || midMeta.arr || '--';
+        const midDepGlobal = getTransferGlobalMinute(entry2.originDate, midDepAbs);
+        if(midDepAbs === null || midDepAbs === undefined || midDepGlobal === null) continue;
+
+        const candidate = {
+          entry: entry2,
+          midIdx,
+          eIdx: eIdx2,
+          midDepAbs,
+          midDepStr,
+          midDepGlobal,
+          endArrAbs,
+          endArrStr,
+          endGlobal,
+        };
+        addSecondLegCandidate(map, getTransferExactKey(midMeta.station), candidate);
+        addSecondLegCandidate(map, getTransferDisplayKey(midMeta.station), candidate);
+      }
+    });
+  });
+  return map;
+}
+
+function getSecondLegCandidates(map, station){
+  const exact = map.get(getTransferExactKey(station)) || [];
+  const display = map.get(getTransferDisplayKey(station)) || [];
+  if(!exact.length) return display;
+  if(!display.length) return exact;
+  const seen = new Set();
+  const merged = [];
+  exact.concat(display).forEach(candidate=>{
+    const key = `${candidate.entry.key}|${candidate.midIdx}|${candidate.eIdx}`;
+    if(seen.has(key)) return;
+    seen.add(key);
+    merged.push(candidate);
+  });
+  return merged;
+}
 
 
 
@@ -7011,175 +7176,147 @@ function renderTimeWithDelay(trainNo, schedHHMM, queryDateStr, opts, baseAbsMin=
 function buildTransferList(st, ed){
   // 轉乘模式：同一個「出發班次 n1」只保留「耗時最短」的一個方案（可能是直達，也可能是轉乘）
   // 顯示日期判斷：以「出發站 st 的時刻」落在哪一天為準（比照高鐵版）
-  const insts = scheduleKeyList || [];
+  const index = getTransferScheduleIndex();
   const selectedTypes = new Set((selectedTrainTypesStartEnd || []).map((value)=>String(value || '')));
-  // 先依車種縮小候選池，再從候選池重新組轉乘方案，避免只是對既有結果做後篩選。
-  const candidateInsts = selectedTypes.size
-    ? insts.filter((inst)=>inst?.data && selectedTypes.has(String(inst.data['車種'] || '')))
-    : insts.slice();
+  // 先依車種縮小候選池，再建立「轉乘站 -> 第二段候選」索引，避免 n1*n2 全表掃描。
+  const candidateEntries = selectedTypes.size
+    ? index.entries.filter((entry)=>entry?.data && selectedTypes.has(String(entry.type || '')))
+    : index.entries.slice();
+  const selectedKey = selectedTypes.size ? Array.from(selectedTypes).sort().join('|') : '*';
+  const secondLegCacheKey = `${selectedKey}|${normTW(ed)}|${displayTraStationName(ed)}`;
+  if(!index.secondLegCache) index.secondLegCache = new Map();
+  let secondLegByMid = index.secondLegCache.get(secondLegCacheKey);
+  if(!secondLegByMid){
+    secondLegByMid = buildTransferSecondLegIndex(candidateEntries, ed);
+    index.secondLegCache.set(secondLegCacheKey, secondLegByMid);
+  }
   const plans = []; // {n1, n2?, ...}
 
-  candidateInsts.forEach(inst1=>{
-    const n1 = String(inst1.trainNo);
-    const t1 = inst1.data;
-    const originDate1 = inst1.originDate;
-
-    if(!t1) return;
-
-    const a1 = t1['車站時間']||[];
+  candidateEntries.forEach(entry1=>{
+    const n1 = String(entry1.trainNo);
+    const t1 = entry1.data;
+    const originDate1 = entry1.originDate;
+    const a1 = entry1.stops || [];
     if(a1.length < 2) return;
 
-    const sIdx = findTraStopIndex(a1, st);
+    const sIdx = findIndexedTraStopIndex(entry1, st);
     if(sIdx < 0) return;
 
-    const abs1 = buildAbsArrDep(a1);
-
     // ✅ 以「查詢出發站 st」的開車時間作為方案出發時間與耗時計算基準
-    const stDepStr = (splitArrDep(a1[sIdx]||[]).dep || splitArrDep(a1[sIdx]||[]).arr || '--');
-    const stDepAbs = abs1.absDep[sIdx] ?? abs1.absArr[sIdx];
+    const stMeta = entry1.meta[sIdx];
+    const stDepStr = (stMeta.dep || stMeta.arr || '--');
+    const stDepAbs = stMeta.depAbs ?? stMeta.arrAbs;
     if(stDepAbs === null || stDepAbs === undefined) return;
+    const stDepGlobal = getTransferGlobalMinute(originDate1, stDepAbs);
+    if(stDepGlobal === null) return;
 
     const stDepAdj = getAdjustedTime(n1, stDepStr, currentQueryDateStr, stDepAbs, originDate1);
     const depStopDateStr = getDisplayStopDateStr(stDepAdj, originDate1, stDepAbs);
     if(depStopDateStr !== currentQueryDateStr) return;
-
-    const depDT = buildDateTimeFromDateAndHHMM(getStopDateStr(originDate1, stDepAbs), stDepStr);
-    if(!depDT) return;
 
     const originStation = a1[0]?.[0] || '';
 
     // 試算「直達方案」
     let bestPlan = null;
 
-    const eIdxDirect = findTraStopIndex(a1, ed, sIdx + 1);
+    const status = getTrainStatusLabel(
+      n1,
+      originDate1,
+      (a1[0]?.[2]||a1[0]?.[1]||''),
+      (a1.slice(-1)[0]?.[1]||a1.slice(-1)[0]?.[2]||''),
+      stDepAbs,
+      a1,
+      sIdx
+    );
+    const suppressPassed = (status === '已過站' || status === '已到終點' || status === '已到終點站');
+    const depSortMin = (suppressPassed ? (parseTime(stDepStr) ?? 9999) : (stDepAdj.adjMin ?? 9999));
+
+    const eIdxDirect = findIndexedTraStopIndex(entry1, ed, sIdx + 1);
     if(eIdxDirect >= 0 && eIdxDirect > sIdx){
-      const endArrStr = (splitArrDep(a1[eIdxDirect]||[]).arr || splitArrDep(a1[eIdxDirect]||[]).dep || '--');
-      const endArrAbs = abs1.absArr[eIdxDirect] ?? abs1.absDep[eIdxDirect];
+      const endMeta = entry1.meta[eIdxDirect];
+      const endArrStr = (endMeta.arr || endMeta.dep || '--');
+      const endArrAbs = endMeta.arrAbs ?? endMeta.depAbs;
 
       if(endArrAbs !== null && endArrAbs !== undefined){
-        const endArrDateStr = getStopDateStr(originDate1, endArrAbs);
-        const endArrDT = buildDateTimeFromDateAndHHMM(endArrDateStr, endArrStr);
-        if(endArrDT){
-          const travelMin = Math.round((endArrDT - depDT)/60000);
-          if(Number.isFinite(travelMin) && travelMin >= 0){
-            const status = getTrainStatusLabel(
-              n1,
-              originDate1,
-              (a1[0]?.[2]||a1[0]?.[1]||''),
-              (a1.slice(-1)[0]?.[1]||a1.slice(-1)[0]?.[2]||''),
-              stDepAbs,
-              a1,
-              sIdx
-            );
-            const suppressPassed = (status === '已過站' || status === '已到終點' || status === '已到終點站');
+        const endGlobal = getTransferGlobalMinute(originDate1, endArrAbs);
+        const travelMin = endGlobal === null ? null : Math.round(endGlobal - stDepGlobal);
+        if(Number.isFinite(travelMin) && travelMin >= 0){
+          const endArrAdj = getAdjustedTime(n1, endArrStr, currentQueryDateStr, endArrAbs, originDate1);
 
-            const endArrAdj = getAdjustedTime(n1, endArrStr, currentQueryDateStr, endArrAbs, originDate1);
+          bestPlan = {
+            trainNumber: String(n1),
+            n1,
+            n2: null,
+            originDate1,
+            originDate2: null,
 
-            bestPlan = {
-              trainNumber: String(n1),
-              n1,
-              n2: null,
-              originDate1,
-              originDate2: null,
+            type1: t1['車種'],
+            rawType1: t1['原始車種'] || '',
+            type2: null,
+            isDirect: true,
+            startStation: st,
+            endStation: ed,
+            transferStation: null,
 
-              type1: t1['車種'],
-              rawType1: t1['原始車種'] || '',
-              type2: null,
-              isDirect: true,
-              startStation: st,
-              endStation: ed,
-              transferStation: null,
+            originStation,
+            stDepAbs,
+            arrAbs: endArrAbs,
+            depSched: stDepStr,
+            depHTML: renderTimeWithDelay(n1, stDepStr, currentQueryDateStr, { suppressStrike: suppressPassed }, stDepAbs, originDate1),
+            startDepAtQueryStation: stDepStr,
 
-              originStation,
-              stDepAbs,
-              arrAbs: endArrAbs,
-              depSched: stDepStr,
-              depHTML: renderTimeWithDelay(n1, stDepStr, currentQueryDateStr, { suppressStrike: suppressPassed }, stDepAbs, originDate1),
-              startDepAtQueryStation: stDepStr,
+            arrSched: endArrStr,
+            arrHTML: renderTimeWithDelay(n1, endArrStr, currentQueryDateStr, { suppressStrike: suppressPassed }, endArrAbs, originDate1),
 
-              arrSched: endArrStr,
-              arrHTML: renderTimeWithDelay(n1, endArrStr, currentQueryDateStr, { suppressStrike: suppressPassed }, endArrAbs, originDate1),
+            depSortMin,
+            arrSortMin: (suppressPassed ? (parseTime(endArrStr) ?? 9999) : (endArrAdj.adjMin ?? 9999)),
 
-              depSortMin: (suppressPassed ? (parseTime(stDepStr) ?? 9999) : (stDepAdj.adjMin ?? 9999)),
-              arrSortMin: (suppressPassed ? (parseTime(endArrStr) ?? 9999) : (endArrAdj.adjMin ?? 9999)),
-
-              travelMin,
-              travel: `${Math.floor(travelMin/60)}h ${travelMin%60}m`,
-              status
-            };
-          }
+            travelMin,
+            travel: `${Math.floor(travelMin/60)}h ${travelMin%60}m`,
+            status
+          };
         }
       }
     }
 
     // 試算「轉乘方案」：n1 (st -> mid) + n2 (mid -> ed)
-    candidateInsts.forEach(inst2=>{
-      const n2 = String(inst2.trainNo);
-      if(n2 === n1) return;
+    for(let i=sIdx+1;i<a1.length;i++){
+      const midMeta1 = entry1.meta[i];
+      const mid = midMeta1.station;
+      const midArrStr1 = (midMeta1.arr || midMeta1.dep || '--');
+      const midArrAbs1 = midMeta1.arrAbs ?? midMeta1.depAbs;
+      if(midArrAbs1 === null || midArrAbs1 === undefined) continue;
+      const midArrGlobal1 = getTransferGlobalMinute(originDate1, midArrAbs1);
+      if(midArrGlobal1 === null) continue;
 
-      const t2 = inst2.data;
-      const originDate2 = inst2.originDate;
-      if(!t2) return;
+      const secondCandidates = getSecondLegCandidates(secondLegByMid, mid);
+      for(let j=0;j<secondCandidates.length;j++){
+        const second = secondCandidates[j];
+        const entry2 = second.entry;
+        const n2 = String(entry2.trainNo);
+        if(n2 === n1) continue;
+        if(second.midIdx !== findIndexedTraStopIndex(entry2, mid, 0)) continue;
+        if(second.eIdx !== findIndexedTraStopIndex(entry2, ed, second.midIdx + 1)) continue;
 
-      const a2 = t2['車站時間']||[];
-      if(a2.length < 2) return;
-
-      const abs2 = buildAbsArrDep(a2);
-
-      for(let i=sIdx+1;i<a1.length;i++){
-        const mid = a1[i][0];
-
-        const midIdx2 = findTraStopIndex(a2, mid);
-        if(midIdx2 < 0) continue;
-        const eIdx2 = findTraStopIndex(a2, ed, midIdx2 + 1);
-        if(eIdx2 < 0) continue;
-        const endArrAbs2 = abs2.absArr[eIdx2] ?? abs2.absDep[eIdx2];
-        const endArrStr2 = (splitArrDep(a2[eIdx2]||[]).arr || splitArrDep(a2[eIdx2]||[]).dep || '--');
-        if(endArrAbs2 === null || endArrAbs2 === undefined) continue;
-
-        const endArrDateStr2 = getStopDateStr(originDate2, endArrAbs2);
-        const endArrDT2 = buildDateTimeFromDateAndHHMM(endArrDateStr2, endArrStr2);
-        if(!endArrDT2) continue;
-
-        const midArrStr1 = (splitArrDep(a1[i]||[]).arr || splitArrDep(a1[i]||[]).dep || '--');
-        const midArrAbs1 = abs1.absArr[i] ?? abs1.absDep[i];
-        if(midArrAbs1 === null || midArrAbs1 === undefined) continue;
-
-        const midArrDateStr1 = getStopDateStr(originDate1, midArrAbs1);
-        const midArrDT1 = buildDateTimeFromDateAndHHMM(midArrDateStr1, midArrStr1);
-        if(!midArrDT1) continue;
-
-        const midDepStr2 = (splitArrDep(a2[midIdx2]||[]).dep || splitArrDep(a2[midIdx2]||[]).arr || '--');
-        const midDepAbs2 = abs2.absDep[midIdx2] ?? abs2.absArr[midIdx2];
-        if(midDepAbs2 === null || midDepAbs2 === undefined) continue;
-
-        const midDepDateStr2 = getStopDateStr(originDate2, midDepAbs2);
-        const midDepDT2 = buildDateTimeFromDateAndHHMM(midDepDateStr2, midDepStr2);
-        if(!midDepDT2) continue;
-
-        const waitMin = Math.round((midDepDT2 - midArrDT1)/60000);
+        const waitMin = Math.round(second.midDepGlobal - midArrGlobal1);
         if(!Number.isFinite(waitMin) || waitMin < 0) continue;
 
         // 轉乘等待上限維持原本精神（避免過長等待）
         if(waitMin > 90) continue;
 
-        const travelMin = Math.round((endArrDT2 - depDT)/60000);
+        const travelMin = Math.round(second.endGlobal - stDepGlobal);
         if(!Number.isFinite(travelMin) || travelMin < 0) continue;
+        if(bestPlan && travelMin >= bestPlan.travelMin) continue;
 
-        const status = getTrainStatusLabel(
-          n1,
-          originDate1,
-          (a1[0]?.[2]||a1[0]?.[1]||''),
-          (a1.slice(-1)[0]?.[1]||a1.slice(-1)[0]?.[2]||''),
-          stDepAbs,
-          a1,
-          sIdx
-        );
-        const suppressPassed = (status === '已過站' || status === '已到終點' || status === '已到終點站');
-
+        const t2 = entry2.data;
+        const originDate2 = entry2.originDate;
+        const midDepStr2 = second.midDepStr;
+        const midDepAbs2 = second.midDepAbs;
+        const endArrStr2 = second.endArrStr;
+        const endArrAbs2 = second.endArrAbs;
         const endArrAdj2 = getAdjustedTime(n2, endArrStr2, currentQueryDateStr, endArrAbs2, originDate2);
 
-        const candidate = {
+        bestPlan = {
           trainNumber: `${n1}+${n2}`,
           n1,
           n2,
@@ -7219,12 +7356,8 @@ function buildTransferList(st, ed){
           travel: `${Math.floor(travelMin/60)}h ${travelMin%60}m`,
           status
         };
-
-        if(!bestPlan || candidate.travelMin < bestPlan.travelMin){
-          bestPlan = candidate;
-        }
       }
-    });
+    }
 
     if(bestPlan) plans.push(bestPlan);
   });
