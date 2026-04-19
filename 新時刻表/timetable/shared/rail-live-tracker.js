@@ -4721,18 +4721,26 @@
 
       destroyGeoMap(state);
       state.output.innerHTML = `
-        <div class="rail-live-summary">
-          <div class="rail-live-chip"><span>更新時間</span><strong>${updatedAt}</strong><small>${escapeHtml(note)}</small></div>
-          <div class="rail-live-chip"><span>路線範圍</span><strong>${escapeHtml(segment.title)}</strong><small>${escapeHtml(segment.subtitle || segment.groupTitle || "")}</small></div>
-          <div class="rail-live-chip"><span>行進中 / 停靠中 / 即將發車</span><strong>${snapshots.filter((snapshot) => snapshot.state === "running").length} / ${snapshots.filter((snapshot) => snapshot.state === "dwell").length} / ${snapshots.filter((snapshot) => snapshot.state === "upcoming").length}</strong><small>點選車站可查看 10 分鐘內的進出站列車</small></div>
-        </div>
         <div class="rail-live-layout">
-          <section class="rail-live-board">
-            <div class="rail-live-board-head">
-              <div><h3>${escapeHtml(segment.title)}</h3><p>${escapeHtml(segment.subtitle || segment.groupTitle || "")}</p></div>
-              <div class="rail-live-board-note">${escapeHtml(state.system === "tr" ? "順行 / 逆行依車次方向顯示" : "北上 / 南下依車次方向顯示")}</div>
+          <section class="rail-live-line-shell">
+            <div class="rail-live-line-head">
+              <div>
+                <h3>${escapeHtml(segment.title)}</h3>
+                <p>${escapeHtml(segment.subtitle || segment.groupTitle || "")}</p>
+              </div>
+              <div class="rail-live-line-meta">
+                <strong>${updatedAt}</strong>
+                <span>${escapeHtml(note)}</span>
+                <small>${escapeHtml(state.system === "tr" ? "順行 / 逆行依車次方向顯示" : "北上 / 南下依車次方向顯示")}</small>
+              </div>
             </div>
-            <div class="rail-live-map" style="height:${boardHeight}px; --rail-live-line-top:${MAP_PADDING_Y}px; --rail-live-line-bottom:${MAP_PADDING_Y}px;"><div class="rail-live-line"></div></div>
+            <div class="rail-live-line-stats">
+              <span>行進中 <strong>${snapshots.filter((snapshot) => snapshot.state === "running").length}</strong></span>
+              <span>停靠中 <strong>${snapshots.filter((snapshot) => snapshot.state === "dwell").length}</strong></span>
+              <span>即將發車 <strong>${snapshots.filter((snapshot) => snapshot.state === "upcoming").length}</strong></span>
+              <small>點選車站可查看 10 分鐘內的進出站列車</small>
+            </div>
+            <div class="rail-live-map rail-live-line-map" style="height:${boardHeight}px; --rail-live-line-top:${MAP_PADDING_Y}px; --rail-live-line-bottom:${MAP_PADDING_Y}px;"><div class="rail-live-line"></div></div>
           </section>
           <section class="rail-live-feed">
             <div class="rail-live-feed-head"><h3>行進中列車</h3><p>${escapeHtml("左側路線可直接點選車站查看 10 分鐘內的停靠提示；右側列表可快速定位列車並查看詳情。")}</p></div>
@@ -4779,13 +4787,16 @@
             </div>
             <div class="rail-live-v2-section-body" data-live-v2-focus></div>
           </article>
-          <section class="rail-live-board">
-            <div class="rail-live-board-head">
+          <article class="rail-live-v2-section rail-live-v2-line-shell">
+            <div class="rail-live-v2-section-head rail-live-line-head">
               <div><h3>${escapeHtml(segment.title)}</h3><p>${escapeHtml(segment.subtitle || segment.groupTitle || "")}</p></div>
-              <div class="rail-live-board-note">${escapeHtml(`${updatedAt} 更新`)}</div>
+              <div class="rail-live-line-meta">
+                <strong>${updatedAt}</strong>
+                <span>更新</span>
+              </div>
             </div>
-            <div class="rail-live-map" style="height:${boardHeight}px; --rail-live-line-top:${MAP_PADDING_Y}px; --rail-live-line-bottom:${MAP_PADDING_Y}px;"><div class="rail-live-line"></div></div>
-          </section>
+            <div class="rail-live-map rail-live-line-map" style="height:${boardHeight}px; --rail-live-line-top:${MAP_PADDING_Y}px; --rail-live-line-bottom:${MAP_PADDING_Y}px;"><div class="rail-live-line"></div></div>
+          </article>
           <article class="rail-live-v2-section rail-live-v2-trains-shell">
             <div class="rail-live-v2-section-head"><h3>全部列車</h3><p>直接點選即可定位列車並切換焦點。</p></div>
             <div class="rail-live-v2-scroll rail-live-v2-all-scroll" data-live-v2-trains style="max-height:${feedHeight}px"></div>
@@ -4917,6 +4928,18 @@
       .rail-live-v2-layout{display:grid; grid-template-columns:minmax(0,1fr) 420px; grid-template-areas:"board focus" "board trains"; gap:14px; align-items:start;}
       .rail-live-v2-focus-shell{grid-area:focus;}
       .rail-live-v2-trains-shell{grid-area:trains;}
+      .rail-live-line-shell{border:1px solid var(--border); background:var(--bg-surface); border-radius:20px; overflow:hidden; box-shadow:0 14px 30px rgba(15,23,42,.07);}
+      .rail-live-v2-line-shell{grid-area:board;}
+      .rail-live-line-head{padding:14px 16px; border-bottom:1px solid var(--border); display:flex; align-items:flex-start; justify-content:space-between; gap:12px;}
+      .rail-live-line-head h3{margin:0; font-size:1.04rem;}
+      .rail-live-line-head p{margin:4px 0 0; color:var(--text-muted); font-size:.84rem; line-height:1.45;}
+      .rail-live-line-meta{display:flex; flex-direction:column; align-items:flex-end; gap:2px; color:var(--text-muted); font-size:.76rem; font-weight:800; text-align:right; line-height:1.35;}
+      .rail-live-line-meta strong{color:var(--text-main); font-size:.9rem;}
+      .rail-live-line-meta small{font-size:.72rem; font-weight:750;}
+      .rail-live-line-stats{display:flex; flex-wrap:wrap; align-items:center; gap:8px 12px; padding:10px 16px; border-bottom:1px solid var(--border); color:var(--text-muted); font-size:.78rem; font-weight:850;}
+      .rail-live-line-stats span{display:inline-flex; align-items:center; gap:4px; white-space:nowrap;}
+      .rail-live-line-stats strong{color:var(--text-main); font-size:.9rem;}
+      .rail-live-line-stats small{margin-left:auto; font-size:.74rem; font-weight:750;}
       .rail-live-v2-section{border:1px solid var(--border); background:var(--bg-surface); border-radius:20px; overflow:hidden;}
       .rail-live-v2-section-head{padding:14px 16px; border-bottom:1px solid var(--border); display:flex; align-items:flex-start; justify-content:space-between; gap:12px;}
       .rail-live-v2-section-head h3{margin:0; font-size:1rem;}
@@ -4948,6 +4971,7 @@
       .rail-live-board-head p{margin:4px 0 0; color:var(--text-muted); font-size:.84rem;}
       .rail-live-board-note{font-size:.78rem; color:var(--text-muted); font-weight:700;}
       .rail-live-map{position:relative; border-radius:20px; border:1px solid color-mix(in srgb, var(--border) 85%, transparent); background:linear-gradient(180deg, color-mix(in srgb, var(--bg-body) 92%, transparent), color-mix(in srgb, var(--bg-surface) 84%, transparent)); overflow:hidden;}
+      .rail-live-line-map{border:0; border-radius:0; background:transparent;}
       .rail-live-panel[data-live-view-mode="geo"] .rail-live-route-control,.rail-live-panel[data-live-view-mode="geo"] .rail-live-direction-control{display:none;}
       .rail-live-panel:not([data-live-view-mode="geo"]) .rail-live-geo-filter-control,.rail-live-panel:not([data-live-view-mode="geo"]) .rail-live-track-control{display:none;}
       .rail-live-geo-layout{display:grid; grid-template-columns:minmax(0,1fr); gap:14px; align-items:start;}
@@ -5049,6 +5073,12 @@
         .rail-live-check-list{grid-template-columns:1fr; max-height:min(54vh,380px);}
         .rail-live-search-field{min-width:0; width:100%;}
         .rail-live-board{padding:14px; border-radius:18px;}
+        .rail-live-line-shell{border-radius:18px;}
+        .rail-live-line-head{padding:10px 12px; align-items:flex-start;}
+        .rail-live-line-head p{font-size:.76rem;}
+        .rail-live-line-meta{font-size:.7rem;}
+        .rail-live-line-stats{padding:8px 12px; gap:6px 9px;}
+        .rail-live-line-stats small{flex:0 0 100%; margin-left:0;}
         .rail-live-v2-section{border-radius:18px;}
         .rail-live-v2-section-head{padding:10px 12px; align-items:center;}
         .rail-live-v2-section-head p{display:none;}
