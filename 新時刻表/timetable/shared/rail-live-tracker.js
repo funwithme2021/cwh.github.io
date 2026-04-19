@@ -747,6 +747,101 @@
     return { x: -textWidth - 16, y: 4, align: "left" };
   }
 
+  function parseCanvasColor(color) {
+    const value = String(color || "").trim();
+    const hex = value.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i);
+    if (hex) {
+      const raw = hex[1].length === 3 ? hex[1].split("").map((part) => part + part).join("") : hex[1];
+      return [
+        parseInt(raw.slice(0, 2), 16) / 255,
+        parseInt(raw.slice(2, 4), 16) / 255,
+        parseInt(raw.slice(4, 6), 16) / 255,
+        1,
+      ];
+    }
+    return [0.07, 0.09, 0.15, 1];
+  }
+
+  function createShader(gl, type, source) {
+    const shader = gl.createShader(type);
+    gl.shaderSource(shader, source);
+    gl.compileShader(shader);
+    if (gl.getShaderParameter(shader, gl.COMPILE_STATUS)) return shader;
+    gl.deleteShader(shader);
+    return null;
+  }
+
+  function createTrainWebGLProgram(gl) {
+    const vertex = createShader(gl, gl.VERTEX_SHADER, `
+      attribute vec2 a_position;
+      uniform vec2 u_resolution;
+      void main() {
+        vec2 zeroToOne = a_position / u_resolution;
+        vec2 clipSpace = zeroToOne * 2.0 - 1.0;
+        gl_Position = vec4(clipSpace * vec2(1.0, -1.0), 0.0, 1.0);
+      }
+    `);
+    const fragment = createShader(gl, gl.FRAGMENT_SHADER, `
+      precision mediump float;
+      uniform vec4 u_color;
+      void main() {
+        gl_FragColor = u_color;
+      }
+    `);
+    if (!vertex || !fragment) return null;
+    const program = gl.createProgram();
+    gl.attachShader(program, vertex);
+    gl.attachShader(program, fragment);
+    gl.linkProgram(program);
+    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+      gl.deleteProgram(program);
+      return null;
+    }
+    return {
+      program,
+      position: gl.getAttribLocation(program, "a_position"),
+      resolution: gl.getUniformLocation(program, "u_resolution"),
+      color: gl.getUniformLocation(program, "u_color"),
+      buffer: gl.createBuffer(),
+    };
+  }
+
+  function pushRotatedTriangle(vertices, x, y, angle) {
+    const rad = angle * Math.PI / 180;
+    const cos = Math.cos(rad);
+    const sin = Math.sin(rad);
+    [[0, -10], [9, 9], [-9, 9]].forEach(([localX, localY]) => {
+      vertices.push(
+        x + localX * cos - localY * sin,
+        y + localX * sin + localY * cos
+      );
+    });
+  }
+
+  function drawTrainTrianglesWebGL(gl, programInfo, items, size) {
+    if (!gl || !programInfo) return false;
+    gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
+    gl.clearColor(0, 0, 0, 0);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+    gl.useProgram(programInfo.program);
+    gl.uniform2f(programInfo.resolution, size.x, size.y);
+    gl.bindBuffer(gl.ARRAY_BUFFER, programInfo.buffer);
+    gl.enableVertexAttribArray(programInfo.position);
+    gl.vertexAttribPointer(programInfo.position, 2, gl.FLOAT, false, 0, 0);
+    const buckets = new Map();
+    items.forEach((item) => {
+      const color = item.color || "#111827";
+      if (!buckets.has(color)) buckets.set(color, []);
+      pushRotatedTriangle(buckets.get(color), item.x, item.y, Number(item.angle) || 0);
+    });
+    buckets.forEach((vertices, color) => {
+      gl.uniform4fv(programInfo.color, parseCanvasColor(color));
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STREAM_DRAW);
+      gl.drawArrays(gl.TRIANGLES, 0, vertices.length / 2);
+    });
+    return true;
+  }
+
   function createRealMapTrainCanvasLayer(state) {
     const L = window.L;
     const TrainCanvasLayer = L.Layer.extend({
@@ -756,15 +851,22 @@
       },
       onAdd(map) {
         this.map = map;
-        this.canvas = L.DomUtil.create("canvas", "rail-live-real-train-canvas");
-        this.canvas.style.position = "absolute";
-        this.canvas.style.left = "0";
-        this.canvas.style.top = "0";
-        this.canvas.style.pointerEvents = "none";
+        this.canvas = L.DomUtil.create("canvas", "rail-live-real-train-webgl");
+        this.labelCanvas = L.DomUtil.create("canvas", "rail-live-real-train-canvas");
+        [this.canvas, this.labelCanvas].forEach((canvas) => {
+          canvas.style.position = "absolute";
+          canvas.style.left = "0";
+          canvas.style.top = "0";
+          canvas.style.pointerEvents = "none";
+        });
         const pane = map.getPane("railLiveTrainCanvasPane") || map.createPane("railLiveTrainCanvasPane");
         pane.style.zIndex = "650";
         pane.style.pointerEvents = "none";
         pane.appendChild(this.canvas);
+        pane.appendChild(this.labelCanvas);
+        this.gl = this.canvas.getContext("webgl", { alpha: true, antialias: true, depth: false, stencil: false })
+          || this.canvas.getContext("experimental-webgl", { alpha: true, antialias: true, depth: false, stencil: false });
+        this.webglProgram = this.gl ? createTrainWebGLProgram(this.gl) : null;
         map.on("resize move zoom viewreset zoomend moveend", this.redraw, this);
         map.on("click", this.handleClick, this);
         this.redraw();
@@ -773,7 +875,11 @@
         map.off("resize move zoom viewreset zoomend moveend", this.redraw, this);
         map.off("click", this.handleClick, this);
         this.canvas?.remove?.();
+        this.labelCanvas?.remove?.();
         this.canvas = null;
+        this.labelCanvas = null;
+        this.gl = null;
+        this.webglProgram = null;
         this.map = null;
         this.hits = [];
       },
@@ -785,22 +891,27 @@
         const ratio = Math.max(1, window.devicePixelRatio || 1);
         const width = Math.max(1, Math.round(size.x));
         const height = Math.max(1, Math.round(size.y));
-        if (this.canvas.width !== Math.round(width * ratio)) this.canvas.width = Math.round(width * ratio);
-        if (this.canvas.height !== Math.round(height * ratio)) this.canvas.height = Math.round(height * ratio);
-        this.canvas.style.width = `${width}px`;
-        this.canvas.style.height = `${height}px`;
-        const ctx = this.canvas.getContext("2d");
+        [this.canvas, this.labelCanvas].forEach((canvas) => {
+          if (!canvas) return;
+          if (canvas.width !== Math.round(width * ratio)) canvas.width = Math.round(width * ratio);
+          if (canvas.height !== Math.round(height * ratio)) canvas.height = Math.round(height * ratio);
+          canvas.style.width = `${width}px`;
+          canvas.style.height = `${height}px`;
+        });
+        const ctx = this.labelCanvas.getContext("2d");
         ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
         return ctx;
       },
       redraw() {
-        if (!this.map || !this.canvas) return;
+        if (!this.map || !this.canvas || !this.labelCanvas) return;
         const size = this.map.getSize();
         this.topLeft = this.map.containerPointToLayerPoint([0, 0]);
         L.DomUtil.setPosition(this.canvas, this.topLeft);
+        L.DomUtil.setPosition(this.labelCanvas, this.topLeft);
         const ctx = this.resizeCanvas(size);
         ctx.clearRect(0, 0, size.x, size.y);
         this.hits = [];
+        const triangles = [];
         const hideLabels = state.realMapInteracting || (this.items.length > 90 && Number(this.map.getZoom?.()) < 9);
         ctx.font = "950 13px system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
         ctx.lineJoin = "round";
@@ -809,23 +920,10 @@
           const point = this.map.latLngToLayerPoint(item.latLng).subtract(this.topLeft);
           if (point.x < -90 || point.y < -90 || point.x > size.x + 90 || point.y > size.y + 90) return;
           const angle = Number(item.angle) || 0;
-          ctx.save();
-          ctx.translate(point.x, point.y);
-          ctx.rotate(angle * Math.PI / 180);
-          ctx.shadowColor = "rgba(15,23,42,.36)";
-          ctx.shadowBlur = 4;
-          ctx.shadowOffsetY = 2;
-          ctx.fillStyle = item.color || "#111827";
-          ctx.beginPath();
-          ctx.moveTo(0, -10);
-          ctx.lineTo(9, 9);
-          ctx.lineTo(-9, 9);
-          ctx.closePath();
-          ctx.fill();
-          ctx.restore();
+          triangles.push({ x: point.x, y: point.y, angle, color: item.color || "#111827" });
           if (item.active) {
             ctx.save();
-            ctx.strokeStyle = "rgba(255,255,255,.95)";
+            ctx.strokeStyle = item.color || "#111827";
             ctx.lineWidth = 3;
             ctx.beginPath();
             ctx.arc(point.x, point.y, 13, 0, Math.PI * 2);
@@ -842,9 +940,6 @@
             ctx.font = "950 13px system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
             ctx.textBaseline = "middle";
             ctx.textAlign = label.align;
-            ctx.lineWidth = 5;
-            ctx.strokeStyle = "rgba(255,255,255,.96)";
-            ctx.strokeText(item.label, textX, textY);
             ctx.fillStyle = "#0f172a";
             ctx.fillText(item.label, textX, textY);
             if (item.active) {
@@ -865,6 +960,24 @@
           }
           this.hits.push(hit);
         });
+        if (!drawTrainTrianglesWebGL(this.gl, this.webglProgram, triangles, size)) {
+          ctx.save();
+          ctx.globalCompositeOperation = "destination-over";
+          triangles.forEach((item) => {
+            ctx.save();
+            ctx.translate(item.x, item.y);
+            ctx.rotate((Number(item.angle) || 0) * Math.PI / 180);
+            ctx.fillStyle = item.color || "#111827";
+            ctx.beginPath();
+            ctx.moveTo(0, -10);
+            ctx.lineTo(9, 9);
+            ctx.lineTo(-9, 9);
+            ctx.closePath();
+            ctx.fill();
+            ctx.restore();
+          });
+          ctx.restore();
+        }
       },
       handleClick(event) {
         if (!this.map || !this.hits.length) return;
