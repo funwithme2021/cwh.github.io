@@ -161,12 +161,12 @@
     try {
       const cached = JSON.parse(localStorage.getItem(TOKEN_CACHE_KEY) || "null");
       if (
-        cached?.accessToken &&
+        (cached?.accessToken || cached?.token) &&
         cached?.clientId === config.clientId &&
         Number(cached?.expiresAt) > Date.now() + TOKEN_REFRESH_BUFFER_MS
       ) {
         return {
-          token: cached.accessToken,
+          token: cached.accessToken || cached.token,
           expiresAt: Number(cached.expiresAt),
         };
       }
@@ -179,6 +179,7 @@
     const expiresAt = Date.now() + Math.max(60, Number(expiresInSeconds) || 3600) * 1000;
     try {
       localStorage.setItem(TOKEN_CACHE_KEY, JSON.stringify({
+        token,
         accessToken: token,
         expiresAt,
         clientId: config.clientId,
@@ -231,7 +232,9 @@
   }
 
   function buildTdxHeaders(token) {
-    return { Authorization: `Bearer ${token}` };
+    const headers = { Accept: "application/json" };
+    if (token) headers.Authorization = `Bearer ${token}`;
+    return headers;
   }
 
   async function fetchWithTimeout(url, options = {}) {
@@ -265,7 +268,7 @@
 
   async function cachedFetchJson(key, maxAgeMs, url, token) {
     const cached = readCache(key, maxAgeMs);
-    if (cached?.fresh) return cached.data;
+    if (cached?.fresh && !(key.includes("home_live_schedule_thsr") && extractScheduleRows("thsr", cached.data).length === 0)) return cached.data;
     try {
       const response = await fetchWithTimeout(url, { headers: buildTdxHeaders(token) });
       if (!response.ok) throw new Error(`${response.status} ${url}`);
@@ -893,7 +896,33 @@
       );
   }
 
+  async function fetchThsrScheduleRowsLikeThsrPage(date, token) {
+    const url = `https://tdx.transportdata.tw/api/basic/v2/Rail/THSR/DailyTimetable/TrainDate/${date}?$format=JSON`;
+    const response = await fetchWithTimeout(url, {
+      headers: buildTdxHeaders(token),
+      timeoutMs: FETCH_TIMEOUT_MS,
+    });
+    if (!response.ok) throw new Error(`THSR timetable ${response.status}`);
+    const data = await response.json();
+    const rows = Array.isArray(data) ? data : [];
+    if (rows.length) {
+      writeCache(`home_live_schedule_thsr_${date}_page_same_v1`, data);
+      return rows;
+    }
+    const cached = readCache(`home_live_schedule_thsr_${date}_page_same_v1`, 6 * 60 * 60 * 1000);
+    const cachedRows = extractScheduleRows("thsr", cached?.data);
+    return cachedRows.length ? cachedRows : rows;
+  }
+
   async function fetchScheduleRows(system, date, token) {
+    if (system === "thsr") {
+      try {
+        const rows = await fetchThsrScheduleRowsLikeThsrPage(date, token);
+        if (rows.length) return rows;
+      } catch (error) {
+        console.warn("home live THSR page-compatible fetch failed", error);
+      }
+    }
     const urls = getScheduleUrls(system, date);
     let lastError = null;
     let lastRows = [];
