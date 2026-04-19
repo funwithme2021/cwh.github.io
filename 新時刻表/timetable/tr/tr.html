@@ -6603,10 +6603,26 @@ function getTransferGlobalMinute(originDate, absMin){
   return base + Number(absMin);
 }
 
+function isTraSpecialCharterType(typeStr, rawTypeStr){
+  const fullTypeText = `${String(typeStr || '').trim()} ${String(rawTypeStr || '').trim()}`;
+  return (
+    /專車|專開列車/.test(fullTypeText) ||
+    /[（(][^）)]*專車[^）)]*[）)]/.test(fullTypeText) ||
+    /[（(][^）)]*專[^）)]*[）)]/.test(fullTypeText)
+  );
+}
+
+function isTraSpecialCharterForTransfer(data){
+  const typeStr = String(data?.['車種'] || data?.type || '').trim();
+  const rawTypeStr = String(data?.['原始車種'] || data?.rawType || data?.originalType || '').trim();
+  return isTraSpecialCharterType(typeStr, rawTypeStr);
+}
+
 function buildTransferScheduleEntry(inst){
   const data = inst?.data;
   const stops = data?.['車站時間'] || [];
   if(!data || stops.length < 2) return null;
+  if(isTraSpecialCharterForTransfer(data)) return null;
 
   const abs = buildAbsArrDep(stops);
   const exactStopMap = new Map();
@@ -6802,12 +6818,6 @@ function getDisplayStopDateStr(timeInfo, originDateStr, baseAbsMin=null){
   return originDateStr || '';
 }
 
-// ===== 訂票可用性判斷（對號車 + 開車>=現在+10分鐘） =====
-function isSpecialCharterTrainNo(trainNo){
-  const s = String(trainNo||'').trim();
-  return /^6\d{3}$/.test(s); // 6xxx 專車
-}
-
 function isNonReservedLocalType(typeStr){
   const t = String(typeStr||'');
   // 區間 / 區間快 一律不可訂票
@@ -6832,9 +6842,8 @@ function getBookingEligibilityByRow(r){
   const trainNo = String(r.num || r.trainNo || '').trim();
   const typeStr = String(r.type || '');
   const rawTypeStr = String(r.rawType || r.originalType || r['原始車種'] || '');
-  const fullTypeText = `${typeStr} ${rawTypeStr}`;
 
-  if(isSpecialCharterTrainNo(trainNo) || /專車/.test(fullTypeText) || /[（(][^）)]*專車[^）)]*[）)]/.test(fullTypeText)){
+  if(isTraSpecialCharterType(typeStr, rawTypeStr)){
     return { ok:false, reason:'專車不提供訂票' };
   }
   if(isNonReservedLocalType(typeStr)){
