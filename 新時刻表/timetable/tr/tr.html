@@ -4315,6 +4315,28 @@ let __startEndDelegated = false;
     return { raw:t, asTai:t.replace(/台/g,'臺'), asTai2:t.replace(/臺/g,'台') };
   }
 
+  function displayTraStationName(name){
+    const text = normTW(name);
+    return (text === '臺北' || text === '臺北-環島') ? '台北' : text;
+  }
+
+  function sameTraStationName(a, b){
+    return displayTraStationName(a) === displayTraStationName(b);
+  }
+
+  function findTraStopIndex(stops, station, startAt = 0){
+    const rows = Array.isArray(stops) ? stops : [];
+    const from = Math.max(0, Number(startAt) || 0);
+    const target = normTW(station);
+    for(let i=from; i<rows.length; i++){
+      if(normTW(rows[i]?.[0]) === target) return i;
+    }
+    for(let i=from; i<rows.length; i++){
+      if(sameTraStationName(rows[i]?.[0], station)) return i;
+    }
+    return -1;
+  }
+
   // ===== datalist 動態填入：站名 =====
   function fillStationDatalist(keyword){
     const dl = document.getElementById('stationList');
@@ -4379,7 +4401,7 @@ let __startEndDelegated = false;
 
       const t = baseSchedule[n];
       const arr = t?.['車站時間']||[];
-      const range = (arr.length>=2)?`${arr[0][0]}➝${arr.slice(-1)[0][0]}`:'';
+      const range = (arr.length>=2)?`${displayTraStationName(arr[0][0])}➝${displayTraStationName(arr.slice(-1)[0][0])}`:'';
       out += `<option value="${n}-${t?.['車種']||''}-${range}"></option>`;
       count++;
       if(count >= limit) break;
@@ -4458,7 +4480,8 @@ function splitArrDep(stopRow){
   function getArrDepFromSchedule(schedule, trainNo, station){
     const t = schedule?.[trainNo];
     if(!t) return null;
-    const row = (t['車站時間']||[]).find(s=>s[0]===station);
+    const stops = t['車站時間']||[];
+    const row = stops[findTraStopIndex(stops, station)];
     if(!row) return null;
     // row: 可能是 [station, 到達, 開車] 或 [station, 開車, 到達]
     const ad = splitArrDep(row);
@@ -4547,7 +4570,7 @@ function splitArrDep(stopRow){
 
   function getTraRouteStationsBetween(startStation, endStation){
     if(!startStation || !endStation) return [startStation, endStation].filter(Boolean);
-    if(startStation === endStation) return [startStation];
+    if(sameTraStationName(startStation, endStation)) return [startStation];
     const finder = window.RailNetwork?.findTraRoutePath;
     const path = (typeof finder === 'function') ? finder(startStation, endStation) : [];
     if(Array.isArray(path) && path.length) return path.slice();
@@ -5229,15 +5252,17 @@ function splitArrDep(stopRow){
     if(!Array.isArray(stops) || !stops.length) return '--';
     const firstStation = stops[0]?.[0] || '';
     const lastStation = stops[stops.length - 1]?.[0] || '';
+    const firstDisplayStation = displayTraStationName(firstStation);
+    const lastDisplayStation = displayTraStationName(lastStation);
     if(status === '未發車'){
       if(liveStopHoldActive && !!liveProgress?.isStopStation && nextIndex === 0){
-        return `即將由 ${firstStation} 發車`;
+        return `即將由 ${firstDisplayStation} 發車`;
       }
-      return `尚未發車 · ${firstStation}`;
+      return `尚未發車 · ${firstDisplayStation}`;
     }
-    if(status === '已到終點' || status === '已到終點站') return `已到 ${lastStation}`;
-    if(!canNext || !Array.isArray(timelineRows) || !timelineRows.length || nextIndex < 0) return lastStation || '依時刻表顯示';
-    if(canNext && nextIndex === 0) return `即將由 ${firstStation} 發車`;
+    if(status === '已到終點' || status === '已到終點站') return `已到 ${lastDisplayStation}`;
+    if(!canNext || !Array.isArray(timelineRows) || !timelineRows.length || nextIndex < 0) return lastDisplayStation || '依時刻表顯示';
+    if(canNext && nextIndex === 0) return `即將由 ${firstDisplayStation} 發車`;
 
     const currentRow = timelineRows[nextIndex] || null;
     const previousRow = nextIndex > 0 ? (timelineRows[nextIndex - 1] || null) : null;
@@ -5250,8 +5275,8 @@ function splitArrDep(stopRow){
       currentRow?.kind !== 'pass';
 
     if(isLiveHeldStop){
-      if(nextIndex === 0) return `即將由 ${firstStation} 發車`;
-      return currentRow?.station || '--';
+      if(nextIndex === 0) return `即將由 ${firstDisplayStation} 發車`;
+      return displayTraStationName(currentRow?.station || '--');
     }
 
     if(currentRow && currentRow.kind !== 'pass' && Number.isFinite(nowAbs)){
@@ -5267,17 +5292,17 @@ function splitArrDep(stopRow){
       const departureAbs = Number.isFinite(departureAbsRaw) ? (departureAbsRaw + positiveDelay) : null;
 
       if(currentRow.kind === 'terminal' && Number.isFinite(arrivalAbs) && nowAbs >= arrivalAbs){
-        return currentRow.station || lastStation || '--';
+        return displayTraStationName(currentRow.station || lastStation || '--');
       }
       if(Number.isFinite(arrivalAbs) && Number.isFinite(departureAbs) && arrivalAbs <= nowAbs && nowAbs < departureAbs){
-        return currentRow.station || '--';
+        return displayTraStationName(currentRow.station || '--');
       }
     }
 
     if(previousRow?.station && currentRow?.station){
-      return `${previousRow.station} → ${currentRow.station}`;
+      return `${displayTraStationName(previousRow.station)} → ${displayTraStationName(currentRow.station)}`;
     }
-    return lastStation || '依時刻表顯示';
+    return lastDisplayStation || '依時刻表顯示';
   }
 
   function updateHeroSnapshot(){
@@ -5300,7 +5325,7 @@ function splitArrDep(stopRow){
       ? getTraStationDirectionLabel(stationQuery2Controller?.getState?.()?.direction || 'even')
       : (document.getElementById('directionSelect')?.selectedOptions?.[0]?.textContent?.trim() || '');
 
-    let focusText = `${start} → ${end}${accept ? ' · 轉乘' : ' · 直達'}`;
+    let focusText = `${displayTraStationName(start)} → ${displayTraStationName(end)}${accept ? ' · 轉乘' : ' · 直達'}`;
     if(activeMode.includes('車站')){
       focusText = `${station}${directionText ? ` · ${directionText}` : ''}`;
     }else if(activeMode.includes('車次')){
@@ -6425,8 +6450,8 @@ function buildDirectList(st, ed){
       if(selectedTrainTypesStartEnd.length && !selectedTrainTypesStartEnd.includes(t['車種'])) return;
 
       const arr = t['車站時間'] || [];
-      const si = arr.findIndex(x=>x[0]===st);
-      const ei = arr.findIndex(x=>x[0]===ed);
+      const si = findTraStopIndex(arr, st);
+      const ei = findTraStopIndex(arr, ed, si + 1);
       if(si<0 || ei<0 || ei<=si) return;
 
       // 用到/開雙時刻的 absMin 來推跨日日期（比照高鐵版）
@@ -6475,7 +6500,7 @@ const travel = `${Math.floor(travelMin/60)}h ${travelMin%60}m`;
 const stopsCount = ei - si - 1;
 
       // 取得停靠站列表
-      const stopsList = arr.slice(si+1, ei).map(x => x[0]);
+      const stopsList = arr.slice(si+1, ei).map(x => displayTraStationName(x[0]));
 
       const status = getTrainStatusLabel(
         num,
@@ -6492,7 +6517,7 @@ const stopsCount = ei - si - 1;
         originDate, // ★ 重要：點進詳情必須用發車日
         type: t['車種'],
         rawType: t['原始車種'] || '',
-        range: `${arr[0][0]}➝${arr[arr.length-1][0]}`,
+        range: `${displayTraStationName(arr[0][0])}➝${displayTraStationName(arr[arr.length-1][0])}`,
         depSched,
         arrSched,
         depAbs: stAbs,
@@ -6758,15 +6783,15 @@ function renderTimeWithDelay(trainNo, schedHHMM, queryDateStr, opts, baseAbsMin=
            
            if(t && t['車站時間']){
                const arr = t['車站時間'];
-               const sIdx = arr.findIndex(x=>x[0]===r.startStation);
-               const eIdx = arr.findIndex(x=>x[0]===r.endStation);
+               const sIdx = findTraStopIndex(arr, r.startStation);
+               const eIdx = findTraStopIndex(arr, r.endStation, sIdx + 1);
                
                if(sIdx > -1 && eIdx > -1 && eIdx > sIdx+1){
                    const stopsArr = arr.slice(sIdx+1, eIdx);
                    // 使用 map 生成每個站點的 span，方便 Grid 排版
                    const stopsSpans = stopsArr.map(x => {
                        const time = splitArrDep(x).dep || '--';
-                       return `<span class="stop-item">${x[0]}(${time})</span>`;
+                       return `<span class="stop-item">${displayTraStationName(x[0])}(${time})</span>`;
                    });
                    // 外層套用 grid
                    stopsHTML = `<div class="stops-grid">${stopsSpans.join('')}</div>`;
@@ -6961,13 +6986,13 @@ function renderTimeWithDelay(trainNo, schedHHMM, queryDateStr, opts, baseAbsMin=
   if(!t) return;
 
   const arr=t['車站時間']||[];
-  const si=arr.findIndex(x=>x[0]===st);
-  const ei=arr.findIndex(x=>x[0]===ed);
+  const si=findTraStopIndex(arr, st);
+  const ei=findTraStopIndex(arr, ed, si + 1);
   if(si<0 || ei<0 || ei<=si) return;
 
   const stopsList = arr.slice(si+1, ei).map(x=>{
     const dep = splitArrDep(x).dep || '--';
-    return { name:x[0], time: dep };
+    return { name:displayTraStationName(x[0]), time: dep };
   });
 
   const row=document.createElement('tr');
@@ -7004,7 +7029,7 @@ function buildTransferList(st, ed){
     const a1 = t1['車站時間']||[];
     if(a1.length < 2) return;
 
-    const sIdx = a1.findIndex(x=>x[0]===st);
+    const sIdx = findTraStopIndex(a1, st);
     if(sIdx < 0) return;
 
     const abs1 = buildAbsArrDep(a1);
@@ -7026,7 +7051,7 @@ function buildTransferList(st, ed){
     // 試算「直達方案」
     let bestPlan = null;
 
-    const eIdxDirect = a1.findIndex(x=>x[0]===ed);
+    const eIdxDirect = findTraStopIndex(a1, ed, sIdx + 1);
     if(eIdxDirect >= 0 && eIdxDirect > sIdx){
       const endArrStr = (splitArrDep(a1[eIdxDirect]||[]).arr || splitArrDep(a1[eIdxDirect]||[]).dep || '--');
       const endArrAbs = abs1.absArr[eIdxDirect] ?? abs1.absDep[eIdxDirect];
@@ -7099,24 +7124,22 @@ function buildTransferList(st, ed){
       const a2 = t2['車站時間']||[];
       if(a2.length < 2) return;
 
-      const eIdx2 = a2.findIndex(x=>x[0]===ed);
-      if(eIdx2 < 0) return;
-
       const abs2 = buildAbsArrDep(a2);
-      const endArrAbs2 = abs2.absArr[eIdx2] ?? abs2.absDep[eIdx2];
-      const endArrStr2 = (splitArrDep(a2[eIdx2]||[]).arr || splitArrDep(a2[eIdx2]||[]).dep || '--');
-      if(endArrAbs2 === null || endArrAbs2 === undefined) return;
-
-      const endArrDateStr2 = getStopDateStr(originDate2, endArrAbs2);
-      const endArrDT2 = buildDateTimeFromDateAndHHMM(endArrDateStr2, endArrStr2);
-      if(!endArrDT2) return;
 
       for(let i=sIdx+1;i<a1.length;i++){
         const mid = a1[i][0];
 
-        const midIdx2 = a2.findIndex(x=>x[0]===mid);
+        const midIdx2 = findTraStopIndex(a2, mid);
         if(midIdx2 < 0) continue;
-        if(!(midIdx2 < eIdx2)) continue;
+        const eIdx2 = findTraStopIndex(a2, ed, midIdx2 + 1);
+        if(eIdx2 < 0) continue;
+        const endArrAbs2 = abs2.absArr[eIdx2] ?? abs2.absDep[eIdx2];
+        const endArrStr2 = (splitArrDep(a2[eIdx2]||[]).arr || splitArrDep(a2[eIdx2]||[]).dep || '--');
+        if(endArrAbs2 === null || endArrAbs2 === undefined) continue;
+
+        const endArrDateStr2 = getStopDateStr(originDate2, endArrAbs2);
+        const endArrDT2 = buildDateTimeFromDateAndHHMM(endArrDateStr2, endArrStr2);
+        if(!endArrDT2) continue;
 
         const midArrStr1 = (splitArrDep(a1[i]||[]).arr || splitArrDep(a1[i]||[]).dep || '--');
         const midArrAbs1 = abs1.absArr[i] ?? abs1.absDep[i];
@@ -7333,8 +7356,8 @@ function renderTransferTable(){
         const t = getScheduleByOrigin(r.n1, r.originDate1 || currentQueryDateStr);
         if(t && t['車站時間']){
           const arr = t['車站時間'];
-          const sIdx = arr.findIndex(x=>x[0]===r.startStation);
-          const eIdx = arr.findIndex(x=>x[0]===r.endStation);
+          const sIdx = findTraStopIndex(arr, r.startStation);
+          const eIdx = findTraStopIndex(arr, r.endStation, sIdx + 1);
           if(sIdx > -1 && eIdx > -1 && eIdx > sIdx+1){
             const stopsArr = arr.slice(sIdx+1, eIdx);
             const stopSpans = stopsArr.map(x=>{
@@ -7352,7 +7375,7 @@ function renderTransferTable(){
         html = `
           <div class="mblk">
             <div class="mt">行駛區間</div>
-            <div class="mv">${r.startStation} → ${r.endStation}</div>
+            <div class="mv">${displayTraStationName(r.startStation)} → ${displayTraStationName(r.endStation)}</div>
           </div>
           <div class="mblk">
             <div class="mt">沿途停靠</div>
@@ -7365,15 +7388,15 @@ function renderTransferTable(){
         html = `
           <div class="mblk">
             <div class="mt">第 1 段</div>
-            <div class="mv"><b>${r.n1}</b>　${colorType(r.type1)}　${r.startStation} ${r.depHTML||highlightPeak(r.depSched||r.dep||'--')} → ${r.transferStation} ${r.midArrHTML||highlightPeak(r.midArr||'--')}</div>
+            <div class="mv"><b>${r.n1}</b>　${colorType(r.type1)}　${displayTraStationName(r.startStation)} ${r.depHTML||highlightPeak(r.depSched||r.dep||'--')} → ${displayTraStationName(r.transferStation)} ${r.midArrHTML||highlightPeak(r.midArr||'--')}</div>
           </div>
           <div class="mblk">
             <div class="mt">等候</div>
-            <div class="mv">${r.waitMin} 分（${r.transferStation}）</div>
+            <div class="mv">${r.waitMin} 分（${displayTraStationName(r.transferStation)}）</div>
           </div>
           <div class="mblk">
             <div class="mt">第 2 段</div>
-            <div class="mv"><b>${r.n2}</b>　${colorType(r.type2)}　${r.transferStation} ${r.midDepHTML||highlightPeak(r.midDep||'--')} → ${r.endStation} ${r.arrHTML||highlightPeak(r.arrSched||r.arr||'--')}</div>
+            <div class="mv"><b>${r.n2}</b>　${colorType(r.type2)}　${displayTraStationName(r.transferStation)} ${r.midDepHTML||highlightPeak(r.midDep||'--')} → ${displayTraStationName(r.endStation)} ${r.arrHTML||highlightPeak(r.arrSched||r.arr||'--')}</div>
           </div>
           <div class="mact">
             <button class="btn btn-primary btn-transfer-details" data-idx="${idx}">查看轉乘詳細</button>
@@ -7429,13 +7452,13 @@ function renderTransferTable(){
     let typeCell = tr.insertCell();
     typeCell.className = "col-type";
     if(r.isDirect){
-      typeCell.innerHTML = renderTraTypeCell(r.type1, `${r.startStation}➝${r.endStation}`);
+      typeCell.innerHTML = renderTraTypeCell(r.type1, `${displayTraStationName(r.startStation)}➝${displayTraStationName(r.endStation)}`);
     }else if(mobileCompact){
       typeCell.innerHTML = `${colorType(r.type1)}<br>${colorType(r.type2)}`;
     }else{
       typeCell.innerHTML =
-        `${colorType(r.type1)}<span class="pc-only train-route">(${r.startStation}➝${r.transferStation})</span><br>`+
-        `${colorType(r.type2)}<span class="pc-only train-route">(${r.transferStation}➝${r.endStation})</span>`;
+        `${colorType(r.type1)}<span class="pc-only train-route">(${displayTraStationName(r.startStation)}➝${displayTraStationName(r.transferStation)})</span><br>`+
+        `${colorType(r.type2)}<span class="pc-only train-route">(${displayTraStationName(r.transferStation)}➝${displayTraStationName(r.endStation)})</span>`;
     }
 
     tr.insertCell().innerHTML = r.depHTML;
@@ -7445,7 +7468,7 @@ function renderTransferTable(){
       tr.insertCell().innerHTML = `<span style="color:var(--text-muted);">—</span>`;
     }else{
       tr.insertCell().innerHTML =
-        `<div style="font-weight:700">${r.transferStation}</div>`+
+        `<div style="font-weight:700">${displayTraStationName(r.transferStation)}</div>`+
         `<div class="train-route transfer-detail">抵達 ${r.midArrHTML||highlightPeak(r.midArr)} / 發車 ${r.midDepHTML||highlightPeak(r.midDep)}（等 ${r.waitMin} 分）</div>`;
 }
 
@@ -7525,8 +7548,8 @@ function renderTransferTable(){
               const t = getScheduleByOrigin(r.n1, r.originDate1 || currentQueryDateStr);
               if(t && t['車站時間']){
                 const arr = t['車站時間'];
-                const sIdx = arr.findIndex(x=>x[0]===r.startStation);
-                const eIdx = arr.findIndex(x=>x[0]===r.endStation);
+                const sIdx = findTraStopIndex(arr, r.startStation);
+                const eIdx = findTraStopIndex(arr, r.endStation, sIdx + 1);
                 if(sIdx > -1 && eIdx > -1 && eIdx > sIdx+1){
                   const stopsArr = arr.slice(sIdx+1, eIdx);
                   const stopSpans = stopsArr.map(x=>{
@@ -7544,7 +7567,7 @@ function renderTransferTable(){
               html = `
                 <div class="mblk">
                   <div class="mt">行駛區間</div>
-                  <div class="mv">${r.startStation} → ${r.endStation}</div>
+                  <div class="mv">${displayTraStationName(r.startStation)} → ${displayTraStationName(r.endStation)}</div>
                 </div>
                 <div class="mblk">
                   <div class="mt">沿途停靠</div>
@@ -7557,15 +7580,15 @@ function renderTransferTable(){
               html = `
                 <div class="mblk">
                   <div class="mt">第 1 段</div>
-                  <div class="mv"><b>${r.n1}</b>　${colorType(r.type1)}　${r.startStation} ${r.depHTML||highlightPeak(r.depSched||r.dep||'--')} → ${r.transferStation} ${r.midArrHTML||highlightPeak(r.midArr||'--')}</div>
+                  <div class="mv"><b>${r.n1}</b>　${colorType(r.type1)}　${displayTraStationName(r.startStation)} ${r.depHTML||highlightPeak(r.depSched||r.dep||'--')} → ${displayTraStationName(r.transferStation)} ${r.midArrHTML||highlightPeak(r.midArr||'--')}</div>
                 </div>
                 <div class="mblk">
                   <div class="mt">等候</div>
-                  <div class="mv">${r.waitMin} 分（${r.transferStation}）</div>
+                  <div class="mv">${r.waitMin} 分（${displayTraStationName(r.transferStation)}）</div>
                 </div>
                 <div class="mblk">
                   <div class="mt">第 2 段</div>
-                  <div class="mv"><b>${r.n2}</b>　${colorType(r.type2)}　${r.transferStation} ${r.midDepHTML||highlightPeak(r.midDep||'--')} → ${r.endStation} ${r.arrHTML||highlightPeak(r.arrSched||r.arr||'--')}</div>
+                  <div class="mv"><b>${r.n2}</b>　${colorType(r.type2)}　${displayTraStationName(r.transferStation)} ${r.midDepHTML||highlightPeak(r.midDep||'--')} → ${displayTraStationName(r.endStation)} ${r.arrHTML||highlightPeak(r.arrSched||r.arr||'--')}</div>
                 </div>
                 <div class="mact">
                   <button class="btn btn-primary btn-transfer-details" data-idx="${idx}">查看轉乘詳細</button>
@@ -7646,7 +7669,7 @@ function renderTransferTable(){
             if(selectedTrainTypesStation.length && !selectedTrainTypesStation.includes(data['車種'])) return;
       
             const arr = data['車站時間']||[];
-            const idx = arr.findIndex(s=>s[0]===station);
+            const idx = findTraStopIndex(arr, station);
             if(idx<0) return;
       
             const ev = isEvenTrainNo(trainNo);
@@ -7678,7 +7701,7 @@ function renderTransferTable(){
             rows.push({
               trainNo, originDate,
               type: data['車種'],
-              range: `${arr[0][0]}➝${arr.slice(-1)[0][0]}`,
+              range: `${displayTraStationName(arr[0][0])}➝${displayTraStationName(arr.slice(-1)[0][0])}`,
               depHTML: renderTimeWithDelay(trainNo, dep, currentQueryDateStr, { suppressStrike: status==='已過站' }, absMin, originDate),
               depMin: (status==='已過站' ? (parseTime(dep) ?? 9999) : (depAdj.adjMin ?? 9999)),
               status
@@ -8007,15 +8030,15 @@ function renderTransferTable(){
           timeHtml: buildQuery2CombinedTimeHtml(row.depHTML, row.arrHTML, row.depSched, row.arrSched),
           summaryTimeHtml: buildQuery2SummaryTimeHtml(row.depHTML, row.arrHTML, row.depSched, row.arrSched),
           timeText: buildQuery2CombinedTimeText(row.depHTML, row.arrHTML, row.depSched, row.arrSched),
-          routeText: `${row.startStation} → ${row.transferStation} → ${row.endStation}`,
-          mobileTransferLine1: `${row.transferStation}轉乘`,
+          routeText: `${displayTraStationName(row.startStation)} → ${displayTraStationName(row.transferStation)} → ${displayTraStationName(row.endStation)}`,
+          mobileTransferLine1: `${displayTraStationName(row.transferStation)}轉乘`,
           mobileTransferLine2: `等候${row.waitMin}分`,
           durationText: formatDurationMinutes(row.travelMin),
           durationMetaText: '轉乘1次',
           viaText: '',
           viaHtml: '',
-          summaryTransferText: `${row.transferStation}轉乘`,
-          metaHtml: `${row.transferStation}轉乘 · 等候 ${row.waitMin} 分`,
+          summaryTransferText: `${displayTraStationName(row.transferStation)}轉乘`,
+          metaHtml: `${displayTraStationName(row.transferStation)}轉乘 · 等候 ${row.waitMin} 分`,
           statusText: row.status,
           statusHtml: transferStatusDisplay.html,
           statusTone: transferStatusDisplay.tone,
@@ -8035,7 +8058,7 @@ function renderTransferTable(){
         originDate: row.originDate1,
         type: row.type1,
         rawType: row.rawType1 || '',
-        range: `${row.startStation}→${row.endStation}`,
+        range: `${displayTraStationName(row.startStation)}→${displayTraStationName(row.endStation)}`,
         depSched: row.depSched,
         arrSched: row.arrSched,
         depAbs: row.stDepAbs,
@@ -8417,7 +8440,7 @@ function renderTransferTable(){
         trainNo,
         originDate,
         type: typeLabel,
-        range: `${arr[0][0]} → ${arr.slice(-1)[0][0]}`,
+        range: `${displayTraStationName(arr[0][0])} → ${displayTraStationName(arr.slice(-1)[0][0])}`,
         viaLabel: getTraViaLabelFromStops(arr, {
           tripLine: data['行別'] || data['路線'] || data['TripLine'] || data['銵'] || '',
           trainNo
@@ -9016,6 +9039,7 @@ function buildTraTrainQueryV2StopRows(trainNo, originDateStr, stops, runtimeCtx,
     return {
       seq: index + 1,
       station: row.station || '--',
+      stationHtml: escapeTrainQueryHtml(displayTraStationName(row.station || '--')),
       weatherTimeMs: getStopWeatherTimeMs(originDateStr, weatherAbs),
       arrHtml,
       depHtml,
@@ -9088,7 +9112,7 @@ function buildTraTrainQueryV2Data(trainNo, options){
     statusTone: getTrainQueryToneByStatus(statusLabel),
     queryDate: currentQueryDateStr,
     originDate: currentQueryDateStr,
-    routeLabel: `${firstStop[0] || '--'} → ${lastStop[0] || '--'}`,
+    routeLabel: `${displayTraStationName(firstStop[0] || '--')} → ${displayTraStationName(lastStop[0] || '--')}`,
     heroSignals: [
       { label: '目前位置', value: board.currentLocation || '--' },
       { label: '提示', value: board.nextHint || '--', tone: /即將通過|下一停靠|停靠中|即將發車/.test(board.nextHint || '') ? 'success' : 'neutral' }
@@ -9144,9 +9168,38 @@ function filterTrainScheduleByNumberV2(trainNo){
   const modal=document.getElementById('trainModal');
   const modalClose=document.getElementById('modalClose');
 
+  function isHomeLiveDetailOnly(){
+    const p = new URLSearchParams(window.location.search);
+    return ['1', 'true', 'yes', 'on'].includes(String(p.get('home_live_detail') || p.get('detailOnly') || '').trim().toLowerCase());
+  }
+
+  function setupHomeLiveDetailOnly(){
+    if(!isHomeLiveDetailOnly()) return;
+    document.documentElement.classList.add('home-live-detail-only');
+    document.body?.classList.add('home-live-detail-only');
+    if(document.getElementById('home-live-detail-only-style')) return;
+    const style = document.createElement('style');
+    style.id = 'home-live-detail-only-style';
+    style.textContent = `
+      html.home-live-detail-only,
+      body.home-live-detail-only{background:transparent!important;overflow:hidden!important;}
+      body.home-live-detail-only > :not(#trainModal):not(script):not(style){display:none!important;}
+      body.home-live-detail-only #trainModal{background:rgba(15,23,42,.38);}
+    `;
+    document.head.appendChild(style);
+  }
+
+  function notifyHomeLiveDetailClose(){
+    if(!isHomeLiveDetailOnly()) return;
+    try{ window.parent?.postMessage({ type:'HOME_LIVE_DETAIL_CLOSE' }, '*'); }catch(_){}
+  }
+
+  setupHomeLiveDetailOnly();
+
   function closeModal(){
     if(modal) modal.style.display='none';
     modalCtx = null;
+    notifyHomeLiveDetailClose();
   }
   if(modalClose){ modalClose.addEventListener('click', closeModal); }
   if(modal){ modal.addEventListener('click',(e)=>{ if(e.target===modal) closeModal(); }); }
@@ -9406,7 +9459,7 @@ function filterTrainScheduleByNumberV2(trainNo){
                 </div>
               </div>
               <div class="modal-stop-station-cell">
-                <div class="modal-stop-station-main"><span>${escapeTrainQueryHtml(row?.station || '--')}</span>${inlineTag ? `<span class="modal-stop-inline-tag">${escapeTrainQueryHtml(inlineTag)}</span>` : ''}${weatherSlot}</div>
+                <div class="modal-stop-station-main"><span>${escapeTrainQueryHtml(displayTraStationName(row?.station || '--'))}</span>${inlineTag ? `<span class="modal-stop-inline-tag">${escapeTrainQueryHtml(inlineTag)}</span>` : ''}${weatherSlot}</div>
               </div>
               <div class="modal-stop-time-cell">
                 <div class="modal-stop-time-main ${(!row?.arrHtml && !row?.arrText) ? 'modal-stop-time-empty' : ''}">${arrHtml}</div>
@@ -9432,8 +9485,8 @@ function filterTrainScheduleByNumberV2(trainNo){
     const arr=t['車站時間']||[];
     if(!arr.length) return;
 
-    const firstStation = arr[0]?.[0] || '';
-    const lastStation = arr[arr.length - 1]?.[0] || '';
+    const firstStation = displayTraStationName(arr[0]?.[0] || '');
+    const lastStation = displayTraStationName(arr[arr.length - 1]?.[0] || '');
     const firstStop = splitArrDep(arr[0] || []);
     const lastStop = splitArrDep(arr[arr.length - 1] || []);
     const trainType = normalizeTraTypeDisplay(t['車種'] || '');
@@ -9612,15 +9665,15 @@ function filterTrainScheduleByNumberV2(trainNo){
     const arr1All = t1['車站時間']||[];
     const arr2All = t2['車站時間']||[];
 
-    const pickIndex = (arr, name)=>arr.findIndex(x=>x[0]===name);
-    const i1Mid = pickIndex(arr1All, plan.transferStation);
+    const pickIndex = (arr, name, startAt = 0)=>findTraStopIndex(arr, name, startAt);
+    const i1Start = pickIndex(arr1All, plan.startStation);
+    const i1Mid = pickIndex(arr1All, plan.transferStation, i1Start + 1);
     const i2Mid = pickIndex(arr2All, plan.transferStation);
-    const i2End = pickIndex(arr2All, plan.endStation);
+    const i2End = pickIndex(arr2All, plan.endStation, i2Mid + 1);
 
-    if(i1Mid < 0 || i2Mid < 0 || i2End < 0) return;
+    if(i1Start < 0 || i1Mid < 0 || i2Mid < 0 || i2End < 0) return;
 
     // 第一段只顯示到「轉乘站」；第二段只顯示「轉乘站→迄站」
-    const i1Start = pickIndex(arr1All, plan.startStation);
     if(i1Start < 0 || i1Mid <= i1Start) return;
     const arr1 = arr1All.slice(i1Start, i1Mid+1);
     const arr2 = arr2All.slice(i2Mid, i2End+1);
@@ -9651,7 +9704,7 @@ function filterTrainScheduleByNumberV2(trainNo){
       <div class="modal-meta-line">
         <span>日期 ${buildTransferDateText(originDateStr1, originDateStr2)}</span>
         <span class="modal-meta-sep">·</span>
-        <span>${plan.transferStation} 轉乘</span>
+        <span>${displayTraStationName(plan.transferStation)} 轉乘</span>
         <span class="modal-meta-sep">·</span>
         <span>等待 ${plan.waitMin} 分</span>
         <span class="modal-meta-sep">·</span>
@@ -9673,7 +9726,7 @@ function filterTrainScheduleByNumberV2(trainNo){
               </div>
             </div>
             <div class="segment-inline-meta">
-              <span class="segment-route">${plan.startStation} → ${plan.transferStation}</span>
+              <span class="segment-route">${displayTraStationName(plan.startStation)} → ${displayTraStationName(plan.transferStation)}</span>
               <span class="segment-meta-sep">·</span>
               <span><strong>${renderTimeWithDelay(plan.n1, seg1Dep, currentQueryDateStr, null, seg1DepAbs, originDateStr1)}</strong> → <strong>${renderTimeWithDelay(plan.n1, seg1Arr, currentQueryDateStr, null, seg1ArrAbs, originDateStr1)}</strong></span>
               <span class="segment-meta-sep">·</span>
@@ -9683,7 +9736,7 @@ function filterTrainScheduleByNumberV2(trainNo){
           <article class="transfer-card-lite transfer-summary-row transfer-wait-row compact">
             <div class="segment-rail">
               <div class="segment-label">轉乘</div>
-              <div class="segment-main">${plan.transferStation}</div>
+              <div class="segment-main">${displayTraStationName(plan.transferStation)}</div>
             </div>
             <div class="segment-inline-meta">
               <span><strong>${renderTimeWithDelay(plan.n1, seg1Arr, currentQueryDateStr, null, seg1ArrAbs, originDateStr1)}</strong> → <strong>${renderTimeWithDelay(plan.n2, seg2Dep, currentQueryDateStr, null, seg2DepAbs, originDateStr2)}</strong></span>
@@ -9701,7 +9754,7 @@ function filterTrainScheduleByNumberV2(trainNo){
               </div>
             </div>
             <div class="segment-inline-meta">
-              <span class="segment-route">${plan.transferStation} → ${plan.endStation}</span>
+              <span class="segment-route">${displayTraStationName(plan.transferStation)} → ${displayTraStationName(plan.endStation)}</span>
               <span class="segment-meta-sep">·</span>
               <span><strong>${renderTimeWithDelay(plan.n2, seg2Dep, currentQueryDateStr, null, seg2DepAbs, originDateStr2)}</strong> → <strong>${renderTimeWithDelay(plan.n2, seg2Arr, currentQueryDateStr, null, seg2ArrAbs, originDateStr2)}</strong></span>
               <span class="segment-meta-sep">·</span>
@@ -9788,7 +9841,8 @@ function filterTrainScheduleByNumberV2(trainNo){
       }
 
       const badgeNext = (canNext && i===nextIndex) ? ` <span class="badge-next">下一站</span>` : '';
-      const badgeXfer = (transferStation && s[0]===transferStation) ? ` <span class="badge-xfer">轉乘</span>` : '';
+      const stationDisplayName = displayTraStationName(s[0]);
+      const badgeXfer = (transferStation && sameTraStationName(s[0], transferStation)) ? ` <span class="badge-xfer">轉乘</span>` : '';
       const tag = (i===0) ? '起站' : (i===arr.length-1 ? '終點' : '');
 
       item.innerHTML = `
@@ -9798,12 +9852,12 @@ function filterTrainScheduleByNumberV2(trainNo){
           <div class="tl-line"></div>
         </div>
         <div class="tl-content">
-          <div class="tl-station"><span>${s[0]}</span>${arrHTML?`<span class="st-arr">${arrHTML}</span>`:""}${badgeXfer}${badgeNext}</div>
+          <div class="tl-station"><span>${stationDisplayName}</span>${arrHTML?`<span class="st-arr">${arrHTML}</span>`:""}${badgeXfer}${badgeNext}</div>
           ${tag ? `<div class="tl-desc">${tag}</div>` : ''}
         </div>
       `;
 
-      if(transferStation && s[0]===transferStation) item.classList.add('transfer');
+      if(transferStation && sameTraStationName(s[0], transferStation)) item.classList.add('transfer');
       if(canNext){
         if(i<nextIndex) item.classList.add('passed');
         if(i===nextIndex) item.classList.add('next');
@@ -10526,7 +10580,7 @@ let traGeoSegmentCatalogCache = null;
 
 function makeTraGeoSegmentKey(a, b) {
     const names = [normalizeTraLinkedStation(a), normalizeTraLinkedStation(b)].filter(Boolean);
-    if (names.length !== 2 || names[0] === names[1]) return '';
+    if (names.length !== 2 || sameTraStationName(names[0], names[1])) return '';
     names.sort();
     return `${names[0]}|||${names[1]}`;
 }
@@ -10937,6 +10991,8 @@ function handleTraUrlParams() {
     const pStation = normalizeTraLinkedStation(p.get('station'));
     const pTrain = extractTrainNoFromInput(p.get('train') || p.get('trainNo') || '');
     const pTransfer = ['1', 'true', 'yes', 'on'].includes(String(p.get('transfer') || p.get('acceptTransfers') || '').trim().toLowerCase());
+    const pDetail = ['1', 'true', 'yes', 'on'].includes(String(p.get('detail') || p.get('openDetail') || '').trim().toLowerCase());
+    const pOriginDate = String(p.get('originDate') || p.get('date') || '').trim();
     const startEndPanelId = resolveStartEndPanelId('panel-startend');
     const acceptTransfers = document.getElementById('acceptTransfers');
 
@@ -10974,6 +11030,11 @@ function handleTraUrlParams() {
         const input = document.getElementById('trainNumberInput');
         if (input) input.value = pTrain;
         setTimeout(() => {
+            if (pDetail) {
+                const originDate = /^\d{4}-\d{2}-\d{2}$/.test(pOriginDate) ? pOriginDate : currentQueryDateStr;
+                showTrainDetails(pTrain, originDate, { showPassStops: false });
+                return;
+            }
             filterTrainScheduleByNumberV2(pTrain);
         }, 300);
         return;
@@ -11000,7 +11061,7 @@ function buildFavDropdown() {
             hasFav = true;
             const item = document.createElement('div');
             item.className = 'fav-item';
-            item.innerHTML = `<span style="color:var(--primary);">📍</span> ${s} → ${e}`;
+            item.innerHTML = `<span style="color:var(--primary);">📍</span> ${displayTraStationName(s)} → ${displayTraStationName(e)}`;
 
             item.onclick = () => {
                 fillTraStartEndInputs(s, e);
@@ -11137,8 +11198,10 @@ document.addEventListener('click', (event) => {
   }
 
   function updateSummary(){
-    const st = getVal('startStation') || '出發';
-    const ed = getVal('endStation')   || '到達';
+    const stRaw = getVal('startStation');
+    const edRaw = getVal('endStation');
+    const st = stRaw ? displayTraStationName(extractStationNameFromInput(stRaw)) : '出發';
+    const ed = edRaw ? displayTraStationName(extractStationNameFromInput(edRaw)) : '到達';
     const acc = document.getElementById('acceptTransfers');
     const accTxt = acc && acc.checked ? '轉乘' : '直達';
     sum.textContent = `${st} → ${ed} · ${accTxt}`;
@@ -11152,7 +11215,7 @@ document.addEventListener('click', (event) => {
 <script charset="UTF-8" src="../shared/rail-network.js?v=20260404-autorefresh1"></script>
 <script charset="UTF-8" src="../shared/rail-master-table.js?v=20260404-autorefresh2"></script>
 <script charset="UTF-8" src="../shared/rail-operation-diagram.js?v=20260404-autorefresh2"></script>
-  <script charset="UTF-8" src="../shared/rail-live-tracker.js?v=20260419-realmap8"></script>
+  <script charset="UTF-8" src="../shared/rail-live-tracker.js?v=20260419-realmap10"></script>
 <script charset="UTF-8" src="../shared/rail-usage-footer.js?v=20260326-footer3"></script>
 <script>
 window.addEventListener('load', () => {

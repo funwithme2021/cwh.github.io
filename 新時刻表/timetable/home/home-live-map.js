@@ -26,9 +26,12 @@
   const USER_LOCATION_MAX_AGE_MS = 10 * 60 * 1000;
   const REFRESH_MS = 60 * 1000;
   const DELAY_REFRESH_MS = 30 * 1000;
+  const MARKER_UPDATE_MS = 260;
+  const HEAVY_MARKER_UPDATE_MS = 520;
   const UPCOMING_WINDOW = 10;
   const STATION_ALERT_WINDOW = 10;
   const STATION_SOON_WINDOW = 3;
+  const SHARED_PHYSICAL_STATIONS = new Set(["南港", "台北", "板橋"]);
 
   const SYSTEMS = {
     tr: {
@@ -46,6 +49,20 @@
       stationUrl: "https://tdx.transportdata.tw/api/basic/v2/Rail/THSR/Station?$format=JSON",
       scheduleUrl: (date) => `https://tdx.transportdata.tw/api/basic/v2/Rail/THSR/DailyTimetable/TrainDate/${date}?$format=JSON`,
       liveDelayUrl: "",
+    },
+  };
+  const MAP_TRAIN_COLORS = {
+    tr: {
+      north: "#2563eb",
+      south: "#f97316",
+      east: "#7c3aed",
+      west: "#e11d48",
+      default: "#111827",
+    },
+    thsr: {
+      north: "#0066ff",
+      south: "#ff7a00",
+      default: "#111827",
     },
   };
 
@@ -68,9 +85,11 @@
     userWatchId: null,
     userMoved: false,
     didInitialFit: false,
+    mapInteracting: false,
     activeKey: "",
     refreshTimer: 0,
     animationFrame: 0,
+    lastMarkerUpdateAt: 0,
     token: "",
     tokenExpireAt: 0,
     tokenPromise: null,
@@ -85,11 +104,8 @@
     locate: document.getElementById("homeLiveLocate"),
     fit: document.getElementById("homeLiveFit"),
     close: document.getElementById("homeLiveClose"),
-    modal: document.getElementById("homeLiveModal"),
-    modalTitle: document.getElementById("homeLiveModalTitle"),
-    modalSubtitle: document.getElementById("homeLiveModalSubtitle"),
-    modalBody: document.getElementById("homeLiveModalBody"),
-    modalClose: document.getElementById("homeLiveModalClose"),
+    modal: document.getElementById("homeLiveTrainModal"),
+    modalFrame: document.getElementById("homeLiveDetailFrame"),
   };
 
   let leafletLoadPromise = null;
@@ -312,11 +328,29 @@
       maxZoom: 19,
       crossOrigin: true,
     }).addTo(state.map);
-    state.map.on("dragstart zoomstart", () => {
+    state.map.on("dragstart zoomstart movestart", () => {
       state.userMoved = true;
+      state.mapInteracting = true;
+      el.map?.classList.add("is-map-interacting");
+    });
+    state.map.on("dragend zoomend moveend", () => {
+      state.mapInteracting = false;
+      el.map?.classList.remove("is-map-interacting");
+      updateMapDensityClasses();
+      updateTrainMarkers({ force: true });
+      updateUserMarker();
     });
     window.setTimeout(() => state.map?.invalidateSize?.(), 120);
     return state.map;
+  }
+
+  function updateMapDensityClasses() {
+    if (!el.map || !state.map) return;
+    const zoom = Number(state.map.getZoom?.());
+    const isHeavy = state.markerBindings.length > 80;
+    const isLowZoom = Number.isFinite(zoom) && zoom < 9;
+    el.map.classList.toggle("is-heavy-trains", isHeavy);
+    el.map.classList.toggle("is-low-zoom", isLowZoom);
   }
 
   function getRailNetwork() {
@@ -328,7 +362,38 @@
     if (!text) return "";
     const network = getRailNetwork();
     if (system === "thsr") return network?.normalizeThsrStation?.(text) || text.replace(/臺/g, "台");
-    return network?.normalizeTraStation?.(text) || text.replace(/台/g, "臺");
+    const normalized = network?.normalizeTraStation?.(text) || text.replace(/台/g, "臺");
+    return normalized === "臺北-環島" ? "臺北" : normalized;
+  }
+
+  function canonicalTaipeiText(name) {
+    const text = String(name || "").trim().replace(/臺/g, "台");
+    return text === "台北-環島" ? "台北" : text;
+  }
+
+  function formatStationDisplayName(system, name) {
+    const text = String(name || "").trim();
+    if (!text) return "";
+    if (canonicalTaipeiText(text) === "台北") return "台北";
+    return text;
+  }
+
+  function getSharedPhysicalStationKey(name) {
+    const key = canonicalTaipeiText(name);
+    return SHARED_PHYSICAL_STATIONS.has(key) ? key : "";
+  }
+
+  function getStationEventKey(system, stationName) {
+    return `${system}|${normalizeStation(system, stationName)}`;
+  }
+
+  function getStationEventLookupKeys(system, stationName) {
+    const sharedKey = getSharedPhysicalStationKey(stationName);
+    if (!sharedKey) return [getStationEventKey(system, stationName)];
+    return [
+      getStationEventKey("tr", sharedKey),
+      getStationEventKey("thsr", sharedKey),
+    ];
   }
 
   function normalizeTrainType(system, value) {
@@ -750,7 +815,7 @@
       .map((stop, index) => {
         const rawName = readZh(stop?.StationName) || String(stop?.StationName || stop?.name || "").trim();
         const name = normalizeStation(system, rawName);
-        const displayName = rawName || name;
+        const displayName = formatStationDisplayName(system, rawName || name);
         const arrivalRaw = parseMinutes(stop?.ArrivalTime || stop?.arrival || "");
         const departureRaw = parseMinutes(stop?.DepartureTime || stop?.departure || "");
         const hasArrival = arrivalRaw !== null;
@@ -828,6 +893,11 @@
     if (snapshot.system === "thsr") return snapshot.direction === "north" ? "#0f766e" : "#be185d";
     const color = getRailNetwork()?.getTraTypeColor?.(snapshot.type);
     return color || "#111827";
+  }
+
+  function getMapTrainColor(snapshot) {
+    const systemColors = MAP_TRAIN_COLORS[snapshot?.system] || MAP_TRAIN_COLORS.tr;
+    return systemColors[snapshot?.direction] || systemColors.default || "#111827";
   }
 
   function buildEntry(system, row, date, delayMaps) {
@@ -1051,6 +1121,57 @@
     return best;
   }
 
+  function toLatLonArray(value) {
+    if (Array.isArray(value)) return [Number(value[0]), Number(value[1])];
+    return [Number(value?.lat), Number(value?.lon ?? value?.lng)];
+  }
+
+  function projectGeoOnSegment(from, to, geo) {
+    const [fromLat, fromLon] = toLatLonArray(from);
+    const [toLat, toLon] = toLatLonArray(to);
+    const [geoLat, geoLon] = toLatLonArray(geo);
+    if (![fromLat, fromLon, toLat, toLon, geoLat, geoLon].every(Number.isFinite)) return null;
+    const avgLatRad = ((fromLat + toLat + geoLat) / 3) * Math.PI / 180;
+    const scaleX = 111.32 * Math.cos(avgLatRad);
+    const ax = (fromLon - geoLon) * scaleX;
+    const ay = (fromLat - geoLat) * 111.32;
+    const bx = (toLon - geoLon) * scaleX;
+    const by = (toLat - geoLat) * 111.32;
+    const vx = bx - ax;
+    const vy = by - ay;
+    const lengthSq = vx * vx + vy * vy;
+    if (lengthSq <= 0) return { latLng: [fromLat, fromLon], distanceKm: Math.hypot(ax, ay) };
+    const ratio = clamp((-(ax * vx + ay * vy)) / lengthSq, 0, 1);
+    const projectedLat = fromLat + (toLat - fromLat) * ratio;
+    const projectedLon = fromLon + (toLon - fromLon) * ratio;
+    const px = ax + vx * ratio;
+    const py = ay + vy * ratio;
+    return {
+      latLng: [projectedLat, projectedLon],
+      distanceKm: Math.hypot(px, py),
+    };
+  }
+
+  function findNearestPointOnRouteLines(routeLines, geo) {
+    let best = null;
+    (routeLines || []).forEach((line) => {
+      const points = (line || []).filter(Boolean);
+      for (let index = 0; index < points.length - 1; index += 1) {
+        const hit = projectGeoOnSegment(points[index], points[index + 1], geo);
+        if (!hit) continue;
+        if (!best || hit.distanceKm < best.distanceKm) best = hit;
+      }
+    });
+    return best;
+  }
+
+  function getSnappedStationLatLng(system, station) {
+    const fallback = [station.lat, station.lon];
+    const hit = findNearestPointOnRouteLines(state.routeLines[system] || [], station);
+    const maxDistanceKm = system === "thsr" ? 10 : 4;
+    return hit && hit.distanceKm <= maxDistanceKm ? hit.latLng : fallback;
+  }
+
   function getLatLngHeadingAngle(from, to) {
     const fromPoint = Array.isArray(from) ? from : [from?.lat, from?.lon ?? from?.lng];
     const toPoint = Array.isArray(to) ? to : [to?.lat, to?.lon ?? to?.lng];
@@ -1245,6 +1366,8 @@
   }
 
   function getAnimationMode(snapshot) {
+    const sharedMode = window.RailLiveTrackerCore?.getSnapshotAnimationMode?.(snapshot);
+    if (sharedMode?.type) return sharedMode;
     const delay = Math.max(0, Number(snapshot?.delayMinutes) || 0);
     if (delay > 10) return { type: "stepped", cadenceSeconds: 60 };
     if (delay > 5) return { type: "stepped", cadenceSeconds: 30 };
@@ -1347,42 +1470,187 @@
       .join("");
   }
 
-  function showTrainDetailModal(snapshot) {
-    if (!snapshot) return;
-    const runtime = updateSnapshotRuntime(snapshot, nowExactMinute());
-    const trainColor = getTrainColor(runtime);
-    if (el.modalTitle) {
-      el.modalTitle.innerHTML = `${escapeHtml(runtime.systemLabel)} ${escapeHtml(runtime.trainNo)} <span style="color:${escapeHtml(trainColor)}">${escapeHtml(runtime.type)}</span>`;
-    }
-    if (el.modalSubtitle) {
-      el.modalSubtitle.innerHTML = `${escapeHtml(runtime.firstDisplayStation)} → ${escapeHtml(runtime.lastDisplayStation)} · ${buildStatusHTML(runtime.statusText)}`;
-    }
-    if (el.modalBody) {
-      el.modalBody.innerHTML = `
-        <div class="home-live-detail-summary">
-          <div><b>下一站</b><span>${escapeHtml(runtime.nextDisplayStation || runtime.nextStation || "--")} ${escapeHtml(runtime.nextTime || "")}</span></div>
-          <div><b>目前區間</b><span>${escapeHtml(getDisplayStation(runtime.system, runtime.currentFrom))} → ${escapeHtml(getDisplayStation(runtime.system, runtime.currentTo))}</span></div>
-          <div><b>起訖站</b><span>${escapeHtml(runtime.firstDisplayStation)} → ${escapeHtml(runtime.lastDisplayStation)}</span></div>
-          <div><b>即時狀態</b><span>${buildStatusHTML(runtime.statusText)}</span></div>
+  function getTravelText(snapshot) {
+    const start = Number(snapshot?.journeyFirstMinute ?? snapshot?.firstMinute);
+    const end = Number(snapshot?.journeyLastMinute ?? snapshot?.lastMinute);
+    if (!Number.isFinite(start) || !Number.isFinite(end)) return "--";
+    const minutes = Math.max(0, Math.round(end - start));
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    return hours ? `${hours}小時${mins ? ` ${mins}分` : ""}` : `${mins}分`;
+  }
+
+  function getStopWeatherTimeMs(originDate, absMinute) {
+    const match = String(originDate || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!match || !Number.isFinite(absMinute)) return NaN;
+    const base = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]), 0, 0, 0, 0);
+    return base.getTime() + Number(absMinute) * 60000;
+  }
+
+  function getModalTone(stateText) {
+    const text = String(stateText || "");
+    if (/已過站|已通過|已到終點|通過$/.test(text)) return "muted";
+    if (/晚|延誤/.test(text)) return "danger";
+    if (/即將|下一|停靠中|尚未/.test(text)) return "success";
+    return "neutral";
+  }
+
+  function buildModalStopRows(runtime, showPassStops) {
+    const now = Number(runtime?.nowMinute);
+    const stopRows = (runtime?.stopDetails || []).map((stop, index, rows) => {
+      const arrAbs = getStopArrivalMinute(stop);
+      const depAbs = getStopDepartureMinute(stop);
+      const isOrigin = index === 0;
+      const isTerminal = index === rows.length - 1;
+      const eventAbs = isTerminal ? arrAbs : (depAbs ?? arrAbs);
+      let stateText = "停靠";
+      if (isOrigin && Number.isFinite(depAbs) && Number.isFinite(now) && now < depAbs) {
+        stateText = depAbs - now <= UPCOMING_WINDOW ? "即將發車" : "尚未發車";
+      } else if (!isTerminal && Number.isFinite(arrAbs) && Number.isFinite(depAbs) && Number.isFinite(now) && now >= arrAbs && now < depAbs) {
+        stateText = "停靠中";
+      } else if (isTerminal && Number.isFinite(arrAbs) && Number.isFinite(now) && now >= arrAbs) {
+        stateText = "已到終點";
+      } else if (Number.isFinite(eventAbs) && Number.isFinite(now) && eventAbs < now) {
+        stateText = "已過站";
+      } else if (stop.name === runtime.nextStopStation || stop.name === runtime.nextStation) {
+        stateText = isOrigin ? "即將發車" : "下一停靠";
+      }
+      return {
+        station: stop.name,
+        arrAbs,
+        depAbs,
+        eventAbs,
+        isPass: false,
+        isOrigin,
+        isTerminal,
+        isCurrent: stateText === "停靠中",
+        isActive: /即將|下一|停靠中|尚未/.test(stateText),
+        isPassed: /已過站|已到終點/.test(stateText),
+        stateText,
+      };
+    });
+    if (!showPassStops) return stopRows;
+    const stopKey = new Set(stopRows.map((row) => `${row.station}|${Math.round(Number(row.eventAbs) || 0)}`));
+    const passRows = (runtime?.points || [])
+      .filter((point) => !point?.isStop && Number.isFinite(point?.minute))
+      .map((point) => {
+        const isPassed = Number.isFinite(now) && point.minute < now;
+        const isActive = !isPassed && Number.isFinite(now) && point.minute - now <= STATION_ALERT_WINDOW && point.minute >= now;
+        return {
+          station: point.station,
+          arrAbs: null,
+          depAbs: point.minute,
+          eventAbs: point.minute,
+          isPass: true,
+          isOrigin: false,
+          isTerminal: false,
+          isCurrent: false,
+          isActive,
+          isPassed,
+          stateText: isPassed ? "已通過" : (isActive ? "即將通過" : "通過"),
+        };
+      })
+      .filter((row) => !stopKey.has(`${row.station}|${Math.round(Number(row.eventAbs) || 0)}`));
+    return stopRows.concat(passRows).sort((a, b) => {
+      const aAbs = Number.isFinite(a.eventAbs) ? a.eventAbs : 999999;
+      const bAbs = Number.isFinite(b.eventAbs) ? b.eventAbs : 999999;
+      return aAbs - bAbs;
+    });
+  }
+
+  function renderModalTime(value, empty = "--") {
+    return Number.isFinite(value) ? escapeHtml(formatMinute(value)) : escapeHtml(empty);
+  }
+
+  function renderModalStopTable(runtime, showPassStops) {
+    const rows = buildModalStopRows(runtime, showPassStops);
+    return `
+      <div class="modal-stop-table">
+        <div class="modal-stop-head">
+          <div></div>
+          <div>站名</div>
+          <div>到達時間</div>
+          <div>開車時間</div>
+          <div>狀態</div>
         </div>
-        <table class="home-live-detail-table">
-          <thead><tr><th>時間</th><th>車站</th><th>事件</th></tr></thead>
-          <tbody>${buildTrainDetailRows(runtime)}</tbody>
-        </table>
-      `;
-    }
-    el.modal?.classList.remove("hidden");
-    el.modal?.setAttribute("aria-hidden", "false");
+        ${rows.map((row, index) => {
+          const classes = ["modal-stop-row"];
+          if (row.isPassed) classes.push("is-passed");
+          if (row.isPass) classes.push("is-pass");
+          if (row.isCurrent) classes.push("is-current");
+          if (row.isActive) classes.push("is-active");
+          const inlineTag = row.isOrigin ? "起站" : (row.isTerminal ? "終點" : "");
+          const arrHtml = row.isPass ? "--" : renderModalTime(row.arrAbs);
+          const depHtml = renderModalTime(row.depAbs);
+          const stationName = getDisplayStation(runtime.system, row.station);
+          const weatherAbs = Number.isFinite(row.arrAbs) ? row.arrAbs : row.depAbs;
+          const weatherTimeMs = getStopWeatherTimeMs(runtime.originDate || todayDateStr(), weatherAbs);
+          const weatherKey = `home-live-modal-${runtime.system}-${runtime.trainNo}-${index}-${row.station || ""}-${Number.isFinite(weatherTimeMs) ? Math.round(weatherTimeMs) : ""}`;
+          const weatherSlot = Number.isFinite(weatherTimeMs)
+            ? `<span class="modal-stop-weather-slot rail-stop-weather-slot" data-stop-weather="1" data-weather-key="${escapeHtml(weatherKey)}" data-weather-station="${escapeHtml(stationName)}" data-weather-time-ms="${Math.round(weatherTimeMs)}" data-weather-passed="${row.isPassed ? "1" : "0"}"><span class="rail-stop-weather-chip" data-stop-weather-chip hidden></span></span>`
+            : "";
+          const weatherNote = Number.isFinite(weatherTimeMs)
+            ? `<span class="modal-stop-state-text rail-stop-weather-note modal-stop-weather-note" data-stop-weather-note data-weather-key="${escapeHtml(weatherKey)}" data-weather-base-text="${escapeHtml(row.stateText)}">${escapeHtml(row.stateText)}</span>`
+            : `<span class="modal-stop-state-text">${escapeHtml(row.stateText)}</span>`;
+          const tone = getModalTone(row.stateText);
+          return `
+            <div class="${classes.join(" ")}">
+              <div class="modal-stop-marker-col">
+                <div class="modal-stop-marker">
+                  <div class="modal-stop-dot"></div>
+                  <div class="modal-stop-line"></div>
+                </div>
+              </div>
+              <div class="modal-stop-station-cell">
+                <div class="modal-stop-station-main"><span>${escapeHtml(stationName)}</span>${renderStationTransferBadges(runtime.system, row.station)}${inlineTag ? `<span class="modal-stop-inline-tag">${escapeHtml(inlineTag)}</span>` : ""}${weatherSlot}</div>
+              </div>
+              <div class="modal-stop-time-cell">
+                <div class="modal-stop-time-main ${row.isPass ? "modal-stop-time-empty" : ""}">${arrHtml}</div>
+              </div>
+              <div class="modal-stop-time-cell">
+                <div class="modal-stop-time-main">${depHtml}</div>
+              </div>
+              <div class="modal-stop-state modal-tone-${escapeHtml(tone)}">${weatherNote}</div>
+            </div>
+          `;
+        }).join("")}
+      </div>
+    `;
+  }
+
+  function buildDetailFrameUrl(snapshot) {
+    const system = snapshot?.system === "thsr" ? "thsr" : "tr";
+    const base = system === "thsr" ? "../thsr/thsr.html" : "../tr/tr.html";
+    const originDate = snapshot?.originDate || todayDateStr();
+    const params = new URLSearchParams({
+      embed: "1",
+      home_live_detail: "1",
+      detailOnly: "1",
+      detail: "1",
+      train: String(snapshot?.trainNo || ""),
+      trainNo: String(snapshot?.trainNo || ""),
+      date: originDate,
+      originDate,
+    });
+    return `${base}?${params.toString()}`;
+  }
+
+  function showTrainDetailModal(snapshot) {
+    if (!snapshot?.trainNo || !el.modal || !el.modalFrame) return;
+    el.modalFrame.src = buildDetailFrameUrl(snapshot);
+    el.modal.classList.remove("hidden");
+    el.modal.setAttribute("aria-hidden", "false");
   }
 
   function closeTrainDetailModal() {
     el.modal?.classList.add("hidden");
     el.modal?.setAttribute("aria-hidden", "true");
+    if (el.modalFrame) el.modalFrame.src = "about:blank";
   }
 
   function getDisplayStation(system, station) {
     const found = getStation(system, station);
-    return found?.name || station || "--";
+    return formatStationDisplayName(system, found?.name || station || "--");
   }
 
   function updateMarkerVisual(marker, snapshot, placement) {
@@ -1391,7 +1659,7 @@
     const root = marker.getElement?.();
     const button = root?.querySelector?.("button");
     if (!button) return;
-    const color = getTrainColor(snapshot);
+    const color = getMapTrainColor(snapshot);
     button.style.setProperty("--train-color", color);
     button.style.setProperty("--train-angle", `${(Number(placement.angle) || 0).toFixed(1)}deg`);
     button.style.setProperty("--train-label-transform", getDirectionalTrainLabelTransform(placement.angle));
@@ -1419,10 +1687,11 @@
   function renderMarkers() {
     const L = state.L || window.L;
     clearMarkers();
+    state.lastMarkerUpdateAt = 0;
     state.snapshots.forEach((snapshot) => {
       const placement = getPlacement(snapshot);
       if (!placement?.latLng) return;
-      const color = getTrainColor(snapshot);
+      const color = getMapTrainColor(snapshot);
       const label = `${snapshot.trainNo} ${snapshot.type}`;
       const icon = L.divIcon({
         className: "home-live-train-marker",
@@ -1436,6 +1705,7 @@
       state.markerBindings.push({ marker, snapshot });
       window.setTimeout(() => updateMarkerVisual(marker, snapshot, placement), 0);
     });
+    updateMapDensityClasses();
   }
 
   function clearRouteLayers() {
@@ -1455,24 +1725,51 @@
 
   function buildStationLabelHtml(system, station) {
     const badges = renderStationTransferBadges(system, station.name);
-    return `<button type="button" aria-label="${escapeHtml(station.name)}站">${escapeHtml(station.name)}${badges}</button>`;
+    const label = getDisplayStation(system, station.name);
+    return `<button type="button" aria-label="${escapeHtml(label)}站">${escapeHtml(label)}${badges}</button>`;
   }
 
-  function pushStationEvent(map, stationName, event) {
+  function pushStationEvent(map, system, stationName, event) {
     if (!stationName) return;
-    if (!map.has(stationName)) map.set(stationName, []);
-    const list = map.get(stationName);
-    const key = `${event.trainNo}|${event.originDate || ""}|${event.kind}|${event.station}`;
-    const existingIndex = list.findIndex((item) => `${item.trainNo}|${item.originDate || ""}|${item.kind}|${item.station}` === key);
+    const stationKey = getStationEventKey(system, stationName);
+    if (!map.has(stationKey)) map.set(stationKey, []);
+    const list = map.get(stationKey);
+    const key = `${system}|${event.trainNo}|${event.originDate || ""}|${event.kind}|${event.station}`;
+    const existingIndex = list.findIndex((item) => `${item.system}|${item.trainNo}|${item.originDate || ""}|${item.kind}|${item.station}` === key);
     if (existingIndex >= 0) {
       const current = list[existingIndex];
-      if (Number(event.timeMinute) < Number(current.timeMinute)) list[existingIndex] = event;
+      const priority = window.RailLiveTrackerCore?.getSnapshotPriority;
+      const currentPriority = typeof priority === "function" ? priority(current?.snapshot) : 0;
+      const nextPriority = typeof priority === "function" ? priority(event?.snapshot) : 0;
+      if (
+        nextPriority > currentPriority ||
+        (nextPriority === currentPriority && Number(event.timeMinute) < Number(current.timeMinute))
+      ) {
+        list[existingIndex] = { ...event, system };
+      }
       return;
     }
-    list.push(event);
+    list.push({ ...event, system });
   }
 
   function buildStationEventMap(snapshots) {
+    const coreBuildStationEventMap = window.RailLiveTrackerCore?.buildStationEventMap;
+    if (typeof coreBuildStationEventMap === "function") {
+      const nowMinute = nowExactMinute();
+      const merged = new Map();
+      Object.keys(SYSTEMS).forEach((system) => {
+        const systemSnapshots = (snapshots || [])
+          .filter((snapshot) => snapshot?.system === system)
+          .map((snapshot) => updateSnapshotRuntime(snapshot, nowMinute));
+        const segmentStations = (state.stationLists[system] || []).map((station) => normalizeStation(system, station.name)).filter(Boolean);
+        const systemEvents = coreBuildStationEventMap(systemSnapshots, segmentStations);
+        systemEvents.forEach((list, stationName) => {
+          (list || []).forEach((event) => pushStationEvent(merged, system, stationName, event));
+        });
+      });
+      merged.forEach((list) => list.sort((a, b) => a.timeMinute - b.timeMinute || String(a.trainNo).localeCompare(String(b.trainNo), "zh-Hant", { numeric: true })));
+      return merged;
+    }
     const map = new Map();
     (snapshots || []).forEach((snapshot) => {
       const runtime = updateSnapshotRuntime(snapshot, nowExactMinute());
@@ -1482,7 +1779,7 @@
         Number.isFinite(runtime.originEventMinute) &&
         runtime.originEventMinute - runtime.nowMinute <= STATION_ALERT_WINDOW
       ) {
-        pushStationEvent(map, runtime.currentFrom, {
+        pushStationEvent(map, runtime.system, runtime.currentFrom, {
           trainNo: runtime.trainNo,
           originDate: runtime.originDate,
           type: runtime.type,
@@ -1499,7 +1796,7 @@
         const departureMinute = getStopDepartureMinute(stop);
         if (!Number.isFinite(arrivalMinute) || !Number.isFinite(departureMinute)) return;
         if (runtime.nowMinute >= arrivalMinute && runtime.nowMinute < departureMinute) {
-          pushStationEvent(map, stop.name, {
+          pushStationEvent(map, runtime.system, stop.name, {
             trainNo: runtime.trainNo,
             originDate: runtime.originDate,
             type: runtime.type,
@@ -1511,7 +1808,7 @@
             snapshot: runtime,
           });
         } else if (arrivalMinute > runtime.nowMinute && arrivalMinute - runtime.nowMinute <= STATION_ALERT_WINDOW) {
-          pushStationEvent(map, stop.name, {
+          pushStationEvent(map, runtime.system, stop.name, {
             trainNo: runtime.trainNo,
             originDate: runtime.originDate,
             type: runtime.type,
@@ -1527,7 +1824,7 @@
       (runtime.points || [])
         .filter((point) => !point.isStop && Number.isFinite(point.minute) && point.minute >= runtime.nowMinute && point.minute - runtime.nowMinute <= STATION_ALERT_WINDOW)
         .forEach((point) => {
-          pushStationEvent(map, point.station, {
+          pushStationEvent(map, runtime.system, point.station, {
             trainNo: runtime.trainNo,
             originDate: runtime.originDate,
             type: runtime.type,
@@ -1545,13 +1842,17 @@
   }
 
   function getStationEvents(system, stationName) {
-    const key = normalizeStation(system, stationName);
-    return (state.stationEvents.get(key) || []).slice(0, 8);
+    const events = getStationEventLookupKeys(system, stationName)
+      .flatMap((key) => state.stationEvents.get(key) || []);
+    return events
+      .sort((a, b) => a.timeMinute - b.timeMinute || String(a.trainNo).localeCompare(String(b.trainNo), "zh-Hant", { numeric: true }))
+      .slice(0, 8);
   }
 
   function buildStationPopupHtml(system, station) {
     const badges = renderStationTransferBadges(system, station.name);
     const events = getStationEvents(system, station.name);
+    const stationLabel = getDisplayStation(system, station.name);
     const rows = events.length
       ? events.map((event) => `
           <li>
@@ -1562,7 +1863,7 @@
       : `<li><time>10分內</time><span>未來 10 分鐘沒有列車事件</span></li>`;
     return `
       <div class="home-live-station-popup" style="min-width:220px">
-        <h3>${escapeHtml(station.name)}${badges}</h3>
+        <h3>${escapeHtml(stationLabel)}${badges}</h3>
         <ul>${rows}</ul>
       </div>
     `;
@@ -1576,6 +1877,7 @@
   function renderRoutes() {
     const L = state.L || window.L;
     clearRouteLayers();
+    const renderedSharedStations = new Set();
     Object.keys(SYSTEMS).forEach((system) => {
       const color = SYSTEMS[system].lineColor;
       (state.routeLines[system] || []).forEach((line) => {
@@ -1589,15 +1891,21 @@
         state.routeLayers.push(layer);
       });
       state.stationLists[system].forEach((station) => {
+        const sharedKey = getSharedPhysicalStationKey(station.name);
+        if (sharedKey) {
+          if (renderedSharedStations.has(sharedKey)) return;
+          renderedSharedStations.add(sharedKey);
+        }
         const events = getStationEvents(system, station.name);
         const isBusy = events.some((event) => event.kind === "停靠中" || event.kind === "已到終點");
         const isSoon = events.some((event) => event.kind !== "即將通過" && Number.isFinite(event.minutesAway) && event.minutesAway <= STATION_SOON_WINDOW);
         const hasAlert = events.length > 0;
         const stationColor = isBusy ? "#ef4444" : isSoon ? "#f97316" : hasAlert ? "#f59e0b" : color;
-        const layer = L.circleMarker([station.lat, station.lon], {
-          radius: isBusy || isSoon ? 6 : hasAlert ? 5.2 : (system === "thsr" ? 4.6 : 4),
+        const stationLatLng = getSnappedStationLatLng(system, station);
+        const layer = L.circleMarker(stationLatLng, {
+          radius: isBusy || isSoon ? 7.6 : hasAlert ? 6.8 : (system === "thsr" ? 6.2 : 5.8),
           color: stationColor,
-          weight: isBusy || isSoon || hasAlert ? 3 : 2,
+          weight: isBusy || isSoon || hasAlert ? 3.4 : 2.6,
           fillColor: "#fff",
           fillOpacity: .92,
           opacity: isBusy || isSoon || hasAlert ? .95 : .75,
@@ -1605,12 +1913,12 @@
         }).addTo(state.map);
         layer.on("click", () => openStationPopup(system, station, layer));
         state.stationLayers.push(layer);
-        const label = L.marker([station.lat, station.lon], {
+        const label = L.marker(stationLatLng, {
           icon: L.divIcon({
             className: `home-live-station-label ${hasAlert ? "has-alert" : ""} ${isBusy ? "is-busy" : ""} ${isSoon ? "is-soon" : ""}`,
             html: buildStationLabelHtml(system, station),
             iconSize: [1, 1],
-            iconAnchor: [0, -5],
+            iconAnchor: [0, -8],
           }),
           zIndexOffset: system === "thsr" ? 430 : 380,
         }).addTo(state.map);
@@ -1642,8 +1950,22 @@
     if (force) state.userMoved = false;
   }
 
-  function updateTrainMarkers() {
+  function getMarkerUpdateInterval() {
+    return state.markerBindings.length > 80 ? HEAVY_MARKER_UPDATE_MS : MARKER_UPDATE_MS;
+  }
+
+  function updateTrainMarkers(options = {}) {
+    const force = !!options.force;
+    if (state.mapInteracting && !force) return;
+    const now = Date.now();
+    if (!force && now - Number(state.lastMarkerUpdateAt || 0) < getMarkerUpdateInterval()) return;
+    state.lastMarkerUpdateAt = now;
+    const bounds = !force && state.map?.getBounds?.()?.pad ? state.map.getBounds().pad(0.35) : null;
     state.markerBindings.forEach(({ marker, snapshot }) => {
+      if (bounds && snapshot.key !== state.activeKey) {
+        const current = marker.getLatLng?.();
+        if (current && !bounds.contains(current)) return;
+      }
       const placement = getPlacement(snapshot);
       if (placement?.latLng) updateMarkerVisual(marker, snapshot, placement);
     });
@@ -1653,7 +1975,7 @@
     if (state.animationFrame) window.cancelAnimationFrame(state.animationFrame);
     const tick = () => {
       updateTrainMarkers();
-      updateUserMarker();
+      if (!state.mapInteracting) updateUserMarker();
       state.animationFrame = window.requestAnimationFrame(tick);
     };
     tick();
@@ -1864,9 +2186,11 @@
       const snapshot = state.snapshots.find((item) => item.key === key);
       if (snapshot) showTrainDetailModal(snapshot);
     });
-    el.modalClose?.addEventListener("click", closeTrainDetailModal);
     el.modal?.addEventListener("click", (event) => {
       if (event.target === el.modal) closeTrainDetailModal();
+    });
+    window.addEventListener("message", (event) => {
+      if (event.data?.type === "HOME_LIVE_DETAIL_CLOSE") closeTrainDetailModal();
     });
     window.addEventListener("keydown", (event) => {
       if (event.key === "Escape") closeTrainDetailModal();

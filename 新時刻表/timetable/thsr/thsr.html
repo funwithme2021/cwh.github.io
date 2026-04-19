@@ -4665,9 +4665,38 @@
   }
 
   const modal = document.getElementById('trainModal');
+  function isHomeLiveDetailOnly(){
+    const p = new URLSearchParams(window.location.search);
+    return ['1', 'true', 'yes', 'on'].includes(String(p.get('home_live_detail') || p.get('detailOnly') || '').trim().toLowerCase());
+  }
+
+  function setupHomeLiveDetailOnly(){
+    if(!isHomeLiveDetailOnly()) return;
+    document.documentElement.classList.add('home-live-detail-only');
+    document.body?.classList.add('home-live-detail-only');
+    if(document.getElementById('home-live-detail-only-style')) return;
+    const style = document.createElement('style');
+    style.id = 'home-live-detail-only-style';
+    style.textContent = `
+      html.home-live-detail-only,
+      body.home-live-detail-only{background:transparent!important;overflow:hidden!important;}
+      body.home-live-detail-only > :not(#trainModal):not(script):not(style){display:none!important;}
+      body.home-live-detail-only #trainModal{background:rgba(15,23,42,.38);}
+    `;
+    document.head.appendChild(style);
+  }
+
+  function notifyHomeLiveDetailClose(){
+    if(!isHomeLiveDetailOnly()) return;
+    try{ window.parent?.postMessage({ type:'HOME_LIVE_DETAIL_CLOSE' }, '*'); }catch(_){}
+  }
+
+  setupHomeLiveDetailOnly();
+
   function closeModal(){
     modal.style.display='none';
     modalCtx = null;
+    notifyHomeLiveDetailClose();
   }
   document.getElementById('modalClose').addEventListener('click', closeModal);
   modal.addEventListener('click', (e)=>{ if(e.target===modal) closeModal(); });
@@ -6470,6 +6499,8 @@ async function maybeFallbackTHSRBookingToWeb(options, errorText){
     const pEnd = p.get('end');
     const pStation = p.get('station');
     const pTrain = extractTrainNoFromInput(p.get('train') || p.get('trainNo') || '');
+    const pDetail = ['1', 'true', 'yes', 'on'].includes(String(p.get('detail') || p.get('openDetail') || '').trim().toLowerCase());
+    const pOriginDate = String(p.get('originDate') || p.get('date') || '').trim();
     const startEndPanelId = resolveStartEndPanelId('panel-startend');
 
     if (pStart && pEnd) {
@@ -6497,6 +6528,11 @@ async function maybeFallbackTHSRBookingToWeb(options, errorText){
         const input = document.getElementById('trainNumberInput');
         if (input) input.value = pTrain;
         setTimeout(() => {
+            if (pDetail) {
+                const originDate = /^\d{4}-\d{2}-\d{2}$/.test(pOriginDate) ? pOriginDate : currentQueryDateStr;
+                showTrainDetails(pTrain, originDate, { showPassStops: false });
+                return;
+            }
             filterTrainScheduleByNumberV2(pTrain);
         }, 300);
     }
@@ -6706,7 +6742,7 @@ async function maybeFallbackTHSRBookingToWeb(options, errorText){
 <script charset="UTF-8" src="../shared/rail-network.js?v=20260404-autorefresh1"></script>
 <script charset="UTF-8" src="../shared/rail-master-table.js?v=20260404-autorefresh2"></script>
 <script charset="UTF-8" src="../shared/rail-operation-diagram.js?v=20260404-autorefresh2"></script>
-<script charset="UTF-8" src="../shared/rail-live-tracker.js?v=20260419-realmap8"></script>
+<script charset="UTF-8" src="../shared/rail-live-tracker.js?v=20260419-realmap10"></script>
 <script charset="UTF-8" src="../shared/rail-usage-footer.js?v=20260326-footer3"></script>
 <script>
 window.addEventListener('load', () => {

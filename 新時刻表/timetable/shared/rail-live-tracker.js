@@ -51,6 +51,20 @@
     "團體列車": "#0ea5e9",
   };
   const THSR_DIRECTION_COLORS = { north: "#11f6a6", south: "#ff41dc" };
+  const REAL_MAP_TRAIN_COLORS = {
+    tr: {
+      north: "#2563eb",
+      south: "#f97316",
+      east: "#7c3aed",
+      west: "#e11d48",
+      default: "#111827",
+    },
+    thsr: {
+      north: "#0066ff",
+      south: "#ff7a00",
+      default: "#111827",
+    },
+  };
   let leafletLoadPromise = null;
   let tdxRailShapePromise = null;
 
@@ -370,6 +384,16 @@
     return system === "thsr" ? normalizeThsrStation(name) : normalizeTraStation(name);
   }
 
+  function canonicalTaipeiDisplayName(name) {
+    const text = String(name || "").trim().replace(/臺/g, "台");
+    return text === "台北-環島" || text === "台北" ? "台北" : String(name || "").trim();
+  }
+
+  function formatStationDisplayName(system, name) {
+    if (system === "tr" && canonicalTaipeiDisplayName(name) === "台北") return "台北";
+    return String(name || "").trim();
+  }
+
   function normalizeGeoCoords(raw) {
     if (!raw || typeof raw !== "object") return null;
     const lat = Number(raw.latitude ?? raw.lat);
@@ -607,6 +631,58 @@
       if (!best || distanceKm < best.distanceKm) best = { index, distanceKm };
     });
     return best;
+  }
+
+  function toLatLonArray(value) {
+    if (Array.isArray(value)) return [Number(value[0]), Number(value[1])];
+    return [Number(value?.lat), Number(value?.lon ?? value?.lng)];
+  }
+
+  function projectGeoOnSegment(from, to, geo) {
+    const [fromLat, fromLon] = toLatLonArray(from);
+    const [toLat, toLon] = toLatLonArray(to);
+    const [geoLat, geoLon] = toLatLonArray(geo);
+    if (![fromLat, fromLon, toLat, toLon, geoLat, geoLon].every(Number.isFinite)) return null;
+    const avgLatRad = ((fromLat + toLat + geoLat) / 3) * Math.PI / 180;
+    const scaleX = 111.32 * Math.cos(avgLatRad);
+    const ax = (fromLon - geoLon) * scaleX;
+    const ay = (fromLat - geoLat) * 111.32;
+    const bx = (toLon - geoLon) * scaleX;
+    const by = (toLat - geoLat) * 111.32;
+    const vx = bx - ax;
+    const vy = by - ay;
+    const lengthSq = vx * vx + vy * vy;
+    if (lengthSq <= 0) return { latLng: [fromLat, fromLon], distanceKm: Math.hypot(ax, ay) };
+    const ratio = clamp((-(ax * vx + ay * vy)) / lengthSq, 0, 1);
+    const px = ax + vx * ratio;
+    const py = ay + vy * ratio;
+    return {
+      latLng: [
+        fromLat + (toLat - fromLat) * ratio,
+        fromLon + (toLon - fromLon) * ratio,
+      ],
+      distanceKm: Math.hypot(px, py),
+    };
+  }
+
+  function findNearestPointOnRouteLines(routeLines, geo) {
+    let best = null;
+    (routeLines || []).forEach((line) => {
+      const points = (line || []).filter(Boolean);
+      for (let index = 0; index < points.length - 1; index += 1) {
+        const hit = projectGeoOnSegment(points[index], points[index + 1], geo);
+        if (!hit) continue;
+        if (!best || hit.distanceKm < best.distanceKm) best = hit;
+      }
+    });
+    return best;
+  }
+
+  function getSnappedStationLatLng(system, routeLines, station) {
+    const fallback = [station.lat, station.lon];
+    const hit = findNearestPointOnRouteLines(routeLines, station);
+    const maxDistanceKm = system === "thsr" ? 10 : 4;
+    return hit && hit.distanceKm <= maxDistanceKm ? hit.latLng : fallback;
   }
 
   function pointAtRatioOnLine(line, ratio) {
@@ -930,7 +1006,8 @@
   }
 
   function normalizeTraStation(name) {
-    return getRailNetwork()?.normalizeTraStation?.(name) || String(name || "").trim().replace(/台/g, "臺");
+    const normalized = getRailNetwork()?.normalizeTraStation?.(name) || String(name || "").trim().replace(/台/g, "臺");
+    return normalized === "臺北-環島" ? "臺北" : normalized;
   }
 
   function normalizeThsrStation(name) {
@@ -1082,6 +1159,12 @@
 
   function getEntryColor(system, snapshot) {
     return system === "tr" ? getTraTypeColor(snapshot.type) : THSR_DIRECTION_COLORS[getDirectionKey(system, snapshot.trainNo)] || "#64748b";
+  }
+
+  function getRealMapTrainColor(system, snapshot) {
+    const colors = REAL_MAP_TRAIN_COLORS[system] || REAL_MAP_TRAIN_COLORS.tr;
+    const direction = snapshot?.directionKey || getDirectionKey(system, snapshot?.trainNo);
+    return colors[direction] || colors.default || "#111827";
   }
 
   function getStatusAppearance(snapshot) {
@@ -1979,10 +2062,16 @@
     const elapsedMinutes = clamp(nowMinute - fullFirstMinute, 0, totalMinutes);
     const remainingMinutes = clamp(fullLastMinute - nowMinute, 0, totalMinutes);
     const completionRatio = totalMinutes > 0 ? elapsedMinutes / totalMinutes : state === "arrived" ? 1 : 0;
-    const displayRoute = `${entry.firstStation} ➝ ${entry.lastStation}`;
+    const displayFirstStation = formatStationDisplayName(system, entry.firstStation);
+    const displayLastStation = formatStationDisplayName(system, entry.lastStation);
+    const displayCurrentFrom = formatStationDisplayName(system, currentFrom);
+    const displayCurrentTo = formatStationDisplayName(system, currentTo);
+    const displayNextStation = formatStationDisplayName(system, nextStation);
+    const displayRoute = `${displayFirstStation} ➝ ${displayLastStation}`;
 
     return {
       ...entry,
+      system,
       queryDate,
       delayMinutes: entry.delayMinutes,
       fullTimedStops,
@@ -2001,6 +2090,9 @@
       currentFrom,
       currentTo,
       nextStation,
+      displayCurrentFrom,
+      displayCurrentTo,
+      displayNextStation,
       nextTime,
       displayRoute,
       statusText,
@@ -2014,7 +2106,7 @@
       nextStopTime,
       originEventMinute,
       isSoonStop: soonKind === "stop" && Number.isFinite(soonMinutes) && soonMinutes <= STATION_SOON_WINDOW,
-      locationText: state === "running" ? `${currentFrom} ➝ ${currentTo}` : state === "dwell" ? `${currentFrom} 停靠中` : state === "upcoming" ? `即將由 ${currentFrom} 發車` : `已到 ${currentTo}`,
+      locationText: state === "running" ? `${displayCurrentFrom} ➝ ${displayCurrentTo}` : state === "dwell" ? `${displayCurrentFrom} 停靠中` : state === "upcoming" ? `即將由 ${displayCurrentFrom} 發車` : `已到 ${displayCurrentTo}`,
       livePassedStation: liveAssist?.stationName || "",
       liveAnchorMinute: liveAssist?.anchorMinute ?? null,
     };
@@ -2115,9 +2207,13 @@
         const elapsedMinutes = clamp(nowMinute - fullFirstMinute, 0, totalMinutes);
         const remainingMinutes = clamp(fullLastMinute - nowMinute, 0, totalMinutes);
         const completionRatio = totalMinutes > 0 ? elapsedMinutes / totalMinutes : state === "arrived" ? 1 : 0;
+        const displayFirstStation = formatStationDisplayName(system, entry.firstStation);
+        const displayLastStation = formatStationDisplayName(system, entry.lastStation);
+        const displaySharedStation = formatStationDisplayName(system, sharedStation);
 
         return {
           ...entry,
+          system,
           queryDate,
           delayMinutes,
           fullTimedStops,
@@ -2137,8 +2233,11 @@
           currentFrom: sharedStation,
           currentTo: sharedStation,
           nextStation,
+          displayCurrentFrom: displaySharedStation,
+          displayCurrentTo: displaySharedStation,
+          displayNextStation: displaySharedStation,
           nextTime,
-          displayRoute: `${entry.firstStation} ➝ ${entry.lastStation}`,
+          displayRoute: `${displayFirstStation} ➝ ${displayLastStation}`,
           statusText,
           boardLabel: `🚆${entry.trainNo} ${entry.type}`,
           directionGlyph: "●",
@@ -2151,7 +2250,7 @@
           originEventMinute,
           nowMinute,
           isSoonStop: soonKind === "stop" && Number.isFinite(soonMinutes) && soonMinutes <= STATION_SOON_WINDOW,
-          locationText: state === "upcoming" ? `即將由 ${sharedStation} 發車` : state === "arrived" ? `已到 ${sharedStation}` : `${sharedStation} 停靠中`,
+          locationText: state === "upcoming" ? `即將由 ${displaySharedStation} 發車` : state === "arrived" ? `已到 ${displaySharedStation}` : `${displaySharedStation} 停靠中`,
           startsAtJourneyOrigin: isOriginStation,
           sharedStationOnly: true,
           sharedStationName: sharedStation,
@@ -2455,31 +2554,36 @@
   }
 
   function buildSnapshotLocationLine(snapshot) {
+    const currentFrom = snapshot.displayCurrentFrom || formatStationDisplayName(snapshot.system, snapshot.currentFrom);
+    const currentTo = snapshot.displayCurrentTo || formatStationDisplayName(snapshot.system, snapshot.currentTo);
     if (snapshot.sharedStationOnly) {
-      if (snapshot.state === "arrived") return `目前在 ${snapshot.currentTo}（共用站終點）`;
-      if (snapshot.state === "upcoming") return `目前在 ${snapshot.currentFrom}（共用站），等待發車`;
-      return `目前停靠 ${snapshot.currentFrom}（共用站）`;
+      if (snapshot.state === "arrived") return `目前在 ${currentTo}（共用站終點）`;
+      if (snapshot.state === "upcoming") return `目前在 ${currentFrom}（共用站），等待發車`;
+      return `目前停靠 ${currentFrom}（共用站）`;
     }
-    if (snapshot.state === "running") return `目前在 ${snapshot.currentFrom} ➝ ${snapshot.currentTo} 間`;
-    if (snapshot.state === "dwell") return `目前停靠 ${snapshot.currentFrom}`;
-    if (snapshot.state === "upcoming") return `目前在 ${snapshot.currentFrom}，等待發車`;
-    return `已抵達 ${snapshot.currentTo}`;
+    if (snapshot.state === "running") return `目前在 ${currentFrom} ➝ ${currentTo} 間`;
+    if (snapshot.state === "dwell") return `目前停靠 ${currentFrom}`;
+    if (snapshot.state === "upcoming") return `目前在 ${currentFrom}，等待發車`;
+    return `已抵達 ${currentTo}`;
   }
 
   function buildSnapshotNextLine(snapshot) {
+    const currentFrom = snapshot.displayCurrentFrom || formatStationDisplayName(snapshot.system, snapshot.currentFrom);
+    const currentTo = snapshot.displayCurrentTo || formatStationDisplayName(snapshot.system, snapshot.currentTo);
+    const nextStation = snapshot.displayNextStation || formatStationDisplayName(snapshot.system, snapshot.nextStation);
     if (snapshot.sharedStationOnly) {
-      if (snapshot.state === "arrived") return `終點站：${snapshot.currentTo}（共用站）`;
-      if (snapshot.state === "upcoming") return `預計 ${snapshot.nextTime} 由 ${snapshot.currentFrom} 發車，離站後即離開此路線`;
-      if (snapshot.nextEventKind === "terminal") return `終點站：${snapshot.currentTo}（共用站）`;
+      if (snapshot.state === "arrived") return `終點站：${currentTo}（共用站）`;
+      if (snapshot.state === "upcoming") return `預計 ${snapshot.nextTime} 由 ${currentFrom} 發車，離站後即離開此路線`;
+      if (snapshot.nextEventKind === "terminal") return `終點站：${currentTo}（共用站）`;
       const departureText = snapshot.nextStopTime || snapshot.nextTime;
-      return `預計 ${departureText} 離開 ${snapshot.currentFrom}，離站後即離開此路線`;
+      return `預計 ${departureText} 離開 ${currentFrom}，離站後即離開此路線`;
     }
-    if (snapshot.state === "arrived") return `終點站：${snapshot.currentTo}`;
-    if (snapshot.state === "upcoming") return `預計 ${snapshot.nextTime} 由 ${snapshot.currentFrom} 發車`;
+    if (snapshot.state === "arrived") return `終點站：${currentTo}`;
+    if (snapshot.state === "upcoming") return `預計 ${snapshot.nextTime} 由 ${currentFrom} 發車`;
     if (snapshot.nextEventKind === "pass") {
-      return `即將通過：${snapshot.nextStation}（${snapshot.nextTime}）`;
+      return `即將通過：${nextStation}（${snapshot.nextTime}）`;
     }
-    return `下一停靠：${snapshot.nextStation}（${snapshot.nextTime}）`;
+    return `下一停靠：${nextStation}（${snapshot.nextTime}）`;
   }
 
   function buildSnapshotStatusLine(snapshot) {
@@ -3161,7 +3265,8 @@
     if (!state.modal || !state.modalTitle || !state.modalBody) return;
     state.activeStation = stationName || "";
     const events = stationName ? state.stationEvents.get(stationName) || [] : [];
-    state.modalTitle.textContent = stationName ? `${stationName} 站即時動態` : "車站即時動態";
+    const stationLabel = formatStationDisplayName(state.system, stationName);
+    state.modalTitle.textContent = stationName ? `${stationLabel} 站即時動態` : "車站即時動態";
     state.modalBody.innerHTML = `
       <div class="rail-live-detail-list">
         ${
@@ -3172,7 +3277,7 @@
                     (event) => `
                       <article class="rail-live-detail-card">
                         <div class="rail-live-detail-title">${buildTrainTitleHTML(state.system, event.snapshot, true)}</div>
-                        <div class="rail-live-detail-meta">${escapeHtml(event.kind)}｜${escapeHtml(event.station)}｜${escapeHtml(event.timeText)}${Number.isFinite(event.minutesAway) && event.minutesAway > 0 ? `｜${escapeHtml(formatMinutesAway(event.minutesAway))} 分後` : ""}</div>
+                        <div class="rail-live-detail-meta">${escapeHtml(event.kind)}｜${escapeHtml(formatStationDisplayName(state.system, event.station))}｜${escapeHtml(event.timeText)}${Number.isFinite(event.minutesAway) && event.minutesAway > 0 ? `｜${escapeHtml(formatMinutesAway(event.minutesAway))} 分後` : ""}</div>
                         <div class="rail-live-detail-actions">
                           <button type="button" class="rail-live-mini-btn" data-train-focus="${escapeHtml(makeTrainKey(event.trainNo, event.originDate))}">定位列車</button>
                           <button type="button" class="rail-live-mini-btn" data-train-detail="${escapeHtml(event.trainNo)}" data-origin-date="${escapeHtml(event.originDate || getQueryDate())}">查看詳情</button>
@@ -3339,10 +3444,11 @@
   }
 
   function buildUpcomingEventCardHTML(system, event) {
+    const stationLabel = formatStationDisplayName(system, event.station);
     return `
       <article class="rail-live-v2-event-card" data-train-key="${escapeHtml(makeTrainKey(event.trainNo, event.originDate))}">
         <div class="rail-live-v2-event-title">${buildTrainTitleHTML(system, event.snapshot, false)}</div>
-        <div class="rail-live-v2-event-meta">${escapeHtml(`${event.station}｜${event.kind}｜${event.timeText}`)}${Number.isFinite(event.minutesAway) && event.minutesAway > 0 ? `｜${escapeHtml(formatMinutesAway(event.minutesAway))} 分後` : ""}</div>
+        <div class="rail-live-v2-event-meta">${escapeHtml(`${stationLabel}｜${event.kind}｜${event.timeText}`)}${Number.isFinite(event.minutesAway) && event.minutesAway > 0 ? `｜${escapeHtml(formatMinutesAway(event.minutesAway))} 分後` : ""}</div>
         <div class="rail-live-v2-event-line">${escapeHtml(buildSnapshotLocationLine(event.snapshot))}</div>
         <div class="rail-live-detail-actions">
           <button type="button" class="rail-live-mini-btn" data-train-focus="${escapeHtml(makeTrainKey(event.trainNo, event.originDate))}">聚焦列車</button>
@@ -3610,8 +3716,9 @@
       button.style.top = `${top}px`;
       button.dataset.station = station;
       const transferBadges = window.RailStationContext?.renderTransferBadges?.(station, { system: state.system }) || "";
+      const stationLabel = formatStationDisplayName(state.system, station);
       button.innerHTML = `
-        <span class="rail-live-station-name"><span class="rail-live-station-title">${escapeHtml(isSoon ? `${station}🔜` : station)}</span>${transferBadges ? `<span class="rail-live-station-transfer">${transferBadges}</span>` : ""}</span>
+        <span class="rail-live-station-name"><span class="rail-live-station-title">${escapeHtml(isSoon ? `${stationLabel}🔜` : stationLabel)}</span>${transferBadges ? `<span class="rail-live-station-transfer">${transferBadges}</span>` : ""}</span>
         <span class="rail-live-station-node"></span>
       `;
       button.addEventListener("click", () => renderStationDetail(state, station));
@@ -3805,25 +3912,26 @@
       getAllGeoStations(state.system).forEach((point) => {
         const events = state.stationEvents.get(point.station) || [];
         const hasSoon = events.some((event) => event.kind !== "即將通過" && Number.isFinite(event.minutesAway) && event.minutesAway <= STATION_SOON_WINDOW);
-        const latLng = [point.lat, point.lon];
+        const latLng = getSnappedStationLatLng(state.system, drawLines, point);
         const stationColor = hasSoon ? "#ef4444" : events.length ? "#f59e0b" : lineColor;
         L.circleMarker(latLng, {
-          radius: hasSoon ? 5.5 : 4.5,
+          radius: hasSoon ? 7.4 : events.length ? 6.6 : 5.8,
           color: "#ffffff",
-          weight: 2,
+          weight: hasSoon || events.length ? 3 : 2.4,
           fillColor: stationColor,
           fillOpacity: 0.95,
         })
           .addTo(map)
           .on("click", () => renderStationDetail(state, point.station));
         const badges = window.RailStationContext?.renderTransferBadges?.(point.station, { system: state.system }) || "";
+        const stationLabel = formatStationDisplayName(state.system, point.station);
         L.marker(latLng, {
           interactive: true,
           icon: L.divIcon({
             className: `rail-live-real-station-label ${events.length ? "has-alert" : ""} ${hasSoon ? "is-soon" : ""}`,
-            html: `<span>${escapeHtml(point.station)}${badges}</span>`,
+            html: `<span>${escapeHtml(stationLabel)}${badges}</span>`,
             iconSize: [1, 1],
-            iconAnchor: [-8, 8],
+            iconAnchor: [-9, 10],
           }),
         })
           .addTo(map)
@@ -3840,7 +3948,7 @@
         if (!placement?.latLng) return;
         const trainLatLng = placement.latLng;
         const trainKey = makeTrainKey(snapshot.trainNo, snapshot.originDate);
-        const color = getEntryColor(state.system, snapshot);
+        const color = getRealMapTrainColor(state.system, snapshot);
         const isSelected = state.selectedTrainKey === trainKey;
         const angle = Number.isFinite(placement.angle) ? placement.angle : 0;
         const trainTypeText = state.system === "tr" ? normalizeTraType(snapshot.type) : (snapshot.type || "高鐵");
@@ -4314,14 +4422,14 @@
       .rail-live-real-map .leaflet-container,.rail-live-real-map.leaflet-container{font-family:inherit;}
       .rail-live-map-loading{position:absolute; inset:0; display:grid; place-items:center; color:var(--text-muted); font-size:.86rem; font-weight:850;}
       .rail-live-real-station-label{background:transparent!important; border:0!important; box-shadow:none!important; color:var(--text-main); white-space:nowrap;}
-      .rail-live-real-station-label span{display:inline-flex; align-items:center; gap:3px; color:var(--text-main); font-size:.74rem; font-weight:950; line-height:1; text-shadow:0 1px 3px rgba(255,255,255,.95),0 0 8px rgba(255,255,255,.78);}
+      .rail-live-real-station-label span{display:inline-flex; align-items:center; gap:4px; color:var(--text-main); font-size:.86rem; font-weight:950; line-height:1; text-shadow:0 1px 3px rgba(255,255,255,.98),0 0 10px rgba(255,255,255,.9);}
       .rail-live-real-station-label.is-soon span{color:#dc2626;}
       .rail-live-real-station-label.has-alert span{color:#b45309;}
       .rail-live-real-station-label .rail-transfer-badges{margin-left:2px; gap:2px;}
-      .rail-live-real-station-label .rail-transfer-logo{width:13px; height:13px; filter:drop-shadow(0 1px 2px rgba(255,255,255,.9));}
+      .rail-live-real-station-label .rail-transfer-logo{width:15px; height:15px; filter:drop-shadow(0 1px 2px rgba(255,255,255,.9));}
       .rail-live-real-train-marker{background:transparent!important; border:0!important;}
       .rail-live-real-train-marker button{position:relative; display:block; width:1px; height:1px; border:0; background:transparent; color:var(--text-main); padding:0; font:inherit; cursor:pointer;}
-      .rail-live-real-train-arrow{position:absolute; left:-9px; top:-9px; display:block; width:18px; height:18px; background:var(--rail-live-color); clip-path:polygon(50% 0,100% 100%,0 100%); transform:rotate(var(--rail-live-angle,0deg)); filter:drop-shadow(0 3px 4px rgba(15,23,42,.28));}
+      .rail-live-real-train-arrow{position:absolute; left:-9px; top:-9px; display:block; width:18px; height:18px; background:var(--rail-live-color); clip-path:polygon(50% 0,100% 100%,0 100%); transform:rotate(var(--rail-live-angle,0deg)); filter:drop-shadow(0 3px 4px rgba(15,23,42,.36)) drop-shadow(0 0 2px rgba(255,255,255,.92));}
       .rail-live-real-train-marker button strong{position:absolute; left:0; top:0; min-width:max-content; transform:var(--rail-live-label-transform,translate(13px,-50%)); font-size:.82rem; font-weight:950; line-height:1; text-shadow:0 1px 3px rgba(255,255,255,.98),0 0 10px rgba(255,255,255,.86);}
       .rail-live-real-train-marker.is-active button strong{text-decoration:underline; text-decoration-thickness:2px;}
       .rail-live-real-user-marker{background:transparent!important; border:0!important; transition:transform 2.8s linear; filter:drop-shadow(0 8px 16px rgba(37,99,235,.26));}
@@ -4334,12 +4442,12 @@
       .rail-live-line{position:absolute; top:var(--rail-live-line-top, 24px); bottom:var(--rail-live-line-bottom, 24px); left:50%; transform:translateX(-50%); width:8px; border-radius:999px; background:linear-gradient(180deg, rgba(96,128,191,0.92), rgba(113,146,219,0.76));}
       .rail-live-board-empty{position:absolute; top:14px; left:14px; right:14px; padding:12px 14px; border-radius:14px; background:rgba(255,255,255,0.82); color:var(--text-muted); font-size:.84rem; line-height:1.7;}
       .rail-live-station{position:absolute; left:0; right:0; transform:translateY(-50%); display:flex; align-items:center; justify-content:center; background:none; border:none; padding:0; cursor:pointer;}
-      .rail-live-station-name{position:absolute; right:calc(50% + 18px); max-width:calc(50% - 38px); display:block; text-align:right; font-size:.84rem; font-weight:800; line-height:1.2; color:var(--text-main); overflow:visible;}
+      .rail-live-station-name{position:absolute; right:calc(50% + 22px); max-width:calc(50% - 42px); display:block; text-align:right; font-size:.92rem; font-weight:900; line-height:1.2; color:var(--text-main); overflow:visible;}
       .rail-live-station-title{display:block; line-height:1.2;}
       .rail-live-station-transfer{position:absolute; right:0; top:calc(100% + 1px); display:flex; justify-content:flex-end; line-height:1;}
       .rail-live-station-transfer .rail-transfer-badges{display:inline-flex; flex:0 0 auto; justify-content:flex-end; gap:2px; margin:0;}
-      .rail-live-station-transfer .rail-transfer-logo{width:10px; height:10px;}
-      .rail-live-station-node{width:12px; height:12px; border-radius:50%; background:var(--bg-surface); border:3px solid rgba(92,122,183,0.95);}
+      .rail-live-station-transfer .rail-transfer-logo{width:12px; height:12px;}
+      .rail-live-station-node{width:15px; height:15px; border-radius:50%; background:var(--bg-surface); border:3px solid rgba(92,122,183,0.95);}
       .rail-live-station.has-alert .rail-live-station-node{border-color:#f59e0b;}
       .rail-live-station.is-busy .rail-live-station-node{border-color:#ef4444;}
       .rail-live-station.is-soon .rail-live-station-name{color:#f97316;}
@@ -4420,11 +4528,11 @@
         .rail-live-mini-btn{padding:6px 8px; font-size:.76rem;}
         .rail-live-train-copy{width:150px; min-height:22px; top:-11px;}
         .rail-live-train-copy strong{font-size:.68rem;}
-        .rail-live-station-name{font-size:.74rem; max-width:calc(50% - 34px);}
-        .rail-live-station-transfer .rail-transfer-logo{width:10px; height:10px;}
+        .rail-live-station-name{font-size:.82rem; max-width:calc(50% - 38px);}
+        .rail-live-station-transfer .rail-transfer-logo{width:11px; height:11px;}
         .rail-live-real-map{min-height:420px; height:68vh!important;}
-        .rail-live-real-station-label span{font-size:.68rem;}
-        .rail-live-real-station-label .rail-transfer-logo{width:12px; height:12px;}
+        .rail-live-real-station-label span{font-size:.78rem;}
+        .rail-live-real-station-label .rail-transfer-logo{width:13px; height:13px;}
         .rail-live-user-label{left:13px; top:0; min-height:18px; padding:0; font-size:.62rem;}
         .rail-live-modal{padding:14px;}
       }`;
@@ -4654,6 +4762,27 @@
     else window.addEventListener("load", () => setTimeout(syncPlacement, 0), { once: true });
   }
 
+  function installCoreApi() {
+    window.RailLiveTrackerCore = {
+      constants: {
+        refreshMs: REFRESH_MS,
+        delayRefreshMs: DELAY_REFRESH_MS,
+        upcomingWindow: UPCOMING_WINDOW,
+        stationAlertWindow: STATION_ALERT_WINDOW,
+        stationSoonWindow: STATION_SOON_WINDOW,
+      },
+      getSnapshotAnimationMode,
+      getSnapshotPriority,
+      getPrimarySnapshotsByTrain,
+      buildStationEventMap,
+      buildTrainTitleHTML,
+      getEntryColor,
+      getStatusSegmentColor,
+      formatMinute,
+    };
+  }
+
+  installCoreApi();
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init, { once: true });
   else init();
 })();
