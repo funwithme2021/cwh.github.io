@@ -19,7 +19,9 @@
   const FETCH_TIMEOUT_MS = 14000;
   const STATION_CACHE_MS = 24 * 60 * 60 * 1000;
   const SCHEDULE_CACHE_MS = 60 * 1000;
+  const THSR_PAGE_SCHEDULE_CACHE_MS = 6 * 60 * 60 * 1000;
   const LIVE_DELAY_CACHE_MS = 25 * 1000;
+  const THSR_REAL_SCHEDULE_SCRIPT_URL = "../thsr/thsr.real-schedule.js?v=20260419-tdxgate1";
   const SHAPE_CACHE_KEY = "rail_live_tdx_shape_v1";
   const SHAPE_CACHE_MS = 7 * 24 * 60 * 60 * 1000;
   const SHARED_GEO_KEY = "home_shared_geo_snapshot_v1";
@@ -112,6 +114,7 @@
   };
 
   let leafletLoadPromise = null;
+  let thsrRealScheduleLoadPromise = null;
   let statusTimer = 0;
 
   function escapeHtml(value) {
@@ -896,20 +899,159 @@
       );
   }
 
-  async function fetchThsrScheduleRowsLikeThsrPage(date, token) {
+  function getThsrPageScheduleCacheKey(date) {
+    return `home_live_schedule_thsr_${date}_page_same_v2`;
+  }
+
+  function loadThsrRealScheduleScript() {
+    if (typeof window.fetchRealData === "function" && typeof window.getAccessToken === "function") {
+      return Promise.resolve();
+    }
+    if (thsrRealScheduleLoadPromise) return thsrRealScheduleLoadPromise;
+    thsrRealScheduleLoadPromise = new Promise((resolve, reject) => {
+      const finish = () => {
+        if (typeof window.fetchRealData === "function") resolve();
+        else reject(new Error("THSR page loader not ready"));
+      };
+      const existing = Array.from(document.scripts || []).find((script) =>
+        String(script?.src || "").includes("thsr.real-schedule.js")
+      );
+      if (existing) {
+        if (typeof window.fetchRealData === "function") {
+          finish();
+          return;
+        }
+        existing.addEventListener("load", finish, { once: true });
+        existing.addEventListener("error", () => reject(new Error("THSR page loader failed")), { once: true });
+        return;
+      }
+      const script = document.createElement("script");
+      script.src = THSR_REAL_SCHEDULE_SCRIPT_URL;
+      script.charset = "UTF-8";
+      script.async = true;
+      script.onload = finish;
+      script.onerror = () => reject(new Error("THSR page loader failed"));
+      document.head.appendChild(script);
+    }).catch((error) => {
+      thsrRealScheduleLoadPromise = null;
+      throw error;
+    });
+    return thsrRealScheduleLoadPromise;
+  }
+
+  function findThsrPageStopList(entry) {
+    if (Array.isArray(entry)) return entry;
+    if (!entry || typeof entry !== "object") return [];
+    const values = Object.values(entry);
+    return values.find((value) =>
+      Array.isArray(value) &&
+      value.length &&
+      (Array.isArray(value[0]) || (value[0] && typeof value[0] === "object"))
+    ) || [];
+  }
+
+  function convertThsrPageStop(stop, index) {
+    if (Array.isArray(stop)) {
+      const stationName = String(stop[0] || "").trim();
+      const departure = String(stop[1] || "").trim();
+      const arrival = String(stop[2] || "").trim();
+      if (!stationName || (!arrival && !departure)) return null;
+      return {
+        StationName: { Zh_tw: stationName },
+        ArrivalTime: arrival || departure,
+        DepartureTime: departure || arrival,
+        StopSequence: index + 1,
+      };
+    }
+    const stationName = readZh(stop?.StationName) || String(stop?.name || stop?.station || "").trim();
+    const arrival = String(stop?.ArrivalTime || stop?.arrival || "").trim();
+    const departure = String(stop?.DepartureTime || stop?.departure || "").trim();
+    if (!stationName || (!arrival && !departure)) return null;
+    return {
+      ...stop,
+      StationName: stop?.StationName || { Zh_tw: stationName },
+      ArrivalTime: arrival || departure,
+      DepartureTime: departure || arrival,
+      StopSequence: Number(stop?.StopSequence ?? stop?.stopSequence ?? index + 1),
+    };
+  }
+
+  function convertThsrPageScheduleToRows(schedule) {
+    if (Array.isArray(schedule)) return schedule;
+    if (!schedule || typeof schedule !== "object") return [];
+    return Object.entries(schedule)
+      .map(([trainNo, entry]) => {
+        const stopTimes = findThsrPageStopList(entry)
+          .map(convertThsrPageStop)
+          .filter(Boolean);
+        const normalizedTrainNo = String(trainNo || entry?.TrainNo || "").trim();
+        if (!normalizedTrainNo || stopTimes.length < 2) return null;
+        return {
+          DailyTrainInfo: {
+            TrainNo: normalizedTrainNo,
+            TrainTypeName: { Zh_tw: "THSR" },
+          },
+          StopTimes: stopTimes,
+        };
+      })
+      .filter(Boolean);
+  }
+
+  async function fetchThsrScheduleRowsFromPageScript(date) {
+    const cacheKey = getThsrPageScheduleCacheKey(date);
+    const cached = readCache(cacheKey, THSR_PAGE_SCHEDULE_CACHE_MS);
+    try {
+      await loadThsrRealScheduleScript();
+      if (typeof window.fetchRealData !== "function") throw new Error("THSR fetchRealData missing");
+      const schedule = await window.fetchRealData(date);
+      const rows = convertThsrPageScheduleToRows(schedule || window.trainSchedule || {});
+      if (rows.length) {
+        writeCache(cacheKey, rows);
+        return rows;
+      }
+      const cachedRows = extractScheduleRows("thsr", cached?.data);
+      return cachedRows.length ? cachedRows : rows;
+    } catch (error) {
+      const cachedRows = extractScheduleRows("thsr", cached?.data);
+      if (cachedRows.length) return cachedRows;
+      throw error;
+    }
+  }
+
+  async function fetchThsrDirectRowsLikePage(date, token) {
     const url = `https://tdx.transportdata.tw/api/basic/v2/Rail/THSR/DailyTimetable/TrainDate/${date}?$format=JSON`;
-    const response = await fetchWithTimeout(url, {
+    let response = await fetchWithTimeout(url, {
       headers: buildTdxHeaders(token),
       timeoutMs: FETCH_TIMEOUT_MS,
     });
+    if ((response.status === 401 || response.status === 403) && typeof getTdxToken === "function") {
+      const freshToken = await getTdxToken(true).catch(() => "");
+      if (freshToken) {
+        response = await fetchWithTimeout(url, {
+          headers: buildTdxHeaders(freshToken),
+          timeoutMs: FETCH_TIMEOUT_MS,
+        });
+      }
+    }
     if (!response.ok) throw new Error(`THSR timetable ${response.status}`);
     const data = await response.json();
-    const rows = Array.isArray(data) ? data : [];
+    return Array.isArray(data) ? data : extractScheduleRows("thsr", data);
+  }
+
+  async function fetchThsrScheduleRowsLikeThsrPage(date, token) {
+    const cacheKey = getThsrPageScheduleCacheKey(date);
+    try {
+      const pageRows = await fetchThsrScheduleRowsFromPageScript(date);
+      if (pageRows.length) return pageRows;
+    } catch (error) {
+      console.warn("home live THSR script fetch failed", error);
+    }
+    const rows = await fetchThsrDirectRowsLikePage(date, token);
     if (rows.length) {
-      writeCache(`home_live_schedule_thsr_${date}_page_same_v1`, data);
+      writeCache(cacheKey, rows);
       return rows;
     }
-    const cached = readCache(`home_live_schedule_thsr_${date}_page_same_v1`, 6 * 60 * 60 * 1000);
+    const cached = readCache(cacheKey, THSR_PAGE_SCHEDULE_CACHE_MS);
     const cachedRows = extractScheduleRows("thsr", cached?.data);
     return cachedRows.length ? cachedRows : rows;
   }
@@ -928,7 +1070,8 @@
     let lastRows = [];
     for (let index = 0; index < urls.length; index += 1) {
       try {
-        const data = await cachedFetchJson(`home_live_schedule_${system}_${date}_v2_${index}`, SCHEDULE_CACHE_MS, urls[index], token);
+        const cacheMs = system === "thsr" ? THSR_PAGE_SCHEDULE_CACHE_MS : SCHEDULE_CACHE_MS;
+        const data = await cachedFetchJson(`home_live_schedule_${system}_${date}_v2_${index}`, cacheMs, urls[index], token);
         const rows = extractScheduleRows(system, data);
         lastRows = rows;
         if (rows.length || system !== "thsr") return rows;
