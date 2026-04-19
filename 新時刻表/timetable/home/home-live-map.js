@@ -80,6 +80,7 @@
     routeLines: { tr: [], thsr: [] },
     routeSource: { tr: "station", thsr: "station" },
     snapshots: [],
+    loadStats: { tr: {}, thsr: {} },
     stationEvents: new Map(),
     stepCache: new Map(),
     userMarker: null,
@@ -856,14 +857,28 @@
   }
 
   function extractScheduleRows(system, data) {
+    const list = Array.isArray(data)
+      ? data
+      : (
+        Array.isArray(data?.value)
+          ? data.value
+          : (
+            Array.isArray(data?.records)
+              ? data.records
+              : (
+                Array.isArray(data?.Records)
+                  ? data.Records
+                  : null
+              )
+          )
+      );
+    if (list) return list;
     if (system === "tr") {
       return Array.isArray(data?.TrainTimetables)
         ? data.TrainTimetables
         : (Array.isArray(data?.DailyTrainTimetables) ? data.DailyTrainTimetables : []);
     }
-    return Array.isArray(data)
-      ? data
-      : (
+    return (
         Array.isArray(data?.TrainTimetables)
           ? data.TrainTimetables
           : (
@@ -881,17 +896,19 @@
   async function fetchScheduleRows(system, date, token) {
     const urls = getScheduleUrls(system, date);
     let lastError = null;
+    let lastRows = [];
     for (let index = 0; index < urls.length; index += 1) {
       try {
         const data = await cachedFetchJson(`home_live_schedule_${system}_${date}_v2_${index}`, SCHEDULE_CACHE_MS, urls[index], token);
         const rows = extractScheduleRows(system, data);
+        lastRows = rows;
         if (rows.length || system !== "thsr") return rows;
       } catch (error) {
         lastError = error;
       }
     }
     if (lastError) throw lastError;
-    return [];
+    return lastRows;
   }
 
   async function loadDelayMap(token) {
@@ -2407,17 +2424,33 @@
     const prevDate = addDays(date, -1);
     const delayMaps = await loadDelayMap(token);
     const rowsBySystem = {};
+    const stats = {};
     await Promise.all(Object.keys(SYSTEMS).map(async (system) => {
       try {
         const [prevRows, todayRows] = await Promise.all([
           fetchScheduleRows(system, prevDate, token),
           fetchScheduleRows(system, date, token),
         ]);
+        stats[system] = {
+          scheduleRows: (prevRows || []).length + (todayRows || []).length,
+          parsed: 0,
+          visible: 0,
+          missingStation: 0,
+          failedParse: 0,
+        };
         rowsBySystem[system] = [
           { date: prevDate, rows: prevRows || [] },
           { date, rows: todayRows || [] },
         ];
       } catch (error) {
+        stats[system] = {
+          scheduleRows: 0,
+          parsed: 0,
+          visible: 0,
+          missingStation: 0,
+          failedParse: 0,
+          error: error?.message || String(error || "unknown"),
+        };
         rowsBySystem[system] = [];
         console.warn(`home live schedule failed: ${system}`, error);
       }
@@ -2428,8 +2461,17 @@
       (rowsBySystem[system] || []).forEach((source) => {
         (source.rows || []).forEach((row) => {
           const entry = buildEntry(system, row, source.date, delayMaps);
-          if (!entry || !isEntryVisible(entry, nowMinute)) return;
-          if (!getStation(system, entry.firstStation) || !getStation(system, entry.lastStation)) return;
+          if (!entry) {
+            if (stats[system]) stats[system].failedParse += 1;
+            return;
+          }
+          if (stats[system]) stats[system].parsed += 1;
+          if (!isEntryVisible(entry, nowMinute)) return;
+          if (!getStation(system, entry.firstStation) || !getStation(system, entry.lastStation)) {
+            if (stats[system]) stats[system].missingStation += 1;
+            return;
+          }
+          if (stats[system]) stats[system].visible += 1;
           snapshots.push(entry);
         });
       });
@@ -2438,6 +2480,7 @@
       if (a.system !== b.system) return a.system === "thsr" ? -1 : 1;
       return a.trainNo.localeCompare(b.trainNo, "zh-Hant", { numeric: true });
     });
+    state.loadStats = stats;
     return snapshots;
   }
 
@@ -2478,7 +2521,11 @@
       scheduleRefresh();
       const thsrCount = state.snapshots.filter((snapshot) => snapshot.system === "thsr").length;
       const traCount = state.snapshots.filter((snapshot) => snapshot.system === "tr").length;
-      showStatus(`已更新 高鐵 ${thsrCount} 班、台鐵 ${traCount} 班。`);
+      const thsrStats = state.loadStats?.thsr || {};
+      const thsrNote = thsrCount === 0
+        ? `（班表 ${Number(thsrStats.scheduleRows || 0)} 筆、解析 ${Number(thsrStats.parsed || 0)} 筆、站點不符 ${Number(thsrStats.missingStation || 0)} 筆、解析失敗 ${Number(thsrStats.failedParse || 0)} 筆${thsrStats.error ? "、TDX 失敗" : ""}）`
+        : "";
+      showStatus(`已更新 高鐵 ${thsrCount} 班${thsrNote}、台鐵 ${traCount} 班。`);
     } catch (error) {
       console.error("home live map failed", error);
       showStatus("即時動態暫時無法載入，可能是 TDX 忙碌或網路連線不穩。", { duration: 6000 });
