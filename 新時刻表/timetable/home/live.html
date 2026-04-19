@@ -102,6 +102,100 @@
       background: currentColor;
     }
 
+    .home-live-inline-controls {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      position: relative;
+    }
+
+    .home-live-popover {
+      position: relative;
+      line-height: 1;
+    }
+
+    .home-live-popover summary {
+      list-style: none;
+      display: inline-flex;
+      align-items: center;
+      min-height: 28px;
+      border: 1px solid rgba(15, 23, 42, .16);
+      border-radius: 8px;
+      background: #fff;
+      color: #111827;
+      padding: 0 8px;
+      font-size: .74rem;
+      font-weight: 900;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .home-live-popover summary::-webkit-details-marker { display: none; }
+    .home-live-popover[open] summary {
+      color: #fff;
+      background: var(--accent);
+      border-color: var(--accent);
+    }
+
+    .home-live-popover-panel {
+      position: absolute;
+      top: calc(100% + 8px);
+      left: 0;
+      z-index: 700;
+      width: min(340px, calc(100vw - 28px));
+      padding: 10px;
+      border: 1px solid var(--panel-border);
+      border-radius: 8px;
+      background: var(--panel-bg);
+      box-shadow: 0 18px 46px rgba(15, 23, 42, .2);
+      backdrop-filter: blur(14px);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .home-live-popover:nth-child(2) .home-live-popover-panel {
+      left: auto;
+      right: 0;
+    }
+
+    .home-live-popover-panel label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: .78rem;
+      color: var(--text-muted);
+      font-weight: 900;
+    }
+
+    .home-live-popover-panel select,
+    .home-live-popover-panel input {
+      min-width: 0;
+      flex: 1 1 auto;
+      height: 34px;
+      border: 1px solid rgba(15, 23, 42, .16);
+      border-radius: 8px;
+      background: #fff;
+      color: var(--text-main);
+      padding: 0 8px;
+      font: inherit;
+      font-size: .78rem;
+      font-weight: 800;
+    }
+
+    .home-live-popover-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .home-live-popover-panel p {
+      margin: 0;
+      color: var(--text-muted);
+      font-size: .72rem;
+      line-height: 1.5;
+    }
+
     .home-live-title p {
       margin: 3px 0 0;
       color: var(--text-muted);
@@ -140,6 +234,108 @@
       color: #fff;
       background: var(--accent);
       border-color: var(--accent);
+    }
+
+    .home-live-filterbar {
+      position: absolute;
+      z-index: 540;
+      top: calc(max(10px, env(safe-area-inset-top)) + 72px);
+      left: max(10px, env(safe-area-inset-left));
+      right: max(10px, env(safe-area-inset-right));
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: flex-start;
+      pointer-events: none;
+    }
+
+    .home-live-filter {
+      display: flex;
+      align-items: flex-start;
+      gap: 6px;
+      max-width: min(100%, 560px);
+      padding: 7px;
+      border: 1px solid var(--panel-border);
+      border-radius: 8px;
+      background: var(--panel-bg);
+      box-shadow: 0 10px 28px rgba(15, 23, 42, .14);
+      backdrop-filter: blur(14px);
+      pointer-events: auto;
+    }
+
+    .home-live-filter span {
+      padding: 8px 2px 0;
+      color: var(--text-muted);
+      font-size: .76rem;
+      font-weight: 900;
+      white-space: nowrap;
+    }
+
+    .home-live-filter select,
+    .home-live-filter input {
+      border: 1px solid rgba(15, 23, 42, .16);
+      border-radius: 8px;
+      background: #fff;
+      color: var(--text-main);
+      font: inherit;
+      font-size: .78rem;
+      font-weight: 800;
+    }
+
+    .home-live-filter select {
+      min-width: 156px;
+      height: 68px;
+      padding: 4px 6px;
+    }
+
+    .home-live-filter input {
+      width: 92px;
+      height: 32px;
+      padding: 0 8px;
+    }
+
+    .home-live-mini-btn {
+      border: 1px solid rgba(15, 23, 42, .16);
+      background: #fff;
+      color: #111827;
+      border-radius: 8px;
+      min-height: 32px;
+      padding: 0 8px;
+      font: inherit;
+      font-size: .76rem;
+      font-weight: 900;
+      cursor: pointer;
+    }
+
+    .home-live-track-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+      max-width: 220px;
+      padding-top: 2px;
+    }
+
+    .home-live-track-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      min-height: 28px;
+      border: 1px solid rgba(15, 118, 110, .26);
+      border-radius: 999px;
+      background: rgba(15, 118, 110, .08);
+      color: var(--text-main);
+      padding: 0 8px;
+      font: inherit;
+      font-size: .76rem;
+      font-weight: 900;
+      cursor: pointer;
+    }
+
+    .home-live-track-empty {
+      align-self: center;
+      color: var(--text-muted);
+      font-size: .76rem;
+      font-weight: 850;
     }
 
     .home-live-legend {
@@ -915,6 +1111,53 @@
         font-size: .76rem;
       }
 
+      .home-live-title h1 {
+        gap: 6px;
+      }
+
+      .home-live-inline-controls {
+        gap: 4px;
+      }
+
+      .home-live-popover summary {
+        min-height: 26px;
+        padding: 0 7px;
+        font-size: .7rem;
+      }
+
+      .home-live-popover-panel {
+        position: fixed;
+        top: calc(max(10px, env(safe-area-inset-top)) + 104px);
+        left: max(10px, env(safe-area-inset-left)) !important;
+        right: max(10px, env(safe-area-inset-right)) !important;
+        width: auto;
+      }
+
+      .home-live-filterbar {
+        top: calc(max(10px, env(safe-area-inset-top)) + 112px);
+        gap: 6px;
+      }
+
+      .home-live-filter {
+        width: 100%;
+        max-width: 100%;
+        padding: 6px;
+      }
+
+      .home-live-filter select {
+        flex: 1 1 130px;
+        min-width: 0;
+        height: 58px;
+      }
+
+      .home-live-filter input {
+        width: 76px;
+      }
+
+      .home-live-track-list {
+        max-width: 150px;
+      }
+
       .home-live-station-label button {
         font-size: .78rem;
       }
@@ -991,6 +1234,32 @@
             <span style="color: var(--line-tra);"><i></i>台鐵</span>
             <span style="color: var(--line-thsr);"><i></i>高鐵</span>
           </span>
+          <span class="home-live-inline-controls" aria-label="台鐵列車顯示篩選">
+            <details class="home-live-popover">
+              <summary>選擇路段</summary>
+              <div class="home-live-popover-panel">
+                <label><span>路段</span><select id="homeLiveTraSegments" aria-label="選擇台鐵顯示路段"></select></label>
+                <div class="home-live-popover-actions">
+                  <button type="button" class="home-live-mini-btn" id="homeLiveTraSegmentAdd">加入</button>
+                  <button type="button" class="home-live-mini-btn" id="homeLiveTraSegmentAll">全選</button>
+                  <button type="button" class="home-live-mini-btn" id="homeLiveTraSegmentClear">清除</button>
+                </div>
+                <div class="home-live-track-list" id="homeLiveTraSegmentList"></div>
+                <p>建議最多選 2 個路段，避免白天列車多時卡頓。</p>
+              </div>
+            </details>
+            <details class="home-live-popover">
+              <summary>追蹤車次</summary>
+              <div class="home-live-popover-panel">
+                <label><span>車次</span><input id="homeLiveTrackInput" inputmode="numeric" placeholder="車次" aria-label="追蹤台鐵車次"></label>
+                <div class="home-live-popover-actions">
+                  <button type="button" class="home-live-mini-btn" id="homeLiveTrackAdd">加入</button>
+                  <button type="button" class="home-live-mini-btn" id="homeLiveTrackClear">全部清除</button>
+                </div>
+                <div class="home-live-track-list" id="homeLiveTrackList"></div>
+              </div>
+            </details>
+          </span>
         </h1>
         <p id="homeLiveSubtitle">台鐵與高鐵全線真實地圖</p>
       </div>
@@ -1008,9 +1277,9 @@
 
   <script src="../shared/rail-network.js?v=20260419-traedge2"></script>
   <script charset="UTF-8" src="../thsr/thsr.real-schedule.js?v=20260419-tdxgate1"></script>
-  <script src="../shared/rail-live-tracker.js?v=20260419-core7"></script>
+  <script src="../shared/rail-live-tracker.js?v=20260420-core9"></script>
   <script src="../shared/rail-stop-weather.js?v=20260419-live1"></script>
   <script src="../shared/rail-station-context.js?v=20260419-live1"></script>
-  <script src="./home-live-map.js?v=20260419-live14"></script>
+  <script src="./home-live-map.js?v=20260420-live17"></script>
 </body>
 </html>

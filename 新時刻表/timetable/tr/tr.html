@@ -4459,7 +4459,7 @@ let __startEndDelegated = false;
 
 // 將一站資料拆成 {arr, dep}，兼容兩種資料格式：
 // A) [站, 到達, 開車]  或  B) [站, 開車, 到達]
-// 規則：若兩個時間都存在，且「較晚」應視為開車(>=到達)
+// 規則：兩個時間都存在時，開車時間可以跨到隔日，例如到 23:58、開 00:01。
 function splitArrDep(stopRow){
   const t1 = stopRow?.[1] || '';
   const t2 = stopRow?.[2] || '';
@@ -4469,10 +4469,11 @@ function splitArrDep(stopRow){
   const m2 = parseTime(t2);
   if(m1===null || m2===null) return { arr: t1, dep: t2 };
 
-  // dep 應 >= arr；若 t2 <= t1，代表 t1較晚 → t1=dep, t2=arr
-  if(m2 <= m1) return { arr: t2, dep: t1 };
-  // 否則 t2較晚 → t2=dep, t1=arr
-  return { arr: t1, dep: t2 };
+  const t1ToT2 = (m2 - m1 + 1440) % 1440;
+  const t2ToT1 = (m1 - m2 + 1440) % 1440;
+  return t1ToT2 <= t2ToT1
+    ? { arr: t1, dep: t2 }
+    : { arr: t2, dep: t1 };
 }
 
 
@@ -11406,7 +11407,7 @@ document.addEventListener('click', (event) => {
 <script charset="UTF-8" src="../shared/rail-network.js?v=20260419-traedge2"></script>
 <script charset="UTF-8" src="../shared/rail-master-table.js?v=20260404-autorefresh2"></script>
 <script charset="UTF-8" src="../shared/rail-operation-diagram.js?v=20260404-autorefresh2"></script>
-  <script charset="UTF-8" src="../shared/rail-live-tracker.js?v=20260419-realmap14"></script>
+  <script charset="UTF-8" src="../shared/rail-live-tracker.js?v=20260420-realmap16"></script>
 <script charset="UTF-8" src="../shared/rail-usage-footer.js?v=20260326-footer3"></script>
 <script>
 window.addEventListener('load', () => {

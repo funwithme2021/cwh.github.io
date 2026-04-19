@@ -13,6 +13,8 @@
   const SHARED_GEO_KEY = "home_shared_geo_snapshot_v1";
   const USER_LOCATION_ENABLED_KEY = "rail_live_user_location_enabled_v1";
   const LIVE_VIEW_MODE_KEY = "rail_live_view_mode_v1";
+  const GEO_SEGMENT_FILTER_KEY = "rail_live_geo_segment_filter_v1";
+  const TRACKED_TRAINS_KEY = "rail_live_tracked_trains_v1";
   const LEAFLET_CSS_URL = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
   const LEAFLET_JS_URL = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
   const MAP_TILE_URL = "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png";
@@ -102,6 +104,37 @@
       localStorage.setItem(LIVE_VIEW_MODE_KEY, mode === "geo" ? "geo" : "line");
     } catch (_) {
     }
+  }
+
+  function readStringListStorage(key) {
+    try {
+      const parsed = JSON.parse(localStorage.getItem(key) || "[]");
+      return Array.isArray(parsed)
+        ? parsed.map((value) => String(value || "").trim()).filter(Boolean)
+        : [];
+    } catch (_) {
+      return [];
+    }
+  }
+
+  function writeStringListStorage(key, list) {
+    try {
+      const values = Array.from(new Set((Array.isArray(list) ? list : []).map((value) => String(value || "").trim()).filter(Boolean)));
+      localStorage.setItem(key, JSON.stringify(values));
+    } catch (_) {
+    }
+  }
+
+  function hasStringListStorage(key) {
+    try {
+      return localStorage.getItem(key) !== null;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function getSystemStorageKey(baseKey, system) {
+    return `${baseKey}_${system || "all"}`;
   }
 
   function loadLeaflet() {
@@ -1458,6 +1491,33 @@
     return system === "tr"
       ? getRailNetwork()?.getTraSegmentGroups?.() || []
       : [{ id: "thsr", title: "高鐵全線", segments: [{ id: "thsr-main", title: "高鐵全線", subtitle: "南港 - 左營", stations: getRailNetwork()?.getThsrStationOrder?.() || [] }] }];
+  }
+
+  function getAllRouteSegmentsForSystem(system) {
+    return getRouteGroupsForSystem(system).flatMap((group) =>
+      (group.segments || []).map((segment) => ({ ...segment, groupTitle: group.title }))
+    );
+  }
+
+  function getDefaultGeoSegmentIds(system) {
+    return system === "tr" ? getAllRouteSegmentsForSystem(system).map((segment) => segment.id).filter(Boolean) : [];
+  }
+
+  function readGeoSegmentIds(system) {
+    const key = getSystemStorageKey(GEO_SEGMENT_FILTER_KEY, system);
+    return hasStringListStorage(key) ? readStringListStorage(key) : [];
+  }
+
+  function writeGeoSegmentIds(system, ids) {
+    writeStringListStorage(getSystemStorageKey(GEO_SEGMENT_FILTER_KEY, system), ids);
+  }
+
+  function readTrackedTrainNos(system) {
+    return readStringListStorage(getSystemStorageKey(TRACKED_TRAINS_KEY, system));
+  }
+
+  function writeTrackedTrainNos(system, trainNos) {
+    writeStringListStorage(getSystemStorageKey(TRACKED_TRAINS_KEY, system), trainNos);
   }
 
   function parseExactTrainQuery(queryText) {
@@ -3346,6 +3406,18 @@
     return true;
   }
 
+  function applyDefaultGeoSegmentFromLocation(state, coords, options = {}) {
+    if (!state || state.system !== "tr" || state.geoSegmentPreferenceSaved || (state.geoSegmentIds || []).length) return false;
+    const context = buildUserLocationContext(state, coords);
+    const targetSegment = context?.routeSegment || findSegmentContainingUserContext(state, context);
+    if (!targetSegment?.id) return false;
+    state.geoSegmentIds = [targetSegment.id];
+    renderGeoSegmentChips(state);
+    syncGeoSegmentSelect(state);
+    if (options.render) state.runRender?.();
+    return true;
+  }
+
   function projectUserLocationToRoute(state) {
     const coords = state.userLocation?.coords || null;
     const stations = state.segment?.stations || [];
@@ -3458,6 +3530,7 @@
       updatedAt: now,
     };
     if (source !== "shared-storage") persistSharedGeoSnapshot(normalized, source || "live-tracker");
+    applyDefaultGeoSegmentFromLocation(state, normalized, { render: state.viewMode === "geo" && !state.panel?.classList.contains("hidden") });
     if (!state.userLocationEnabled) return;
     if (maybeSwitchToUserRoute(state, normalized)) return;
     updateUserLocationMarker(state);
@@ -3665,6 +3738,69 @@
 
   function getVisibleSnapshots(snapshots) {
     return sortSnapshotsByTrainNo((snapshots || []).filter((snapshot) => snapshot.state !== "arrived"));
+  }
+
+  function getSelectedGeoSegments(state) {
+    if (state?.system !== "tr") return [];
+    const selectedIds = new Set(Array.isArray(state.geoSegmentIds) ? state.geoSegmentIds : []);
+    return getAllRouteSegmentsForSystem(state.system).filter((segment) => selectedIds.has(segment.id));
+  }
+
+  function snapshotTouchesSegment(snapshot, segment) {
+    const stationSet = new Set((segment?.stations || []).map((name) => normalizeStationForSystem(snapshot?.system, name)).filter(Boolean));
+    if (!stationSet.size) return false;
+    const currentFrom = normalizeStationForSystem(snapshot?.system, snapshot?.currentFrom);
+    const currentTo = normalizeStationForSystem(snapshot?.system, snapshot?.currentTo);
+    const nextStation = normalizeStationForSystem(snapshot?.system, snapshot?.nextStation);
+    if (stationSet.has(currentFrom) || stationSet.has(currentTo) || stationSet.has(nextStation)) return true;
+    const position = Number(snapshot?.positionIndex);
+    return (snapshot?.points || []).some((point) => {
+      if (!stationSet.has(normalizeStationForSystem(snapshot?.system, point?.station))) return false;
+      const routeIndex = Number(point?.routeIndex);
+      return !Number.isFinite(position) || !Number.isFinite(routeIndex) || Math.abs(routeIndex - position) <= 1.25;
+    });
+  }
+
+  function applyGeoTrainFilters(state, snapshots) {
+    const list = Array.isArray(snapshots) ? snapshots : [];
+    if (state?.viewMode !== "geo" || state?.system !== "tr") return list;
+    const tracked = new Set((state.trackedTrainNos || []).map((trainNo) => String(trainNo || "").trim().toUpperCase()).filter(Boolean));
+    if (tracked.size) return list.filter((snapshot) => tracked.has(String(snapshot?.trainNo || "").trim().toUpperCase()));
+    const selectedSegments = getSelectedGeoSegments(state);
+    const allSegmentCount = getAllRouteSegmentsForSystem(state.system).length;
+    if (!selectedSegments.length) return [];
+    if (selectedSegments.length >= allSegmentCount) return list;
+    return list.filter((snapshot) => selectedSegments.some((segment) => snapshotTouchesSegment(snapshot, segment)));
+  }
+
+  function isTrackedEntryCompleted(state, entry, queryDate) {
+    if (!entry) return false;
+    const delayMinutes = getDelayMinutes(state.system, entry.trainNo, queryDate);
+    const timedStops = buildTimedStops(entry.stops || [], delayMinutes);
+    const lastStop = timedStops[timedStops.length - 1] || null;
+    const lastMinute = getStopArrivalMinute(lastStop);
+    const nowMinute = getRelativeNowExactMinute(entry.originDate, queryDate);
+    return Number.isFinite(nowMinute) && Number.isFinite(lastMinute) && nowMinute > lastMinute + STATION_ALERT_WINDOW;
+  }
+
+  function pruneCompletedTrackedTrains(state, snapshots, entries = [], queryDate = getQueryDate()) {
+    if (state?.system !== "tr" || !Array.isArray(state.trackedTrainNos) || !state.trackedTrainNos.length) return;
+    const arrived = new Set((snapshots || [])
+      .filter((snapshot) => snapshot?.state === "arrived")
+      .map((snapshot) => String(snapshot?.trainNo || "").trim().toUpperCase())
+      .filter(Boolean));
+    const next = state.trackedTrainNos.filter((trainNo) => {
+      const key = String(trainNo || "").trim().toUpperCase();
+      if (!key) return false;
+      if (arrived.has(key)) return false;
+      const matchedEntries = (entries || []).filter((entry) => sameTrainNo(entry?.trainNo, key));
+      if (matchedEntries.length && matchedEntries.every((entry) => isTrackedEntryCompleted(state, entry, queryDate))) return false;
+      return true;
+    });
+    if (next.length === state.trackedTrainNos.length) return;
+    state.trackedTrainNos = next;
+    writeTrackedTrainNos(state.system, next);
+    renderTrackedTrainChips(state);
   }
 
   function getSnapshotPriority(snapshot) {
@@ -4464,6 +4600,7 @@
     let segment = null;
     const queryDate = getQueryDate();
     const userRouteCoords = state.userLocation?.coords || (state.userLocationEnabled ? readSharedGeoSnapshot() : null);
+    if (userRouteCoords) applyDefaultGeoSegmentFromLocation(state, userRouteCoords, { render: false });
     if (userRouteCoords) maybeSwitchToUserRoute(state, userRouteCoords, { render: false });
     const queryText = String(state.searchInput.value || "").trim();
     const exactTrainQuery = parseExactTrainQuery(queryText);
@@ -4524,12 +4661,14 @@
         .filter((snapshot) => !queryText || snapshot.trainNo.includes(queryText) || snapshot.type.includes(queryText) || snapshot.firstStation.includes(queryText) || snapshot.lastStation.includes(queryText))
     );
     const primarySnapshots = getDisplaySnapshots(state.system, snapshots);
+    pruneCompletedTrackedTrains(state, primarySnapshots, allEntries, queryDate);
+    const filteredPrimarySnapshots = exactTrainQuery ? primarySnapshots : applyGeoTrainFilters(state, primarySnapshots);
 
     state.snapshots = snapshots;
-    state.primarySnapshots = primarySnapshots;
+    state.primarySnapshots = filteredPrimarySnapshots;
     state.segment = segment;
-      state.visibleSnapshots = getVisibleSnapshots(primarySnapshots);
-      state.stationEvents = buildStationEventMap(primarySnapshots, segment.stations);
+      state.visibleSnapshots = getVisibleSnapshots(filteredPrimarySnapshots);
+      state.stationEvents = buildStationEventMap(filteredPrimarySnapshots, segment.stations);
       const scopeKey = `${state.system}|${state.renderedQueryDate}|${segment.id}`;
       if (state.animationScopeKey !== scopeKey) {
         state.markerPositions.clear();
@@ -4545,7 +4684,7 @@
 
     return {
       segment,
-      snapshots: primarySnapshots,
+      snapshots: filteredPrimarySnapshots,
       visibleSnapshots: state.visibleSnapshots,
       note,
       boardHeight,
@@ -4663,6 +4802,12 @@
             .map((group) => `<optgroup label="${escapeHtml(group.title)}">${(group.segments || []).map((segment) => `<option value="${escapeHtml(segment.id)}">${escapeHtml(segment.title)}</option>`).join("")}</optgroup>`)
             .join("")
         : `<option value="thsr-main">高鐵全線</option>`;
+    const geoControls = system === "tr"
+      ? `
+        <details class="rail-live-control rail-live-popover-control rail-live-geo-filter-control"><summary>選擇路段</summary><div class="rail-live-popover-panel"><label><span>路段</span><select id="${escapeHtml(config.inputPrefix)}GeoSegments" class="rail-live-select rail-live-geo-segment-select">${routeOptions}</select></label><div class="rail-live-popover-actions"><button type="button" class="rail-live-mini-btn" data-live-geo-add="1">加入</button><button type="button" class="rail-live-mini-btn" data-live-geo-select-all="1">全選</button><button type="button" class="rail-live-mini-btn" data-live-geo-clear="1">清除</button></div><div class="rail-live-track-list" data-live-geo-selected-list></div><p>建議最多選 2 個路段，避免白天列車多時卡頓。</p></div></details>
+        <details class="rail-live-control rail-live-popover-control rail-live-track-control"><summary>追蹤車次</summary><div class="rail-live-popover-panel"><label><span>車次</span><input id="${escapeHtml(config.inputPrefix)}TrackTrain" class="rail-live-input rail-live-track-input" type="text" inputmode="numeric" placeholder="輸入車次"></label><div class="rail-live-popover-actions"><button type="button" class="rail-live-mini-btn" data-live-track-add="1">加入</button><button type="button" class="rail-live-mini-btn" data-live-track-clear="1">全部清除</button></div><div class="rail-live-track-list" data-live-track-list></div></div></details>
+      `
+      : "";
     const lead = config.key === "modern"
       ? ""
       : system === "tr"
@@ -4675,6 +4820,7 @@
         <div class="rail-live-control rail-live-route-control"><span>路線</span><select id="${escapeHtml(config.inputPrefix)}Route" class="rail-live-select">${routeOptions}</select></div>
         <div class="rail-live-control rail-live-direction-control"><span>方向</span><select id="${escapeHtml(config.inputPrefix)}Direction" class="rail-live-select">${directionOptions}</select></div>
         <div class="rail-live-control rail-live-view-control"><span>模式</span><button type="button" class="rail-live-view-btn" data-live-view-mode="line">線形</button><button type="button" class="rail-live-view-btn" data-live-view-mode="geo">地圖</button></div>
+        ${geoControls}
         <div class="rail-live-control rail-live-search"><div class="rail-live-search-field"><input id="${escapeHtml(config.inputPrefix)}Search" class="rail-live-input rail-live-input-has-btn" type="text" placeholder="搜尋車次、車種或起迄站"><button type="button" class="rail-live-search-locate" data-live-search-locate="1" aria-label="📍定位車次" title="📍定位車次">📍定位車次</button></div><button id="${escapeHtml(config.inputPrefix)}Render" class="btn-primary" type="button">刷新動態</button></div>
       </div>
       <div id="${escapeHtml(config.inputPrefix)}Output" class="rail-live-output"><div class="rail-live-empty">可直接顯示目前路線的列車動態與車站進出站提示。</div></div>
@@ -4709,6 +4855,20 @@
       .rail-live-input{min-width:180px; flex:1 1 180px;}
       .rail-live-input-has-btn{width:100%; padding-right:112px;}
       .rail-live-search-locate{position:absolute; top:50%; right:6px; transform:translateY(-50%); min-width:100px; height:30px; padding:0 10px; border:none; border-radius:10px; background:color-mix(in srgb, var(--primary) 12%, var(--bg-surface)); color:var(--primary); font:inherit; font-size:.78rem; font-weight:900; white-space:nowrap; cursor:pointer;}
+      .rail-live-popover-control{position:relative; padding:0; background:transparent; border:0; overflow:visible;}
+      .rail-live-popover-control summary{list-style:none; height:38px; display:inline-flex; align-items:center; border:1px solid var(--border); border-radius:12px; background:var(--bg-surface); color:var(--text-main); padding:0 12px; font-size:.82rem; font-weight:950; cursor:pointer; user-select:none;}
+      .rail-live-popover-control summary::-webkit-details-marker{display:none;}
+      .rail-live-popover-control[open] summary{background:linear-gradient(135deg,#0f766e,#2563eb); border-color:transparent; color:#fff;}
+      .rail-live-popover-panel{position:absolute; top:calc(100% + 8px); left:0; z-index:40; width:min(340px, calc(100vw - 24px)); padding:12px; border:1px solid var(--border); border-radius:14px; background:var(--bg-surface); box-shadow:0 18px 46px rgba(15,23,42,.18); display:flex; flex-direction:column; gap:10px;}
+      .rail-live-popover-panel label{display:flex; align-items:center; gap:8px;}
+      .rail-live-popover-panel p{margin:0; color:var(--text-muted); font-size:.75rem; line-height:1.55;}
+      .rail-live-popover-actions{display:flex; flex-wrap:wrap; gap:6px;}
+      .rail-live-geo-segment-select{min-width:190px; flex:1 1 auto;}
+      .rail-live-track-input{min-width:96px; width:112px; flex:0 0 112px;}
+      .rail-live-track-list{display:flex; flex-wrap:wrap; gap:5px; max-width:260px;}
+      .rail-live-track-chip{display:inline-flex; align-items:center; gap:4px; min-height:28px; padding:0 8px; border-radius:999px; border:1px solid color-mix(in srgb, var(--primary) 28%, var(--border)); background:color-mix(in srgb, var(--primary) 10%, var(--bg-surface)); color:var(--text-main); font:inherit; font-size:.78rem; font-weight:900; cursor:pointer;}
+      .rail-live-track-chip span{font-size:.9rem; color:var(--text-muted);}
+      .rail-live-track-empty{align-self:center; color:var(--text-muted); font-size:.78rem; font-weight:800;}
       .rail-live-location-control{padding:0; border:none; background:transparent;}
       .rail-live-location-toggle{height:60px; padding:0 18px; border-radius:16px; border:1px solid color-mix(in srgb, var(--primary) 18%, var(--border)); background:linear-gradient(135deg, color-mix(in srgb, var(--primary) 8%, var(--bg-surface)), var(--bg-surface)); color:var(--text-main); font:inherit; font-size:.88rem; font-weight:900; white-space:nowrap; cursor:pointer; box-shadow:0 10px 24px rgba(15,23,42,.06);}
       .rail-live-location-toggle[aria-pressed="true"]{background:linear-gradient(135deg, #1d4ed8, #0f766e); border-color:transparent; color:#fff; box-shadow:0 14px 30px rgba(37,99,235,.22);}
@@ -4752,6 +4912,7 @@
       .rail-live-board-note{font-size:.78rem; color:var(--text-muted); font-weight:700;}
       .rail-live-map{position:relative; border-radius:20px; border:1px solid color-mix(in srgb, var(--border) 85%, transparent); background:linear-gradient(180deg, color-mix(in srgb, var(--bg-body) 92%, transparent), color-mix(in srgb, var(--bg-surface) 84%, transparent)); overflow:hidden;}
       .rail-live-panel[data-live-view-mode="geo"] .rail-live-route-control,.rail-live-panel[data-live-view-mode="geo"] .rail-live-direction-control{display:none;}
+      .rail-live-panel:not([data-live-view-mode="geo"]) .rail-live-geo-filter-control,.rail-live-panel:not([data-live-view-mode="geo"]) .rail-live-track-control{display:none;}
       .rail-live-geo-layout{display:grid; grid-template-columns:minmax(0,1fr); gap:14px; align-items:start;}
       .rail-live-geo-focus-shell{width:100%;}
       .rail-live-real-board{width:100%; padding:14px; border-radius:8px;}
@@ -4889,6 +5050,15 @@
       renderButton: panel.querySelector(`#${config.inputPrefix}Render`),
       viewButtons: Array.from(panel.querySelectorAll("[data-live-view-mode]")),
       userLocationButton: panel.querySelector("[data-live-user-location-toggle]"),
+      geoSegmentSelect: panel.querySelector(`#${config.inputPrefix}GeoSegments`),
+      geoAddButton: panel.querySelector("[data-live-geo-add]"),
+      geoSelectAllButton: panel.querySelector("[data-live-geo-select-all]"),
+      geoClearButton: panel.querySelector("[data-live-geo-clear]"),
+      geoSelectedList: panel.querySelector("[data-live-geo-selected-list]"),
+      trackInput: panel.querySelector(`#${config.inputPrefix}TrackTrain`),
+      trackAddButton: panel.querySelector("[data-live-track-add]"),
+      trackClearButton: panel.querySelector("[data-live-track-clear]"),
+      trackedTrainList: panel.querySelector("[data-live-track-list]"),
       output: panel.querySelector(`#${config.inputPrefix}Output`),
       modal: panel.querySelector(`#${config.inputPrefix}Modal`),
       modalTitle: panel.querySelector(`#${config.inputPrefix}ModalTitle`),
@@ -4933,6 +5103,9 @@
       animationScopeKey: "",
       renderedQueryDate: "",
       selectedTrainKey: "",
+      geoSegmentIds: readGeoSegmentIds(system),
+      trackedTrainNos: readTrackedTrainNos(system),
+      geoSegmentPreferenceSaved: hasStringListStorage(getSystemStorageKey(GEO_SEGMENT_FILTER_KEY, system)),
     };
   }
 
@@ -4978,6 +5151,116 @@
     });
   }
 
+  function syncGeoSegmentSelect(state) {
+    if (!state?.geoSegmentSelect) return;
+    const selected = new Set(state.geoSegmentIds || []);
+    const firstAvailable = Array.from(state.geoSegmentSelect.options).find((option) => !selected.has(option.value));
+    if (firstAvailable) state.geoSegmentSelect.value = firstAvailable.value;
+  }
+
+  function renderTrackedTrainChips(state) {
+    if (!state?.trackedTrainList) return;
+    const list = state.trackedTrainNos || [];
+    state.trackedTrainList.innerHTML = list.length
+      ? list.map((trainNo) => `<button type="button" class="rail-live-track-chip" data-live-track-remove="${escapeHtml(trainNo)}">${escapeHtml(trainNo)}<span>×</span></button>`).join("")
+      : `<span class="rail-live-track-empty">未追蹤</span>`;
+  }
+
+  function renderGeoSegmentChips(state) {
+    if (!state?.geoSelectedList) return;
+    const segments = getAllRouteSegmentsForSystem(state.system);
+    const map = new Map(segments.map((segment) => [segment.id, segment]));
+    const list = state.geoSegmentIds || [];
+    state.geoSelectedList.innerHTML = list.length
+      ? list.map((id) => {
+          const segment = map.get(id);
+          return `<button type="button" class="rail-live-track-chip" data-live-geo-remove="${escapeHtml(id)}">${escapeHtml(segment?.title || id)}<span>×</span></button>`;
+        }).join("")
+      : `<span class="rail-live-track-empty">未選擇路段</span>`;
+  }
+
+  function setGeoSegmentIds(state, ids, options = {}) {
+    const next = Array.from(new Set((ids || []).map((id) => String(id || "").trim()).filter(Boolean)));
+    if (next.length > 2 && options.confirm !== false && !window.confirm("選擇超過兩個路段可能造成卡頓、耗電或發熱，是否繼續？")) return false;
+    state.geoSegmentIds = next;
+    state.geoSegmentPreferenceSaved = options.persist !== false;
+    if (options.persist !== false) writeGeoSegmentIds(state.system, next);
+    renderGeoSegmentChips(state);
+    syncGeoSegmentSelect(state);
+    if (options.render !== false) state.runRender?.();
+    return true;
+  }
+
+  function addGeoSegmentId(state, id) {
+    const value = String(id || "").trim();
+    if (!value) return;
+    setGeoSegmentIds(state, [...(state.geoSegmentIds || []), value]);
+  }
+
+  function removeGeoSegmentId(state, id) {
+    const value = String(id || "").trim();
+    setGeoSegmentIds(state, (state.geoSegmentIds || []).filter((item) => item !== value));
+  }
+
+  function addTrackedTrainNo(state, trainNo) {
+    const normalized = String(trainNo || "").trim().toUpperCase();
+    if (!normalized) return;
+    const next = Array.from(new Set([...(state.trackedTrainNos || []), normalized]));
+    state.trackedTrainNos = next;
+    writeTrackedTrainNos(state.system, next);
+    if (state.trackInput) state.trackInput.value = "";
+    renderTrackedTrainChips(state);
+    state.runRender?.();
+  }
+
+  function removeTrackedTrainNo(state, trainNo) {
+    const target = String(trainNo || "").trim().toUpperCase();
+    const next = (state.trackedTrainNos || []).filter((item) => String(item || "").trim().toUpperCase() !== target);
+    state.trackedTrainNos = next;
+    writeTrackedTrainNos(state.system, next);
+    renderTrackedTrainChips(state);
+    state.runRender?.();
+  }
+
+  function clearTrackedTrainNos(state) {
+    state.trackedTrainNos = [];
+    writeTrackedTrainNos(state.system, []);
+    renderTrackedTrainChips(state);
+    state.runRender?.();
+  }
+
+  function bindGeoPerformanceControls(state) {
+    if (state.system !== "tr") return;
+    syncGeoSegmentSelect(state);
+    renderGeoSegmentChips(state);
+    renderTrackedTrainChips(state);
+    state.geoAddButton?.addEventListener("click", () => addGeoSegmentId(state, state.geoSegmentSelect?.value));
+    state.geoSelectAllButton?.addEventListener("click", () => {
+      const ids = getDefaultGeoSegmentIds(state.system);
+      setGeoSegmentIds(state, ids);
+    });
+    state.geoClearButton?.addEventListener("click", () => {
+      setGeoSegmentIds(state, []);
+    });
+    state.geoSelectedList?.addEventListener("click", (event) => {
+      const button = event.target?.closest?.("[data-live-geo-remove]");
+      if (!button) return;
+      removeGeoSegmentId(state, button.getAttribute("data-live-geo-remove"));
+    });
+    state.trackAddButton?.addEventListener("click", () => addTrackedTrainNo(state, state.trackInput?.value));
+    state.trackClearButton?.addEventListener("click", () => clearTrackedTrainNos(state));
+    state.trackInput?.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter") return;
+      event.preventDefault();
+      addTrackedTrainNo(state, state.trackInput.value);
+    });
+    state.trackedTrainList?.addEventListener("click", (event) => {
+      const button = event.target?.closest?.("[data-live-track-remove]");
+      if (!button) return;
+      removeTrackedTrainNo(state, button.getAttribute("data-live-track-remove"));
+    });
+  }
+
   function bindTrackerPanel(state, tab) {
     const render = state.variant === "modern" ? renderTrackerV2 : renderTracker;
     const run = () => {
@@ -4991,6 +5274,7 @@
     };
     state.runRender = run;
     syncLiveViewButtons(state);
+    bindGeoPerformanceControls(state);
     state.userLocationEnabled = true;
     writeUserLocationEnabled(true);
     syncUserLocationToggleButton(state);

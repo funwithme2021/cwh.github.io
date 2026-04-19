@@ -25,6 +25,8 @@
   const SHAPE_CACHE_KEY = "rail_live_tdx_shape_v1";
   const SHAPE_CACHE_MS = 7 * 24 * 60 * 60 * 1000;
   const SHARED_GEO_KEY = "home_shared_geo_snapshot_v1";
+  const HOME_GEO_SEGMENT_FILTER_KEY = "home_live_geo_segment_filter_tr_v1";
+  const HOME_TRACKED_TRAINS_KEY = "home_live_tracked_trains_tr_v1";
   const USER_LOCATION_MAX_AGE_MS = 10 * 60 * 1000;
   const REFRESH_MS = 60 * 1000;
   const DELAY_REFRESH_MS = 30 * 1000;
@@ -82,6 +84,7 @@
     routeLines: { tr: [], thsr: [] },
     routeSource: { tr: "station", thsr: "station" },
     snapshots: [],
+    displaySnapshots: [],
     loadStats: { tr: {}, thsr: {} },
     stationEvents: new Map(),
     stepCache: new Map(),
@@ -99,6 +102,8 @@
     tokenExpireAt: 0,
     tokenPromise: null,
     tokenBackoffUntil: 0,
+    geoSegmentIds: [],
+    trackedTrainNos: [],
   };
 
   const el = {
@@ -109,6 +114,15 @@
     locate: document.getElementById("homeLiveLocate"),
     fit: document.getElementById("homeLiveFit"),
     close: document.getElementById("homeLiveClose"),
+    segmentSelect: document.getElementById("homeLiveTraSegments"),
+    segmentAdd: document.getElementById("homeLiveTraSegmentAdd"),
+    segmentAll: document.getElementById("homeLiveTraSegmentAll"),
+    segmentClear: document.getElementById("homeLiveTraSegmentClear"),
+    segmentList: document.getElementById("homeLiveTraSegmentList"),
+    trackInput: document.getElementById("homeLiveTrackInput"),
+    trackAdd: document.getElementById("homeLiveTrackAdd"),
+    trackClear: document.getElementById("homeLiveTrackClear"),
+    trackList: document.getElementById("homeLiveTrackList"),
     modal: document.getElementById("homeLiveTrainModal"),
     modalFrame: document.getElementById("homeLiveDetailFrame"),
   };
@@ -128,6 +142,33 @@
 
   function clamp(value, min, max) {
     return Math.min(max, Math.max(min, Number(value)));
+  }
+
+  function readStringListStorage(key) {
+    try {
+      const parsed = JSON.parse(localStorage.getItem(key) || "[]");
+      return Array.isArray(parsed)
+        ? parsed.map((value) => String(value || "").trim()).filter(Boolean)
+        : [];
+    } catch (_) {
+      return [];
+    }
+  }
+
+  function writeStringListStorage(key, list) {
+    try {
+      const values = Array.from(new Set((Array.isArray(list) ? list : []).map((value) => String(value || "").trim()).filter(Boolean)));
+      localStorage.setItem(key, JSON.stringify(values));
+    } catch (_) {
+    }
+  }
+
+  function hasStringListStorage(key) {
+    try {
+      return localStorage.getItem(key) !== null;
+    } catch (_) {
+      return false;
+    }
   }
 
   function showStatus(text, options = {}) {
@@ -716,6 +757,77 @@
     if (system === "tr") return network?.getTraSegments?.() || [];
     const order = network?.getThsrStationOrder?.() || ["南港", "台北", "板橋", "桃園", "新竹", "苗栗", "台中", "彰化", "雲林", "嘉義", "台南", "左營"];
     return [{ id: "thsr-main", stations: order }];
+  }
+
+  function getDefaultTraSegmentIds() {
+    return getRouteSegments("tr").map((segment) => segment.id).filter(Boolean);
+  }
+
+  function readHomeGeoSegmentIds() {
+    return hasStringListStorage(HOME_GEO_SEGMENT_FILTER_KEY) ? readStringListStorage(HOME_GEO_SEGMENT_FILTER_KEY) : [];
+  }
+
+  function writeHomeGeoSegmentIds(ids) {
+    writeStringListStorage(HOME_GEO_SEGMENT_FILTER_KEY, ids);
+  }
+
+  function readHomeTrackedTrainNos() {
+    return readStringListStorage(HOME_TRACKED_TRAINS_KEY);
+  }
+
+  function writeHomeTrackedTrainNos(trainNos) {
+    writeStringListStorage(HOME_TRACKED_TRAINS_KEY, trainNos);
+  }
+
+  function getSelectedTraSegments() {
+    const selected = new Set(state.geoSegmentIds || []);
+    return getRouteSegments("tr").filter((segment) => selected.has(segment.id));
+  }
+
+  function snapshotTouchesTraSegment(snapshot, segment) {
+    if (snapshot?.system !== "tr") return false;
+    const stationSet = new Set((segment?.stations || []).map((name) => normalizeStation("tr", name)).filter(Boolean));
+    if (!stationSet.size) return false;
+    const currentFrom = normalizeStation("tr", snapshot.currentFrom);
+    const currentTo = normalizeStation("tr", snapshot.currentTo);
+    const nextStation = normalizeStation("tr", snapshot.nextStation);
+    if (stationSet.has(currentFrom) || stationSet.has(currentTo) || stationSet.has(nextStation)) return true;
+    const position = Number(snapshot.positionIndex);
+    return (snapshot.points || []).some((point) => {
+      if (!stationSet.has(normalizeStation("tr", point?.station))) return false;
+      const routeIndex = Number(point?.routeIndex);
+      return !Number.isFinite(position) || !Number.isFinite(routeIndex) || Math.abs(routeIndex - position) <= 1.25;
+    });
+  }
+
+  function findHomeTraSegmentForCoords(coords) {
+    const normalized = normalizeGeoCoords(coords);
+    if (!normalized) return null;
+    let best = null;
+    getRouteSegments("tr").forEach((segment) => {
+      const stations = segment?.stations || [];
+      for (let index = 0; index < stations.length - 1; index += 1) {
+        const from = getStation("tr", stations[index]);
+        const to = getStation("tr", stations[index + 1]);
+        if (!from || !to) continue;
+        const hit = projectGeoOnSegment(from, to, normalized);
+        if (!hit) continue;
+        const distanceMeters = Number(hit.distanceKm) * 1000;
+        if (!Number.isFinite(distanceMeters)) continue;
+        if (!best || distanceMeters < best.distanceMeters) {
+          best = { segment, distanceMeters };
+        }
+      }
+    });
+    return best && best.distanceMeters <= 8000 ? best.segment : best?.segment || null;
+  }
+
+  function applyDefaultHomeSegmentFromLocation(coords, options = {}) {
+    if (state.geoSegmentPreferenceSaved || (state.geoSegmentIds || []).length) return false;
+    const segment = findHomeTraSegmentForCoords(coords);
+    if (!segment?.id) return false;
+    setHomeSegmentIds([segment.id], { persist: false, render: options.render });
+    return true;
   }
 
   function buildFallbackGeoLines(system) {
@@ -2313,13 +2425,41 @@
     clearMarkers();
     state.lastMarkerUpdateAt = 0;
     state.trainCanvasLayer = createTrainCanvasLayer().addTo(state.map);
-    state.snapshots.forEach((snapshot) => {
+    (state.displaySnapshots || state.snapshots).forEach((snapshot) => {
       const placement = getPlacement(snapshot);
       if (!placement?.latLng) return;
       state.markerBindings.push({ snapshot, placement });
     });
     refreshTrainCanvas();
     updateMapDensityClasses();
+  }
+
+  function pruneCompletedHomeTrackedTrains(snapshots) {
+    if (!state.trackedTrainNos.length) return;
+    const arrived = new Set((snapshots || [])
+      .filter((snapshot) => snapshot?.system === "tr" && snapshot?.state === "arrived")
+      .map((snapshot) => String(snapshot.trainNo || "").trim().toUpperCase())
+      .filter(Boolean));
+    if (!arrived.size) return;
+    const next = state.trackedTrainNos.filter((trainNo) => !arrived.has(String(trainNo || "").trim().toUpperCase()));
+    if (next.length === state.trackedTrainNos.length) return;
+    state.trackedTrainNos = next;
+    writeHomeTrackedTrainNos(next);
+    renderHomeTrackedTrainChips();
+  }
+
+  function applyHomeTrainFilters(snapshots) {
+    const list = Array.isArray(snapshots) ? snapshots : [];
+    const tracked = new Set((state.trackedTrainNos || []).map((trainNo) => String(trainNo || "").trim().toUpperCase()).filter(Boolean));
+    const selectedSegments = getSelectedTraSegments();
+    const allTraSegmentCount = getRouteSegments("tr").length;
+    return list.filter((snapshot) => {
+      if (snapshot?.system !== "tr") return true;
+      if (tracked.size) return tracked.has(String(snapshot.trainNo || "").trim().toUpperCase());
+      if (!selectedSegments.length) return false;
+      if (selectedSegments.length >= allTraSegmentCount) return true;
+      return selectedSegments.some((segment) => snapshotTouchesTraSegment(snapshot, segment));
+    });
   }
 
   function clearRouteLayers() {
@@ -2651,6 +2791,7 @@
       source: source || "gps",
     };
     writeSharedGeo(coords, speedKmh);
+    applyDefaultHomeSegmentFromLocation(coords, { render: state.map && state.snapshots.length });
     updateUserMarker();
   }
 
@@ -2778,6 +2919,86 @@
     setSubtitle(`自動更新 · ${String(updated.getHours()).padStart(2, "0")}:${String(updated.getMinutes()).padStart(2, "0")}`);
   }
 
+  function buildHomeSegmentOptions() {
+    if (!el.segmentSelect) return;
+    el.segmentSelect.innerHTML = getRouteSegments("tr")
+      .map((segment) => `<option value="${escapeHtml(segment.id)}">${escapeHtml(segment.title || segment.id)}</option>`)
+      .join("");
+  }
+
+  function syncHomeSegmentSelect() {
+    if (!el.segmentSelect) return;
+    const selected = new Set(state.geoSegmentIds || []);
+    const firstAvailable = Array.from(el.segmentSelect.options).find((option) => !selected.has(option.value));
+    if (firstAvailable) el.segmentSelect.value = firstAvailable.value;
+  }
+
+  function renderHomeSegmentChips() {
+    if (!el.segmentList) return;
+    const map = new Map(getRouteSegments("tr").map((segment) => [segment.id, segment]));
+    const list = state.geoSegmentIds || [];
+    el.segmentList.innerHTML = list.length
+      ? list.map((id) => {
+          const segment = map.get(id);
+          return `<button type="button" class="home-live-track-chip" data-home-segment-remove="${escapeHtml(id)}">${escapeHtml(segment?.title || id)}<span>×</span></button>`;
+        }).join("")
+      : `<span class="home-live-track-empty">未選擇路段</span>`;
+  }
+
+  function setHomeSegmentIds(ids, options = {}) {
+    const next = Array.from(new Set((ids || []).map((id) => String(id || "").trim()).filter(Boolean)));
+    if (next.length > 2 && options.confirm !== false && !window.confirm("選擇超過兩個路段可能造成卡頓、耗電或發熱，是否繼續？")) return false;
+    state.geoSegmentIds = next;
+    state.geoSegmentPreferenceSaved = options.persist !== false;
+    if (options.persist !== false) writeHomeGeoSegmentIds(next);
+    syncHomeSegmentSelect();
+    renderHomeSegmentChips();
+    if (options.render !== false) refreshFilteredTrains();
+    return true;
+  }
+
+  function renderHomeTrackedTrainChips() {
+    if (!el.trackList) return;
+    const list = state.trackedTrainNos || [];
+    el.trackList.innerHTML = list.length
+      ? list.map((trainNo) => `<button type="button" class="home-live-track-chip" data-home-track-remove="${escapeHtml(trainNo)}">${escapeHtml(trainNo)}<span>×</span></button>`).join("")
+      : `<span class="home-live-track-empty">未追蹤</span>`;
+  }
+
+  function refreshFilteredTrains() {
+    renderHomeSegmentChips();
+    syncHomeSegmentSelect();
+    state.displaySnapshots = applyHomeTrainFilters(state.snapshots);
+    state.stationEvents = buildStationEventMap(state.displaySnapshots);
+    renderRoutes();
+    renderMarkers();
+  }
+
+  function addHomeTrackedTrain(trainNo) {
+    const normalized = String(trainNo || "").trim().toUpperCase();
+    if (!normalized) return;
+    state.trackedTrainNos = Array.from(new Set([...(state.trackedTrainNos || []), normalized]));
+    writeHomeTrackedTrainNos(state.trackedTrainNos);
+    if (el.trackInput) el.trackInput.value = "";
+    renderHomeTrackedTrainChips();
+    refreshFilteredTrains();
+  }
+
+  function removeHomeTrackedTrain(trainNo) {
+    const target = String(trainNo || "").trim().toUpperCase();
+    state.trackedTrainNos = (state.trackedTrainNos || []).filter((item) => String(item || "").trim().toUpperCase() !== target);
+    writeHomeTrackedTrainNos(state.trackedTrainNos);
+    renderHomeTrackedTrainChips();
+    refreshFilteredTrains();
+  }
+
+  function clearHomeTrackedTrains() {
+    state.trackedTrainNos = [];
+    writeHomeTrackedTrainNos([]);
+    renderHomeTrackedTrainChips();
+    refreshFilteredTrains();
+  }
+
   function scheduleRefresh() {
     window.clearTimeout(state.refreshTimer);
     const hasModerateDelay = state.snapshots.some((snapshot) => {
@@ -2797,10 +3018,13 @@
         loadStations("tr", token),
         loadStations("thsr", token),
       ]);
+      applyDefaultHomeSegmentFromLocation(state.userLocation?.coords || readSharedGeo(), { render: false });
       await loadRouteLines(token);
       ensureMap();
       state.snapshots = await collectSnapshots(token);
-      state.stationEvents = buildStationEventMap(state.snapshots);
+      pruneCompletedHomeTrackedTrains(state.snapshots);
+      state.displaySnapshots = applyHomeTrainFilters(state.snapshots);
+      state.stationEvents = buildStationEventMap(state.displaySnapshots);
       renderRoutes();
       renderMarkers();
       updateSubtitle();
@@ -2850,6 +3074,52 @@
         state.map.setView([coords.lat, coords.lon], Math.max(state.map.getZoom(), 14), { animate: true });
       }
     });
+    el.segmentSelect?.addEventListener("change", () => {
+      return;
+      const previous = Array.isArray(state.geoSegmentIds) ? state.geoSegmentIds.slice() : [];
+      const selected = Array.from(el.segmentSelect.selectedOptions).map((option) => option.value).filter(Boolean);
+      if (selected.length > 2 && !window.confirm("選擇超過兩個路段可能造成卡頓、耗電或發熱，是否繼續？")) {
+        state.geoSegmentIds = previous;
+        syncHomeSegmentSelect();
+        return;
+      }
+      state.geoSegmentIds = selected;
+      writeHomeGeoSegmentIds(selected);
+      refreshFilteredTrains();
+    });
+    el.segmentAll?.addEventListener("click", () => {
+      const ids = getDefaultTraSegmentIds();
+      if (ids.length > 2 && !window.confirm("選擇超過兩個路段可能造成卡頓、耗電或發熱，是否繼續？")) return;
+      state.geoSegmentIds = ids;
+      writeHomeGeoSegmentIds(ids);
+      syncHomeSegmentSelect();
+      refreshFilteredTrains();
+    });
+    el.segmentClear?.addEventListener("click", () => {
+      state.geoSegmentIds = [];
+      writeHomeGeoSegmentIds([]);
+      syncHomeSegmentSelect();
+      refreshFilteredTrains();
+    });
+    el.segmentAdd?.addEventListener("click", () => setHomeSegmentIds([...(state.geoSegmentIds || []), el.segmentSelect?.value]));
+    el.segmentList?.addEventListener("click", (event) => {
+      const button = event.target?.closest?.("[data-home-segment-remove]");
+      if (!button) return;
+      const target = button.getAttribute("data-home-segment-remove");
+      setHomeSegmentIds((state.geoSegmentIds || []).filter((id) => id !== target));
+    });
+    el.trackAdd?.addEventListener("click", () => addHomeTrackedTrain(el.trackInput?.value));
+    el.trackClear?.addEventListener("click", () => clearHomeTrackedTrains());
+    el.trackInput?.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter") return;
+      event.preventDefault();
+      addHomeTrackedTrain(el.trackInput.value);
+    });
+    el.trackList?.addEventListener("click", (event) => {
+      const button = event.target?.closest?.("[data-home-track-remove]");
+      if (!button) return;
+      removeHomeTrackedTrain(button.getAttribute("data-home-track-remove"));
+    });
     el.close?.addEventListener("click", () => {
       if (window.parent && window.parent !== window) {
         window.parent.postMessage({ type: "APP_CLOSE" }, "*");
@@ -2865,6 +3135,13 @@
   }
 
   async function init() {
+    buildHomeSegmentOptions();
+    state.geoSegmentIds = readHomeGeoSegmentIds();
+    state.geoSegmentPreferenceSaved = hasStringListStorage(HOME_GEO_SEGMENT_FILTER_KEY);
+    state.trackedTrainNos = readHomeTrackedTrainNos();
+    syncHomeSegmentSelect();
+    renderHomeSegmentChips();
+    renderHomeTrackedTrainChips();
     bindEvents();
     try {
       await loadLeaflet();

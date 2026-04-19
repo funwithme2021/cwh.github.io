@@ -2989,7 +2989,7 @@
   function parseTime(t){ if(!t || !/\d{1,2}:\d{2}/.test(t)) return null; let [h,m]=t.split(':').map(x=>parseInt(x,10)); return h*60+m; }
   function durationText(depMin, arrMin){ if(depMin===null || arrMin===null) return '--'; let d = arrMin - depMin; if(d < 0) d += 1440; const hh = Math.floor(d/60); const mm = d%60; return `${hh}h ${String(mm).padStart(2,'0')}m`; }
   function isQueryToday(dateStr){ return dateStr === fmtDate(new Date()); }
-  function splitArrDep(stopRow){ const t1 = stopRow?.[1] || ''; const t2 = stopRow?.[2] || ''; if(!t2) return { arr: t1, dep: t1 }; if(!t1) return { arr: t2, dep: t2 }; const m1 = parseTime(t1); const m2 = parseTime(t2); if(m1===null || m2===null) return { arr: t1, dep: t2 }; if(m2 <= m1) return { arr: t2, dep: t1 }; return { arr: t1, dep: t2 }; }
+  function splitArrDep(stopRow){ const t1 = stopRow?.[1] || ''; const t2 = stopRow?.[2] || ''; if(!t2) return { arr: t1, dep: t1 }; if(!t1) return { arr: t2, dep: t2 }; const m1 = parseTime(t1); const m2 = parseTime(t2); if(m1===null || m2===null) return { arr: t1, dep: t2 }; const t1ToT2 = (m2 - m1 + 1440) % 1440; const t2ToT1 = (m1 - m2 + 1440) % 1440; return t1ToT2 <= t2ToT1 ? { arr: t1, dep: t2 } : { arr: t2, dep: t1 }; }
 
   function getStopsWithAdjustedDate(trainNo, originDateStr, scheduleMap) {
     const t = scheduleMap[trainNo]; if (!t) return [];
@@ -6744,7 +6744,7 @@ async function maybeFallbackTHSRBookingToWeb(options, errorText){
 <script charset="UTF-8" src="../shared/rail-network.js?v=20260419-traedge2"></script>
 <script charset="UTF-8" src="../shared/rail-master-table.js?v=20260404-autorefresh2"></script>
 <script charset="UTF-8" src="../shared/rail-operation-diagram.js?v=20260404-autorefresh2"></script>
-<script charset="UTF-8" src="../shared/rail-live-tracker.js?v=20260419-realmap14"></script>
+<script charset="UTF-8" src="../shared/rail-live-tracker.js?v=20260420-realmap16"></script>
 <script charset="UTF-8" src="../shared/rail-usage-footer.js?v=20260326-footer3"></script>
 <script>
 window.addEventListener('load', () => {
