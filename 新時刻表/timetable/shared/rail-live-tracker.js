@@ -3408,10 +3408,12 @@
 
   function applyDefaultGeoSegmentFromLocation(state, coords, options = {}) {
     if (!state || state.system !== "tr" || state.geoSegmentPreferenceSaved || (state.geoSegmentIds || []).length) return false;
+    if (Array.isArray(state.geoSegmentDraftIds) && state.geoSegmentDraftIds.length) return false;
     const context = buildUserLocationContext(state, coords);
     const targetSegment = context?.routeSegment || findSegmentContainingUserContext(state, context);
     if (!targetSegment?.id) return false;
     state.geoSegmentIds = [targetSegment.id];
+    state.geoSegmentDraftIds = Array.isArray(state.geoSegmentDraftIds) ? [targetSegment.id] : null;
     renderGeoSegmentChips(state);
     syncGeoSegmentSelect(state);
     if (options.render) state.runRender?.();
@@ -3765,12 +3767,15 @@
     const list = Array.isArray(snapshots) ? snapshots : [];
     if (state?.viewMode !== "geo" || state?.system !== "tr") return list;
     const tracked = new Set((state.trackedTrainNos || []).map((trainNo) => String(trainNo || "").trim().toUpperCase()).filter(Boolean));
-    if (tracked.size) return list.filter((snapshot) => tracked.has(String(snapshot?.trainNo || "").trim().toUpperCase()));
     const selectedSegments = getSelectedGeoSegments(state);
     const allSegmentCount = getAllRouteSegmentsForSystem(state.system).length;
-    if (!selectedSegments.length) return [];
-    if (selectedSegments.length >= allSegmentCount) return list;
-    return list.filter((snapshot) => selectedSegments.some((segment) => snapshotTouchesSegment(snapshot, segment)));
+    if (!tracked.size && !selectedSegments.length) return [];
+    if (allSegmentCount > 0 && selectedSegments.length >= allSegmentCount) return list;
+    return list.filter((snapshot) => {
+      const trainNo = String(snapshot?.trainNo || "").trim().toUpperCase();
+      if (tracked.has(trainNo)) return true;
+      return selectedSegments.some((segment) => snapshotTouchesSegment(snapshot, segment));
+    });
   }
 
   function isTrackedEntryCompleted(state, entry, queryDate) {
@@ -3799,6 +3804,10 @@
     });
     if (next.length === state.trackedTrainNos.length) return;
     state.trackedTrainNos = next;
+    if (Array.isArray(state.trackedTrainDraftNos)) {
+      const keep = new Set(next.map((trainNo) => String(trainNo || "").trim().toUpperCase()).filter(Boolean));
+      state.trackedTrainDraftNos = state.trackedTrainDraftNos.filter((trainNo) => keep.has(String(trainNo || "").trim().toUpperCase()));
+    }
     writeTrackedTrainNos(state.system, next);
     renderTrackedTrainChips(state);
   }
@@ -4802,10 +4811,28 @@
             .map((group) => `<optgroup label="${escapeHtml(group.title)}">${(group.segments || []).map((segment) => `<option value="${escapeHtml(segment.id)}">${escapeHtml(segment.title)}</option>`).join("")}</optgroup>`)
             .join("")
         : `<option value="thsr-main">高鐵全線</option>`;
+    const geoGroups = system === "tr"
+      ? (groups.length ? groups : [{ title: "台鐵路段", segments: getRailNetwork()?.getTraSegments?.() || [] }])
+      : [];
+    const geoSegmentChecks = system === "tr"
+      ? geoGroups
+          .map((group) => `
+            <div class="rail-live-check-group">
+              <div class="rail-live-check-group-title">${escapeHtml(group.title)}</div>
+              ${(group.segments || []).map((segment) => `
+                <label class="rail-live-check-row">
+                  <input type="checkbox" value="${escapeHtml(segment.id)}" data-live-geo-segment-option>
+                  <span>${escapeHtml(segment.title)}</span>
+                </label>
+              `).join("")}
+            </div>
+          `)
+          .join("")
+      : "";
     const geoControls = system === "tr"
       ? `
-        <details class="rail-live-control rail-live-popover-control rail-live-geo-filter-control"><summary>選擇路段</summary><div class="rail-live-popover-panel"><label><span>路段</span><select id="${escapeHtml(config.inputPrefix)}GeoSegments" class="rail-live-select rail-live-geo-segment-select">${routeOptions}</select></label><div class="rail-live-popover-actions"><button type="button" class="rail-live-mini-btn" data-live-geo-add="1">加入</button><button type="button" class="rail-live-mini-btn" data-live-geo-select-all="1">全選</button><button type="button" class="rail-live-mini-btn" data-live-geo-clear="1">清除</button></div><div class="rail-live-track-list" data-live-geo-selected-list></div><p>建議最多選 2 個路段，避免白天列車多時卡頓。</p></div></details>
-        <details class="rail-live-control rail-live-popover-control rail-live-track-control"><summary>追蹤車次</summary><div class="rail-live-popover-panel"><label><span>車次</span><input id="${escapeHtml(config.inputPrefix)}TrackTrain" class="rail-live-input rail-live-track-input" type="text" inputmode="numeric" placeholder="輸入車次"></label><div class="rail-live-popover-actions"><button type="button" class="rail-live-mini-btn" data-live-track-add="1">加入</button><button type="button" class="rail-live-mini-btn" data-live-track-clear="1">全部清除</button></div><div class="rail-live-track-list" data-live-track-list></div></div></details>
+        <details class="rail-live-control rail-live-popover-control rail-live-geo-filter-control" data-live-geo-details><summary>選擇路段</summary><div class="rail-live-popover-panel"><div class="rail-live-popover-head"><strong>台鐵路段</strong><span>確認後才更新地圖</span></div><div class="rail-live-check-list" data-live-geo-segment-list>${geoSegmentChecks}</div><div class="rail-live-popover-actions"><button type="button" class="rail-live-mini-btn" data-live-geo-select-all="1">全選</button><button type="button" class="rail-live-mini-btn" data-live-geo-clear="1">全部清除</button><span class="rail-live-action-spacer"></span><button type="button" class="rail-live-mini-btn" data-live-geo-cancel="1">取消</button><button type="button" class="rail-live-mini-btn primary" data-live-geo-confirm="1">確認</button></div><p>建議最多選 2 個路段；超過 2 個並新增時會先提醒。</p></div></details>
+        <details class="rail-live-control rail-live-popover-control rail-live-track-control" data-live-track-details><summary>追蹤車次</summary><div class="rail-live-popover-panel"><div class="rail-live-popover-head"><strong>追蹤台鐵車次</strong><span>可和路段同時顯示</span></div><label><span>車次</span><input id="${escapeHtml(config.inputPrefix)}TrackTrain" class="rail-live-input rail-live-track-input" type="text" inputmode="numeric" placeholder="輸入車次"></label><div class="rail-live-popover-actions"><button type="button" class="rail-live-mini-btn" data-live-track-add="1">加入清單</button><button type="button" class="rail-live-mini-btn" data-live-track-clear="1">全部清除</button><span class="rail-live-action-spacer"></span><button type="button" class="rail-live-mini-btn" data-live-track-cancel="1">取消</button><button type="button" class="rail-live-mini-btn primary" data-live-track-confirm="1">確認</button></div><div class="rail-live-track-list" data-live-track-list></div></div></details>
       `
       : "";
     const lead = config.key === "modern"
@@ -4843,7 +4870,7 @@
     style.textContent = `
       .rail-live-panel{display:flex; flex-direction:column; gap:14px;}
       .rail-live-lead{margin:0; color:var(--text-muted); line-height:1.75;}
-      .rail-live-toolbar{display:flex; flex-wrap:wrap; gap:10px;}
+      .rail-live-toolbar{position:relative; z-index:3000; display:flex; flex-wrap:wrap; gap:10px;}
       .rail-live-control{display:flex; align-items:center; gap:8px; padding:10px 12px; border-radius:16px; border:1px solid var(--border); background:var(--bg-body);}
       .rail-live-control span{font-size:.85rem; color:var(--text-muted); font-weight:700; white-space:nowrap;}
       .rail-live-view-control{gap:6px;}
@@ -4855,16 +4882,26 @@
       .rail-live-input{min-width:180px; flex:1 1 180px;}
       .rail-live-input-has-btn{width:100%; padding-right:112px;}
       .rail-live-search-locate{position:absolute; top:50%; right:6px; transform:translateY(-50%); min-width:100px; height:30px; padding:0 10px; border:none; border-radius:10px; background:color-mix(in srgb, var(--primary) 12%, var(--bg-surface)); color:var(--primary); font:inherit; font-size:.78rem; font-weight:900; white-space:nowrap; cursor:pointer;}
-      .rail-live-popover-control{position:relative; padding:0; background:transparent; border:0; overflow:visible;}
+      .rail-live-popover-control{position:relative; z-index:3200; padding:0; background:transparent; border:0; overflow:visible;}
       .rail-live-popover-control summary{list-style:none; height:38px; display:inline-flex; align-items:center; border:1px solid var(--border); border-radius:12px; background:var(--bg-surface); color:var(--text-main); padding:0 12px; font-size:.82rem; font-weight:950; cursor:pointer; user-select:none;}
       .rail-live-popover-control summary::-webkit-details-marker{display:none;}
+      .rail-live-popover-control[open]{z-index:9000;}
       .rail-live-popover-control[open] summary{background:linear-gradient(135deg,#0f766e,#2563eb); border-color:transparent; color:#fff;}
-      .rail-live-popover-panel{position:absolute; top:calc(100% + 8px); left:0; z-index:40; width:min(340px, calc(100vw - 24px)); padding:12px; border:1px solid var(--border); border-radius:14px; background:var(--bg-surface); box-shadow:0 18px 46px rgba(15,23,42,.18); display:flex; flex-direction:column; gap:10px;}
+      .rail-live-popover-panel{position:absolute; top:calc(100% + 8px); left:0; z-index:9001; width:min(340px, calc(100vw - 24px)); padding:12px; border:1px solid var(--border); border-radius:14px; background:var(--bg-surface); box-shadow:0 18px 46px rgba(15,23,42,.18); display:flex; flex-direction:column; gap:10px;}
+      .rail-live-popover-head{display:flex; align-items:center; justify-content:space-between; gap:10px;}
+      .rail-live-popover-head strong{font-size:.9rem; color:var(--text-main); line-height:1.2;}
+      .rail-live-popover-head span{font-size:.72rem; color:var(--text-muted); font-weight:800; white-space:nowrap;}
       .rail-live-popover-panel label{display:flex; align-items:center; gap:8px;}
       .rail-live-popover-panel p{margin:0; color:var(--text-muted); font-size:.75rem; line-height:1.55;}
       .rail-live-popover-actions{display:flex; flex-wrap:wrap; gap:6px;}
+      .rail-live-action-spacer{flex:1 1 auto;}
       .rail-live-geo-segment-select{min-width:190px; flex:1 1 auto;}
       .rail-live-track-input{min-width:96px; width:112px; flex:0 0 112px;}
+      .rail-live-check-list{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; max-height:min(46vh,360px); overflow:auto; padding:2px;}
+      .rail-live-check-group{display:flex; flex-direction:column; gap:5px; min-width:0;}
+      .rail-live-check-group-title{color:var(--text-muted); font-size:.72rem; font-weight:950;}
+      .rail-live-check-row{min-height:30px; display:flex; align-items:center; gap:7px; padding:5px 7px; border:1px solid var(--border); border-radius:8px; background:color-mix(in srgb, var(--bg-surface) 86%, var(--primary) 14%); color:var(--text-main); font-size:.78rem; font-weight:900; cursor:pointer;}
+      .rail-live-check-row input{width:15px; height:15px; accent-color:var(--primary);}
       .rail-live-track-list{display:flex; flex-wrap:wrap; gap:5px; max-width:260px;}
       .rail-live-track-chip{display:inline-flex; align-items:center; gap:4px; min-height:28px; padding:0 8px; border-radius:999px; border:1px solid color-mix(in srgb, var(--primary) 28%, var(--border)); background:color-mix(in srgb, var(--primary) 10%, var(--bg-surface)); color:var(--text-main); font:inherit; font-size:.78rem; font-weight:900; cursor:pointer;}
       .rail-live-track-chip span{font-size:.9rem; color:var(--text-muted);}
@@ -4987,6 +5024,7 @@
       .rail-live-card-actions,.rail-live-detail-actions{display:flex; flex-wrap:wrap; gap:8px; margin-top:12px;}
       .rail-live-card.is-selected,.rail-live-v2-event-card.is-selected{box-shadow:0 0 0 2px color-mix(in srgb, var(--primary) 38%, transparent);}
       .rail-live-mini-btn,.rail-live-modal-close{border:1px solid var(--border); background:var(--bg-body); color:var(--text-main); border-radius:10px; padding:7px 10px; font:inherit; font-size:.82rem; cursor:pointer;}
+      .rail-live-mini-btn.primary{background:var(--primary); border-color:var(--primary); color:#fff;}
       .rail-live-detail-card{text-align:left; background:linear-gradient(145deg, color-mix(in srgb, var(--primary) 6%, var(--bg-surface)), var(--bg-body));}
       .rail-live-detail-title{font-size:.92rem; font-weight:800; color:var(--text-main);}
       .rail-live-detail-meta{margin-top:6px; font-size:.8rem; color:var(--text-muted);}
@@ -5007,6 +5045,8 @@
       @media (max-width:760px){
         .rail-live-control{width:100%; flex-wrap:wrap; justify-content:flex-start; border-radius:14px;}
         .rail-live-select,.rail-live-input{min-width:0; flex:1 1 140px;}
+        .rail-live-popover-panel{position:fixed; left:12px!important; right:12px!important; top:128px; z-index:9001; width:auto;}
+        .rail-live-check-list{grid-template-columns:1fr; max-height:min(54vh,380px);}
         .rail-live-search-field{min-width:0; width:100%;}
         .rail-live-board{padding:14px; border-radius:18px;}
         .rail-live-v2-section{border-radius:18px;}
@@ -5050,14 +5090,21 @@
       renderButton: panel.querySelector(`#${config.inputPrefix}Render`),
       viewButtons: Array.from(panel.querySelectorAll("[data-live-view-mode]")),
       userLocationButton: panel.querySelector("[data-live-user-location-toggle]"),
+      geoDetails: panel.querySelector("[data-live-geo-details]"),
       geoSegmentSelect: panel.querySelector(`#${config.inputPrefix}GeoSegments`),
-      geoAddButton: panel.querySelector("[data-live-geo-add]"),
+      geoSegmentCheckboxes: Array.from(panel.querySelectorAll("[data-live-geo-segment-option]")),
+      geoSegmentList: panel.querySelector("[data-live-geo-segment-list]"),
       geoSelectAllButton: panel.querySelector("[data-live-geo-select-all]"),
       geoClearButton: panel.querySelector("[data-live-geo-clear]"),
+      geoConfirmButton: panel.querySelector("[data-live-geo-confirm]"),
+      geoCancelButton: panel.querySelector("[data-live-geo-cancel]"),
       geoSelectedList: panel.querySelector("[data-live-geo-selected-list]"),
+      trackDetails: panel.querySelector("[data-live-track-details]"),
       trackInput: panel.querySelector(`#${config.inputPrefix}TrackTrain`),
       trackAddButton: panel.querySelector("[data-live-track-add]"),
       trackClearButton: panel.querySelector("[data-live-track-clear]"),
+      trackConfirmButton: panel.querySelector("[data-live-track-confirm]"),
+      trackCancelButton: panel.querySelector("[data-live-track-cancel]"),
       trackedTrainList: panel.querySelector("[data-live-track-list]"),
       output: panel.querySelector(`#${config.inputPrefix}Output`),
       modal: panel.querySelector(`#${config.inputPrefix}Modal`),
@@ -5104,8 +5151,11 @@
       renderedQueryDate: "",
       selectedTrainKey: "",
       geoSegmentIds: readGeoSegmentIds(system),
+      geoSegmentDraftIds: null,
       trackedTrainNos: readTrackedTrainNos(system),
+      trackedTrainDraftNos: null,
       geoSegmentPreferenceSaved: hasStringListStorage(getSystemStorageKey(GEO_SEGMENT_FILTER_KEY, system)),
+      geoEntryPromptShown: false,
     };
   }
 
@@ -5152,25 +5202,38 @@
   }
 
   function syncGeoSegmentSelect(state) {
-    if (!state?.geoSegmentSelect) return;
-    const selected = new Set(state.geoSegmentIds || []);
-    const firstAvailable = Array.from(state.geoSegmentSelect.options).find((option) => !selected.has(option.value));
-    if (firstAvailable) state.geoSegmentSelect.value = firstAvailable.value;
+    if (!state) return;
+    const selected = new Set(getGeoSegmentDraftIds(state));
+    (state.geoSegmentCheckboxes || []).forEach((checkbox) => {
+      checkbox.checked = selected.has(checkbox.value);
+    });
+    if (state.geoSegmentSelect) {
+      const firstAvailable = Array.from(state.geoSegmentSelect.options).find((option) => !selected.has(option.value));
+      if (firstAvailable) state.geoSegmentSelect.value = firstAvailable.value;
+    }
+  }
+
+  function getTrackDraftNos(state) {
+    return Array.isArray(state?.trackedTrainDraftNos) ? state.trackedTrainDraftNos : state?.trackedTrainNos || [];
   }
 
   function renderTrackedTrainChips(state) {
     if (!state?.trackedTrainList) return;
-    const list = state.trackedTrainNos || [];
+    const list = getTrackDraftNos(state);
     state.trackedTrainList.innerHTML = list.length
       ? list.map((trainNo) => `<button type="button" class="rail-live-track-chip" data-live-track-remove="${escapeHtml(trainNo)}">${escapeHtml(trainNo)}<span>×</span></button>`).join("")
       : `<span class="rail-live-track-empty">未追蹤</span>`;
+  }
+
+  function getGeoSegmentDraftIds(state) {
+    return Array.isArray(state?.geoSegmentDraftIds) ? state.geoSegmentDraftIds : state?.geoSegmentIds || [];
   }
 
   function renderGeoSegmentChips(state) {
     if (!state?.geoSelectedList) return;
     const segments = getAllRouteSegmentsForSystem(state.system);
     const map = new Map(segments.map((segment) => [segment.id, segment]));
-    const list = state.geoSegmentIds || [];
+    const list = getGeoSegmentDraftIds(state);
     state.geoSelectedList.innerHTML = list.length
       ? list.map((id) => {
           const segment = map.get(id);
@@ -5181,8 +5244,10 @@
 
   function setGeoSegmentIds(state, ids, options = {}) {
     const next = Array.from(new Set((ids || []).map((id) => String(id || "").trim()).filter(Boolean)));
-    if (next.length > 2 && options.confirm !== false && !window.confirm("選擇超過兩個路段可能造成卡頓、耗電或發熱，是否繼續？")) return false;
+    const currentLength = Array.isArray(state?.geoSegmentIds) ? state.geoSegmentIds.length : 0;
+    if (next.length > 2 && next.length > currentLength && options.confirm !== false && !window.confirm("選擇超過兩個路段可能造成卡頓、耗電或發熱，是否繼續？")) return false;
     state.geoSegmentIds = next;
+    state.geoSegmentDraftIds = null;
     state.geoSegmentPreferenceSaved = options.persist !== false;
     if (options.persist !== false) writeGeoSegmentIds(state.system, next);
     renderGeoSegmentChips(state);
@@ -5191,42 +5256,90 @@
     return true;
   }
 
-  function addGeoSegmentId(state, id) {
-    const value = String(id || "").trim();
-    if (!value) return;
-    setGeoSegmentIds(state, [...(state.geoSegmentIds || []), value]);
+  function setGeoSegmentDraftIds(state, ids) {
+    if (!state) return;
+    state.geoSegmentDraftIds = Array.from(new Set((ids || []).map((id) => String(id || "").trim()).filter(Boolean)));
+    syncGeoSegmentSelect(state);
+    renderGeoSegmentChips(state);
   }
 
-  function removeGeoSegmentId(state, id) {
-    const value = String(id || "").trim();
-    setGeoSegmentIds(state, (state.geoSegmentIds || []).filter((item) => item !== value));
+  function prepareGeoSegmentDraft(state) {
+    if (!state) return;
+    state.geoSegmentDraftIds = (state.geoSegmentIds || []).slice();
+    syncGeoSegmentSelect(state);
+    renderGeoSegmentChips(state);
   }
 
-  function addTrackedTrainNo(state, trainNo) {
-    const normalized = String(trainNo || "").trim().toUpperCase();
-    if (!normalized) return;
-    const next = Array.from(new Set([...(state.trackedTrainNos || []), normalized]));
+  function cancelGeoSegmentDraft(state) {
+    if (!state) return;
+    state.geoSegmentDraftIds = null;
+    syncGeoSegmentSelect(state);
+    renderGeoSegmentChips(state);
+    if (state.geoDetails) state.geoDetails.open = false;
+  }
+
+  function confirmGeoSegmentDraft(state) {
+    const next = getGeoSegmentDraftIds(state);
+    if (!setGeoSegmentIds(state, next)) return;
+    if (state.geoDetails) state.geoDetails.open = false;
+  }
+
+  function removeGeoSegmentDraftId(state, id) {
+    const value = String(id || "").trim();
+    setGeoSegmentDraftIds(state, getGeoSegmentDraftIds(state).filter((item) => item !== value));
+  }
+
+  function setTrackedTrainNos(state, trainNos, options = {}) {
+    const next = Array.from(new Set((trainNos || []).map((trainNo) => String(trainNo || "").trim().toUpperCase()).filter(Boolean)));
     state.trackedTrainNos = next;
+    state.trackedTrainDraftNos = null;
     writeTrackedTrainNos(state.system, next);
     if (state.trackInput) state.trackInput.value = "";
     renderTrackedTrainChips(state);
-    state.runRender?.();
+    if (options.render !== false) state.runRender?.();
+    return true;
   }
 
-  function removeTrackedTrainNo(state, trainNo) {
+  function setTrackedTrainDraftNos(state, trainNos) {
+    if (!state) return;
+    state.trackedTrainDraftNos = Array.from(new Set((trainNos || []).map((trainNo) => String(trainNo || "").trim().toUpperCase()).filter(Boolean)));
+    renderTrackedTrainChips(state);
+  }
+
+  function prepareTrackDraft(state) {
+    if (!state) return;
+    state.trackedTrainDraftNos = (state.trackedTrainNos || []).slice();
+    if (state.trackInput) state.trackInput.value = "";
+    renderTrackedTrainChips(state);
+  }
+
+  function cancelTrackDraft(state) {
+    if (!state) return;
+    state.trackedTrainDraftNos = null;
+    if (state.trackInput) state.trackInput.value = "";
+    renderTrackedTrainChips(state);
+    if (state.trackDetails) state.trackDetails.open = false;
+  }
+
+  function confirmTrackDraft(state) {
+    setTrackedTrainNos(state, getTrackDraftNos(state));
+    if (state.trackDetails) state.trackDetails.open = false;
+  }
+
+  function addTrackedTrainDraftNo(state, trainNo) {
+    const normalized = String(trainNo || "").trim().toUpperCase();
+    if (!normalized) return;
+    setTrackedTrainDraftNos(state, [...getTrackDraftNos(state), normalized]);
+    if (state.trackInput) state.trackInput.value = "";
+  }
+
+  function removeTrackedTrainDraftNo(state, trainNo) {
     const target = String(trainNo || "").trim().toUpperCase();
-    const next = (state.trackedTrainNos || []).filter((item) => String(item || "").trim().toUpperCase() !== target);
-    state.trackedTrainNos = next;
-    writeTrackedTrainNos(state.system, next);
-    renderTrackedTrainChips(state);
-    state.runRender?.();
+    setTrackedTrainDraftNos(state, getTrackDraftNos(state).filter((item) => String(item || "").trim().toUpperCase() !== target));
   }
 
-  function clearTrackedTrainNos(state) {
-    state.trackedTrainNos = [];
-    writeTrackedTrainNos(state.system, []);
-    renderTrackedTrainChips(state);
-    state.runRender?.();
+  function clearTrackedTrainDraftNos(state) {
+    setTrackedTrainDraftNos(state, []);
   }
 
   function bindGeoPerformanceControls(state) {
@@ -5234,36 +5347,65 @@
     syncGeoSegmentSelect(state);
     renderGeoSegmentChips(state);
     renderTrackedTrainChips(state);
-    state.geoAddButton?.addEventListener("click", () => addGeoSegmentId(state, state.geoSegmentSelect?.value));
+    state.geoDetails?.addEventListener("toggle", () => {
+      if (state.geoDetails.open) prepareGeoSegmentDraft(state);
+      else state.geoSegmentDraftIds = null;
+    });
+    state.geoSegmentList?.addEventListener("change", () => {
+      const ids = (state.geoSegmentCheckboxes || []).filter((checkbox) => checkbox.checked).map((checkbox) => checkbox.value);
+      setGeoSegmentDraftIds(state, ids);
+    });
     state.geoSelectAllButton?.addEventListener("click", () => {
       const ids = getDefaultGeoSegmentIds(state.system);
-      setGeoSegmentIds(state, ids);
+      setGeoSegmentDraftIds(state, ids);
     });
     state.geoClearButton?.addEventListener("click", () => {
-      setGeoSegmentIds(state, []);
+      setGeoSegmentDraftIds(state, []);
     });
+    state.geoConfirmButton?.addEventListener("click", () => confirmGeoSegmentDraft(state));
+    state.geoCancelButton?.addEventListener("click", () => cancelGeoSegmentDraft(state));
     state.geoSelectedList?.addEventListener("click", (event) => {
       const button = event.target?.closest?.("[data-live-geo-remove]");
       if (!button) return;
-      removeGeoSegmentId(state, button.getAttribute("data-live-geo-remove"));
+      removeGeoSegmentDraftId(state, button.getAttribute("data-live-geo-remove"));
     });
-    state.trackAddButton?.addEventListener("click", () => addTrackedTrainNo(state, state.trackInput?.value));
-    state.trackClearButton?.addEventListener("click", () => clearTrackedTrainNos(state));
+    state.trackDetails?.addEventListener("toggle", () => {
+      if (state.trackDetails.open) prepareTrackDraft(state);
+      else state.trackedTrainDraftNos = null;
+    });
+    state.trackAddButton?.addEventListener("click", () => addTrackedTrainDraftNo(state, state.trackInput?.value));
+    state.trackClearButton?.addEventListener("click", () => clearTrackedTrainDraftNos(state));
+    state.trackConfirmButton?.addEventListener("click", () => confirmTrackDraft(state));
+    state.trackCancelButton?.addEventListener("click", () => cancelTrackDraft(state));
     state.trackInput?.addEventListener("keydown", (event) => {
       if (event.key !== "Enter") return;
       event.preventDefault();
-      addTrackedTrainNo(state, state.trackInput.value);
+      addTrackedTrainDraftNo(state, state.trackInput.value);
     });
     state.trackedTrainList?.addEventListener("click", (event) => {
       const button = event.target?.closest?.("[data-live-track-remove]");
       if (!button) return;
-      removeTrackedTrainNo(state, button.getAttribute("data-live-track-remove"));
+      removeTrackedTrainDraftNo(state, button.getAttribute("data-live-track-remove"));
     });
+  }
+
+  function promptGeoEntryIfNeeded(state) {
+    if (!state || state.system !== "tr" || state.viewMode !== "geo" || state.geoEntryPromptShown) return;
+    state.geoEntryPromptShown = true;
+    window.alert("請先選擇台鐵路段或追蹤車次");
+    if (state.geoDetails) {
+      state.geoDetails.open = true;
+      prepareGeoSegmentDraft(state);
+    }
+    if (state.trackDetails && !(state.geoSegmentIds || []).length && !(state.trackedTrainNos || []).length) {
+      prepareTrackDraft(state);
+    }
   }
 
   function bindTrackerPanel(state, tab) {
     const render = state.variant === "modern" ? renderTrackerV2 : renderTracker;
     const run = () => {
+      promptGeoEntryIfNeeded(state);
       const previousLabel = state.renderButton.textContent;
       state.renderButton.disabled = true;
       state.renderButton.textContent = "更新中...";

@@ -189,6 +189,53 @@
       gap: 6px;
     }
 
+    .home-live-action-spacer {
+      flex: 1 1 auto;
+    }
+
+    .home-live-check-list {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+      max-height: min(46vh, 360px);
+      overflow: auto;
+      padding: 2px;
+    }
+
+    .home-live-check-group {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      min-width: 0;
+    }
+
+    .home-live-check-group-title {
+      color: var(--text-muted);
+      font-size: .72rem;
+      font-weight: 950;
+    }
+
+    .home-live-check-row {
+      min-height: 30px;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      padding: 5px 7px;
+      border: 1px solid rgba(15, 23, 42, .14);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, .72);
+      color: var(--text-main);
+      font-size: .78rem;
+      font-weight: 900;
+      cursor: pointer;
+    }
+
+    .home-live-check-row input {
+      width: 15px;
+      height: 15px;
+      accent-color: var(--accent);
+    }
+
     .home-live-popover-panel p {
       margin: 0;
       color: var(--text-muted);
@@ -305,6 +352,12 @@
       font-size: .76rem;
       font-weight: 900;
       cursor: pointer;
+    }
+
+    .home-live-mini-btn.primary {
+      border-color: var(--accent);
+      background: var(--accent);
+      color: #fff;
     }
 
     .home-live-track-list {
@@ -1154,6 +1207,11 @@
         width: 76px;
       }
 
+      .home-live-check-list {
+        grid-template-columns: 1fr;
+        max-height: min(54vh, 380px);
+      }
+
       .home-live-track-list {
         max-width: 150px;
       }
@@ -1244,7 +1302,6 @@
                   <button type="button" class="home-live-mini-btn" id="homeLiveTraSegmentAll">全選</button>
                   <button type="button" class="home-live-mini-btn" id="homeLiveTraSegmentClear">清除</button>
                 </div>
-                <div class="home-live-track-list" id="homeLiveTraSegmentList"></div>
                 <p>建議最多選 2 個路段，避免白天列車多時卡頓。</p>
               </div>
             </details>
@@ -1277,9 +1334,9 @@
 
   <script src="../shared/rail-network.js?v=20260419-traedge2"></script>
   <script charset="UTF-8" src="../thsr/thsr.real-schedule.js?v=20260419-tdxgate1"></script>
-  <script src="../shared/rail-live-tracker.js?v=20260420-core9"></script>
+  <script src="../shared/rail-live-tracker.js?v=20260420-core11"></script>
   <script src="../shared/rail-stop-weather.js?v=20260419-live1"></script>
   <script src="../shared/rail-station-context.js?v=20260419-live1"></script>
-  <script src="./home-live-map.js?v=20260420-live17"></script>
+  <script src="./home-live-map.js?v=20260420-live19"></script>
 </body>
 </html>
