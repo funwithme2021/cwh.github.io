@@ -940,6 +940,16 @@
     return lastRows;
   }
 
+  async function fetchScheduleRowsSafe(system, date, token) {
+    try {
+      const rows = await fetchScheduleRows(system, date, token);
+      return { date, rows: rows || [], error: "" };
+    } catch (error) {
+      console.warn(`home live schedule date failed: ${system} ${date}`, error);
+      return { date, rows: [], error: error?.message || String(error || "unknown") };
+    }
+  }
+
   async function loadDelayMap(token) {
     const map = new Map();
     try {
@@ -2455,34 +2465,25 @@
     const rowsBySystem = {};
     const stats = {};
     await Promise.all(Object.keys(SYSTEMS).map(async (system) => {
-      try {
-        const [prevRows, todayRows] = await Promise.all([
-          fetchScheduleRows(system, prevDate, token),
-          fetchScheduleRows(system, date, token),
-        ]);
-        stats[system] = {
-          scheduleRows: (prevRows || []).length + (todayRows || []).length,
-          parsed: 0,
-          visible: 0,
-          missingStation: 0,
-          failedParse: 0,
-        };
-        rowsBySystem[system] = [
-          { date: prevDate, rows: prevRows || [] },
-          { date, rows: todayRows || [] },
-        ];
-      } catch (error) {
-        stats[system] = {
-          scheduleRows: 0,
-          parsed: 0,
-          visible: 0,
-          missingStation: 0,
-          failedParse: 0,
-          error: error?.message || String(error || "unknown"),
-        };
-        rowsBySystem[system] = [];
-        console.warn(`home live schedule failed: ${system}`, error);
-      }
+      const results = await Promise.all([
+        fetchScheduleRowsSafe(system, prevDate, token),
+        fetchScheduleRowsSafe(system, date, token),
+      ]);
+      const errors = results.map((result) => result.error).filter(Boolean);
+      const scheduleRows = results.reduce((sum, result) => sum + (result.rows || []).length, 0);
+      stats[system] = {
+        scheduleRows,
+        parsed: 0,
+        visible: 0,
+        missingStation: 0,
+        failedParse: 0,
+        error: scheduleRows ? "" : errors.join(" / "),
+        partialError: scheduleRows && errors.length ? errors.join(" / ") : "",
+      };
+      rowsBySystem[system] = results.map((result) => ({
+        date: result.date,
+        rows: result.rows || [],
+      }));
     }));
     const nowMinute = nowExactMinute();
     const snapshots = [];
@@ -2552,7 +2553,7 @@
       const traCount = state.snapshots.filter((snapshot) => snapshot.system === "tr").length;
       const thsrStats = state.loadStats?.thsr || {};
       const thsrNote = thsrCount === 0
-        ? `（班表 ${Number(thsrStats.scheduleRows || 0)} 筆、解析 ${Number(thsrStats.parsed || 0)} 筆、站點不符 ${Number(thsrStats.missingStation || 0)} 筆、解析失敗 ${Number(thsrStats.failedParse || 0)} 筆${thsrStats.error ? "、TDX 失敗" : ""}）`
+        ? `（班表 ${Number(thsrStats.scheduleRows || 0)} 筆、解析 ${Number(thsrStats.parsed || 0)} 筆、站點不符 ${Number(thsrStats.missingStation || 0)} 筆、解析失敗 ${Number(thsrStats.failedParse || 0)} 筆${thsrStats.error ? `、TDX 失敗 ${thsrStats.error}` : ""}${thsrStats.partialError ? "、部分日期失敗" : ""}）`
         : "";
       showStatus(`已更新 高鐵 ${thsrCount} 班${thsrNote}、台鐵 ${traCount} 班。`);
     } catch (error) {
