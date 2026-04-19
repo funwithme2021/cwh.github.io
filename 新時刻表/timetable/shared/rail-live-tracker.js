@@ -562,6 +562,7 @@
     }
     if (state) state.leafletMap = null;
     if (state) state.realMapUserMarker = null;
+    if (state) state.realMapTrainCanvasLayer = null;
     if (state) state.realMapMarkerBindings = [];
     if (state) state.realMapRouteLines = [];
   }
@@ -736,6 +737,154 @@
     if (normalized >= 135 && normalized < 225) return "translate(13px,-50%)";
     if (normalized >= 225 && normalized < 315) return "translate(-50%,calc(-100% - 13px))";
     return "translate(calc(-100% - 13px),-50%)";
+  }
+
+  function getCanvasLabelPlacement(angle, textWidth) {
+    const normalized = ((Number(angle) || 0) % 360 + 360) % 360;
+    if (normalized >= 45 && normalized < 135) return { x: -textWidth / 2, y: 27, align: "left" };
+    if (normalized >= 135 && normalized < 225) return { x: 16, y: 4, align: "left" };
+    if (normalized >= 225 && normalized < 315) return { x: -textWidth / 2, y: -18, align: "left" };
+    return { x: -textWidth - 16, y: 4, align: "left" };
+  }
+
+  function createRealMapTrainCanvasLayer(state) {
+    const L = window.L;
+    const TrainCanvasLayer = L.Layer.extend({
+      initialize() {
+        this.items = [];
+        this.hits = [];
+      },
+      onAdd(map) {
+        this.map = map;
+        this.canvas = L.DomUtil.create("canvas", "rail-live-real-train-canvas");
+        this.canvas.style.position = "absolute";
+        this.canvas.style.left = "0";
+        this.canvas.style.top = "0";
+        this.canvas.style.pointerEvents = "none";
+        const pane = map.getPane("railLiveTrainCanvasPane") || map.createPane("railLiveTrainCanvasPane");
+        pane.style.zIndex = "650";
+        pane.style.pointerEvents = "none";
+        pane.appendChild(this.canvas);
+        map.on("resize move zoom viewreset zoomend moveend", this.redraw, this);
+        map.on("click", this.handleClick, this);
+        this.redraw();
+      },
+      onRemove(map) {
+        map.off("resize move zoom viewreset zoomend moveend", this.redraw, this);
+        map.off("click", this.handleClick, this);
+        this.canvas?.remove?.();
+        this.canvas = null;
+        this.map = null;
+        this.hits = [];
+      },
+      setItems(items) {
+        this.items = Array.isArray(items) ? items : [];
+        this.redraw();
+      },
+      resizeCanvas(size) {
+        const ratio = Math.max(1, window.devicePixelRatio || 1);
+        const width = Math.max(1, Math.round(size.x));
+        const height = Math.max(1, Math.round(size.y));
+        if (this.canvas.width !== Math.round(width * ratio)) this.canvas.width = Math.round(width * ratio);
+        if (this.canvas.height !== Math.round(height * ratio)) this.canvas.height = Math.round(height * ratio);
+        this.canvas.style.width = `${width}px`;
+        this.canvas.style.height = `${height}px`;
+        const ctx = this.canvas.getContext("2d");
+        ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+        return ctx;
+      },
+      redraw() {
+        if (!this.map || !this.canvas) return;
+        const size = this.map.getSize();
+        this.topLeft = this.map.containerPointToLayerPoint([0, 0]);
+        L.DomUtil.setPosition(this.canvas, this.topLeft);
+        const ctx = this.resizeCanvas(size);
+        ctx.clearRect(0, 0, size.x, size.y);
+        this.hits = [];
+        const hideLabels = state.realMapInteracting || (this.items.length > 90 && Number(this.map.getZoom?.()) < 9);
+        ctx.font = "950 13px system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+        ctx.lineJoin = "round";
+        this.items.forEach((item) => {
+          if (!item?.latLng) return;
+          const point = this.map.latLngToLayerPoint(item.latLng).subtract(this.topLeft);
+          if (point.x < -90 || point.y < -90 || point.x > size.x + 90 || point.y > size.y + 90) return;
+          const angle = Number(item.angle) || 0;
+          ctx.save();
+          ctx.translate(point.x, point.y);
+          ctx.rotate(angle * Math.PI / 180);
+          ctx.shadowColor = "rgba(15,23,42,.36)";
+          ctx.shadowBlur = 4;
+          ctx.shadowOffsetY = 2;
+          ctx.fillStyle = item.color || "#111827";
+          ctx.beginPath();
+          ctx.moveTo(0, -10);
+          ctx.lineTo(9, 9);
+          ctx.lineTo(-9, 9);
+          ctx.closePath();
+          ctx.fill();
+          ctx.restore();
+          if (item.active) {
+            ctx.save();
+            ctx.strokeStyle = "rgba(255,255,255,.95)";
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.arc(point.x, point.y, 13, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.restore();
+          }
+          const hit = { item, x: point.x - 16, y: point.y - 16, w: 32, h: 32 };
+          if (!hideLabels && item.label) {
+            const textWidth = Math.ceil(ctx.measureText(item.label).width);
+            const label = getCanvasLabelPlacement(angle, textWidth);
+            const textX = point.x + label.x;
+            const textY = point.y + label.y;
+            ctx.save();
+            ctx.font = "950 13px system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+            ctx.textBaseline = "middle";
+            ctx.textAlign = label.align;
+            ctx.lineWidth = 5;
+            ctx.strokeStyle = "rgba(255,255,255,.96)";
+            ctx.strokeText(item.label, textX, textY);
+            ctx.fillStyle = "#0f172a";
+            ctx.fillText(item.label, textX, textY);
+            if (item.active) {
+              ctx.strokeStyle = item.color || "#111827";
+              ctx.lineWidth = 2;
+              ctx.beginPath();
+              ctx.moveTo(textX, textY + 9);
+              ctx.lineTo(textX + textWidth, textY + 9);
+              ctx.stroke();
+            }
+            ctx.restore();
+            const right = Math.max(hit.x + hit.w, textX + textWidth + 4);
+            const bottom = Math.max(hit.y + hit.h, textY + 14);
+            hit.x = Math.min(hit.x, textX - 4);
+            hit.y = Math.min(hit.y, textY - 14);
+            hit.w = right - hit.x;
+            hit.h = bottom - hit.y;
+          }
+          this.hits.push(hit);
+        });
+      },
+      handleClick(event) {
+        if (!this.map || !this.hits.length) return;
+        const topLeft = this.topLeft || this.map.containerPointToLayerPoint([0, 0]);
+        const point = this.map.latLngToLayerPoint(event.latlng).subtract(topLeft);
+        for (let index = this.hits.length - 1; index >= 0; index -= 1) {
+          const hit = this.hits[index];
+          if (point.x < hit.x || point.x > hit.x + hit.w || point.y < hit.y || point.y > hit.y + hit.h) continue;
+          const snapshot = hit.item.snapshot;
+          const trainKey = makeTrainKey(snapshot.trainNo, snapshot.originDate);
+          state.selectedTrainKey = trainKey;
+          refreshGeoFocusPanel(state);
+          focusGeoTrainMarker(state, snapshot.trainNo, snapshot.originDate);
+          openTrainDetail(snapshot.trainNo, snapshot.originDate || snapshot.queryDate);
+          if (event.originalEvent) L.DomEvent.stop(event.originalEvent);
+          break;
+        }
+      },
+    });
+    return new TrainCanvasLayer();
   }
 
   function pointAtRatioOnLineWithAngle(line, ratio) {
@@ -1162,6 +1311,7 @@
   }
 
   function getRealMapTrainColor(system, snapshot) {
+    if (system === "tr") return getEntryColor(system, snapshot);
     const colors = REAL_MAP_TRAIN_COLORS[system] || REAL_MAP_TRAIN_COLORS.tr;
     const direction = snapshot?.directionKey || getDirectionKey(system, snapshot?.trainNo);
     return colors[direction] || colors.default || "#111827";
@@ -3733,7 +3883,8 @@
       marker.type = "button";
       marker.className = `rail-live-train-label ${side} ${snapshot.isSoonStop ? "is-blinking" : ""}`;
       marker.dataset.trainKey = makeTrainKey(snapshot.trainNo, snapshot.originDate);
-      marker.style.top = `${anchorY}px`;
+      marker.style.top = "0";
+      marker.style.transform = `translate3d(0,${anchorY}px,0) translateY(-50%)`;
       marker.style.setProperty("--rail-live-color", getEntryColor(state.system, snapshot));
       marker.innerHTML = `
         <span class="rail-live-train-anchor">${escapeHtml(snapshot.directionGlyph)}</span>
@@ -3830,16 +3981,30 @@
 
   function focusGeoTrainMarker(state, trainNo, originDate) {
     const key = makeTrainKey(trainNo, originDate);
-    const map = state.output.querySelector(".rail-live-map");
-    if (!map) return;
-    map.querySelectorAll(".rail-live-real-train-marker.is-active").forEach((item) => item.classList.remove("is-active"));
-    const escapedKey = window.CSS?.escape ? window.CSS.escape(key) : key.replace(/([^\w-])/g, "\\$1");
-    const markerButton = map.querySelector(`.rail-live-real-train-marker button[data-train-key="${escapedKey}"]`);
-    const marker = markerButton?.closest?.(".rail-live-real-train-marker");
-    if (!marker) return;
-    marker.classList.add("is-active");
-    window.clearTimeout(state.focusTimer);
-    state.focusTimer = window.setTimeout(() => marker.classList.remove("is-active"), 2400);
+    state.selectedTrainKey = key;
+    refreshRealMapTrainCanvas(state);
+  }
+
+  function getRealMapCanvasTrainItems(state) {
+    return (state.realMapMarkerBindings || [])
+      .filter((binding) => binding?.placement?.latLng)
+      .map((binding) => {
+        const snapshot = binding.snapshot;
+        const trainTypeText = state.system === "tr" ? normalizeTraType(snapshot.type) : (snapshot.type || "高鐵");
+        return {
+          key: makeTrainKey(snapshot.trainNo, snapshot.originDate),
+          snapshot,
+          latLng: binding.placement.latLng,
+          angle: Number(binding.placement.angle) || 0,
+          color: getRealMapTrainColor(state.system, snapshot),
+          label: `${snapshot.trainNo} ${trainTypeText}`.trim(),
+          active: makeTrainKey(snapshot.trainNo, snapshot.originDate) === state.selectedTrainKey,
+        };
+      });
+  }
+
+  function refreshRealMapTrainCanvas(state) {
+    state?.realMapTrainCanvasLayer?.setItems?.(getRealMapCanvasTrainItems(state));
   }
 
   function refreshGeoFocusPanel(state) {
@@ -3888,7 +4053,9 @@
         zoomControl: true,
         scrollWheelZoom: true,
         attributionControl: true,
+        preferCanvas: true,
       });
+      const canvasRenderer = L.canvas({ padding: 0.5 });
       state.leafletMap = map;
       L.tileLayer(MAP_TILE_URL, {
         maxZoom: 19,
@@ -3905,6 +4072,7 @@
           opacity: routeData.source === "tdx" ? 0.78 : 0.62,
           lineCap: "round",
           lineJoin: "round",
+          renderer: canvasRenderer,
         }).addTo(map);
         line.forEach((point) => bounds.extend(point));
       });
@@ -3920,6 +4088,7 @@
           weight: hasSoon || events.length ? 3 : 2.4,
           fillColor: stationColor,
           fillOpacity: 0.95,
+          renderer: canvasRenderer,
         })
           .addTo(map)
           .on("click", () => renderStationDetail(state, point.station));
@@ -3943,35 +4112,15 @@
       state.realMapRouteLines = mapRouteLines;
       const visibleSnapshots = state.visibleSnapshots || getVisibleSnapshots(snapshots);
       resolveFocusedSnapshot(state, visibleSnapshots);
+      state.realMapTrainCanvasLayer = createRealMapTrainCanvasLayer(state).addTo(map);
       visibleSnapshots.forEach((snapshot) => {
         const placement = getTrainMapPlacement(state, snapshot, mapRouteLines);
         if (!placement?.latLng) return;
         const trainLatLng = placement.latLng;
-        const trainKey = makeTrainKey(snapshot.trainNo, snapshot.originDate);
-        const color = getRealMapTrainColor(state.system, snapshot);
-        const isSelected = state.selectedTrainKey === trainKey;
-        const angle = Number.isFinite(placement.angle) ? placement.angle : 0;
-        const trainTypeText = state.system === "tr" ? normalizeTraType(snapshot.type) : (snapshot.type || "高鐵");
-        const trainLabel = `${snapshot.trainNo} ${trainTypeText}`.trim();
-        const labelTransform = getDirectionalTrainLabelTransform(angle);
-        const marker = L.marker(trainLatLng, {
-          zIndexOffset: isSelected ? 1300 : 900,
-          icon: L.divIcon({
-            className: `rail-live-real-train-marker ${isSelected ? "is-active" : ""} ${snapshot.isSoonStop ? "is-blinking" : ""}`,
-            html: `<button type="button" style="--rail-live-color:${escapeHtml(color)};--rail-live-angle:${escapeHtml(angle.toFixed(1))}deg;--rail-live-label-transform:${escapeHtml(labelTransform)}" data-train-key="${escapeHtml(trainKey)}" title="${escapeHtml(buildSnapshotLocationLine(snapshot))}"><span class="rail-live-real-train-arrow" aria-hidden="true"></span><strong>${escapeHtml(trainLabel)}</strong></button>`,
-            iconSize: [1, 1],
-            iconAnchor: [0, 0],
-          }),
-        }).addTo(map);
-        marker.on("click", () => {
-          state.selectedTrainKey = trainKey;
-          refreshGeoFocusPanel(state);
-          focusGeoTrainMarker(state, snapshot.trainNo, snapshot.originDate);
-          openTrainDetail(snapshot.trainNo, snapshot.originDate || snapshot.queryDate);
-        });
-        state.realMapMarkerBindings.push({ marker, snapshot, routeLines: mapRouteLines });
+        state.realMapMarkerBindings.push({ snapshot, routeLines: mapRouteLines, placement });
         bounds.extend(trainLatLng);
       });
+      refreshRealMapTrainCanvas(state);
 
       updateRealMapUserMarker(state);
       ensureUserLocationTracking(state);
@@ -3987,10 +4136,16 @@
         map.invalidateSize();
         map.on("dragstart zoomstart", () => {
           state.realMapUserMoved = true;
+          state.realMapInteracting = true;
+          mapHost.classList.add("is-map-interacting");
+          refreshRealMapTrainCanvas(state);
           const center = map.getCenter();
           state.realMapView = { lat: center.lat, lng: center.lng, zoom: map.getZoom() };
         });
         map.on("moveend zoomend", () => {
+          state.realMapInteracting = false;
+          mapHost.classList.remove("is-map-interacting");
+          refreshRealMapTrainCanvas(state);
           if (!state.realMapUserMoved) return;
           const center = map.getCenter();
           state.realMapView = { lat: center.lat, lng: center.lng, zoom: map.getZoom() };
@@ -4040,14 +4195,10 @@
     state.animationDeltaSeconds = 0.016;
   }
 
-  function updateRealMapTrainMarkerVisual(marker, placement) {
-    if (!marker || !placement?.latLng) return;
-    marker.setLatLng(placement.latLng);
-    const angle = Number.isFinite(placement.angle) ? placement.angle : 0;
-    const button = marker.getElement?.()?.querySelector?.(".rail-live-real-train-marker button");
-    if (!button) return;
-    button.style.setProperty("--rail-live-angle", `${angle.toFixed(1)}deg`);
-    button.style.setProperty("--rail-live-label-transform", getDirectionalTrainLabelTransform(angle));
+  function updateRealMapTrainMarkerVisual(binding, placement) {
+    if (!binding || !placement?.latLng) return false;
+    binding.placement = placement;
+    return true;
   }
 
   function runRealMapAnimation(state) {
@@ -4066,16 +4217,19 @@
       const lastFrameMs = Number(state.lastAnimationFrameMs) || nowMs;
       state.animationDeltaSeconds = Math.max(0.016, Math.min(0.25, (nowMs - lastFrameMs) / 1000 || 0.016));
       state.lastAnimationFrameMs = nowMs;
-      bindings.forEach(({ marker, snapshot, routeLines }) => {
-        if (!marker || !snapshot) return;
+      let changed = false;
+      bindings.forEach((binding) => {
+        const { snapshot, routeLines } = binding;
+        if (!snapshot) return;
         const rawPosition = getAnimatedSnapshotPosition(snapshot, state.renderedQueryDate);
         const animationMode = getSnapshotAnimationMode(snapshot);
         const stablePosition = animationMode.type === "stepped"
           ? getSteppedSnapshotPosition(state, snapshot, rawPosition, animationMode.cadenceSeconds)
           : getStableAnimatedSnapshotPosition(state, snapshot, rawPosition);
         const placement = getTrainMapPlacement(state, snapshot, routeLines || state.realMapRouteLines || [], { positionIndex: stablePosition });
-        updateRealMapTrainMarkerVisual(marker, placement);
+        if (updateRealMapTrainMarkerVisual(binding, placement)) changed = true;
       });
+      if (changed) refreshRealMapTrainCanvas(state);
       if (state.userLocationEnabled) updateRealMapUserMarker(state);
       state.animationFrame = window.requestAnimationFrame(tick);
     };
@@ -4108,7 +4262,7 @@
           ? getSteppedSnapshotPosition(state, snapshot, rawPosition, animationMode.cadenceSeconds)
           : getStableAnimatedSnapshotPosition(state, snapshot, rawPosition);
         const anchorY = getBoardYForPosition(state.system, stations, stablePosition, mapHeight);
-        marker.style.top = `${anchorY}px`;
+        marker.style.transform = `translate3d(0,${anchorY}px,0) translateY(-50%)`;
       });
       if (state.userLocationEnabled) updateUserLocationMarker(state);
       state.animationFrame = window.requestAnimationFrame(tick);
@@ -4420,6 +4574,7 @@
       .rail-live-real-board{width:100%; padding:14px; border-radius:8px;}
       .rail-live-real-map{width:100%; height:min(72vh,760px)!important; min-height:560px; border-radius:8px; background:#e7edf4; overflow:hidden;}
       .rail-live-real-map .leaflet-container,.rail-live-real-map.leaflet-container{font-family:inherit;}
+      .rail-live-real-map.is-map-interacting .rail-live-real-station-label span{display:none!important;}
       .rail-live-map-loading{position:absolute; inset:0; display:grid; place-items:center; color:var(--text-muted); font-size:.86rem; font-weight:850;}
       .rail-live-real-station-label{background:transparent!important; border:0!important; box-shadow:none!important; color:var(--text-main); white-space:nowrap;}
       .rail-live-real-station-label span{display:inline-flex; align-items:center; gap:4px; color:var(--text-main); font-size:.86rem; font-weight:950; line-height:1; text-shadow:0 1px 3px rgba(255,255,255,.98),0 0 10px rgba(255,255,255,.9);}
@@ -4452,7 +4607,7 @@
       .rail-live-station.is-busy .rail-live-station-node{border-color:#ef4444;}
       .rail-live-station.is-soon .rail-live-station-name{color:#f97316;}
       .rail-live-station.active .rail-live-station-name{color:#2563eb;}
-      .rail-live-train-label{position:absolute; left:50%; width:0; transform:translateY(-50%); z-index:18; background:none; border:none; padding:0; cursor:pointer; will-change:top;}
+      .rail-live-train-label{position:absolute; left:50%; width:0; transform:translateY(-50%); z-index:18; background:none; border:none; padding:0; cursor:pointer; will-change:transform;}
       .rail-live-train-anchor{position:absolute; top:-10px; left:-9px; width:18px; height:18px; display:flex; align-items:center; justify-content:center; color:var(--rail-live-color); font-size:16px; font-weight:900; line-height:1;}
       .rail-live-train-connector{position:absolute; top:0; width:20px; border-top:1px solid color-mix(in srgb, var(--rail-live-color) 70%, #64748b);}
       .rail-live-train-copy{position:absolute; top:-12px; width:210px; min-height:24px; display:flex; align-items:center;}
@@ -4581,7 +4736,9 @@
       leafletMap: null,
       realMapUserMarker: null,
       realMapMarkerBindings: [],
+      realMapTrainCanvasLayer: null,
       realMapRouteLines: [],
+      realMapInteracting: false,
       realMapUserMoved: false,
       realMapView: null,
       userRouteAutoApplied: false,

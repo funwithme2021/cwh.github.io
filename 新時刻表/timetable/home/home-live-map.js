@@ -73,6 +73,8 @@
     stationLayers: [],
     markers: new Map(),
     markerBindings: [],
+    trainCanvasLayer: null,
+    vectorRenderer: null,
     stations: { tr: new Map(), thsr: new Map() },
     stationLists: { tr: [], thsr: [] },
     routeLines: { tr: [], thsr: [] },
@@ -323,6 +325,7 @@
       preferCanvas: true,
       attributionControl: true,
     }).setView([23.7, 121], 7);
+    state.vectorRenderer = L.canvas({ padding: 0.5 });
     L.tileLayer(MAP_TILE_URL, {
       attribution: MAP_TILE_ATTRIBUTION,
       maxZoom: 19,
@@ -332,12 +335,14 @@
       state.userMoved = true;
       state.mapInteracting = true;
       el.map?.classList.add("is-map-interacting");
+      state.trainCanvasLayer?.redraw?.();
     });
     state.map.on("dragend zoomend moveend", () => {
       state.mapInteracting = false;
       el.map?.classList.remove("is-map-interacting");
       updateMapDensityClasses();
       updateTrainMarkers({ force: true });
+      state.trainCanvasLayer?.redraw?.();
       updateUserMarker();
     });
     window.setTimeout(() => state.map?.invalidateSize?.(), 120);
@@ -896,6 +901,7 @@
   }
 
   function getMapTrainColor(snapshot) {
+    if (snapshot?.system === "tr") return getTrainColor(snapshot);
     const systemColors = MAP_TRAIN_COLORS[snapshot?.system] || MAP_TRAIN_COLORS.tr;
     return systemColors[snapshot?.direction] || systemColors.default || "#111827";
   }
@@ -1653,31 +1659,184 @@
     return formatStationDisplayName(system, found?.name || station || "--");
   }
 
-  function updateMarkerVisual(marker, snapshot, placement) {
-    if (!marker || !placement?.latLng) return;
-    marker.setLatLng(placement.latLng);
-    const root = marker.getElement?.();
-    const button = root?.querySelector?.("button");
-    if (!button) return;
-    const color = getMapTrainColor(snapshot);
-    button.style.setProperty("--train-color", color);
-    button.style.setProperty("--train-angle", `${(Number(placement.angle) || 0).toFixed(1)}deg`);
-    button.style.setProperty("--train-label-transform", getDirectionalTrainLabelTransform(placement.angle));
-    root.classList.toggle("is-active", snapshot.key === state.activeKey);
+  function getCanvasLabelPlacement(angle, textWidth) {
+    const normalized = ((Number(angle) || 0) % 360 + 360) % 360;
+    if (normalized >= 45 && normalized < 135) return { x: -textWidth / 2, y: 27, align: "left" };
+    if (normalized >= 135 && normalized < 225) return { x: 16, y: 4, align: "left" };
+    if (normalized >= 225 && normalized < 315) return { x: -textWidth / 2, y: -18, align: "left" };
+    return { x: -textWidth - 16, y: 4, align: "left" };
   }
 
-  function selectTrain(snapshot, marker) {
-    state.activeKey = snapshot.key;
-    state.markers.forEach((itemMarker, key) => {
-      itemMarker.getElement?.()?.classList.toggle("is-active", key === state.activeKey);
+  function createTrainCanvasLayer() {
+    const L = state.L || window.L;
+    const TrainCanvasLayer = L.Layer.extend({
+      initialize() {
+        this.items = [];
+        this.hits = [];
+      },
+      onAdd(map) {
+        this.map = map;
+        this.canvas = L.DomUtil.create("canvas", "home-live-train-canvas");
+        this.canvas.style.position = "absolute";
+        this.canvas.style.left = "0";
+        this.canvas.style.top = "0";
+        this.canvas.style.pointerEvents = "none";
+        const pane = map.getPane("homeLiveTrainCanvasPane") || map.createPane("homeLiveTrainCanvasPane");
+        pane.style.zIndex = "650";
+        pane.style.pointerEvents = "none";
+        pane.appendChild(this.canvas);
+        map.on("resize move zoom viewreset zoomend moveend", this.redraw, this);
+        map.on("click", this.handleClick, this);
+        this.redraw();
+      },
+      onRemove(map) {
+        map.off("resize move zoom viewreset zoomend moveend", this.redraw, this);
+        map.off("click", this.handleClick, this);
+        this.canvas?.remove?.();
+        this.canvas = null;
+        this.map = null;
+        this.hits = [];
+      },
+      setItems(items) {
+        this.items = Array.isArray(items) ? items : [];
+        this.redraw();
+      },
+      resizeCanvas(size) {
+        const ratio = Math.max(1, window.devicePixelRatio || 1);
+        const width = Math.max(1, Math.round(size.x));
+        const height = Math.max(1, Math.round(size.y));
+        if (this.canvas.width !== Math.round(width * ratio)) this.canvas.width = Math.round(width * ratio);
+        if (this.canvas.height !== Math.round(height * ratio)) this.canvas.height = Math.round(height * ratio);
+        this.canvas.style.width = `${width}px`;
+        this.canvas.style.height = `${height}px`;
+        const ctx = this.canvas.getContext("2d");
+        ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+        return ctx;
+      },
+      redraw() {
+        if (!this.map || !this.canvas) return;
+        const size = this.map.getSize();
+        this.topLeft = this.map.containerPointToLayerPoint([0, 0]);
+        L.DomUtil.setPosition(this.canvas, this.topLeft);
+        const ctx = this.resizeCanvas(size);
+        ctx.clearRect(0, 0, size.x, size.y);
+        this.hits = [];
+        const hideLabels = state.mapInteracting || (this.items.length > 80 && Number(this.map.getZoom?.()) < 9);
+        ctx.font = "950 13px system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+        ctx.lineJoin = "round";
+        this.items.forEach((item) => {
+          if (!item?.latLng) return;
+          const point = this.map.latLngToLayerPoint(item.latLng).subtract(this.topLeft);
+          if (point.x < -90 || point.y < -90 || point.x > size.x + 90 || point.y > size.y + 90) return;
+          const angle = Number(item.angle) || 0;
+          ctx.save();
+          ctx.translate(point.x, point.y);
+          ctx.rotate(angle * Math.PI / 180);
+          ctx.shadowColor = "rgba(15,23,42,.34)";
+          ctx.shadowBlur = 4;
+          ctx.shadowOffsetY = 2;
+          ctx.fillStyle = item.color || "#111827";
+          ctx.beginPath();
+          ctx.moveTo(0, -10);
+          ctx.lineTo(9, 9);
+          ctx.lineTo(-9, 9);
+          ctx.closePath();
+          ctx.fill();
+          ctx.restore();
+          if (item.active) {
+            ctx.save();
+            ctx.strokeStyle = "rgba(255,255,255,.95)";
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.arc(point.x, point.y, 13, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.restore();
+          }
+          const hit = { item, x: point.x - 16, y: point.y - 16, w: 32, h: 32 };
+          if (!hideLabels && item.label) {
+            const metrics = ctx.measureText(item.label);
+            const textWidth = Math.ceil(metrics.width);
+            const label = getCanvasLabelPlacement(angle, textWidth);
+            const textX = point.x + label.x;
+            const textY = point.y + label.y;
+            ctx.save();
+            ctx.font = "950 13px system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+            ctx.textBaseline = "middle";
+            ctx.textAlign = label.align;
+            ctx.lineWidth = 5;
+            ctx.strokeStyle = "rgba(255,255,255,.96)";
+            ctx.strokeText(item.label, textX, textY);
+            ctx.fillStyle = "#0f172a";
+            ctx.fillText(item.label, textX, textY);
+            if (item.active) {
+              ctx.strokeStyle = item.color || "#111827";
+              ctx.lineWidth = 2;
+              ctx.beginPath();
+              ctx.moveTo(textX, textY + 9);
+              ctx.lineTo(textX + textWidth, textY + 9);
+              ctx.stroke();
+            }
+            ctx.restore();
+            const right = Math.max(hit.x + hit.w, textX + textWidth + 4);
+            const bottom = Math.max(hit.y + hit.h, textY + 14);
+            hit.x = Math.min(hit.x, textX - 4);
+            hit.y = Math.min(hit.y, textY - 14);
+            hit.w = right - hit.x;
+            hit.h = bottom - hit.y;
+          }
+          this.hits.push(hit);
+        });
+      },
+      handleClick(event) {
+        if (!this.map || !this.hits.length) return;
+        const topLeft = this.topLeft || this.map.containerPointToLayerPoint([0, 0]);
+        const point = this.map.latLngToLayerPoint(event.latlng).subtract(topLeft);
+        for (let index = this.hits.length - 1; index >= 0; index -= 1) {
+          const hit = this.hits[index];
+          if (point.x < hit.x || point.x > hit.x + hit.w || point.y < hit.y || point.y > hit.y + hit.h) continue;
+          selectTrain(hit.item.snapshot);
+          if (event.originalEvent) L.DomEvent.stop(event.originalEvent);
+          break;
+        }
+      },
     });
+    return new TrainCanvasLayer();
+  }
+
+  function getCanvasTrainItems() {
+    return state.markerBindings
+      .filter((binding) => binding?.placement?.latLng)
+      .map((binding) => ({
+        key: binding.snapshot.key,
+        snapshot: binding.snapshot,
+        latLng: binding.placement.latLng,
+        angle: Number(binding.placement.angle) || 0,
+        color: getMapTrainColor(binding.snapshot),
+        label: `${binding.snapshot.trainNo} ${binding.snapshot.type}`.trim(),
+        active: binding.snapshot.key === state.activeKey,
+      }));
+  }
+
+  function refreshTrainCanvas() {
+    state.trainCanvasLayer?.setItems?.(getCanvasTrainItems());
+  }
+
+  function selectTrain(snapshot) {
+    state.activeKey = snapshot.key;
     const placement = getPlacement(snapshot);
-    if (marker && placement?.runtime) {
-      marker.bindPopup(buildPopupHtml(snapshot, placement.runtime), { maxWidth: 280 }).openPopup();
+    const binding = state.markerBindings.find((item) => item.snapshot?.key === snapshot.key);
+    if (binding && placement?.latLng) binding.placement = placement;
+    refreshTrainCanvas();
+    if (state.map && placement?.latLng && placement?.runtime) {
+      state.map.openPopup(buildPopupHtml(snapshot, placement.runtime), placement.latLng, { maxWidth: 280 });
     }
   }
 
   function clearMarkers() {
+    if (state.trainCanvasLayer) {
+      state.trainCanvasLayer.remove();
+      state.trainCanvasLayer = null;
+    }
     state.markers.forEach((marker) => marker.remove());
     state.markers.clear();
     state.markerBindings = [];
@@ -1685,26 +1844,15 @@
   }
 
   function renderMarkers() {
-    const L = state.L || window.L;
     clearMarkers();
     state.lastMarkerUpdateAt = 0;
+    state.trainCanvasLayer = createTrainCanvasLayer().addTo(state.map);
     state.snapshots.forEach((snapshot) => {
       const placement = getPlacement(snapshot);
       if (!placement?.latLng) return;
-      const color = getMapTrainColor(snapshot);
-      const label = `${snapshot.trainNo} ${snapshot.type}`;
-      const icon = L.divIcon({
-        className: "home-live-train-marker",
-        html: `<button type="button" aria-label="${escapeHtml(snapshot.systemLabel)} ${escapeHtml(label)}" style="--train-color:${escapeHtml(color)}"><strong>${escapeHtml(label)}</strong></button>`,
-        iconSize: [1, 1],
-        iconAnchor: [0, 0],
-      });
-      const marker = L.marker(placement.latLng, { icon, zIndexOffset: snapshot.system === "thsr" ? 720 : 650 }).addTo(state.map);
-      marker.on("click", () => selectTrain(snapshot, marker));
-      state.markers.set(snapshot.key, marker);
-      state.markerBindings.push({ marker, snapshot });
-      window.setTimeout(() => updateMarkerVisual(marker, snapshot, placement), 0);
+      state.markerBindings.push({ snapshot, placement });
     });
+    refreshTrainCanvas();
     updateMapDensityClasses();
   }
 
@@ -1886,6 +2034,7 @@
           color,
           weight: system === "thsr" ? 4 : 3,
           opacity: system === "thsr" ? .74 : .66,
+          renderer: state.vectorRenderer,
           interactive: false,
         }).addTo(state.map);
         state.routeLayers.push(layer);
@@ -1909,6 +2058,7 @@
           fillColor: "#fff",
           fillOpacity: .92,
           opacity: isBusy || isSoon || hasAlert ? .95 : .75,
+          renderer: state.vectorRenderer,
           interactive: true,
         }).addTo(state.map);
         layer.on("click", () => openStationPopup(system, station, layer));
@@ -1936,9 +2086,8 @@
       const layerBounds = layer.getBounds?.();
       if (layerBounds?.isValid?.()) bounds.extend(layerBounds);
     });
-    state.markerBindings.forEach(({ marker }) => {
-      const latLng = marker.getLatLng?.();
-      if (latLng) bounds.extend(latLng);
+    state.markerBindings.forEach(({ placement }) => {
+      if (placement?.latLng) bounds.extend(placement.latLng);
     });
     if (state.userLocation?.coords) bounds.extend([state.userLocation.coords.lat, state.userLocation.coords.lon]);
     if (bounds.isValid()) {
@@ -1961,14 +2110,20 @@
     if (!force && now - Number(state.lastMarkerUpdateAt || 0) < getMarkerUpdateInterval()) return;
     state.lastMarkerUpdateAt = now;
     const bounds = !force && state.map?.getBounds?.()?.pad ? state.map.getBounds().pad(0.35) : null;
-    state.markerBindings.forEach(({ marker, snapshot }) => {
+    let changed = false;
+    state.markerBindings.forEach((binding) => {
+      const { snapshot } = binding;
       if (bounds && snapshot.key !== state.activeKey) {
-        const current = marker.getLatLng?.();
+        const current = binding.placement?.latLng;
         if (current && !bounds.contains(current)) return;
       }
       const placement = getPlacement(snapshot);
-      if (placement?.latLng) updateMarkerVisual(marker, snapshot, placement);
+      if (placement?.latLng) {
+        binding.placement = placement;
+        changed = true;
+      }
     });
+    if (changed || force) refreshTrainCanvas();
   }
 
   function startAnimation() {
