@@ -427,10 +427,107 @@
     ).trim();
   }
 
-  function getStation(system, name) {
+  function getDirectStation(system, name) {
     const normalized = normalizeStation(system, name);
     const map = state.stations[system];
     return map.get(normalized) || map.get(String(name || "").trim()) || null;
+  }
+
+  function getSegmentDistanceForStation(system, stations, fromIndex, toIndex) {
+    if (!Array.isArray(stations) || fromIndex === toIndex) return 0;
+    const step = fromIndex < toIndex ? 1 : -1;
+    const network = getRailNetwork();
+    let total = 0;
+    for (let index = fromIndex; index !== toIndex; index += step) {
+      const from = stations[index];
+      const to = stations[index + step];
+      const distance = system === "tr"
+        ? Number(network?.getTraAdjacentDistance?.(from, to))
+        : 1;
+      total += Number.isFinite(distance) && distance > 0 ? distance : 1;
+    }
+    return total;
+  }
+
+  function resolveVirtualStation(system, stationName) {
+    if (system !== "tr") return null;
+    const normalized = normalizeStation(system, stationName);
+    if (!normalized) return null;
+    const segments = getRailNetwork()?.getTraSegments?.() || [];
+    for (const segment of segments) {
+      const stations = Array.isArray(segment?.stations) ? segment.stations : [];
+      const targetIndex = stations.findIndex((name) => normalizeStation(system, name) === normalized);
+      if (targetIndex < 0) continue;
+
+      let previous = null;
+      for (let index = targetIndex - 1; index >= 0; index -= 1) {
+        const geo = getDirectStation(system, stations[index]);
+        if (geo) {
+          previous = { index, geo };
+          break;
+        }
+      }
+
+      let next = null;
+      for (let index = targetIndex + 1; index < stations.length; index += 1) {
+        const geo = getDirectStation(system, stations[index]);
+        if (geo) {
+          next = { index, geo };
+          break;
+        }
+      }
+
+      if (!previous || !next || previous.index === next.index) continue;
+      const totalDistance = getSegmentDistanceForStation(system, stations, previous.index, next.index);
+      const beforeDistance = getSegmentDistanceForStation(system, stations, previous.index, targetIndex);
+      const fallbackRatio = (targetIndex - previous.index) / (next.index - previous.index);
+      const ratio = Number.isFinite(totalDistance) && totalDistance > 0 && Number.isFinite(beforeDistance)
+        ? beforeDistance / totalDistance
+        : fallbackRatio;
+      return {
+        id: `virtual-${normalized}`,
+        name: normalized,
+        normalized,
+        lat: previous.geo.lat + (next.geo.lat - previous.geo.lat) * ratio,
+        lon: previous.geo.lon + (next.geo.lon - previous.geo.lon) * ratio,
+        virtual: true,
+      };
+    }
+    return null;
+  }
+
+  function getStation(system, name) {
+    const normalized = normalizeStation(system, name);
+    const direct = getDirectStation(system, name);
+    if (direct) return direct;
+    const virtual = resolveVirtualStation(system, normalized);
+    if (!virtual) return null;
+    const map = state.stations[system];
+    map.set(normalized, virtual);
+    map.set(virtual.name, virtual);
+    return virtual;
+  }
+
+  function getVisibleStationNames(system) {
+    if (system !== "tr") return null;
+    const network = getRailNetwork();
+    const segments = typeof network?.getTraSegments === "function" ? network.getTraSegments() : [];
+    const names = [];
+    const allowed = new Set();
+    segments.forEach((segment) => {
+      (segment?.stations || []).forEach((stationName) => {
+        const normalized = normalizeStation(system, stationName);
+        if (!normalized || allowed.has(normalized)) return;
+        allowed.add(normalized);
+        names.push(normalized);
+      });
+    });
+    return names.length ? names : null;
+  }
+
+  function getVisibleStationAllowSet(system) {
+    const names = getVisibleStationNames(system);
+    return names?.length ? new Set(names) : null;
   }
 
   async function loadStations(system, token) {
@@ -440,6 +537,14 @@
       : (Array.isArray(data) ? data : (Array.isArray(data?.Stations) ? data.Stations : []));
     const map = new Map();
     const list = [];
+    const listed = new Set();
+    const visibleAllowSet = getVisibleStationAllowSet(system);
+    const pushVisibleStation = (item) => {
+      const key = normalizeStation(system, item?.normalized || item?.name);
+      if (!key || listed.has(key)) return;
+      list.push(item);
+      listed.add(key);
+    };
     rows.forEach((station) => {
       const name = readZh(station?.StationName);
       const lat = Number(station?.StationPosition?.PositionLat);
@@ -453,11 +558,22 @@
         lat,
         lon,
       };
-      list.push(item);
       map.set(normalized, item);
       map.set(name, item);
+      if (system === "tr" || !visibleAllowSet || visibleAllowSet.has(normalized)) pushVisibleStation(item);
     });
     state.stations[system] = map;
+    const visibleNames = getVisibleStationNames(system);
+    if (visibleNames?.length) {
+      visibleNames.forEach((stationName) => {
+        if (map.has(stationName)) return;
+        const item = resolveVirtualStation(system, stationName);
+        if (!item) return;
+        map.set(item.normalized, item);
+        map.set(item.name, item);
+        pushVisibleStation(item);
+      });
+    }
     state.stationLists[system] = list;
   }
 

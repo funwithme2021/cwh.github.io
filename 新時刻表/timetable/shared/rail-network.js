@@ -69,9 +69,9 @@
         {
           id: "south-link",
           title: "南迴線",
-          subtitle: "臺東 - 枋寮",
-          stations: ["臺東", "康樂", "知本", "太麻里", "金崙", "瀧溪", "大武", "古莊", "枋山", "內獅", "加祿", "枋寮"],
-          includeAny: ["康樂", "知本", "太麻里", "金崙", "瀧溪", "大武", "古莊", "枋山", "內獅", "加祿"],
+          subtitle: "枋寮 - 臺東",
+          stations: ["枋寮", "加祿", "內獅", "枋山", "古莊", "大武", "瀧溪", "金崙", "太麻里", "知本", "康樂", "臺東"],
+          includeAny: ["加祿", "內獅", "枋山", "古莊", "大武", "瀧溪", "金崙", "太麻里", "知本", "康樂"],
         },
       ],
     },
@@ -264,7 +264,7 @@
     {
       id: "south-link",
       stations: [
-        ["枋寮", 0.0], ["加祿", 5.3], ["內獅", 8.8], ["枋山", 13.6], ["大武", 43.8], ["瀧溪", 55.5],
+        ["枋寮", 0.0], ["加祿", 5.3], ["內獅", 8.8], ["枋山", 13.6], ["古莊", 28.7], ["大武", 43.8], ["瀧溪", 55.5],
         ["金崙", 63.9], ["太麻里", 74.8], ["知本", 86.5], ["康樂", 93.6], ["臺東", 98.1],
       ],
     },
@@ -360,6 +360,58 @@
         const nextKm = Number(next[1]);
         if (!Number.isFinite(currentKm) || !Number.isFinite(nextKm)) continue;
         setEdge(current[0], next[0], Math.abs(nextKm - currentKm));
+      }
+    });
+
+    const mileageLineMaps = TRA_CUMULATIVE_MILEAGE_SPECS.map((line) => {
+      const stationMap = new Map();
+      (Array.isArray(line?.stations) ? line.stations : []).forEach((item) => {
+        const name = normalizeTraStation(item?.[0]);
+        const km = Number(item?.[1]);
+        if (name && Number.isFinite(km)) stationMap.set(name, km);
+      });
+      return stationMap;
+    }).filter((stationMap) => stationMap.size);
+
+    const getSpanDistance = (stations, leftIndex, rightIndex) => {
+      const leftName = normalizeTraStation(stations?.[leftIndex]);
+      const rightName = normalizeTraStation(stations?.[rightIndex]);
+      if (!leftName || !rightName || leftName === rightName) return null;
+      for (const stationMap of mileageLineMaps) {
+        const leftKm = Number(stationMap.get(leftName));
+        const rightKm = Number(stationMap.get(rightName));
+        if (Number.isFinite(leftKm) && Number.isFinite(rightKm) && leftKm !== rightKm) {
+          return Math.abs(rightKm - leftKm);
+        }
+      }
+      return null;
+    };
+
+    const setAverageEdgesFromKnownSpan = (stations, missingIndex) => {
+      for (let left = missingIndex; left >= 0; left -= 1) {
+        for (let right = missingIndex + 1; right < stations.length; right += 1) {
+          const steps = right - left;
+          if (steps <= 0) continue;
+          const distance = getSpanDistance(stations, left, right);
+          if (!Number.isFinite(distance) || distance <= 0) continue;
+          const average = distance / steps;
+          for (let index = left; index < right; index += 1) {
+            if (!map.has(makeTraEdgeKey(stations[index], stations[index + 1]))) {
+              setEdge(stations[index], stations[index + 1], average);
+            }
+          }
+          return true;
+        }
+      }
+      return false;
+    };
+
+    getTraSegments().forEach((segment) => {
+      const stations = Array.isArray(segment?.stations) ? segment.stations : [];
+      for (let index = 0; index < stations.length - 1; index += 1) {
+        if (map.has(makeTraEdgeKey(stations[index], stations[index + 1]))) continue;
+        if (setAverageEdgesFromKnownSpan(stations, index)) continue;
+        setEdge(stations[index], stations[index + 1], 5);
       }
     });
     return map;

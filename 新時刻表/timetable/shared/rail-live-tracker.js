@@ -534,7 +534,7 @@
     return normalized;
   }
 
-  function getStationGeo(system, stationName) {
+  function getDirectStationGeo(system, stationName) {
     const normalizedName = normalizeStationForSystem(system, stationName);
     if (!normalizedName) return null;
     const map = window.stationGeoMap || {};
@@ -546,6 +546,71 @@
     const found = list.find((item) => normalizeStationForSystem(system, item?.name) === normalizedName);
     if (!found || !Number.isFinite(Number(found.lat)) || !Number.isFinite(Number(found.lon))) return null;
     return { name: normalizedName, lat: Number(found.lat), lon: Number(found.lon) };
+  }
+
+  function getSegmentDistanceForGeo(system, stations, fromIndex, toIndex) {
+    if (!Array.isArray(stations) || fromIndex === toIndex) return 0;
+    const step = fromIndex < toIndex ? 1 : -1;
+    const network = getRailNetwork();
+    let total = 0;
+    for (let index = fromIndex; index !== toIndex; index += step) {
+      const from = stations[index];
+      const to = stations[index + step];
+      const distance = system === "tr"
+        ? Number(network?.getTraAdjacentDistance?.(from, to))
+        : 1;
+      total += Number.isFinite(distance) && distance > 0 ? distance : 1;
+    }
+    return total;
+  }
+
+  function resolveVirtualStationGeo(system, stationName) {
+    if (system !== "tr") return null;
+    const normalizedName = normalizeStationForSystem(system, stationName);
+    if (!normalizedName) return null;
+    const segments = getRailNetwork()?.getTraSegments?.() || [];
+    for (const segment of segments) {
+      const stations = Array.isArray(segment?.stations) ? segment.stations : [];
+      const targetIndex = stations.findIndex((name) => normalizeStationForSystem(system, name) === normalizedName);
+      if (targetIndex < 0) continue;
+
+      let previous = null;
+      for (let index = targetIndex - 1; index >= 0; index -= 1) {
+        const geo = getDirectStationGeo(system, stations[index]);
+        if (geo) {
+          previous = { index, geo };
+          break;
+        }
+      }
+
+      let next = null;
+      for (let index = targetIndex + 1; index < stations.length; index += 1) {
+        const geo = getDirectStationGeo(system, stations[index]);
+        if (geo) {
+          next = { index, geo };
+          break;
+        }
+      }
+
+      if (!previous || !next || previous.index === next.index) continue;
+      const totalDistance = getSegmentDistanceForGeo(system, stations, previous.index, next.index);
+      const beforeDistance = getSegmentDistanceForGeo(system, stations, previous.index, targetIndex);
+      const fallbackRatio = (targetIndex - previous.index) / (next.index - previous.index);
+      const ratio = Number.isFinite(totalDistance) && totalDistance > 0 && Number.isFinite(beforeDistance)
+        ? beforeDistance / totalDistance
+        : fallbackRatio;
+      return {
+        name: normalizedName,
+        lat: previous.geo.lat + (next.geo.lat - previous.geo.lat) * ratio,
+        lon: previous.geo.lon + (next.geo.lon - previous.geo.lon) * ratio,
+        virtual: true,
+      };
+    }
+    return null;
+  }
+
+  function getStationGeo(system, stationName) {
+    return getDirectStationGeo(system, stationName) || resolveVirtualStationGeo(system, stationName);
   }
 
   function destroyGeoMap(state) {
@@ -581,15 +646,20 @@
 
   function getAllGeoStations(system) {
     const seen = new Map();
+    const addStation = (station, geo) => {
+      const key = normalizeStationForSystem(system, station);
+      if (!key || seen.has(key)) return;
+      const lat = Number(geo?.lat);
+      const lon = Number(geo?.lon);
+      if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
+      seen.set(key, { station: key, lat, lon, virtual: Boolean(geo?.virtual) });
+    };
     getAllGeoSegments(system).forEach((segment) => {
-      (segment.stations || []).forEach((station) => {
-        const geo = getStationGeo(system, station);
-        if (!geo) return;
-        const key = normalizeStationForSystem(system, station);
-        if (!key || seen.has(key)) return;
-        seen.set(key, { station: key, lat: geo.lat, lon: geo.lon });
-      });
+      (segment.stations || []).forEach((station) => addStation(station, getStationGeo(system, station)));
     });
+    if (system === "tr" && Array.isArray(window.stationGeoList)) {
+      window.stationGeoList.forEach((station) => addStation(station?.name, station));
+    }
     return Array.from(seen.values());
   }
 

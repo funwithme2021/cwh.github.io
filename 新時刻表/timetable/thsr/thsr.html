@@ -5006,7 +5006,8 @@
       if(today){ if(i < nextIdx) cls = 'passed'; else if(i === nextIdx) { cls = 'next'; badge = '<span class="badge-next">下一站</span>'; } }
       const arrInfo = (ad.arr && ad.arr !== tm) ? `<span class="st-arr">到 ${ad.arr}</span>` : '';
       const tag = (i===0) ? '起站' : (i===stops.length-1 ? '終點' : '');
-      return `<div class="timeline-item ${cls}"><div class="tl-time">${tm || '--'}</div><div class="tl-marker"><div class="tl-dot"></div><div class="tl-line"></div></div><div class="tl-content"><div class="tl-station"><span>${s[0]}</span>${arrInfo}${badge}</div>${tag ? `<div class="tl-desc">${tag}</div>` : ''}</div></div>`;
+      const transferBadges = window.RailStationContext?.renderTransferBadges?.(s[0] || '', { system: 'thsr' }) || '';
+      return `<div class="timeline-item ${cls}"><div class="tl-time">${tm || '--'}</div><div class="tl-marker"><div class="tl-dot"></div><div class="tl-line"></div></div><div class="tl-content"><div class="tl-station"><span>${s[0]}</span>${transferBadges}${arrInfo}${badge}</div>${tag ? `<div class="tl-desc">${tag}</div>` : ''}</div></div>`;
     }).join('');
     document.getElementById('modalBody').innerHTML = `
       <section class="modal-hero">
@@ -5070,6 +5071,7 @@
           const weatherSlot = row?.station && Number.isFinite(weatherTimeMs)
             ? `<span class="modal-stop-weather-slot" data-stop-weather="1" data-weather-key="${escapeTrainQueryHtml(weatherKey)}" data-weather-station="${escapeTrainQueryHtml(row.station)}" data-weather-time-ms="${Math.round(weatherTimeMs)}" data-weather-passed="${row?.isPassed ? '1' : '0'}"><span class="rail-stop-weather-chip" data-stop-weather-chip hidden></span></span>`
             : '';
+          const transferBadges = window.RailStationContext?.renderTransferBadges?.(row?.station || '', { system: 'thsr' }) || '';
           const weatherNote = row?.station && Number.isFinite(weatherTimeMs)
             ? `<span class="modal-stop-state-text rail-stop-weather-note modal-stop-weather-note" data-stop-weather-note data-weather-key="${escapeTrainQueryHtml(weatherKey)}" data-weather-base-text="${escapeTrainQueryHtml(row?.stateText || '')}">${escapeTrainQueryHtml(row?.stateText || '')}</span>`
             : `<span class="modal-stop-state-text">${escapeTrainQueryHtml(row?.stateText || '')}</span>`;
@@ -5082,7 +5084,7 @@
                 </div>
               </div>
               <div class="modal-stop-station-cell">
-                <div class="modal-stop-station-main"><span>${escapeTrainQueryHtml(row?.station || '--')}</span>${inlineTag ? `<span class="modal-stop-inline-tag">${escapeTrainQueryHtml(inlineTag)}</span>` : ''}${weatherSlot}</div>
+                <div class="modal-stop-station-main"><span>${escapeTrainQueryHtml(row?.station || '--')}</span>${transferBadges}${inlineTag ? `<span class="modal-stop-inline-tag">${escapeTrainQueryHtml(inlineTag)}</span>` : ''}${weatherSlot}</div>
               </div>
               <div class="modal-stop-time-cell">
                 <div class="modal-stop-time-main ${!row?.arrText ? 'modal-stop-time-empty' : ''}">${escapeTrainQueryHtml(row?.arrText || '--')}</div>
@@ -6739,10 +6741,10 @@ async function maybeFallbackTHSRBookingToWeb(options, errorText){
 
 <script charset="UTF-8" src="../shared/rail-assistant-common.js?v=20260319-utf8fix"></script>
 <script charset="UTF-8" src="../shared/rail-page-assistant.js?v=20260412-aiverify1"></script>
-<script charset="UTF-8" src="../shared/rail-network.js?v=20260404-autorefresh1"></script>
+<script charset="UTF-8" src="../shared/rail-network.js?v=20260419-traedge2"></script>
 <script charset="UTF-8" src="../shared/rail-master-table.js?v=20260404-autorefresh2"></script>
 <script charset="UTF-8" src="../shared/rail-operation-diagram.js?v=20260404-autorefresh2"></script>
-<script charset="UTF-8" src="../shared/rail-live-tracker.js?v=20260419-realmap12"></script>
+<script charset="UTF-8" src="../shared/rail-live-tracker.js?v=20260419-realmap14"></script>
 <script charset="UTF-8" src="../shared/rail-usage-footer.js?v=20260326-footer3"></script>
 <script>
 window.addEventListener('load', () => {

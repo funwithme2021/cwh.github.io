@@ -5107,7 +5107,7 @@ function splitArrDep(stopRow){
     // 停駛/截短等優先顯示（比已過站更重要）
     if(raw && /停駛|取消|暫停|終止|運轉整理|截短|折返|部分停駛/i.test(raw)) return raw;
 
-    if(isTraStationPassedByLive(trainNo, originDateStr, stopsArr, passedStationIndex)){
+    if(ctx.ownsLiveInfo && isTraStationPassedByLive(trainNo, originDateStr, stopsArr, passedStationIndex)){
       if(Array.isArray(stopsArr) && passedStationIndex === stopsArr.length - 1) return '已到終點';
       return '已過站';
     }
@@ -7872,6 +7872,7 @@ function renderTransferTable(){
   }
 
   function getTraStationLiveSupplementStatus(trainNo, originDateStr, stationName, arrAbs, depAbs, runtimeCtx, stopsArr, stationIndex){
+    if(runtimeCtx && runtimeCtx.ownsLiveInfo === false) return '';
     const liveMatch = getTraLiveStationMatch(trainNo, originDateStr, stopsArr);
     if(!liveMatch || !liveMatch.isStop) return '';
     if(normalizeTraLinkedStation(stationName) !== liveMatch.station) return '';
@@ -8403,7 +8404,7 @@ function renderTransferTable(){
   const traYilanLineStations = ['八堵', '暖暖', '四腳亭', '瑞芳', '猴硐', '三貂嶺', '牡丹', '雙溪', '貢寮', '福隆', '石城', '大里', '大溪', '龜山', '外澳', '頭城', '頂埔', '礁溪', '四城', '宜蘭', '二結', '中里', '羅東', '冬山', '新馬', '蘇澳新', '蘇澳'];
   const traNorthLinkStations = ['蘇澳新', '永樂', '東澳', '南澳', '武塔', '漢本', '和平', '和仁', '崇德', '新城', '景美', '北埔', '花蓮'];
   const traTaitungLineStations = ['花蓮', '吉安', '志學', '平和', '壽豐', '豐田', '林榮新光', '南平', '鳳林', '萬榮', '光復', '大富', '富源', '瑞穗', '三民', '玉里', '東里', '東竹', '富里', '池上', '海端', '關山', '瑞和', '瑞源', '鹿野', '山里', '臺東'];
-  const traSouthLinkStations = ['臺東', '康樂', '知本', '太麻里', '金崙', '瀧溪', '大武', '古莊', '枋山', '內獅', '加祿', '枋寮'];
+  const traSouthLinkStations = ['枋寮', '加祿', '內獅', '枋山', '古莊', '大武', '瀧溪', '金崙', '太麻里', '知本', '康樂', '臺東'];
   const traWestSouthStations = ['枋寮', '東海', '佳冬', '林邊', '鎮安', '南州', '崁頂', '潮州', '竹田', '西勢', '麟洛', '歸來', '屏東', '六塊厝', '九曲堂', '後庄', '鳳山', '高雄', '新左營', '左營'];
   const traSeaLineStations = ['新埔', '白沙屯', '通霄', '苑裡', '日南', '大甲', '台中港', '清水', '沙鹿', '龍井', '大肚'];
   const traMountainLineStations = ['造橋', '豐富', '苗栗', '南勢', '銅鑼', '三義', '泰安', '后里', '豐原', '栗林', '潭子', '頭家厝', '松竹', '太原', '精武'];
@@ -8825,9 +8826,11 @@ function buildTraTrainQueryV2StopRows(trainNo, originDateStr, stops, runtimeCtx,
   const visibleRows = buildTraTimelineRows(stops || [], showPassStops, trainType);
   const runtimeLocationRows = buildTraEffectiveTimelineRows(locationRows, positiveDelay, trainType);
   const runtimeVisibleRows = buildTraEffectiveTimelineRows(visibleRows, positiveDelay, trainType);
-  const liveProgress = getTraLiveTimelineProgress(trainNo, originDateStr, locationRows, visibleRows);
+  const liveProgress = runtimeCtx?.ownsLiveInfo === false
+    ? { station: '', locationRowIndex: -1, locationNextIndex: -1, visibleNextIndex: -1, isStopStation: false }
+    : getTraLiveTimelineProgress(trainNo, originDateStr, locationRows, visibleRows);
   const liveCanAdvanceTimeline = canAdvanceTraTimelineByLive(liveProgress);
-  const trackerSnapshot = getTraTrackerSnapshot(trainNo, originDateStr);
+  const trackerSnapshot = runtimeCtx?.ownsLiveInfo === false ? null : getTraTrackerSnapshot(trainNo, originDateStr);
   const originRuntimeRow = runtimeLocationRows.find((row)=>row?.kind === 'origin') || runtimeLocationRows[0] || null;
   const originStationName = originRuntimeRow?.station || firstStop?.[0] || trackerSnapshot?.currentFrom || '--';
   const originEffectiveDepartureAbs =
@@ -9031,7 +9034,7 @@ function buildTraTrainQueryV2StopRows(trainNo, originDateStr, stops, runtimeCtx,
       ? (
           effectiveTrackerSnapshot.state === 'arrived'
             ? (row.kind === 'terminal' ? true : index < runtimeVisibleRows.length)
-            : (Number.isInteger(trackerBoundaryIndex) && trackerBoundaryIndex >= 0 ? index < trackerBoundaryIndex : (ended || livePassedHere || scheduledPassed))
+            : (Number.isInteger(trackerBoundaryIndex) && trackerBoundaryIndex >= 0 ? (index < trackerBoundaryIndex || scheduledPassed) : (ended || livePassedHere || scheduledPassed))
         )
       : (ended || livePassedHere || scheduledPassed);
     const arrivalAbsRaw =
@@ -9188,10 +9191,61 @@ function buildTraTrainQueryV2StopRows(trainNo, originDateStr, stops, runtimeCtx,
   return { stopRows, currentLocation, nextHint };
 }
 
+function resolveTraTrainQueryScheduleInstance(trainNo){
+  const no = String(trainNo || '').trim();
+  if(!no) return null;
+  const candidates = (scheduleKeyList || [])
+    .filter((item)=>String(item?.trainNo || '').trim() === no && item?.data)
+    .map((item)=>{
+      const stops = item.data?.['車站時間'] || [];
+      const firstStop = stops[0] || [];
+      const lastStop = stops[stops.length - 1] || [];
+      const firstTimeStr = (firstStop?.[2] || firstStop?.[1] || '');
+      const lastTimeStr = (lastStop?.[1] || lastStop?.[2] || '');
+      const runtime = getTrainDetailRuntimeContext(no, item.originDate, firstTimeStr, lastTimeStr);
+      return { ...item, runtime };
+    });
+  if(!candidates.length) return null;
+
+  const preferredOriginDate = String(currentQueryDateStr || '').trim();
+  const todayStr = fmtDate(new Date());
+  const yestStr = addDays(todayStr, -1);
+  const exact = candidates.find((item)=>String(item.originDate || '') === preferredOriginDate) || null;
+  const isActuallyRunning = (item)=>{
+    const ctx = item?.runtime || {};
+    return (
+      ctx.isActiveWindow &&
+      Number.isFinite(ctx.nowAbs) &&
+      Number.isFinite(ctx.firstAbsEff) &&
+      Number.isFinite(ctx.lastAbsEff) &&
+      ctx.nowAbs >= ctx.firstAbsEff &&
+      ctx.nowAbs <= (ctx.lastAbsEff + 10)
+    );
+  };
+
+  if(preferredOriginDate === todayStr){
+    const previousCarryover = candidates
+      .filter((item)=>String(item.originDate || '') === yestStr && isActuallyRunning(item))
+      .sort((a,b)=>(Number(b.runtime?.lastAbsEff) || 0) - (Number(a.runtime?.lastAbsEff) || 0))[0] || null;
+    const todayNotStarted =
+      exact &&
+      exact.runtime &&
+      Number.isFinite(exact.runtime.nowAbs) &&
+      Number.isFinite(exact.runtime.firstAbsEff) &&
+      exact.runtime.nowAbs < exact.runtime.firstAbsEff;
+    if(previousCarryover && (!exact || todayNotStarted)) return previousCarryover;
+  }
+
+  if(exact) return exact;
+  return candidates.find(isActuallyRunning) || candidates[0] || null;
+}
+
 function buildTraTrainQueryV2Data(trainNo, options){
   const opts = options || {};
   const showPassStops = !!opts.showPassStops;
-  const t = baseSchedule[trainNo] || null;
+  const resolved = resolveTraTrainQueryScheduleInstance(trainNo);
+  const t = resolved?.data || null;
+  const originDateStr = resolved?.originDate || currentQueryDateStr;
   if(!t) return null;
   const stops = t['車站時間'] || [];
   if(!stops.length) return null;
@@ -9208,7 +9262,7 @@ function buildTraTrainQueryV2Data(trainNo, options){
   const lastHeroAbs = absAD.absArr[stops.length - 1] ?? absAD.absDep[stops.length - 1] ?? null;
   const runtimeCtx = getTrainDetailRuntimeContext(
     trainNo,
-    currentQueryDateStr,
+    originDateStr,
     firstStop?.[2] || firstStop?.[1] || '',
     lastStop?.[1] || lastStop?.[2] || ''
   );
@@ -9216,12 +9270,12 @@ function buildTraTrainQueryV2Data(trainNo, options){
     ? `提早${Math.abs(Number(runtimeCtx.delayMin))}分`
     : getTrainStatusLabel(
         trainNo,
-        currentQueryDateStr,
+        originDateStr,
         firstStop?.[2] || firstStop?.[1] || '',
         lastStop?.[1] || lastStop?.[2] || ''
       );
-  const board = buildTraTrainQueryV2StopRows(trainNo, currentQueryDateStr, stops, runtimeCtx, statusLabel, showPassStops, typeLabel);
-  const progressPercent = getTraTrainQueryProgress(runtimeCtx, currentQueryDateStr);
+  const board = buildTraTrainQueryV2StopRows(trainNo, originDateStr, stops, runtimeCtx, statusLabel, showPassStops, typeLabel);
+  const progressPercent = getTraTrainQueryProgress(runtimeCtx, originDateStr);
   const totalRunMinutes =
     Number.isFinite(runtimeCtx?.firstAbsEff) && Number.isFinite(runtimeCtx?.lastAbsEff)
       ? Math.max(0, runtimeCtx.lastAbsEff - runtimeCtx.firstAbsEff)
@@ -9240,11 +9294,11 @@ function buildTraTrainQueryV2Data(trainNo, options){
     displayTrainHtml: buildTraTrainQueryDisplayHtml(trainNo, typeLabel),
     typeLabel,
     directionLabel,
-    metaHtml: `<span>發車日 ${currentQueryDateStr || '--'}</span>`,
+    metaHtml: `<span>發車日 ${originDateStr || '--'}</span>`,
     statusLabel,
     statusTone: getTrainQueryToneByStatus(statusLabel),
     queryDate: currentQueryDateStr,
-    originDate: currentQueryDateStr,
+    originDate: originDateStr,
     routeLabel: `${displayTraStationName(firstStop[0] || '--')} → ${displayTraStationName(lastStop[0] || '--')}`,
     heroSignals: [
       { label: '目前位置', value: board.currentLocation || '--' },
@@ -9580,6 +9634,7 @@ function filterTrainScheduleByNumberV2(trainNo){
           const weatherSlot = row?.station && Number.isFinite(weatherTimeMs)
             ? `<span class="modal-stop-weather-slot" data-stop-weather="1" data-weather-key="${escapeTrainQueryHtml(weatherKey)}" data-weather-station="${escapeTrainQueryHtml(row.station)}" data-weather-time-ms="${Math.round(weatherTimeMs)}" data-weather-passed="${row?.isPassed ? '1' : '0'}"><span class="rail-stop-weather-chip" data-stop-weather-chip hidden></span></span>`
             : '';
+          const transferBadges = window.RailStationContext?.renderTransferBadges?.(row?.station || '', { system: 'tr' }) || '';
           const weatherNote = row?.station && Number.isFinite(weatherTimeMs)
             ? `<span class="modal-stop-state-text rail-stop-weather-note modal-stop-weather-note" data-stop-weather-note data-weather-key="${escapeTrainQueryHtml(weatherKey)}" data-weather-base-text="${escapeTrainQueryHtml(row?.stateText || '')}">${escapeTrainQueryHtml(row?.stateText || '')}</span>`
             : `<span class="modal-stop-state-text">${escapeTrainQueryHtml(row?.stateText || '')}</span>`;
@@ -9592,7 +9647,7 @@ function filterTrainScheduleByNumberV2(trainNo){
                 </div>
               </div>
               <div class="modal-stop-station-cell">
-                <div class="modal-stop-station-main"><span>${escapeTrainQueryHtml(displayTraStationName(row?.station || '--'))}</span>${inlineTag ? `<span class="modal-stop-inline-tag">${escapeTrainQueryHtml(inlineTag)}</span>` : ''}${weatherSlot}</div>
+                <div class="modal-stop-station-main"><span>${escapeTrainQueryHtml(displayTraStationName(row?.station || '--'))}</span>${transferBadges}${inlineTag ? `<span class="modal-stop-inline-tag">${escapeTrainQueryHtml(inlineTag)}</span>` : ''}${weatherSlot}</div>
               </div>
               <div class="modal-stop-time-cell">
                 <div class="modal-stop-time-main ${(!row?.arrHtml && !row?.arrText) ? 'modal-stop-time-empty' : ''}">${arrHtml}</div>
@@ -9657,7 +9712,9 @@ function filterTrainScheduleByNumberV2(trainNo){
     const visibleTimelineRows = buildTraTimelineRows(arr, showPassStops, trainType);
     const runtimeLocationRows = buildTraEffectiveTimelineRows(locationRows, Math.max(0, delayMin), trainType, { trainNo, originDateStr });
     const runtimeVisibleTimelineRows = buildTraEffectiveTimelineRows(visibleTimelineRows, Math.max(0, delayMin), trainType, { trainNo, originDateStr });
-    const liveProgress = getTraLiveTimelineProgress(trainNo, originDateStr, locationRows, visibleTimelineRows);
+    const liveProgress = runtimeCtx?.ownsLiveInfo === false
+      ? { station: '', locationRowIndex: -1, locationNextIndex: -1, visibleNextIndex: -1, isStopStation: false }
+      : getTraLiveTimelineProgress(trainNo, originDateStr, locationRows, visibleTimelineRows);
     const liveCanAdvanceTimeline = canAdvanceTraTimelineByLive(liveProgress);
     let nextLocationIndex=-1;
     if(canNext){
@@ -9975,6 +10032,7 @@ function filterTrainScheduleByNumberV2(trainNo){
 
       const badgeNext = (canNext && i===nextIndex) ? ` <span class="badge-next">下一站</span>` : '';
       const stationDisplayName = displayTraStationName(s[0]);
+      const transferBadges = window.RailStationContext?.renderTransferBadges?.(s[0] || '', { system: 'tr' }) || '';
       const badgeXfer = (transferStation && sameTraStationName(s[0], transferStation)) ? ` <span class="badge-xfer">轉乘</span>` : '';
       const tag = (i===0) ? '起站' : (i===arr.length-1 ? '終點' : '');
 
@@ -9985,7 +10043,7 @@ function filterTrainScheduleByNumberV2(trainNo){
           <div class="tl-line"></div>
         </div>
         <div class="tl-content">
-          <div class="tl-station"><span>${stationDisplayName}</span>${arrHTML?`<span class="st-arr">${arrHTML}</span>`:""}${badgeXfer}${badgeNext}</div>
+          <div class="tl-station"><span>${stationDisplayName}</span>${transferBadges}${arrHTML?`<span class="st-arr">${arrHTML}</span>`:""}${badgeXfer}${badgeNext}</div>
           ${tag ? `<div class="tl-desc">${tag}</div>` : ''}
         </div>
       `;
@@ -11345,10 +11403,10 @@ document.addEventListener('click', (event) => {
 
 <script charset="UTF-8" src="../shared/rail-assistant-common.js?v=20260319-utf8fix"></script>
   <script charset="UTF-8" src="../shared/rail-page-assistant.js?v=20260412-aiverify1"></script>
-<script charset="UTF-8" src="../shared/rail-network.js?v=20260404-autorefresh1"></script>
+<script charset="UTF-8" src="../shared/rail-network.js?v=20260419-traedge2"></script>
 <script charset="UTF-8" src="../shared/rail-master-table.js?v=20260404-autorefresh2"></script>
 <script charset="UTF-8" src="../shared/rail-operation-diagram.js?v=20260404-autorefresh2"></script>
-  <script charset="UTF-8" src="../shared/rail-live-tracker.js?v=20260419-realmap12"></script>
+  <script charset="UTF-8" src="../shared/rail-live-tracker.js?v=20260419-realmap14"></script>
 <script charset="UTF-8" src="../shared/rail-usage-footer.js?v=20260326-footer3"></script>
 <script>
 window.addEventListener('load', () => {
