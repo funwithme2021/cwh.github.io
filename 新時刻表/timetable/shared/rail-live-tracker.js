@@ -575,6 +575,12 @@
     if (direct && Number.isFinite(Number(direct.lat)) && Number.isFinite(Number(direct.lon))) {
       return { name: normalizedName, lat: Number(direct.lat), lon: Number(direct.lon) };
     }
+    const supplemental = system === "tr"
+      ? getRailNetwork()?.getTraSupplementalStationGeo?.(normalizedName)
+      : null;
+    if (supplemental && Number.isFinite(Number(supplemental.lat)) && Number.isFinite(Number(supplemental.lon))) {
+      return { name: normalizedName, lat: Number(supplemental.lat), lon: Number(supplemental.lon) };
+    }
     const list = Array.isArray(window.stationGeoList) ? window.stationGeoList : [];
     const found = list.find((item) => normalizeStationForSystem(system, item?.name) === normalizedName);
     if (!found || !Number.isFinite(Number(found.lat)) || !Number.isFinite(Number(found.lon))) return null;

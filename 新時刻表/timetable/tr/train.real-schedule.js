@@ -40,6 +40,11 @@ let liveDelayMap = {};
 let stationLiveBoardMap = {};
 window.stationGeoList = [];
 window.stationGeoMap = {};
+const TRA_SUPPLEMENTAL_STATIONS = [
+    { id: '5170', name: '枋野', lat: 22.279722, lon: 120.718611 },
+    { id: '5175', name: '中央號誌', lat: 22.278889, lon: 120.743056 },
+    { id: '5180', name: '古莊', lat: 22.348333, lon: 120.881667 }
+];
 window.TDX_CONFIG = { ...TDX_CONFIG };
 let liveBoardMap = {};
 window.getTraLiveBoardEntry = function(trainNo) {
@@ -107,6 +112,33 @@ function normalizeTraTypeName(typeName) {
     if (/加班/.test(text)) return '加班車';
     if (/自強/.test(text)) return '自強號';
     return text;
+}
+
+function normalizeTraStationName(name) {
+    return String(name || '').trim().replace(/台/g, '臺');
+}
+
+function mergeSupplementalTraStations() {
+    window.stationMap = window.stationMap || {};
+    window.stationGeoList = Array.isArray(window.stationGeoList) ? window.stationGeoList : [];
+    window.stationGeoMap = window.stationGeoMap || {};
+    const geoList = window.stationGeoList;
+    TRA_SUPPLEMENTAL_STATIONS.forEach((station) => {
+        const normalizedName = normalizeTraStationName(station.name);
+        if (!normalizedName || !station.id) return;
+        window.stationMap[station.id] = normalizedName;
+        const existingIndex = geoList.findIndex((item) =>
+            String(item?.id || '').trim() === station.id ||
+            normalizeTraStationName(item?.name) === normalizedName
+        );
+        const nextItem = { id: station.id, name: normalizedName, lat: Number(station.lat), lon: Number(station.lon) };
+        if (existingIndex >= 0) {
+            geoList[existingIndex] = { ...geoList[existingIndex], ...nextItem };
+        } else {
+            geoList.push(nextItem);
+        }
+        window.stationGeoMap[normalizedName] = nextItem;
+    });
 }
 
 // 1. 取得 TDX 存取權杖 (Access Token)
@@ -379,8 +411,11 @@ async function initStationMap() {
                 window.stationGeoMap[normalizedName] = item;
             }
         });
+        mergeSupplementalTraStations();
         stationMap = window.stationMap;
     } catch (error) {
+        mergeSupplementalTraStations();
+        stationMap = window.stationMap;
         console.error("車站資料抓取失敗:", error);
     }
 }

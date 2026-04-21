@@ -8414,8 +8414,8 @@ function renderTransferTable(){
   const traYilanLineStations = ['八堵', '暖暖', '四腳亭', '瑞芳', '猴硐', '三貂嶺', '牡丹', '雙溪', '貢寮', '福隆', '石城', '大里', '大溪', '龜山', '外澳', '頭城', '頂埔', '礁溪', '四城', '宜蘭', '二結', '中里', '羅東', '冬山', '新馬', '蘇澳新', '蘇澳'];
   const traNorthLinkStations = ['蘇澳新', '永樂', '東澳', '南澳', '武塔', '漢本', '和平', '和仁', '崇德', '新城', '景美', '北埔', '花蓮'];
   const traTaitungLineStations = ['花蓮', '吉安', '志學', '平和', '壽豐', '豐田', '林榮新光', '南平', '鳳林', '萬榮', '光復', '大富', '富源', '瑞穗', '三民', '玉里', '東里', '東竹', '富里', '池上', '海端', '關山', '瑞和', '瑞源', '鹿野', '山里', '臺東'];
-  const traSouthLinkStations = ['枋寮', '加祿', '內獅', '枋山', '古莊', '大武', '瀧溪', '金崙', '太麻里', '知本', '康樂', '臺東'];
-  const traWestSouthStations = ['枋寮', '東海', '佳冬', '林邊', '鎮安', '南州', '崁頂', '潮州', '竹田', '西勢', '麟洛', '歸來', '屏東', '六塊厝', '九曲堂', '後庄', '鳳山', '高雄', '新左營', '左營'];
+  const traSouthLinkStations = ['枋寮', '加祿', '內獅', '枋山', '枋野', '中央號誌', '古莊', '大武', '瀧溪', '金崙', '太麻里', '知本', '康樂', '臺東'];
+  const traWestSouthStations = ['枋寮', '東海', '佳冬', '林邊', '鎮安', '南州', '崁頂', '潮州基地', '南方小站', '潮州', '竹田', '西勢', '麟洛', '歸來', '屏東', '六塊厝', '九曲堂', '後庄', '鳳山', '高雄', '新左營', '左營'];
   const traSeaLineStations = ['新埔', '白沙屯', '通霄', '苑裡', '日南', '大甲', '台中港', '清水', '沙鹿', '龍井', '大肚'];
   const traMountainLineStations = ['造橋', '豐富', '苗栗', '南勢', '銅鑼', '三義', '泰安', '后里', '豐原', '栗林', '潭子', '頭家厝', '松竹', '太原', '精武'];
   const traWestBranchBoundaryStations = ['竹南', '彰化'];
@@ -10368,7 +10368,7 @@ function fillTraStationInputs(rawStation, options = {}) {
 function getTraStationGeoItem(rawStation) {
     const station = normalizeTraLinkedStation(rawStation);
     if (!station) return null;
-    return window.stationGeoMap?.[station] || null;
+    return window.stationGeoMap?.[station] || window.RailNetwork?.getTraSupplementalStationGeo?.(station) || null;
 }
 
 function getGeoDistanceKm(lat1, lon1, lat2, lon2) {

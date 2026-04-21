@@ -533,6 +533,14 @@ ${dayNightOrb(56, 30, 16)}
     if (found && Number.isFinite(Number(found.lat)) && Number.isFinite(Number(found.lon))) {
       return { lat: Number(found.lat), lon: Number(found.lon), name: found.name };
     }
+    for (const key of keys) {
+      const item = window.RailNetwork?.getTraSupplementalStationGeo?.(key);
+      const lat = Number(item?.lat);
+      const lon = Number(item?.lon);
+      if (Number.isFinite(lat) && Number.isFinite(lon)) {
+        return { lat, lon, name: item?.name || key };
+      }
+    }
     return null;
   }
 

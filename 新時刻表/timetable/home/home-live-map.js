@@ -481,7 +481,20 @@
   function getDirectStation(system, name) {
     const normalized = normalizeStation(system, name);
     const map = state.stations[system];
-    return map.get(normalized) || map.get(String(name || "").trim()) || null;
+    const direct = map.get(normalized) || map.get(String(name || "").trim()) || null;
+    if (direct) return direct;
+    if (system !== "tr") return null;
+    const supplemental = getRailNetwork()?.getTraSupplementalStationGeo?.(normalized);
+    const lat = Number(supplemental?.lat);
+    const lon = Number(supplemental?.lon);
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+    return {
+      id: String(supplemental?.id || `manual-${normalized}`),
+      name: String(supplemental?.name || normalized),
+      normalized,
+      lat,
+      lon,
+    };
   }
 
   function getSegmentDistanceForStation(system, stations, fromIndex, toIndex) {
@@ -618,7 +631,7 @@
     if (visibleNames?.length) {
       visibleNames.forEach((stationName) => {
         if (map.has(stationName)) return;
-        const item = resolveVirtualStation(system, stationName);
+        const item = getDirectStation(system, stationName) || resolveVirtualStation(system, stationName);
         if (!item) return;
         map.set(item.normalized, item);
         map.set(item.name, item);

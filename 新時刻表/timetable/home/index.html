@@ -6489,6 +6489,35 @@ select.setting-input[id*="pick"] {
         function normalizeHomeDisplayText(str) {
             return String(str || '').trim().replace(/臺/g, '台');
         }
+        const HOME_TRA_SUPPLEMENTAL_STATIONS = [
+            { id: '5170', name: '枋野', lat: 22.279722, lon: 120.718611 },
+            { id: '5175', name: '中央號誌', lat: 22.278889, lon: 120.743056 },
+            { id: '5180', name: '古莊', lat: 22.348333, lon: 120.881667 }
+        ];
+        function mergeHomeTraSupplementalStations(list) {
+            const merged = Array.isArray(list) ? list.map(item => ({ ...item })) : [];
+            HOME_TRA_SUPPLEMENTAL_STATIONS.forEach((station) => {
+                const normalizedName = normalizeTRA(station.name || '');
+                const index = merged.findIndex((item) => {
+                    const itemId = String(item?.id || '').trim();
+                    return itemId === station.id || normalizeTRA(item?.name || '') === normalizedName;
+                });
+                const nextItem = { ...station };
+                if (index >= 0) {
+                    merged[index] = {
+                        ...nextItem,
+                        ...merged[index],
+                        id: String(merged[index]?.id || '').trim() || nextItem.id,
+                        name: merged[index]?.name || nextItem.name,
+                        lat: merged[index]?.lat ?? nextItem.lat,
+                        lon: merged[index]?.lon ?? nextItem.lon
+                    };
+                } else {
+                    merged.push(nextItem);
+                }
+            });
+            return merged;
+        }
         function formatHomeStationOption(item, sys) {
             if (!item || typeof item !== 'object') return '';
             const name = normalizeHomeDisplayText(sys === 'thsr' ? normalizeTHSR(item.name || '') : normalizeTRA(item.name || ''));
@@ -6766,7 +6795,11 @@ select.setting-input[id*="pick"] {
         }
         function applyStationData(data) {
             if (!data || !Array.isArray(data.tr) || !Array.isArray(data.thsr)) return;
-            stationDB = data;
+            stationDB = {
+                ...data,
+                tr: mergeHomeTraSupplementalStations(data.tr),
+                thsr: Array.isArray(data.thsr) ? data.thsr.map(item => ({ ...item })) : []
+            };
             populateDatalist('traStationList', stationDB.tr.map(s => formatHomeStationOption(s, 'tr')));
             populateDatalist('thsrStationList', stationDB.thsr.map(s => formatHomeStationOption(s, 'thsr')));
             if (document.getElementById('trGeoBtn')?.querySelector('span')) {
