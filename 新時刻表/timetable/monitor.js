@@ -36,10 +36,10 @@
   // icon is in /timetable/home/
   const ICON_PATH = isHomePage ? './icon-192.png' : '../home/icon-192.png';
   const PAGE_URL = isHomePage
-    ? new URL('./index.html', location.href).href
+    ? new URL('./home.html', location.href).href
     : (isTrPage
         ? new URL('./tr.html', location.href).href
-        : (isThsrPage ? new URL('./thsr.html', location.href).href : new URL('./home/index.html', location.href).href));
+        : (isThsrPage ? new URL('./thsr.html', location.href).href : new URL('./home/home.html', location.href).href));
 
   // ===== Utils =====
   const pad2 = (n) => String(n).padStart(2, '0');

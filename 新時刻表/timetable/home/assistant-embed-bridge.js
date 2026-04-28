@@ -218,7 +218,7 @@
       link.addEventListener("click", (event) => {
         const href = String(link.getAttribute("href") || "");
         if (!href) return;
-        if (href.includes("./index.html")) {
+        if (href.includes("./home.html") || href.includes("./index.html")) {
           event.preventDefault();
           try {
             window.parent.postMessage("APP_CLOSE", "*");

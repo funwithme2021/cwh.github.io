@@ -8,7 +8,7 @@ self.addEventListener('activate', e => {
 
 self.addEventListener('notificationclick', event => {
   event.notification.close();
-  const url = (event.notification && event.notification.data && event.notification.data.url) || './home/index.html';
+  const url = (event.notification && event.notification.data && event.notification.data.url) || './home/home.html';
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true })
       .then(clients => {

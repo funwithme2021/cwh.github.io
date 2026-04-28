@@ -2708,7 +2708,7 @@
     <div class="logo">THSR <span>Real-time</span></div>
 
     <div class="date-picker">
-      <button class="btn-ghost home-btn" onclick="window.location.href='../home/index.html'" style="margin-right:8px;" title="回首頁"><span class="ico">🏠</span><span class="txt">首頁</span></button>
+      <button class="btn-ghost home-btn" onclick="window.location.href='../home/home.html'" style="margin-right:8px;" title="回首頁"><span class="ico">🏠</span><span class="txt">首頁</span></button>
       
       <span class="hide-mobile" style="font-size: 0.8em; color: var(--text-muted);">選擇查詢日期：</span>
       <input type="date" id="mainQueryDate" class="input-field" style="width: auto; display: inline-block;">
@@ -6734,7 +6734,7 @@ async function maybeFallbackTHSRBookingToWeb(options, errorText){
         try{ parent.postMessage('APP_CLOSE','*'); }catch(_){}
         return;
       }
-      location.href = '../home/index.html';
+      location.href = '../home/home.html';
     });
   })();
 </script>

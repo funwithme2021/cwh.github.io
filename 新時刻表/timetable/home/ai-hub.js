@@ -345,12 +345,12 @@ function initEmbeddedNav() {
       if (!href) return;
       event.preventDefault();
 
-      if (href.includes("./index.html")) {
+      if (href.includes("./home.html") || href.includes("./index.html")) {
         try {
           window.parent.postMessage({ type: "APP_CLOSE" }, "*");
           return;
         } catch (_) {
-          location.href = "./index.html";
+          location.href = "./home.html";
           return;
         }
       }
