@@ -642,7 +642,17 @@
   }
 
   async function handleTraBookingAction(action) {
+    const bookingBase = {
+      trainNo: action.trainNo,
+      startStation: action.start,
+      endStation: action.end,
+      dateStr: action.date,
+    };
     if (pageIsDesktopDevice()) {
+      if (typeof window.startTraWebBookingFlow === "function") {
+        await maybePromise(window.startTraWebBookingFlow(bookingBase, { ticketType: "1", ticketCount: 1 }));
+        return;
+      }
       const seatQty = typeof window.showTraSeatQuantityDialog === "function"
         ? await maybePromise(window.showTraSeatQuantityDialog(1))
         : 1;
@@ -654,10 +664,14 @@
     }
 
     const bookingChoice = typeof window.showTraBookingChoiceDialog === "function"
-      ? await maybePromise(window.showTraBookingChoiceDialog())
+      ? await maybePromise(window.showTraBookingChoiceDialog(bookingBase))
       : "app";
     if (bookingChoice === "cancel") return;
     if (bookingChoice === "web") {
+      if (typeof window.startTraWebBookingFlow === "function") {
+        await maybePromise(window.startTraWebBookingFlow(bookingBase, { ticketType: "1", ticketCount: 1 }));
+        return;
+      }
       const seatQty = typeof window.showTraSeatQuantityDialog === "function"
         ? await maybePromise(window.showTraSeatQuantityDialog(1))
         : 1;

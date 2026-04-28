@@ -2019,82 +2019,155 @@
     return !isTouchMac && !/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua);
   }
 
-  function assistantAskTraBookingChoice() {
-    const answer = window.prompt("臺鐵訂票要開啟 app 還是 web？請輸入 app 或 web", "app");
-    if (answer === null) return "cancel";
-    const value = String(answer || "").trim().toLowerCase();
-    if (!value || value === "app" || value === "a") return "app";
-    if (value === "web" || value === "w") return "web";
-    alert("請輸入 app 或 web");
-    return assistantAskTraBookingChoice();
-  }
+  const ASSISTANT_TRA_WEB_BOOKING_DEFAULTS = Object.freeze({
+    ticketType: "1",
+    ticketCount: 1,
+  });
 
-  function assistantAskTraSeatQuantity(defaultQty = 1) {
-    const answer = window.prompt("請輸入一般座位張數（1-6 張）", String(defaultQty));
-    if (answer === null) return null;
-    const qty = parseInt(String(answer).trim(), 10);
-    if (qty >= 1 && qty <= 6) return qty;
-    alert("張數請輸入 1 到 6");
-    return assistantAskTraSeatQuantity(defaultQty);
-  }
-
-  function assistantFormatTraBookingStationValue(stationName) {
+  function assistantNormalizeTraBookingStationName(stationName) {
     const raw = String(stationName || "").trim();
     if (!raw) return "";
-    const resolvedName = resolveLocalStationName(raw, "tr") || raw;
-    const station = (stationDB.tr || []).find((item) => normalizeLoose(item.name) === normalizeLoose(resolvedName));
-    const displayName = String((station && station.name) || resolvedName);
-    return station && station.id ? `${station.id}-${displayName}` : displayName;
+    return String(resolveLocalStationName(raw, "tr") || raw).replace(/台/g, "臺");
   }
 
-  function assistantOpenTraBookingWeb(trainNo, startStationName, endStationName, dateStr, seatQty = 1) {
-    const startStation = assistantFormatTraBookingStationValue(startStationName);
-    const endStation = assistantFormatTraBookingStationValue(endStationName);
-    const rideDate = String(dateStr || "").trim().replace(/-/g, "/");
-    const trainNoText = String(trainNo || "").trim();
-    const pid = String(localStorage.getItem("tra_booking_pid") || "").trim().toUpperCase().replace(/\s+/g, "");
-    const normalQty = Math.max(1, Math.min(6, parseInt(seatQty, 10) || 1));
-    const form = document.createElement("form");
-    form.method = "POST";
-    form.action = "https://www.railway.gov.tw/tra-tip-web/tip/tip001/tip121/bookingTicket";
-    form.target = "_blank";
-    form.style.display = "none";
+  function assistantNormalizeTraBookingOptions(options) {
+    const raw = (typeof options === "object" && options !== null) ? options : { ticketCount: options };
+    const ticketType = ["1", "2", "3"].includes(String(raw.ticketType || "").trim())
+      ? String(raw.ticketType).trim()
+      : ASSISTANT_TRA_WEB_BOOKING_DEFAULTS.ticketType;
+    const ticketCount = Math.max(1, Math.min(9, parseInt(raw.ticketCount, 10) || ASSISTANT_TRA_WEB_BOOKING_DEFAULTS.ticketCount));
+    return {
+      ticketType,
+      ticketCount,
+      trainNo: raw.trainNo || "",
+      startStation: raw.startStation || raw.start || "",
+      endStation: raw.endStation || raw.end || "",
+      dateStr: raw.dateStr || raw.date || "",
+    };
+  }
 
-    const fields = [
-      ["custIdTypeEnum", "PERSON_ID"],
-      ["pid", pid],
-      ["startStation", startStation],
-      ["endStation", endStation],
-      ["tripType", "ONEWAY"],
-      ["orderType", "BY_TRAIN_NO"],
-      ["normalQty", String(normalQty)],
-      ["wheelChairQty", "0"],
-      ["parentChildQty", "0"],
-      ["ticketOrderParamList[0].tripNo", "TRIP1"],
-      ["ticketOrderParamList[0].rideDate", rideDate],
-      ["ticketOrderParamList[0].startStation", startStation],
-      ["ticketOrderParamList[0].endStation", endStation],
-      ["ticketOrderParamList[0].trainNo", trainNoText],
-      ["ticketOrderParamList[0].trainNoList[0]", trainNoText],
-      ["rideDate1", rideDate],
-      ["trainNo", trainNoText],
-      ["trainNoList1", trainNoText],
-      ["trainNoList2", ""],
-      ["trainNoList3", ""],
-    ];
+  function assistantBuildTraTicketCountOptions(max, selected) {
+    const limit = Math.max(1, Math.min(9, parseInt(max, 10) || 9));
+    const current = Math.max(1, Math.min(limit, parseInt(selected, 10) || 1));
+    let out = "";
+    for (let i = 1; i <= limit; i += 1) {
+      out += `<option value="${i}"${i === current ? " selected" : ""}>${i} 張</option>`;
+    }
+    return out;
+  }
 
-    fields.forEach(([name, value]) => {
-      if (value === null || value === undefined) return;
-      const input = document.createElement("input");
-      input.type = "hidden";
-      input.name = name;
-      input.value = value;
-      form.appendChild(input);
+  function assistantBuildTraBookingContextHtml(config) {
+    const start = escapeHtml(assistantNormalizeTraBookingStationName(config?.startStation || "") || "--");
+    const end = escapeHtml(assistantNormalizeTraBookingStationName(config?.endStation || "") || "--");
+    const date = escapeHtml(String(config?.dateStr || "").trim() || "--");
+    const trainNo = escapeHtml(String(config?.trainNo || "").trim() || "--");
+    return [
+      `<div class="assistant-booking-context-route">${start} <span style="opacity:.4">→</span> ${end}</div>`,
+      `<div class="assistant-booking-context-meta">乘車日期 ${date} · 車次 ${trainNo}</div>`
+    ].join("");
+  }
+
+  function assistantBuildTraBookingHeaders(token) {
+    if (typeof window.buildTdxAuthHeaders === "function") {
+      return window.buildTdxAuthHeaders(token);
+    }
+    const headers = { Accept: "application/json" };
+    if (token) headers.Authorization = `Bearer ${token}`;
+    if (window.TDX_CONFIG?.clientId || TDX_CONFIG?.clientId) {
+      headers["x-api-key"] = window.TDX_CONFIG?.clientId || TDX_CONFIG.clientId;
+    }
+    return headers;
+  }
+
+  async function assistantRequestTraBookingApi(apiUrl) {
+    const readErrorText = async (response) => {
+      try {
+        const raw = await response.text();
+        return String(raw || "").trim();
+      } catch (_) {
+        return "";
+      }
+    };
+    const requestOnce = async (forceRefresh = false) => {
+      const token = typeof getAccessToken === "function"
+        ? await getAccessToken(forceRefresh)
+        : await ensureToken();
+      if (!token) return { ok: false, status: 0, errorText: "授權失敗，無法連接 TDX" };
+      const response = await fetchWithTimeout(apiUrl, {
+        method: "GET",
+        headers: assistantBuildTraBookingHeaders(token)
+      }, 8000);
+      return { ok: response.ok, response };
+    };
+
+    let result = await requestOnce(false);
+    if ((result.response?.status === 401 || result.response?.status === 403) && typeof getAccessToken === "function") {
+      result = await requestOnce(true);
+    }
+    if (!result.response) {
+      return { ok: false, status: result.status || 0, errorText: result.errorText || "授權失敗" };
+    }
+    const errorText = result.response.ok ? "" : await readErrorText(result.response);
+    let payload = null;
+    let rawText = "";
+    try {
+      rawText = await result.response.text();
+      payload = rawText ? JSON.parse(rawText) : null;
+    } catch (_) {
+      payload = rawText ? rawText.trim() : null;
+    }
+    return {
+      ok: result.response.ok,
+      status: result.response.status,
+      errorText,
+      payload
+    };
+  }
+
+  async function assistantOpenTraBookingWeb(trainNo, startStationName, endStationName, dateStr, options = 1) {
+    const booking = assistantNormalizeTraBookingOptions(options);
+    const startStation = assistantNormalizeTraBookingStationName(startStationName);
+    const endStation = assistantNormalizeTraBookingStationName(endStationName);
+    const departureDate = String(dateStr || "").trim();
+    const departureNumber = String(trainNo || "").trim();
+    if (!startStation || !endStation || !departureDate || !departureNumber) {
+      alert("缺少台鐵官網訂票所需的起訖站、日期或車次資訊。");
+      return false;
+    }
+
+    const params = new URLSearchParams({
+      start_station: startStation,
+      end_station: endStation,
+      departure_date: departureDate,
+      departure_number: departureNumber,
+      ticket_type: booking.ticketType,
+      ticket_count: String(booking.ticketCount)
     });
+    const apiUrl = `https://tdx.transportdata.tw/api/maas-tra/booking/deeplink/web/tra?${params.toString()}`;
 
-    document.body.appendChild(form);
-    form.submit();
-    form.remove();
+    try {
+      const result = await assistantRequestTraBookingApi(apiUrl);
+      if (!result.ok) {
+        const suffix = result.errorText ? `\n${result.errorText}` : "";
+        alert(`台鐵官網訂票連結取得失敗${result.status ? `（HTTP ${result.status}）` : ""}${suffix}`);
+        return false;
+      }
+      const payload = result.payload;
+      const jumpUrl = typeof payload === "string"
+        ? payload
+        : (payload?.url || payload?.data?.url || payload?.data?.deeplink || payload?.DeepLinkUrl || payload?.link || "");
+      if (!jumpUrl) {
+        console.error("TRA web deeplink payload unexpected:", payload);
+        alert("無法取得台鐵官網訂票連結。");
+        return false;
+      }
+      assistantOpenExternalBookingUrl(jumpUrl);
+      return true;
+    } catch (error) {
+      console.error("TRA assistant web deeplink error:", error);
+      alert("系統發生錯誤，暫時無法開啟台鐵官網訂票。");
+      return false;
+    }
   }
 
   function ensureAssistantTraBookingModals() {
@@ -2114,16 +2187,20 @@
           backdrop-filter: blur(10px);
         }
         .assistant-booking-modal-content {
-          width: min(420px, calc(100vw - 32px));
-          border-radius: 24px;
-          background: linear-gradient(180deg, rgba(15, 23, 42, 0.96), rgba(15, 23, 42, 0.9));
+          width: min(480px, calc(100vw - 32px));
+          border-radius: 28px;
+          background:
+            radial-gradient(circle at top left, rgba(37,99,235,0.18), transparent 34%),
+            linear-gradient(180deg, rgba(15, 23, 42, 0.96), rgba(15, 23, 42, 0.9));
           border: 1px solid rgba(148, 163, 184, 0.18);
           box-shadow: 0 32px 72px rgba(2, 6, 23, 0.42);
           color: #e2e8f0;
           overflow: hidden;
         }
         body.light-mode .assistant-booking-modal-content {
-          background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 252, 0.96));
+          background:
+            radial-gradient(circle at top left, rgba(37,99,235,0.12), transparent 34%),
+            linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 252, 0.96));
           color: #0f172a;
           border-color: rgba(148, 163, 184, 0.22);
           box-shadow: 0 28px 68px rgba(15, 23, 42, 0.16);
@@ -2132,19 +2209,19 @@
           display: flex;
           align-items: flex-start;
           justify-content: space-between;
-          gap: 14px;
-          padding: 22px 24px 0;
+          gap: 16px;
+          padding: 20px 24px 12px;
         }
         .assistant-booking-modal-title-main {
-          font-size: 1.1rem;
+          font-size: 1.12rem;
           font-weight: 800;
           line-height: 1.3;
         }
         .assistant-booking-modal-title-sub {
-          margin-top: 4px;
+          margin-top: 6px;
           color: rgba(226, 232, 240, 0.78);
           font-size: 0.92rem;
-          line-height: 1.5;
+          line-height: 1.55;
         }
         body.light-mode .assistant-booking-modal-title-sub {
           color: rgba(51, 65, 85, 0.8);
@@ -2161,11 +2238,220 @@
           line-height: 1;
         }
         .assistant-booking-modal-body {
-          padding: 20px 24px 24px;
+          padding: 0 24px 22px;
         }
-        .assistant-booking-modal-grid {
+        .assistant-booking-context {
+          display: grid;
+          gap: 4px;
+          padding: 12px 14px;
+          border-radius: 16px;
+          border: 1px solid rgba(148,163,184,0.16);
+          background: linear-gradient(180deg, rgba(15,23,42,0.84), rgba(15,23,42,0.68));
+          box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
+        }
+        body.light-mode .assistant-booking-context {
+          background: linear-gradient(180deg, rgba(255,255,255,0.9), rgba(248,250,252,0.78));
+          box-shadow: inset 0 1px 0 rgba(255,255,255,0.66);
+        }
+        .assistant-booking-context-route {
+          font-size: 1rem;
+          font-weight: 900;
+          line-height: 1.35;
+          color: inherit;
+        }
+        .assistant-booking-context-meta {
+          color: rgba(226, 232, 240, 0.74);
+          font-size: .84rem;
+          font-weight: 700;
+          line-height: 1.5;
+        }
+        body.light-mode .assistant-booking-context-meta {
+          color: rgba(71, 85, 105, 0.88);
+        }
+        .assistant-booking-choice-grid {
           display: grid;
           gap: 12px;
+          margin-top: 16px;
+        }
+        .assistant-booking-choice-action {
+          min-height: 46px;
+          justify-content: center;
+        }
+        .assistant-booking-choice-card {
+          display: grid;
+          gap: 10px;
+          align-content: start;
+          min-height: 176px;
+          padding: 18px;
+          border-radius: 24px;
+          border: 1px solid rgba(148,163,184,0.18);
+          text-align: left;
+          cursor: pointer;
+          transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+        }
+        .assistant-booking-choice-card:hover,
+        .assistant-booking-choice-card:focus-visible {
+          transform: translateY(-2px);
+          outline: none;
+        }
+        .assistant-booking-choice-card.is-app {
+          color: #eff6ff;
+          border-color: rgba(59,130,246,0.16);
+          background:
+            radial-gradient(circle at top right, rgba(255,255,255,0.18), transparent 34%),
+            linear-gradient(145deg, #2563eb, #0f4fcf 62%, #163fa7);
+          box-shadow: 0 20px 40px rgba(37,99,235,0.28);
+        }
+        .assistant-booking-choice-card.is-web {
+          color: inherit;
+          background: linear-gradient(180deg, rgba(15,23,42,0.82), rgba(15,23,42,0.66));
+        }
+        body.light-mode .assistant-booking-choice-card.is-web {
+          background: linear-gradient(180deg, rgba(255,255,255,0.94), rgba(248,250,252,0.86));
+        }
+        .assistant-booking-choice-badge {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          width: fit-content;
+          min-width: 64px;
+          padding: 7px 10px;
+          border-radius: 999px;
+          font-size: .74rem;
+          font-weight: 900;
+          letter-spacing: .12em;
+          text-transform: uppercase;
+        }
+        .assistant-booking-choice-card.is-app .assistant-booking-choice-badge {
+          background: rgba(255,255,255,0.18);
+          color: #dbeafe;
+        }
+        .assistant-booking-choice-card.is-web .assistant-booking-choice-badge {
+          background: rgba(59,130,246,0.16);
+          color: #93c5fd;
+        }
+        body.light-mode .assistant-booking-choice-card.is-web .assistant-booking-choice-badge {
+          background: rgba(37,99,235,0.1);
+          color: #2563eb;
+        }
+        .assistant-booking-choice-card strong {
+          font-size: 1.04rem;
+          font-weight: 900;
+          line-height: 1.35;
+        }
+        .assistant-booking-choice-copy {
+          font-size: .9rem;
+          line-height: 1.55;
+          opacity: .9;
+        }
+        .assistant-booking-choice-note {
+          margin-top: 14px;
+          color: rgba(226, 232, 240, 0.7);
+          font-size: .82rem;
+          line-height: 1.6;
+        }
+        body.light-mode .assistant-booking-choice-note {
+          color: rgba(71, 85, 105, 0.9);
+        }
+        .assistant-booking-web-grid {
+          display: grid;
+          gap: 14px;
+          margin-top: 16px;
+        }
+        .assistant-booking-web-field {
+          display: grid;
+          gap: 8px;
+        }
+        .assistant-booking-web-label {
+          color: inherit;
+          font-size: .95rem;
+          font-weight: 800;
+        }
+        .assistant-booking-type-grid {
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 10px;
+        }
+        .assistant-booking-type-card {
+          display: grid;
+          gap: 8px;
+          min-height: 122px;
+          padding: 14px;
+          border-radius: 20px;
+          border: 1px solid rgba(148,163,184,0.18);
+          background: linear-gradient(180deg, rgba(15,23,42,0.84), rgba(15,23,42,0.7));
+          color: inherit;
+          text-align: left;
+          cursor: pointer;
+          transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease, background .18s ease;
+        }
+        body.light-mode .assistant-booking-type-card {
+          background: linear-gradient(180deg, rgba(255,255,255,0.92), rgba(248,250,252,0.84));
+        }
+        .assistant-booking-type-card:hover,
+        .assistant-booking-type-card:focus-visible {
+          transform: translateY(-1px);
+          outline: none;
+        }
+        .assistant-booking-type-card.is-active {
+          border-color: rgba(59,130,246,0.34);
+          background: linear-gradient(180deg, rgba(30,41,59,0.96), rgba(15,23,42,0.84));
+          box-shadow: 0 18px 34px rgba(37,99,235,0.2);
+        }
+        body.light-mode .assistant-booking-type-card.is-active {
+          background: linear-gradient(180deg, rgba(219,234,254,0.92), rgba(239,246,255,0.82));
+          box-shadow: 0 16px 34px rgba(37,99,235,0.12);
+        }
+        .assistant-booking-type-chip {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          width: fit-content;
+          min-width: 44px;
+          padding: 6px 8px;
+          border-radius: 999px;
+          background: rgba(59,130,246,0.16);
+          color: #93c5fd;
+          font-size: .72rem;
+          font-weight: 900;
+          letter-spacing: .12em;
+          text-transform: uppercase;
+        }
+        body.light-mode .assistant-booking-type-chip {
+          background: rgba(37,99,235,0.1);
+          color: #2563eb;
+        }
+        .assistant-booking-type-title {
+          font-size: .96rem;
+          font-weight: 900;
+          line-height: 1.35;
+        }
+        .assistant-booking-type-desc {
+          color: rgba(226, 232, 240, 0.72);
+          font-size: .8rem;
+          line-height: 1.5;
+        }
+        body.light-mode .assistant-booking-type-desc {
+          color: rgba(71, 85, 105, 0.88);
+        }
+        .assistant-booking-select {
+          width: 100%;
+          border-radius: 14px;
+          border: 1px solid rgba(148, 163, 184, 0.24);
+          background: rgba(15, 23, 42, 0.92);
+          color: inherit;
+          padding: 10px 14px;
+          font-size: 0.95rem;
+          font-weight: 800;
+          outline: none;
+        }
+        body.light-mode .assistant-booking-select {
+          background: #fff;
+          border-color: rgba(148, 163, 184, 0.28);
+        }
+        .assistant-booking-actions {
+          display: grid;
+          gap: 10px;
         }
         .assistant-booking-btn-primary,
         .assistant-booking-btn-ghost {
@@ -2198,26 +2484,44 @@
         .assistant-booking-btn-ghost:hover {
           transform: translateY(-1px);
         }
-        .assistant-booking-field {
-          display: grid;
-          gap: 8px;
-        }
-        .assistant-booking-field span {
-          font-weight: 700;
-        }
-        .assistant-booking-select {
-          width: 100%;
-          border-radius: 12px;
-          border: 1px solid rgba(148, 163, 184, 0.24);
-          background: rgba(15, 23, 42, 0.28);
-          color: inherit;
-          padding: 10px 14px;
-          font-size: 0.95rem;
-          outline: none;
-        }
-        body.light-mode .assistant-booking-select {
-          background: #fff;
-          border-color: rgba(148, 163, 184, 0.28);
+        @media (max-width: 720px) {
+          .assistant-booking-modal {
+            align-items: flex-end;
+            padding: 0;
+          }
+          .assistant-booking-modal-content {
+            width: 100%;
+            max-width: none;
+            border-radius: 28px 28px 0 0;
+            max-height: min(88vh, 760px);
+          }
+          .assistant-booking-modal-header {
+            position: relative;
+            padding: 24px 18px 12px;
+          }
+          .assistant-booking-modal-header::before {
+            content: "";
+            position: absolute;
+            top: 10px;
+            left: 50%;
+            width: 44px;
+            height: 4px;
+            border-radius: 999px;
+            transform: translateX(-50%);
+            background: rgba(148,163,184,0.38);
+          }
+          .assistant-booking-modal-body {
+            padding: 0 18px 18px;
+          }
+          .assistant-booking-actions {
+            position: sticky;
+            bottom: 0;
+            padding-top: 6px;
+            background: linear-gradient(180deg, rgba(15,23,42,0), rgba(15,23,42,0.92) 30%, rgba(15,23,42,0.98));
+          }
+          body.light-mode .assistant-booking-actions {
+            background: linear-gradient(180deg, rgba(248,250,252,0), rgba(248,250,252,0.92) 30%, rgba(248,250,252,0.98));
+          }
         }
       `;
       document.head.appendChild(style);
@@ -2235,14 +2539,15 @@
           <div class="assistant-booking-modal-header">
             <div>
               <div class="assistant-booking-modal-title-main">選擇訂票方式</div>
-              <div class="assistant-booking-modal-title-sub">你可以直接打開臺鐵 e 訂通 App，或改用網頁版訂票。</div>
+              <div class="assistant-booking-modal-title-sub">行動版可直接打開「台鐵 e 訂通」App，也可以改走台鐵官網訂票。</div>
             </div>
             <button class="assistant-booking-close" id="assistantBookingChoiceClose" type="button" aria-label="關閉">×</button>
           </div>
           <div class="assistant-booking-modal-body">
-            <div class="assistant-booking-modal-grid">
-              <button class="assistant-booking-btn-primary" id="assistantBookingChoiceApp" type="button">打開臺鐵 e 訂通 App</button>
-              <button class="assistant-booking-btn-ghost" id="assistantBookingChoiceWeb" type="button">改用臺鐵網頁訂票</button>
+            <div id="assistantBookingChoiceContext" class="assistant-booking-context"></div>
+            <div class="assistant-booking-choice-grid">
+              <button class="assistant-booking-btn-primary assistant-booking-choice-action" id="assistantBookingChoiceApp" type="button">使用台鐵 e 訂通 App</button>
+              <button class="assistant-booking-btn-ghost assistant-booking-choice-action" id="assistantBookingChoiceWeb" type="button">使用台鐵官網訂票</button>
             </div>
           </div>
         </div>
@@ -2250,36 +2555,39 @@
       document.body.appendChild(modal);
     }
 
-    if (!document.getElementById("assistantBookingSeatModal")) {
+    if (!document.getElementById("assistantBookingWebModal")) {
       const modal = document.createElement("div");
-      modal.id = "assistantBookingSeatModal";
+      modal.id = "assistantBookingWebModal";
       modal.className = "assistant-booking-modal";
       modal.setAttribute("role", "dialog");
       modal.setAttribute("aria-modal", "true");
-      modal.setAttribute("aria-label", "選擇訂票張數");
+      modal.setAttribute("aria-label", "設定臺鐵官網訂票條件");
       modal.innerHTML = `
         <div class="assistant-booking-modal-content">
           <div class="assistant-booking-modal-header">
             <div>
-              <div class="assistant-booking-modal-title-main">選擇一般座位張數</div>
-              <div class="assistant-booking-modal-title-sub">可選 1 到 6 張。確認後會直接帶你前往臺鐵網頁訂票。</div>
+              <div class="assistant-booking-modal-title-main">台鐵官網訂票設定</div>
             </div>
-            <button class="assistant-booking-close" id="assistantBookingSeatClose" type="button" aria-label="關閉">×</button>
+            <button class="assistant-booking-close" id="assistantBookingWebClose" type="button" aria-label="關閉">×</button>
           </div>
           <div class="assistant-booking-modal-body">
-            <div class="assistant-booking-modal-grid">
-              <label class="assistant-booking-field">
-                <span>一般座位張數</span>
-                <select id="assistantBookingSeatQtySelect" class="assistant-booking-select">
-                  <option value="1">1 張</option>
-                  <option value="2">2 張</option>
-                  <option value="3">3 張</option>
-                  <option value="4">4 張</option>
-                  <option value="5">5 張</option>
-                  <option value="6">6 張</option>
+            <div id="assistantBookingWebContext" class="assistant-booking-context"></div>
+            <div class="assistant-booking-web-grid">
+              <label class="assistant-booking-web-field" for="assistantBookingWebTicketType">
+                <span class="assistant-booking-web-label">車票類型</span>
+                <select id="assistantBookingWebTicketType" class="assistant-booking-select" aria-label="車票類型">
+                  <option value="1">一般訂票</option>
+                  <option value="2">騰雲座艙</option>
+                  <option value="3">兩鐵訂票</option>
                 </select>
               </label>
-              <button class="assistant-booking-btn-primary" id="assistantBookingSeatConfirm" type="button">確認並前往訂票</button>
+              <label class="assistant-booking-web-field" for="assistantBookingWebTicketCount">
+                <span class="assistant-booking-web-label">車票張數</span>
+                <select id="assistantBookingWebTicketCount" class="assistant-booking-select" aria-label="車票張數"></select>
+              </label>
+              <div class="assistant-booking-actions">
+                <button class="assistant-booking-btn-primary" id="assistantBookingWebConfirm" type="button">前往台鐵官網訂票</button>
+              </div>
             </div>
           </div>
         </div>
@@ -2288,13 +2596,76 @@
     }
   }
 
-  function assistantAskTraBookingChoice() {
+  function assistantShowTraWebBookingDialog(defaults) {
+    ensureAssistantTraBookingModals();
+    const modal = document.getElementById("assistantBookingWebModal");
+    const closeBtn = document.getElementById("assistantBookingWebClose");
+    const confirmBtn = document.getElementById("assistantBookingWebConfirm");
+    const contextEl = document.getElementById("assistantBookingWebContext");
+    const typeSelect = document.getElementById("assistantBookingWebTicketType");
+    const countSelect = document.getElementById("assistantBookingWebTicketCount");
+    if (!modal || !closeBtn || !confirmBtn || !contextEl || !typeSelect || !countSelect) {
+      return Promise.resolve(null);
+    }
+
+    const config = assistantNormalizeTraBookingOptions(defaults || {});
+    contextEl.innerHTML = assistantBuildTraBookingContextHtml(config);
+    typeSelect.value = config.ticketType;
+    countSelect.innerHTML = assistantBuildTraTicketCountOptions(9, config.ticketCount);
+
+    return new Promise((resolve) => {
+      let settled = false;
+      const finish = (payload) => {
+        if (settled) return;
+        settled = true;
+        modal.style.display = "none";
+        closeBtn.removeEventListener("click", onCancel);
+        confirmBtn.removeEventListener("click", onConfirm);
+        modal.removeEventListener("click", onBackdrop);
+        document.removeEventListener("keydown", onKeydown);
+        resolve(payload);
+      };
+      const onCancel = () => finish(null);
+      const onBackdrop = (event) => { if (event.target === modal) finish(null); };
+      const onKeydown = (event) => { if (event.key === "Escape") finish(null); };
+      const onConfirm = () => {
+        finish({
+          ticketType: String(typeSelect.value || ASSISTANT_TRA_WEB_BOOKING_DEFAULTS.ticketType),
+          ticketCount: Math.max(1, Math.min(9, parseInt(countSelect.value, 10) || 1))
+        });
+      };
+
+      closeBtn.addEventListener("click", onCancel);
+      confirmBtn.addEventListener("click", onConfirm);
+      modal.addEventListener("click", onBackdrop);
+      document.addEventListener("keydown", onKeydown);
+      modal.style.display = "flex";
+      setTimeout(() => { try { typeSelect.focus(); } catch (_) {} }, 0);
+    });
+  }
+
+  async function assistantStartTraWebBookingFlow(baseOptions, dialogDefaults) {
+    const bookingOptions = await assistantShowTraWebBookingDialog({ ...(dialogDefaults || {}), ...(baseOptions || {}) });
+    if (!bookingOptions) return false;
+    return assistantOpenTraBookingWeb(
+      baseOptions?.trainNo,
+      baseOptions?.startStation,
+      baseOptions?.endStation,
+      baseOptions?.dateStr,
+      bookingOptions
+    );
+  }
+
+  function assistantAskTraBookingChoice(context) {
     ensureAssistantTraBookingModals();
     const modal = document.getElementById("assistantBookingChoiceModal");
     const appBtn = document.getElementById("assistantBookingChoiceApp");
     const webBtn = document.getElementById("assistantBookingChoiceWeb");
     const closeBtn = document.getElementById("assistantBookingChoiceClose");
-    if (!modal || !appBtn || !webBtn || !closeBtn) return Promise.resolve("app");
+    const contextEl = document.getElementById("assistantBookingChoiceContext");
+    if (!modal || !appBtn || !webBtn || !closeBtn || !contextEl) return Promise.resolve("app");
+
+    contextEl.innerHTML = assistantBuildTraBookingContextHtml(assistantNormalizeTraBookingOptions(context || {}));
 
     return new Promise((resolve) => {
       let settled = false;
@@ -2321,44 +2692,15 @@
       modal.addEventListener("click", onBackdrop);
       document.addEventListener("keydown", onKeydown);
       modal.style.display = "flex";
+      setTimeout(() => { try { appBtn.focus(); } catch (_) {} }, 0);
     });
   }
 
   function assistantAskTraSeatQuantity(defaultQty = 1) {
-    ensureAssistantTraBookingModals();
-    const modal = document.getElementById("assistantBookingSeatModal");
-    const select = document.getElementById("assistantBookingSeatQtySelect");
-    const confirmBtn = document.getElementById("assistantBookingSeatConfirm");
-    const closeBtn = document.getElementById("assistantBookingSeatClose");
-    if (!modal || !select || !confirmBtn || !closeBtn) {
-      return Promise.resolve(Math.max(1, Math.min(6, parseInt(defaultQty, 10) || 1)));
-    }
-
-    select.value = String(Math.max(1, Math.min(6, parseInt(defaultQty, 10) || 1)));
-    return new Promise((resolve) => {
-      let settled = false;
-      const finish = (qty) => {
-        if (settled) return;
-        settled = true;
-        modal.style.display = "none";
-        confirmBtn.removeEventListener("click", onConfirm);
-        closeBtn.removeEventListener("click", onCancel);
-        modal.removeEventListener("click", onBackdrop);
-        document.removeEventListener("keydown", onKeydown);
-        resolve(qty);
-      };
-      const onConfirm = () => finish(Math.max(1, Math.min(6, parseInt(select.value, 10) || 1)));
-      const onCancel = () => finish(null);
-      const onBackdrop = (event) => { if (event.target === modal) finish(null); };
-      const onKeydown = (event) => { if (event.key === "Escape") finish(null); };
-
-      confirmBtn.addEventListener("click", onConfirm);
-      closeBtn.addEventListener("click", onCancel);
-      modal.addEventListener("click", onBackdrop);
-      document.addEventListener("keydown", onKeydown);
-      modal.style.display = "flex";
-      setTimeout(() => { try { select.focus(); } catch (_) {} }, 0);
-    });
+    return assistantShowTraWebBookingDialog({
+      ticketType: ASSISTANT_TRA_WEB_BOOKING_DEFAULTS.ticketType,
+      ticketCount: defaultQty
+    }).then((payload) => payload ? payload.ticketCount : null);
   }
 
   function assistantOpenExternalBookingUrl(jumpUrl) {
@@ -2396,43 +2738,67 @@
     return true;
   }
 
+  function assistantShouldUseTraWebFallbackForBookingError(statusCode, errorText) {
+    const text = String(errorText || "").trim();
+    if (statusCode === 401 || statusCode === 403) return true;
+    return /Missing required realm role|required scope\/role|Access key not found/i.test(text);
+  }
+
+  async function assistantMaybeFallbackTraBookingToWeb(baseOptions, errorText) {
+    const msg = [
+      "台鐵 App 訂票連結目前無法取得。",
+      errorText ? `TDX 回應：${errorText}` : "TDX 目前拒絕這筆 App deeplink 請求。",
+      "是否改用台鐵官網訂票？"
+    ].join("\n");
+    if (!window.confirm(msg)) return false;
+    return assistantStartTraWebBookingFlow(baseOptions, ASSISTANT_TRA_WEB_BOOKING_DEFAULTS);
+  }
+
   async function assistantOpenTraBooking(trainNo, startStationName, endStationName, dateStr) {
+    const bookingBase = {
+      trainNo: String(trainNo || "").trim(),
+      startStation: startStationName || "",
+      endStation: endStationName || "",
+      dateStr: String(dateStr || "").trim()
+    };
+
     if (assistantIsDesktopDevice()) {
-      const seatQty = await assistantAskTraSeatQuantity(1);
-      if (!seatQty) return;
-      assistantOpenTraBookingWeb(trainNo, startStationName, endStationName, dateStr, seatQty);
+      await assistantStartTraWebBookingFlow(bookingBase, ASSISTANT_TRA_WEB_BOOKING_DEFAULTS);
       return;
     }
 
-    const bookingChoice = await assistantAskTraBookingChoice();
+    const bookingChoice = await assistantAskTraBookingChoice(bookingBase);
     if (bookingChoice === "cancel") return;
     if (bookingChoice === "web") {
-      const seatQty = await assistantAskTraSeatQuantity(1);
-      if (!seatQty) return;
-      assistantOpenTraBookingWeb(trainNo, startStationName, endStationName, dateStr, seatQty);
+      await assistantStartTraWebBookingFlow(bookingBase, ASSISTANT_TRA_WEB_BOOKING_DEFAULTS);
       return;
     }
 
     try {
-      const token = await ensureToken();
-      if (!token) {
-        alert("目前無法取得臺鐵訂票連結，請稍後再試。");
+      const start = assistantNormalizeTraBookingStationName(startStationName);
+      const end = assistantNormalizeTraBookingStationName(endStationName);
+      const apiUrl = `https://tdx.transportdata.tw/api/maas-tra/booking/deeplink/direct/tra?start_station=${encodeURIComponent(start)}&end_station=${encodeURIComponent(end)}&train_date=${encodeURIComponent(bookingBase.dateStr)}&train_number=${encodeURIComponent(bookingBase.trainNo)}`;
+      const result = await assistantRequestTraBookingApi(apiUrl);
+      if (!result.ok) {
+        if (assistantShouldUseTraWebFallbackForBookingError(result.status, result.errorText)) {
+          const fallbackUsed = await assistantMaybeFallbackTraBookingToWeb(bookingBase, result.errorText);
+          if (fallbackUsed) return;
+        }
+        const suffix = result.errorText ? `\n${result.errorText}` : "";
+        alert(`台鐵 App 訂票連結取得失敗${result.status ? `（HTTP ${result.status}）` : ""}${suffix}`);
         return;
       }
-      const start = String(startStationName || "").trim();
-      const end = String(endStationName || "").trim();
-      const result = await fetchJsonWithTimeout(
-        `https://tdx.transportdata.tw/api/maas-tra/booking/deeplink/direct/tra?start_station=${encodeURIComponent(start)}&end_station=${encodeURIComponent(end)}&train_date=${encodeURIComponent(dateStr)}&train_number=${encodeURIComponent(String(trainNo))}`,
-        { method: "GET", headers: { Authorization: `Bearer ${token}`, Accept: "application/json" } },
-        8000
-      );
-      const jumpUrl = (result.data && result.data.deeplink) || result.DeepLinkUrl || result.url;
+      const payload = result.payload;
+      const jumpUrl = typeof payload === "string"
+        ? payload
+        : (payload?.data?.deeplink || payload?.DeepLinkUrl || payload?.url || payload?.link || "");
       if (!jumpUrl) {
         alert("目前拿不到臺鐵訂票連結。");
         return;
       }
       assistantOpenExternalBookingUrl(jumpUrl);
-    } catch (_) {
+    } catch (error) {
+      console.error("TRA assistant direct deeplink error:", error);
       alert("臺鐵訂票連結建立失敗，請稍後再試。");
     }
   }
