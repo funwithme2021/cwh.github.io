@@ -229,6 +229,10 @@ function renderMobileRow(row,index,hasMobileVia,hasSeat){
 function resultHtml(result){
   const rows=decorateDurationRows(Array.isArray(result?.rows)?result.rows:[]);
   if(!rows.length) return `<div class="rod2-empty">${esc(result?.emptyMessage||'查無符合條件的班次')}</div>`;
+  if(result?.customHtml!=null){
+    if(typeof result.customHtml==='function') return result.customHtml(rows);
+    return String(result.customHtml);
+  }
   const headings=result?.headings||{};
   const mobileHeadings=result?.mobileHeadings||{};
   const hasDesktopVia=!!headings?.via;

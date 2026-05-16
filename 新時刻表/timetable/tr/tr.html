@@ -1147,6 +1147,14 @@ td{ border-bottom: 1px solid rgba(255,255,255,0.06); }
   .pc-only{display:none !important;}
   .transfer-detail{display:none !important;}
 }
+.transfer-detail-compact{
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+.traq2-transfer-meta-compact{
+  font-size: 0.84rem;
+  font-weight: 700;
+}
 /* 沿途停靠（行動版）：不要底色 */
 .mobile-detail-wrap .stop-item{
   background: transparent !important;
@@ -4368,7 +4376,7 @@ td{ border-bottom: 1px solid rgba(255,255,255,0.06); }
 <script charset="UTF-8" src="./train.real-schedule.js?v=20260419-tdxgate1"></script>
 <script charset="UTF-8" src="../shared/rail-station-query-common.js?v=20260419-common1"></script>
 <script charset="UTF-8" src="../shared/rail-station-timetable-v2.js?v=20260330-stationv2"></script>
-<script charset="UTF-8" src="../shared/rail-stop-weather.js?v=20260419-stopwx11"></script>
+<script charset="UTF-8" src="../shared/rail-stop-weather.js?v=20260504-stopwx12"></script>
 <script charset="UTF-8" src="../shared/rail-station-context.js?v=20260419-context7"></script>
 <script charset="UTF-8" src="../shared/rail-train-query-v2.js?v=20260417-stopwx9"></script>
 <script charset="UTF-8" src="../shared/rail-origin-destination-query-v2.js?v=20260403-odquery2mobilecards10"></script>
@@ -4457,17 +4465,20 @@ let __startEndDelegated = false;
     return fmtDate(dt);
   }
 
-  // ===== 日期：昨天 ~ 未來 60 天（預設今天） =====
+  // ===== 日期：當日起 60 天內（含當日，預設今天） =====
   function initDatePickerWindow(){
     const el = document.getElementById('mainQueryDate');
     if(!el) return;
     const today = new Date();
-    const minD = new Date(today); minD.setDate(minD.getDate()-3);
-    const maxD = new Date(today); maxD.setDate(maxD.getDate()+120);
+    const minD = new Date(today);
+    const maxD = new Date(today); maxD.setDate(maxD.getDate()+59);
     const linkedDate = String(new URLSearchParams(window.location.search).get('date') || '').trim();
-    el.min = fmtDate(minD);
-    el.max = fmtDate(maxD);
-    el.value = /^\d{4}-\d{2}-\d{2}$/.test(linkedDate) ? linkedDate : fmtDate(today);
+    const minStr = fmtDate(minD);
+    const maxStr = fmtDate(maxD);
+    const requested = /^\d{4}-\d{2}-\d{2}$/.test(linkedDate) ? linkedDate : fmtDate(today);
+    el.min = minStr;
+    el.max = maxStr;
+    el.value = requested < minStr ? minStr : requested > maxStr ? maxStr : requested;
     el.addEventListener('change', ()=>{
       refreshData(el.value);
       updateHeroSnapshot();
@@ -4598,6 +4609,43 @@ let __startEndDelegated = false;
     const m = v.match(/^([0-9A-Za-z]+)\s*-\s*/);
     if(m) return m[1];
     return v;
+  }
+
+  function getTraStationSuggestItems(){
+    const seen = new Set();
+    return (stationListSorted || []).map((station) => {
+      const id = String(station?.id || '').trim();
+      const rawName = normTW(station?.name || '');
+      const displayName = displayTraStationName(rawName).trim();
+      const value = id ? `${id}-${displayName}` : displayName;
+      if(!value || seen.has(value)) return null;
+      seen.add(value);
+      return {
+        value,
+        label: value,
+        searchText: [id, rawName, displayName, value].filter(Boolean).join(' ')
+      };
+    }).filter(Boolean);
+  }
+
+  function getTraTrainSuggestItems(){
+    return Object.keys(baseSchedule || {})
+      .sort((a,b)=>String(a).localeCompare(String(b),'en'))
+      .map((trainNo) => {
+        const item = baseSchedule?.[trainNo];
+        const stops = item?.['車站時間'] || [];
+        const first = displayTraStationName(stops?.[0]?.[0] || '');
+        const last = displayTraStationName(stops?.[stops.length - 1]?.[0] || '');
+        const range = (first && last) ? `${first}➝${last}` : '';
+        const type = String(item?.['車種'] || '').trim();
+        const parts = [type, range].filter(Boolean);
+        const value = parts.length ? `${trainNo}-${parts.join('-')}` : String(trainNo);
+        return {
+          value,
+          label: value,
+          searchText: [trainNo, type, first, last, range, value].filter(Boolean).join(' ')
+        };
+      });
   }
 
   // ===== 建 station index =====
@@ -6367,17 +6415,21 @@ function renderHistory(){
       document.getElementById('loading-text').textContent = `正在獲取 ${dateStr} 真實時刻表...`;
     }
 
-    // 先抓當天（發車日 = dateStr）
-    await fetchRealData(dateStr);
-    baseSchedule = (typeof structuredClone==='function') ? structuredClone(window.trainSchedule) : JSON.parse(JSON.stringify(window.trainSchedule||{}));
-
-    // 再抓前一天（發車日 = dateStr-1）
+    const cloneData = (value)=>(typeof structuredClone==='function') ? structuredClone(value) : JSON.parse(JSON.stringify(value||{}));
+    const stationPromise = Object.keys(window.stationMap || {}).length ? Promise.resolve() : initStationMap();
     const prevDate = addDays(dateStr, -1);
-    await fetchRealData(prevDate);
-    prevSchedule = (typeof structuredClone==='function') ? structuredClone(window.trainSchedule) : JSON.parse(JSON.stringify(window.trainSchedule||{}));
+
+    // 平行抓查詢日與前一天，縮短整體等待時間
+    const [baseData, prevData] = await Promise.all([
+      fetchRealData(dateStr),
+      fetchRealData(prevDate)
+    ]);
+    await stationPromise;
+    baseSchedule = cloneData(baseData);
+    prevSchedule = cloneData(prevData);
 
     // 抓完直接還原當天資料，避免同一日期再打一次 TDX。
-    window.trainSchedule = baseSchedule;
+    window.trainSchedule = cloneData(baseSchedule);
 
     // 查今天，或查昨天但列車可能仍在運行時，也要抓即時誤點
     const todayStr = fmtDate(new Date());
@@ -6398,10 +6450,11 @@ function renderHistory(){
     Object.keys(prevSchedule||{}).forEach(trainNo=>{
       const key = `${trainNo}@${prevDate}`;
       originDateByKey[key] = prevDate;
-      scheduleKeyList.push({ key, trainNo, originDate: prevDate, data: prevSchedule[trainNo] });
-    });
-    transferScheduleIndexCache = null;
-    transferDateMinuteBaseCache.clear();
+    scheduleKeyList.push({ key, trainNo, originDate: prevDate, data: prevSchedule[trainNo] });
+  });
+  transferScheduleIndexCache = null;
+  clearTraStartEndSearchCache();
+  transferDateMinuteBaseCache.clear();
 
     fillStationDatalist('');
     fillTrainDatalist('');
@@ -6526,8 +6579,16 @@ function renderHistory(){
 
     autoRefreshInFlight = true;
     try{
-      await refreshData(cur, { silent: true });
-      await window.refreshRailPageAssistant?.({ silent: true });
+      const preserveViewport = window.RailAssistantCommon?.preserveViewport;
+      const runRefresh = async ()=>{
+        await refreshData(cur, { silent: true });
+        await window.refreshRailPageAssistant?.({ silent: true });
+      };
+      if(typeof preserveViewport === 'function'){
+        await preserveViewport(runRefresh);
+      }else{
+        await runRefresh();
+      }
     }catch(error){
       console.warn('台鐵自動更新失敗', error);
     }finally{
@@ -6636,6 +6697,19 @@ function renderHistory(){
   function bindStationInput(inputId){
     const input = document.getElementById(inputId);
     if(!input) return;
+    const helper = window.RailStationQueryCommon;
+    if(helper?.bindSuggestInput){
+      helper.bindSuggestInput(input, {
+        getItems: getTraStationSuggestItems,
+        limit: 50,
+        emptyText: '找不到符合的車站',
+        onBlur: (el) => {
+          const resolved = extractStationNameFromInput(el.value);
+          if(resolved) el.value = resolved;
+        }
+      });
+      return;
+    }
     input.setAttribute('autocomplete', 'off');
     input.addEventListener('focus', ()=> fillStationDatalist(input.value));
     input.addEventListener('input', ()=> fillStationDatalist(input.value));
@@ -6648,6 +6722,19 @@ function renderHistory(){
   function bindTrainInput(inputId){
     const input = document.getElementById(inputId);
     if(!input) return;
+    const helper = window.RailStationQueryCommon;
+    if(helper?.bindSuggestInput){
+      helper.bindSuggestInput(input, {
+        getItems: getTraTrainSuggestItems,
+        limit: 100,
+        emptyText: '找不到符合的車次',
+        onBlur: (el) => {
+          const no = extractTrainNoFromInput(el.value);
+          if(no) el.value = no;
+        }
+      });
+      return;
+    }
 
     let tmr = null;
     let raf = null;
@@ -6685,7 +6772,36 @@ function renderHistory(){
   let currentStartEndList=[];
   let currentTransferList=[];
   let transferScheduleIndexCache = null;
+  let startEndSearchResultCache = new Map();
   const transferDateMinuteBaseCache = new Map();
+
+  function clearTraStartEndSearchCache(){
+    startEndSearchResultCache = new Map();
+  }
+
+  function getTraSelectedTypesCacheKey(selectedTypes){
+    return (selectedTypes || []).map((value)=>String(value || '')).filter(Boolean).sort((a,b)=>a.localeCompare(b,'zh-Hant')).join('|');
+  }
+
+  function getTraStartEndSearchCacheKey(kind, st, ed, selectedTypes){
+    return [
+      String(kind || ''),
+      String(currentQueryDateStr || ''),
+      normTW(st || ''),
+      normTW(ed || ''),
+      getTraSelectedTypesCacheKey(selectedTypes)
+    ].join('||');
+  }
+
+  function cloneTraStartEndRows(rows){
+    return Array.isArray(rows) ? rows.slice() : [];
+  }
+
+  function applyTraStartEndSort(list){
+    if(startEndSortState.key){
+      sortStartEndListInPlace(list, startEndSortState);
+    }
+  }
 
   function runStartEndSearch(){
   return new Promise((resolve)=>{
@@ -6700,24 +6816,41 @@ function renderHistory(){
               resolve(null);
               return;
             }
-        
-            const accept=document.getElementById('acceptTransfers').checked;
-            const h=loadHistory().filter(x=>!(x.s===st && x.e===ed && x.t===accept));
-            h.unshift({s:st,e:ed,t:accept});
-            saveHistory(h);
-            renderHistory();
-        
+
+            const acceptToggle = document.getElementById('acceptTransfers');
+            let accept=!!acceptToggle?.checked;
+
             // 根據目前裝置選擇讀取哪一組 Checkbox
             selectedTrainTypesStartEnd = getSelectedTypesSafe('startend');
-            lastStartEndQuery = { st, ed, accept, selectedTypes: selectedTrainTypesStartEnd.slice() };
-        
+
             if(accept){
               buildTransferList(st, ed);
               renderTransferTable();
             }else{
               buildDirectList(st, ed);
-              renderStartEndTable();
+              if(currentStartEndList.length){
+                renderStartEndTable();
+              }else{
+                accept = true;
+                if(acceptToggle) acceptToggle.checked = true;
+                buildTransferList(st, ed);
+                renderTransferTable();
+              }
             }
+
+            if(startEndQuery2Controller && typeof startEndQuery2Controller.setState === 'function'){
+              const query2State = startEndQuery2Controller.getState?.() || {};
+              if(!!query2State.modeEnabled !== accept){
+                startEndQuery2Controller.setState({ modeEnabled: accept });
+              }
+            }
+
+            const h=loadHistory().filter(x=>!(x.s===st && x.e===ed && x.t===accept));
+            h.unshift({s:st,e:ed,t:accept});
+            saveHistory(h);
+            renderHistory();
+
+            lastStartEndQuery = { st, ed, accept, selectedTypes: selectedTrainTypesStartEnd.slice() };
             resolve({ st, ed, accept, selectedTypes: selectedTrainTypesStartEnd.slice() });
       }catch(error){
         console.error('TRA start/end search failed', error);
@@ -6733,6 +6866,14 @@ function renderHistory(){
 }
 
 function buildDirectList(st, ed){
+    const cacheKey = getTraStartEndSearchCacheKey('direct', st, ed, selectedTrainTypesStartEnd);
+    const cachedRows = startEndSearchResultCache.get(cacheKey);
+    if(Array.isArray(cachedRows)){
+      currentStartEndList = cloneTraStartEndRows(cachedRows);
+      applyTraStartEndSort(currentStartEndList);
+      return currentStartEndList;
+    }
+
     const list = [];
 
     (scheduleKeyList||[]).forEach(inst=>{
@@ -6816,6 +6957,8 @@ const stopsCount = ei - si - 1;
         arrSched,
         depAbs: stAbs,
         arrAbs: edAbs,
+        depGlobal: getTransferGlobalMinute(originDate, stAbs),
+        arrGlobal: getTransferGlobalMinute(originDate, edAbs),
         depHTML: renderTimeWithDelay(num, depSched, currentQueryDateStr, { suppressStrike: status==='已過站' }, stAbs, originDate),
         arrHTML: renderTimeWithDelay(num, arrSched, currentQueryDateStr, { suppressStrike: (status==='已到終點' || status==='已過站') }, edAbs, originDate),
         depSortMin: (status==='已過站' ? (parseTime(depSched) ?? 9999) : (depAdj.adjMin ?? 9999)),
@@ -6830,13 +6973,85 @@ const stopsCount = ei - si - 1;
       });
     });
 
-    // 用「誤點後時間」排序（原規則不變）
-    list.sort((a,b)=>a.depSortMin - b.depSortMin);
-    if(startEndSortState.key){
-      sortStartEndListInPlace(list, startEndSortState);
-    }
-    currentStartEndList = list;
+    const depSortedList = list.sort((a,b)=>(a.depGlobal ?? Infinity) - (b.depGlobal ?? Infinity) || (a.arrGlobal ?? Infinity) - (b.arrGlobal ?? Infinity));
+    startEndSearchResultCache.set(cacheKey, depSortedList.slice());
+    currentStartEndList = depSortedList.slice();
+    applyTraStartEndSort(currentStartEndList);
+    return currentStartEndList;
   }
+
+function getTraDirectPlanKey(row){
+  return [
+    String(row?.n1 || row?.num || row?.trainNumber || ''),
+    String(row?.originDate1 || row?.originDate || ''),
+    String(row?.startStation || ''),
+    String(row?.endStation || ''),
+    String(row?.depSched || ''),
+    String(row?.arrSched || '')
+  ].join('|');
+}
+
+function buildTraTransferDirectPlanFromDirectRow(row){
+  if(!row) return null;
+  return {
+    trainNumber: row.num,
+    n1: row.num,
+    n2: null,
+    originDate1: row.originDate,
+    originDate2: null,
+    type1: row.type,
+    rawType1: row.rawType || '',
+    type2: null,
+    rawType2: '',
+    isDirect: true,
+    startStation: row.startStation,
+    endStation: row.endStation,
+    transferStation: null,
+    transferStations: [],
+    waitMin: null,
+    waitMins: [],
+    originStation: row.startStation,
+    stDepAbs: row.depAbs,
+    arrAbs: row.arrAbs,
+    depGlobal: row.depGlobal,
+    arrGlobal: row.arrGlobal,
+    depSched: row.depSched,
+    depHTML: row.depHTML,
+    arrSched: row.arrSched,
+    arrHTML: row.arrHTML,
+    depSortMin: row.depSortMin,
+    arrSortMin: row.arrSortMin,
+    travelMin: row.travelMin,
+    travel: row.travel,
+    status: row.status,
+    routeText: row.range || `${displayTraStationName(row.startStation)}→${displayTraStationName(row.endStation)}`,
+    transferText: '直達',
+    mobileTransferLine1: '直達',
+    mobileTransferLine2: '不須轉乘',
+    transferCount: 0,
+    minWaitMin: Infinity,
+    legs: [],
+    transfers: []
+  };
+}
+
+function mergeTraDirectPlansIntoTransferList(rows, directRows){
+  const merged = Array.isArray(rows) ? rows.slice() : [];
+  const seen = new Set(
+    merged
+      .filter((row)=>row?.isDirect)
+      .map((row)=>getTraDirectPlanKey(row))
+  );
+  (Array.isArray(directRows) ? directRows : []).forEach((row)=>{
+    const plan = buildTraTransferDirectPlanFromDirectRow(row);
+    if(!plan) return;
+    const key = getTraDirectPlanKey(plan);
+    if(seen.has(key)) return;
+    seen.add(key);
+    merged.push(plan);
+  });
+  return merged;
+}
 
 function getTransferExactKey(station){
   return `e:${normTW(station)}`;
@@ -6919,6 +7134,8 @@ function buildTransferScheduleEntry(inst){
   const meta = stops.map((row, index)=>{
     const ad = splitArrDep(row);
     const station = row?.[0] || '';
+    const arrAbs = abs.absArr[index];
+    const depAbs = abs.absDep[index];
     pushTransferIndex(exactStopMap, getTransferExactKey(station), index);
     pushTransferIndex(displayStopMap, getTransferDisplayKey(station), index);
     return {
@@ -6926,8 +7143,10 @@ function buildTransferScheduleEntry(inst){
       station,
       arr: ad.arr || '',
       dep: ad.dep || '',
-      arrAbs: abs.absArr[index],
-      depAbs: abs.absDep[index],
+      arrAbs,
+      depAbs,
+      arrGlobal: getTransferGlobalMinute(inst?.originDate, arrAbs),
+      depGlobal: getTransferGlobalMinute(inst?.originDate, depAbs ?? arrAbs),
     };
   });
 
@@ -6952,8 +7171,141 @@ function getTransferScheduleIndex(){
   const entries = (scheduleKeyList || [])
     .map(buildTransferScheduleEntry)
     .filter(Boolean);
-  transferScheduleIndexCache = { key, entries };
+  transferScheduleIndexCache = { key, entries, bundleCache: new Map() };
   return transferScheduleIndexCache;
+}
+
+function getTraTransferCandidateBundle(selectedTypes){
+  const index = getTransferScheduleIndex();
+  const typeKey = getTraSelectedTypesCacheKey(selectedTypes);
+  const cacheKey = typeKey || '*';
+  if(index.bundleCache?.has(cacheKey)) return index.bundleCache.get(cacheKey);
+  const selectedSet = new Set((selectedTypes || []).map((value)=>String(value || '')));
+  const candidateEntries = selectedSet.size
+    ? index.entries.filter((entry)=>entry?.data && selectedSet.has(String(entry.type || '')))
+    : index.entries.slice();
+  const bundle = {
+    candidateEntries,
+    boardEvents: buildTraTransferBoardEvents(candidateEntries),
+    reverseCache: new Map()
+  };
+  if(index.bundleCache) index.bundleCache.set(cacheKey, bundle);
+  return bundle;
+}
+
+function createTraReverseReachabilityStore(bundle){
+  let minGlobal = Infinity;
+  let maxGlobal = -Infinity;
+  (bundle?.boardEvents || []).forEach((event)=>{
+    if(Number.isFinite(event?.depGlobal)){
+      minGlobal = Math.min(minGlobal, event.depGlobal);
+      maxGlobal = Math.max(maxGlobal, event.depGlobal);
+    }
+  });
+  (bundle?.candidateEntries || []).forEach((entry)=>{
+    (entry?.meta || []).forEach((stopMeta)=>{
+      if(Number.isFinite(stopMeta?.arrGlobal)){
+        minGlobal = Math.min(minGlobal, stopMeta.arrGlobal);
+        maxGlobal = Math.max(maxGlobal, stopMeta.arrGlobal);
+      }
+      if(Number.isFinite(stopMeta?.depGlobal)){
+        minGlobal = Math.min(minGlobal, stopMeta.depGlobal);
+        maxGlobal = Math.max(maxGlobal, stopMeta.depGlobal);
+      }
+    });
+  });
+  if(!Number.isFinite(minGlobal) || !Number.isFinite(maxGlobal) || maxGlobal < minGlobal){
+    return { baseGlobal: 0, length: 0, byStation: new Map() };
+  }
+  return {
+    baseGlobal: Math.floor(minGlobal),
+    length: Math.max(0, Math.ceil(maxGlobal - minGlobal) + 92),
+    byStation: new Map()
+  };
+}
+
+function getTraReverseReachabilitySlots(store, key, create=false){
+  if(!store?.byStation || !key) return null;
+  let slots = store.byStation.get(key);
+  if(!slots && create && Number.isFinite(store.length) && store.length > 0){
+    slots = new Uint8Array(store.length);
+    store.byStation.set(key, slots);
+  }
+  return slots || null;
+}
+
+function markTraReverseReachableDeparture(store, station, depGlobal){
+  if(!store || !Number.isFinite(depGlobal)) return;
+  const index = Math.round(depGlobal - store.baseGlobal);
+  if(index < 0 || index >= store.length) return;
+  [getTransferExactKey(station), getTransferDisplayKey(station)].forEach((key)=>{
+    const slots = getTraReverseReachabilitySlots(store, key, true);
+    if(slots) slots[index] = 1;
+  });
+}
+
+function hasTraReverseReachableDeparture(store, station, arrGlobal){
+  if(!store || !Number.isFinite(arrGlobal)) return false;
+  const start = Math.max(0, Math.round(arrGlobal - store.baseGlobal + 3));
+  const end = Math.min(store.length - 1, Math.round(arrGlobal - store.baseGlobal + 90));
+  if(end < start) return false;
+  const keys = [getTransferExactKey(station), getTransferDisplayKey(station)];
+  for(let k = 0; k < keys.length; k += 1){
+    const slots = getTraReverseReachabilitySlots(store, keys[k], false);
+    if(!slots) continue;
+    for(let i = start; i <= end; i += 1){
+      if(slots[i]) return true;
+    }
+  }
+  return false;
+}
+
+function canTraReverseStopReachEnd(reverseIndex, station, arrGlobal){
+  if(!reverseIndex) return true;
+  if(sameTraStationName(station, reverseIndex.endStation)) return true;
+  return hasTraReverseReachableDeparture(reverseIndex.store, station, arrGlobal);
+}
+
+function buildTraReverseReachability(bundle, endStation){
+  const cacheKey = normTW(endStation || '');
+  if(bundle?.reverseCache?.has(cacheKey)) return bundle.reverseCache.get(cacheKey);
+
+  const store = createTraReverseReachabilityStore(bundle);
+  const boardReachableKeys = new Set();
+  const groupedEvents = new Map();
+  (bundle?.boardEvents || []).forEach((event)=>{
+    if(!Number.isFinite(event?.depGlobal)) return;
+    if(!groupedEvents.has(event.depGlobal)) groupedEvents.set(event.depGlobal, []);
+    groupedEvents.get(event.depGlobal).push(event);
+  });
+
+  const depBuckets = Array.from(groupedEvents.keys()).sort((a,b)=>b-a);
+  const reverseIndex = { endStation, store, boardReachableKeys };
+  depBuckets.forEach((depGlobal)=>{
+    const events = groupedEvents.get(depGlobal) || [];
+    const reachableEvents = [];
+    events.forEach((event)=>{
+      const meta = event?.entry?.meta || [];
+      let reachable = false;
+      for(let idx = event.boardIdx + 1; idx < meta.length; idx += 1){
+        const stopMeta = meta[idx];
+        const arrGlobal = stopMeta?.arrGlobal ?? stopMeta?.depGlobal;
+        if(!Number.isFinite(arrGlobal)) continue;
+        if(canTraReverseStopReachEnd(reverseIndex, stopMeta.station, arrGlobal)){
+          reachable = true;
+          break;
+        }
+      }
+      if(reachable) reachableEvents.push(event);
+    });
+    reachableEvents.forEach((event)=>{
+      boardReachableKeys.add(`${event.trainKey}|${event.boardIdx}`);
+      markTraReverseReachableDeparture(store, event.boardMeta.station, event.depGlobal);
+    });
+  });
+
+  if(bundle?.reverseCache) bundle.reverseCache.set(cacheKey, reverseIndex);
+  return reverseIndex;
 }
 
 function addSecondLegCandidate(map, key, candidate){
@@ -7013,6 +7365,477 @@ function getSecondLegCandidates(map, station){
     merged.push(candidate);
   });
   return merged;
+}
+
+function isTraLocalOnlySelection(selectedTypes){
+  const list = Array.isArray(selectedTypes) ? selectedTypes.map((type)=>normalizeTraTypeDisplay(type)) : [];
+  return list.length === 1 && list[0] === '區間車';
+}
+
+function isTraLocalTransferType(type){
+  return normalizeTraTypeDisplay(type) === '區間車';
+}
+
+function buildTraTransferBoardEvents(entries){
+  const events = [];
+  (Array.isArray(entries) ? entries : []).forEach((entry)=>{
+    const meta = entry?.meta || [];
+    for(let boardIdx = 0; boardIdx < meta.length - 1; boardIdx += 1){
+      const boardMeta = meta[boardIdx];
+      const depAbs = boardMeta?.depAbs ?? boardMeta?.arrAbs;
+      const depGlobal = getTransferGlobalMinute(entry?.originDate, depAbs);
+      if(depAbs === null || depAbs === undefined || depGlobal === null) continue;
+      events.push({
+        entry,
+        trainKey: entry.key,
+        boardIdx,
+        boardMeta,
+        depAbs,
+        depGlobal,
+        stationKey: getTransferExactKey(boardMeta.station)
+      });
+    }
+  });
+  return events.sort((a,b)=>(a.depGlobal ?? Infinity) - (b.depGlobal ?? Infinity) || String(a.trainKey || '').localeCompare(String(b.trainKey || '')));
+}
+
+function createTraTransferOriginState(startStation){
+  return {
+    kind: 'origin',
+    parent: null,
+    started: false,
+    stationKey: getTransferExactKey(startStation),
+    stationName: startStation,
+    arrivalGlobal: -Infinity,
+    effectiveDepGlobal: null,
+    transferCount: 0,
+    lastTrainKey: ''
+  };
+}
+
+function findLastTraTransferRideState(stateNode){
+  let cursor = stateNode;
+  while(cursor){
+    if(cursor.kind === 'ride' && cursor.leg) return cursor;
+    cursor = cursor.parent;
+  }
+  return null;
+}
+
+function isTraTransferTerminalLeg(leg){
+  const stopCount = Array.isArray(leg?.entry?.stops) ? leg.entry.stops.length : 0;
+  return !!stopCount && Number(leg?.endIdx) >= stopCount - 1;
+}
+
+function getTraTransferRestrictionKey(stateNode, allowLocalOnly){
+  const ride = findLastTraTransferRideState(stateNode);
+  if(!ride?.leg) return 'origin';
+  if(allowLocalOnly) return `free:${ride.lastTrainKey || ''}`;
+  if(isTraLocalTransferType(ride.leg.type) && !isTraTransferTerminalLeg(ride.leg)) return `local-nonterminal:${ride.lastTrainKey || ''}`;
+  return `free:${ride.lastTrainKey || ''}`;
+}
+
+function compareTraTransferDominance(a, b, allowLocalOnly){
+  if(!a || !b) return false;
+  if(String(a.lastTrainKey || '') !== String(b.lastTrainKey || '')) return false;
+  if(getTraTransferRestrictionKey(a, allowLocalOnly) !== getTraTransferRestrictionKey(b, allowLocalOnly)) return false;
+  const dominates =
+    (a.arrivalGlobal ?? Infinity) <= (b.arrivalGlobal ?? Infinity) &&
+    (a.effectiveDepGlobal ?? -Infinity) >= (b.effectiveDepGlobal ?? -Infinity) &&
+    (a.transferCount ?? Infinity) <= (b.transferCount ?? Infinity);
+  const strictlyBetter =
+    (a.arrivalGlobal ?? Infinity) < (b.arrivalGlobal ?? Infinity) ||
+    (a.effectiveDepGlobal ?? -Infinity) > (b.effectiveDepGlobal ?? -Infinity) ||
+    (a.transferCount ?? Infinity) < (b.transferCount ?? Infinity);
+  return dominates && strictlyBetter;
+}
+
+function insertTraTransferState(frontiers, nextState, allowLocalOnly){
+  const key = nextState.stationKey;
+  const list = frontiers.get(key) || [];
+  for(let i = 0; i < list.length; i += 1){
+    if(compareTraTransferDominance(list[i], nextState, allowLocalOnly)) return false;
+  }
+  const filtered = list.filter((item)=>!compareTraTransferDominance(nextState, item, allowLocalOnly));
+  filtered.push(nextState);
+  filtered.sort((a,b)=>(a.arrivalGlobal ?? Infinity) - (b.arrivalGlobal ?? Infinity) || (b.effectiveDepGlobal ?? -Infinity) - (a.effectiveDepGlobal ?? -Infinity) || (a.transferCount ?? Infinity) - (b.transferCount ?? Infinity));
+  frontiers.set(key, filtered);
+  return true;
+}
+
+function buildTraTransferInfo(previousState, event){
+  const previousRide = findLastTraTransferRideState(previousState);
+  if(!previousRide?.leg) return null;
+  const waitMin = Math.round((event.depGlobal ?? 0) - (previousState.arrivalGlobal ?? 0));
+  return {
+    station: event.boardMeta.station,
+    waitMin,
+    arriveAbs: previousRide.leg.arrAbs,
+    departAbs: event.depAbs,
+    arriveGlobal: previousRide.arrivalGlobal,
+    departGlobal: event.depGlobal,
+    arriveSched: previousRide.leg.arrSched,
+    departSched: event.boardMeta.dep || event.boardMeta.arr || '--',
+    fromTrainNo: previousRide.leg.trainNo,
+    toTrainNo: event.entry.trainNo,
+    fromOriginDate: previousRide.leg.originDate,
+    toOriginDate: event.entry.originDate
+  };
+}
+
+function isTraLocalToLocalTransferBlocked(previousRide, event, allowLocalOnly){
+  if(allowLocalOnly) return false;
+  const previousLeg = previousRide?.leg;
+  const nextEntry = event?.entry;
+  if(!previousLeg || !nextEntry) return false;
+  if(!isTraLocalTransferType(previousLeg.type) || !isTraLocalTransferType(nextEntry.type)) return false;
+  return !isTraTransferTerminalLeg(previousLeg);
+}
+
+function compareTraTransferBoardCandidate(a, b){
+  if(!a) return 1;
+  if(!b) return -1;
+  const byDep = (b.effectiveDepGlobal ?? -Infinity) - (a.effectiveDepGlobal ?? -Infinity);
+  if(byDep) return byDep;
+  const byTransfer = (a.transferCount ?? Infinity) - (b.transferCount ?? Infinity);
+  if(byTransfer) return byTransfer;
+  const byArrival = (b.predecessor?.arrivalGlobal ?? -Infinity) - (a.predecessor?.arrivalGlobal ?? -Infinity);
+  if(byArrival) return byArrival;
+  return 0;
+}
+
+function selectTraTransferBoardCandidate(event, startStation, queryDateStr, frontiers, allowLocalOnly){
+  let best = null;
+  if(sameTraStationName(event?.boardMeta?.station, startStation)){
+    const depDateStr = getStopDateStr(event.entry.originDate, event.depAbs);
+    if(depDateStr === queryDateStr){
+      best = {
+        predecessor: createTraTransferOriginState(startStation),
+        effectiveDepGlobal: event.depGlobal,
+        transferCount: 0,
+        transferInfo: null
+      };
+    }
+  }
+
+  const list = frontiers.get(event.stationKey) || [];
+  for(let i = 0; i < list.length; i += 1){
+    const node = list[i];
+    if((node.arrivalGlobal ?? Infinity) > (event.depGlobal ?? -Infinity)) break;
+    if(node.lastTrainKey && node.lastTrainKey === event.trainKey) continue;
+    const previousRide = findLastTraTransferRideState(node);
+    if(isTraLocalToLocalTransferBlocked(previousRide, event, allowLocalOnly)) continue;
+    const transferInfo = buildTraTransferInfo(node, event);
+    if(!transferInfo) continue;
+    if(!Number.isFinite(transferInfo.waitMin) || transferInfo.waitMin < 3 || transferInfo.waitMin > 90) continue;
+    const candidate = {
+      predecessor: node,
+      effectiveDepGlobal: node.effectiveDepGlobal,
+      transferCount: (node.transferCount || 0) + 1,
+      transferInfo
+    };
+    if(compareTraTransferBoardCandidate(candidate, best) < 0) best = candidate;
+  }
+  return best;
+}
+
+function createTraTransferRideState(event, candidate, endIdx){
+  const arriveMeta = event?.entry?.meta?.[endIdx];
+  const arriveAbs = arriveMeta?.arrAbs ?? arriveMeta?.depAbs;
+  const arriveGlobal = arriveMeta?.arrGlobal ?? arriveMeta?.depGlobal;
+  if(arriveAbs === null || arriveAbs === undefined || arriveGlobal === null) return null;
+  if(arriveGlobal <= (event.depGlobal ?? -Infinity)) return null;
+  return {
+    kind: 'ride',
+    parent: candidate.predecessor,
+    started: true,
+    stationKey: getTransferExactKey(arriveMeta.station),
+    stationName: arriveMeta.station,
+    arrivalGlobal: arriveGlobal,
+    effectiveDepGlobal: candidate.effectiveDepGlobal,
+    transferCount: candidate.transferCount,
+    lastTrainKey: event.trainKey,
+    boardingTransfer: candidate.transferInfo,
+    leg: {
+      key: `${event.trainKey}|${event.boardIdx}|${endIdx}`,
+      trainKey: event.trainKey,
+      entry: event.entry,
+      trainNo: String(event.entry.trainNo || ''),
+      type: event.entry.type,
+      rawType: event.entry.rawType || '',
+      originDate: event.entry.originDate,
+      startIdx: event.boardIdx,
+      endIdx,
+      startStation: event.boardMeta.station,
+      endStation: arriveMeta.station,
+      depAbs: event.depAbs,
+      arrAbs: arriveAbs,
+      depGlobal: event.depGlobal,
+      arrGlobal: arriveGlobal,
+      depSched: event.boardMeta.dep || event.boardMeta.arr || '--',
+      arrSched: arriveMeta.arr || arriveMeta.dep || '--'
+    }
+  };
+}
+
+function collectTraTransferStateChain(stateNode){
+  const nodes = [];
+  let cursor = stateNode;
+  while(cursor){
+    nodes.push(cursor);
+    cursor = cursor.parent;
+  }
+  return nodes.reverse();
+}
+
+function buildTraTransferRouteText(startStation, endStation, transfers){
+  const points = [displayTraStationName(startStation)];
+  (Array.isArray(transfers) ? transfers : []).forEach((transfer)=>{
+    if(!transfer?.station) return;
+    points.push(displayTraStationName(transfer.station));
+  });
+  points.push(displayTraStationName(endStation));
+  return points.filter((point, index, arr)=>index === 0 || point !== arr[index - 1]).join(' → ');
+}
+
+function buildTraTransferDesktopText(plan){
+  const stations = (plan?.transferStations || []).map((station)=>displayTraStationName(station));
+  const waits = (plan?.waitMins || []).map((wait)=>`${wait}`);
+  if(!stations.length) return '直達';
+  if(stations.length === 1) return `${stations[0]}轉乘 · 等候 ${waits[0]} 分`;
+  return `${stations.join('/')}轉乘 · ${waits.join(' /')}分`;
+}
+
+function buildTraTransferMobileText(plan){
+  const stations = (plan?.transferStations || []).map((station)=>displayTraStationName(station));
+  const waits = (plan?.waitMins || []).map((wait)=>`${wait}`);
+  if(!stations.length) return { line1: '直達', line2: '不須轉乘' };
+  return {
+    line1: `${stations.join('/')}轉乘`,
+    line2: `等候${waits.join('/')}分`
+  };
+}
+
+function buildTraTransferPlanFromState(finalState, startStation, endStation){
+  if(!finalState?.started || !Number.isFinite(finalState.effectiveDepGlobal)) return null;
+  const chain = collectTraTransferStateChain(finalState);
+  const rideStates = chain.filter((node)=>node?.kind === 'ride' && node.leg);
+  if(!rideStates.length) return null;
+
+  const legs = rideStates.map((node)=>({ ...node.leg }));
+  const transfers = rideStates.slice(1).map((node)=>node.boardingTransfer).filter(Boolean);
+  const firstLeg = legs[0];
+  const lastLeg = legs[legs.length - 1];
+  const travelMin = Math.round((lastLeg.arrGlobal ?? 0) - (finalState.effectiveDepGlobal ?? 0));
+  if(!Number.isFinite(travelMin) || travelMin < 0) return null;
+
+  const status = getTrainStatusLabel(
+    firstLeg.trainNo,
+    firstLeg.originDate,
+    (firstLeg.entry?.stops?.[0]?.[2] || firstLeg.entry?.stops?.[0]?.[1] || ''),
+    (firstLeg.entry?.stops?.slice(-1)?.[0]?.[1] || firstLeg.entry?.stops?.slice(-1)?.[0]?.[2] || ''),
+    firstLeg.depAbs,
+    firstLeg.entry?.stops || [],
+    firstLeg.startIdx
+  );
+  const suppressPassed = (status === '已過站' || status === '已到終點' || status === '已到終點站');
+  const depAdj = getAdjustedTime(firstLeg.trainNo, firstLeg.depSched, currentQueryDateStr, firstLeg.depAbs, firstLeg.originDate);
+  const arrAdj = getAdjustedTime(lastLeg.trainNo, lastLeg.arrSched, currentQueryDateStr, lastLeg.arrAbs, lastLeg.originDate);
+
+  const transferStations = transfers.map((transfer)=>transfer.station);
+  const waitMins = transfers.map((transfer)=>transfer.waitMin);
+  const transferText = buildTraTransferDesktopText({ transferStations, waitMins });
+  const mobileText = buildTraTransferMobileText({ transferStations, waitMins });
+
+  return {
+    trainNumber: legs.map((leg)=>leg.trainNo).join('+'),
+    n1: firstLeg.trainNo,
+    n2: legs[1]?.trainNo || null,
+    originDate1: firstLeg.originDate,
+    originDate2: legs[1]?.originDate || null,
+    type1: firstLeg.type,
+    rawType1: firstLeg.rawType || '',
+    type2: legs[1]?.type || null,
+    rawType2: legs[1]?.rawType || '',
+    isDirect: legs.length === 1,
+    startStation,
+    endStation,
+    transferStation: transferStations[0] || null,
+    transferStations,
+    waitMin: waitMins[0] ?? null,
+    waitMins,
+    originStation: firstLeg.entry?.stops?.[0]?.[0] || '',
+    stDepAbs: firstLeg.depAbs,
+    arrAbs: lastLeg.arrAbs,
+    depGlobal: finalState.effectiveDepGlobal,
+    arrGlobal: lastLeg.arrGlobal,
+    depSched: firstLeg.depSched,
+    depHTML: renderTimeWithDelay(firstLeg.trainNo, firstLeg.depSched, currentQueryDateStr, { suppressStrike: suppressPassed }, firstLeg.depAbs, firstLeg.originDate),
+    arrSched: lastLeg.arrSched,
+    arrHTML: renderTimeWithDelay(lastLeg.trainNo, lastLeg.arrSched, currentQueryDateStr, { suppressStrike: suppressPassed }, lastLeg.arrAbs, lastLeg.originDate),
+    depSortMin: (suppressPassed ? (parseTime(firstLeg.depSched) ?? 9999) : (depAdj.adjMin ?? 9999)),
+    arrSortMin: (suppressPassed ? (parseTime(lastLeg.arrSched) ?? 9999) : (arrAdj.adjMin ?? (parseTime(lastLeg.arrSched) ?? 9999))),
+    travelMin,
+    travel: `${Math.floor(travelMin/60)}h ${travelMin%60}m`,
+    status,
+    routeText: buildTraTransferRouteText(startStation, endStation, transfers),
+    transferText,
+    mobileTransferLine1: mobileText.line1,
+    mobileTransferLine2: mobileText.line2,
+    transferCount: transfers.length,
+    minWaitMin: waitMins.length ? Math.min(...waitMins) : Infinity,
+    legs,
+    transfers
+  };
+}
+
+function compareTraTransferPlan(a, b){
+  const byTravel = (a?.travelMin ?? Infinity) - (b?.travelMin ?? Infinity);
+  if(byTravel) return byTravel;
+  const byTransfer = (a?.transferCount ?? a?.transfers?.length ?? Infinity) - (b?.transferCount ?? b?.transfers?.length ?? Infinity);
+  if(byTransfer) return byTransfer;
+  return (b?.depSortMin ?? -Infinity) - (a?.depSortMin ?? -Infinity);
+}
+
+function getTraStartEndRowDepGlobal(row){
+  if(Number.isFinite(row?.depGlobal)) return row.depGlobal;
+  const originDate = row?.originDate1 || row?.originDate || '';
+  const depAbs = Number.isFinite(row?.stDepAbs) ? row.stDepAbs : row?.depAbs;
+  return getTransferGlobalMinute(originDate, depAbs);
+}
+
+function getTraStartEndRowArrGlobal(row){
+  if(Number.isFinite(row?.arrGlobal)) return row.arrGlobal;
+  const transferLegs = Array.isArray(row?.legs) ? row.legs : [];
+  const lastLeg = transferLegs.length ? transferLegs[transferLegs.length - 1] : null;
+  const originDate = lastLeg?.originDate || row?.originDate2 || row?.originDate1 || row?.originDate || '';
+  return getTransferGlobalMinute(originDate, row?.arrAbs);
+}
+
+function pruneDominatedTraStartEndPlans(rows){
+  const fallbackRows = [];
+  const normalRows = [];
+  (Array.isArray(rows) ? rows : []).forEach((row)=>{
+    if(row?.isTightFallback) fallbackRows.push(row);
+    else normalRows.push(row);
+  });
+
+  const sorted = normalRows.slice().sort((a,b)=>{
+    const depDiff = (getTraStartEndRowDepGlobal(a) ?? Infinity) - (getTraStartEndRowDepGlobal(b) ?? Infinity);
+    if(depDiff) return depDiff;
+    const arrDiff = (getTraStartEndRowArrGlobal(b) ?? -Infinity) - (getTraStartEndRowArrGlobal(a) ?? -Infinity);
+    if(arrDiff) return arrDiff;
+    return ((b?.transferCount ?? b?.transfers?.length ?? Infinity) - (a?.transferCount ?? a?.transfers?.length ?? Infinity));
+  });
+
+  const keptReverse = [];
+  let bestArrival = Infinity;
+  for(let i = sorted.length - 1; i >= 0; i -= 1){
+    const row = sorted[i];
+    const arrivalGlobal = getTraStartEndRowArrGlobal(row);
+    if(Number.isFinite(arrivalGlobal) && arrivalGlobal >= bestArrival) continue;
+    if(Number.isFinite(arrivalGlobal)) bestArrival = arrivalGlobal;
+    keptReverse.push(row);
+  }
+
+  const kept = keptReverse.reverse();
+  const seen = new Set(kept.map((row)=>`${String(row?.trainNumber || row?.num || '')}|${String(row?.originDate1 || row?.originDate || '')}|${String(row?.depSched || '')}|${String(row?.arrSched || '')}|${String(row?.transferStations?.join('/') || row?.transferStation || '')}|${String(row?.waitMins?.join('/') || row?.waitMin || '')}`));
+  fallbackRows.forEach((row)=>{
+    const key = `${String(row?.trainNumber || row?.num || '')}|${String(row?.originDate1 || row?.originDate || '')}|${String(row?.depSched || '')}|${String(row?.arrSched || '')}|${String(row?.transferStations?.join('/') || row?.transferStation || '')}|${String(row?.waitMins?.join('/') || row?.waitMin || '')}`;
+    if(seen.has(key)) return;
+    seen.add(key);
+    kept.push(row);
+  });
+  kept.sort((a,b)=>(getTraStartEndRowDepGlobal(a) ?? Infinity) - (getTraStartEndRowDepGlobal(b) ?? Infinity) || (getTraStartEndRowArrGlobal(a) ?? Infinity) - (getTraStartEndRowArrGlobal(b) ?? Infinity));
+  return kept;
+}
+
+function buildTraTransferReachablePlans(entriesOrBundle, startStation, endStation, allowLocalOnly){
+  const bundle = Array.isArray(entriesOrBundle)
+    ? { candidateEntries: entriesOrBundle, boardEvents: buildTraTransferBoardEvents(entriesOrBundle), reverseCache: new Map() }
+    : (entriesOrBundle || { candidateEntries: [], boardEvents: [] });
+  const reverseIndex = buildTraReverseReachability(bundle, endStation);
+  const events = (Array.isArray(bundle.boardEvents) ? bundle.boardEvents : []).filter((event)=>
+    reverseIndex.boardReachableKeys.has(`${event.trainKey}|${event.boardIdx}`)
+  );
+  const frontiers = new Map();
+  const rawPlans = [];
+  events.forEach((event)=>{
+    const candidate = selectTraTransferBoardCandidate(event, startStation, currentQueryDateStr, frontiers, allowLocalOnly);
+    if(!candidate) return;
+    for(let endIdx = event.boardIdx + 1; endIdx < event.entry.meta.length; endIdx += 1){
+      const arriveMeta = event.entry.meta[endIdx];
+      const arrGlobal = arriveMeta?.arrGlobal ?? arriveMeta?.depGlobal;
+      if(!canTraReverseStopReachEnd(reverseIndex, arriveMeta?.station, arrGlobal)) continue;
+      const rideState = createTraTransferRideState(event, candidate, endIdx);
+      if(!rideState) continue;
+      if(!insertTraTransferState(frontiers, rideState, allowLocalOnly)) continue;
+      if(sameTraStationName(rideState.stationName, endStation)){
+        const plan = buildTraTransferPlanFromState(rideState, startStation, endStation);
+        if(plan) rawPlans.push(plan);
+      }
+    }
+  });
+  return rawPlans;
+}
+
+function buildTraTransferTrainStackHtml(plan, mobileCompact=false){
+  const legs = Array.isArray(plan?.legs) ? plan.legs : [];
+  if(!legs.length) return '';
+  if(mobileCompact){
+    return `<span class="mobile-transfer-trains">${legs.map((leg)=>`<b>${leg.trainNo}</b>`).join('')}</span>`;
+  }
+  return legs.map((leg)=>`<div class="rod2-train-line"><span class="rsv2-train-no">${leg.trainNo}</span><span class="rsv2-train-type">${colorType(leg.type)}</span></div>`).join('');
+}
+
+function buildTraTransferSummaryTrainHtml(plan){
+  const legs = Array.isArray(plan?.legs) ? plan.legs : [];
+  return legs.map((leg)=>`<span class="rsv2-train-no">${leg.trainNo}</span><span class="rsv2-train-type">${colorType(leg.type)}</span>`).join('<span class="rod2-train-sep">→</span>');
+}
+
+function buildTraTransferTypeCellHtml(plan, mobileCompact=false){
+  const legs = Array.isArray(plan?.legs) ? plan.legs : [];
+  return legs.map((leg)=>{
+    const rangeText = `${displayTraStationName(leg.startStation)}➝${displayTraStationName(leg.endStation)}`;
+    if(mobileCompact) return `${colorType(leg.type)}`;
+    return `${colorType(leg.type)}<span class="pc-only train-route">(${rangeText})</span>`;
+  }).join('<br>');
+}
+
+function buildTraTransferColumnHtml(plan){
+  const transfers = Array.isArray(plan?.transfers) ? plan.transfers : [];
+  if(!transfers.length) return `<span style="color:var(--text-muted);">—</span>`;
+  const stationText = (plan.transferStations || []).map((station)=>displayTraStationName(station)).join('/');
+  if(transfers.length === 1){
+    const transfer = transfers[0];
+    return `<div style="font-weight:700">${stationText}</div><div class="train-route transfer-detail">抵達 ${renderTimeWithDelay(transfer.fromTrainNo, transfer.arriveSched, currentQueryDateStr, null, transfer.arriveAbs, transfer.fromOriginDate)} / 發車 ${renderTimeWithDelay(transfer.toTrainNo, transfer.departSched, currentQueryDateStr, null, transfer.departAbs, transfer.toOriginDate)}（等 ${transfer.waitMin} 分）</div>`;
+  }
+  return `<div class="train-route transfer-detail transfer-detail-compact">${stationText}轉乘 · ${(plan.waitMins || []).join(' /')}分</div>`;
+}
+
+function buildTraTransferMobileDetailHtml(plan, idx){
+  const blocks = [];
+  const legs = Array.isArray(plan?.legs) ? plan.legs : [];
+  const transfers = Array.isArray(plan?.transfers) ? plan.transfers : [];
+  legs.forEach((leg, index)=>{
+    blocks.push(`
+      <div class="mblk">
+        <div class="mt">第 ${index + 1} 段</div>
+        <div class="mv"><b>${leg.trainNo}</b>　${colorType(leg.type)}　${displayTraStationName(leg.startStation)} ${renderTimeWithDelay(leg.trainNo, leg.depSched, currentQueryDateStr, null, leg.depAbs, leg.originDate)} → ${displayTraStationName(leg.endStation)} ${renderTimeWithDelay(leg.trainNo, leg.arrSched, currentQueryDateStr, null, leg.arrAbs, leg.originDate)}</div>
+      </div>
+    `);
+    const transfer = transfers[index];
+    if(transfer){
+      blocks.push(`
+        <div class="mblk">
+          <div class="mt">等候</div>
+          <div class="mv">${displayTraStationName(transfer.station)}轉乘 · 等候 ${transfer.waitMin} 分</div>
+        </div>
+      `);
+    }
+  });
+  blocks.push(`<div class="mact"><button class="btn btn-primary btn-transfer-details" data-idx="${idx}">查看轉乘詳細</button></div>`);
+  return blocks.join('');
 }
 
 
@@ -7476,254 +8299,74 @@ function renderTimeWithDelay(trainNo, schedHHMM, queryDateStr, opts, baseAbsMin=
   // ===== 轉乘（中途站：到達/開車分開） =====
   
 function buildTransferList(st, ed){
-  // 轉乘模式：同一個「出發班次 n1」只保留「耗時最短」的一個方案（可能是直達，也可能是轉乘）
-  // 顯示日期判斷：以「出發站 st 的時刻」落在哪一天為準（比照高鐵版）
-  const index = getTransferScheduleIndex();
-  const selectedTypes = new Set((selectedTrainTypesStartEnd || []).map((value)=>String(value || '')));
-  // 先依車種縮小候選池，再建立「轉乘站 -> 第二段候選」索引，避免 n1*n2 全表掃描。
-  const candidateEntries = selectedTypes.size
-    ? index.entries.filter((entry)=>entry?.data && selectedTypes.has(String(entry.type || '')))
-    : index.entries.slice();
-  const selectedKey = selectedTypes.size ? Array.from(selectedTypes).sort().join('|') : '*';
-  const secondLegCacheKey = `${selectedKey}|${normTW(ed)}|${displayTraStationName(ed)}`;
-  if(!index.secondLegCache) index.secondLegCache = new Map();
-  let secondLegByMid = index.secondLegCache.get(secondLegCacheKey);
-  if(!secondLegByMid){
-    secondLegByMid = buildTransferSecondLegIndex(candidateEntries, ed);
-    index.secondLegCache.set(secondLegCacheKey, secondLegByMid);
+  const selectedTypes = (selectedTrainTypesStartEnd || []).map((value)=>String(value || ''));
+  const cacheKey = getTraStartEndSearchCacheKey('transfer', st, ed, selectedTypes);
+  const cachedRows = startEndSearchResultCache.get(cacheKey);
+  if(Array.isArray(cachedRows)){
+    currentTransferList = cloneTraStartEndRows(cachedRows);
+    applyTraStartEndSort(currentTransferList);
+    return currentTransferList;
   }
-  const plans = []; // {n1, n2?, ...}
 
-  candidateEntries.forEach(entry1=>{
-    const n1 = String(entry1.trainNo);
-    const t1 = entry1.data;
-    const originDate1 = entry1.originDate;
-    const a1 = entry1.stops || [];
-    if(a1.length < 2) return;
+  const allowLocalOnly = isTraLocalOnlySelection(selectedTypes);
+  const directRows = buildDirectList(st, ed).slice();
+  const bundle = getTraTransferCandidateBundle(selectedTypes);
+  const plans = buildTraTransferReachablePlans(bundle, st, ed, allowLocalOnly);
 
-    const sIdx = findIndexedTraStopIndex(entry1, st);
-    if(sIdx < 0) return;
-
-    // ✅ 以「查詢出發站 st」的開車時間作為方案出發時間與耗時計算基準
-    const stMeta = entry1.meta[sIdx];
-    const stDepStr = (stMeta.dep || stMeta.arr || '--');
-    const stDepAbs = stMeta.depAbs ?? stMeta.arrAbs;
-    if(stDepAbs === null || stDepAbs === undefined) return;
-    const stDepGlobal = getTransferGlobalMinute(originDate1, stDepAbs);
-    if(stDepGlobal === null) return;
-
-    const stDepAdj = getAdjustedTime(n1, stDepStr, currentQueryDateStr, stDepAbs, originDate1);
-    const depStopDateStr = getDisplayStopDateStr(stDepAdj, originDate1, stDepAbs);
-    if(depStopDateStr !== currentQueryDateStr) return;
-
-    const originStation = a1[0]?.[0] || '';
-
-    // 試算「直達方案」
-    let bestPlan = null;
-
-    const status = getTrainStatusLabel(
-      n1,
-      originDate1,
-      (a1[0]?.[2]||a1[0]?.[1]||''),
-      (a1.slice(-1)[0]?.[1]||a1.slice(-1)[0]?.[2]||''),
-      stDepAbs,
-      a1,
-      sIdx
-    );
-    const suppressPassed = (status === '已過站' || status === '已到終點' || status === '已到終點站');
-    const depSortMin = (suppressPassed ? (parseTime(stDepStr) ?? 9999) : (stDepAdj.adjMin ?? 9999));
-
-    const eIdxDirect = findIndexedTraStopIndex(entry1, ed, sIdx + 1);
-    if(eIdxDirect >= 0 && eIdxDirect > sIdx){
-      const endMeta = entry1.meta[eIdxDirect];
-      const endArrStr = (endMeta.arr || endMeta.dep || '--');
-      const endArrAbs = endMeta.arrAbs ?? endMeta.depAbs;
-
-      if(endArrAbs !== null && endArrAbs !== undefined){
-        const endGlobal = getTransferGlobalMinute(originDate1, endArrAbs);
-        const travelMin = endGlobal === null ? null : Math.round(endGlobal - stDepGlobal);
-        if(Number.isFinite(travelMin) && travelMin >= 0){
-          const endArrAdj = getAdjustedTime(n1, endArrStr, currentQueryDateStr, endArrAbs, originDate1);
-
-          bestPlan = {
-            trainNumber: String(n1),
-            n1,
-            n2: null,
-            originDate1,
-            originDate2: null,
-
-            type1: t1['車種'],
-            rawType1: t1['原始車種'] || '',
-            type2: null,
-            isDirect: true,
-            startStation: st,
-            endStation: ed,
-            transferStation: null,
-
-            originStation,
-            stDepAbs,
-            arrAbs: endArrAbs,
-            depSched: stDepStr,
-            depHTML: renderTimeWithDelay(n1, stDepStr, currentQueryDateStr, { suppressStrike: suppressPassed }, stDepAbs, originDate1),
-            startDepAtQueryStation: stDepStr,
-
-            arrSched: endArrStr,
-            arrHTML: renderTimeWithDelay(n1, endArrStr, currentQueryDateStr, { suppressStrike: suppressPassed }, endArrAbs, originDate1),
-
-            depSortMin,
-            arrSortMin: (suppressPassed ? (parseTime(endArrStr) ?? 9999) : (endArrAdj.adjMin ?? 9999)),
-
-            travelMin,
-            travel: `${Math.floor(travelMin/60)}h ${travelMin%60}m`,
-            status
-          };
-        }
-      }
-    }
-
-    // 試算「轉乘方案」：n1 (st -> mid) + n2 (mid -> ed)
-    for(let i=sIdx+1;i<a1.length;i++){
-      const midMeta1 = entry1.meta[i];
-      const mid = midMeta1.station;
-      const midArrStr1 = (midMeta1.arr || midMeta1.dep || '--');
-      const midArrAbs1 = midMeta1.arrAbs ?? midMeta1.depAbs;
-      if(midArrAbs1 === null || midArrAbs1 === undefined) continue;
-      const midArrGlobal1 = getTransferGlobalMinute(originDate1, midArrAbs1);
-      if(midArrGlobal1 === null) continue;
-
-      const secondCandidates = getSecondLegCandidates(secondLegByMid, mid);
-      for(let j=0;j<secondCandidates.length;j++){
-        const second = secondCandidates[j];
-        const entry2 = second.entry;
-        const n2 = String(entry2.trainNo);
-        if(n2 === n1) continue;
-        if(second.midIdx !== findIndexedTraStopIndex(entry2, mid, 0)) continue;
-        if(second.eIdx !== findIndexedTraStopIndex(entry2, ed, second.midIdx + 1)) continue;
-
-        const waitMin = Math.round(second.midDepGlobal - midArrGlobal1);
-        if(!Number.isFinite(waitMin) || waitMin < 0) continue;
-
-        // 轉乘等待上限維持原本精神（避免過長等待）
-        if(waitMin > 90) continue;
-
-        const travelMin = Math.round(second.endGlobal - stDepGlobal);
-        if(!Number.isFinite(travelMin) || travelMin < 0) continue;
-        if(bestPlan && travelMin >= bestPlan.travelMin) continue;
-
-        const t2 = entry2.data;
-        const originDate2 = entry2.originDate;
-        const midDepStr2 = second.midDepStr;
-        const midDepAbs2 = second.midDepAbs;
-        const endArrStr2 = second.endArrStr;
-        const endArrAbs2 = second.endArrAbs;
-        const endArrAdj2 = getAdjustedTime(n2, endArrStr2, currentQueryDateStr, endArrAbs2, originDate2);
-
-        bestPlan = {
-          trainNumber: `${n1}+${n2}`,
-          n1,
-          n2,
-          originDate1,
-          originDate2,
-
-          type1: t1['車種'],
-          rawType1: t1['原始車種'] || '',
-          type2: t2['車種'],
-          rawType2: t2['原始車種'] || '',
-          isDirect: false,
-          startStation: st,
-          endStation: ed,
-          transferStation: mid,
-
-          originStation,
-          stDepAbs,
-          midArrAbs: midArrAbs1,
-          midDepAbs: midDepAbs2,
-          arrAbs: endArrAbs2,
-          depSched: stDepStr,
-          depHTML: renderTimeWithDelay(n1, stDepStr, currentQueryDateStr, { suppressStrike: suppressPassed }, stDepAbs, originDate1),
-
-          midArr: midArrStr1,
-          midDep: midDepStr2,
-          waitMin,
-          midArrHTML: renderTimeWithDelay(n1, midArrStr1, currentQueryDateStr, { suppressStrike: suppressPassed }, midArrAbs1, originDate1),
-          midDepHTML: renderTimeWithDelay(n2, midDepStr2, currentQueryDateStr, { suppressStrike: suppressPassed }, midDepAbs2, originDate2),
-
-          arrSched: endArrStr2,
-          arrHTML: renderTimeWithDelay(n2, endArrStr2, currentQueryDateStr, { suppressStrike: suppressPassed }, endArrAbs2, originDate2),
-
-          depSortMin: (suppressPassed ? (parseTime(stDepStr) ?? 9999) : (stDepAdj.adjMin ?? 9999)),
-          arrSortMin: (suppressPassed ? (parseTime(endArrStr2) ?? 9999) : (endArrAdj2.adjMin ?? (parseTime(endArrStr2) ?? 9999))),
-
-          travelMin,
-          travel: `${Math.floor(travelMin/60)}h ${travelMin%60}m`,
-          status
-        };
-      }
-    }
-
-    if(bestPlan) plans.push(bestPlan);
-  });
-
-  // ✅ 同一個「出發班次 n1（含發車日）」只保留最短耗時方案
   const bestByN1 = new Map();
-  plans.forEach(p=>{
-    const key = String(p.n1) + '@' + String(p.originDate1||'');
-    const cur = bestByN1.get(key);
-    if(!cur || p.travelMin < cur.travelMin) bestByN1.set(key, p);
+  plans.forEach((plan)=>{
+    const key = `${String(plan.n1 || '')}@${String(plan.originDate1 || '')}`;
+    const current = bestByN1.get(key);
+    if(!current || compareTraTransferPlan(plan, current) < 0){
+      bestByN1.set(key, plan);
+    }
   });
 
   currentTransferList = Array.from(bestByN1.values());
 
-  // ✅ 去除「最後搭同一班直達車」但更慢(或一樣慢)的轉乘方案
   const directMinByTrain = new Map();
-  currentTransferList.forEach(p=>{
-    if(p && p.isDirect){
-      directMinByTrain.set(String(p.n1), p.travelMin);
+  currentTransferList.forEach((plan)=>{
+    if(plan?.isDirect){
+      directMinByTrain.set(String(plan.n1 || ''), plan.travelMin);
     }
   });
-  currentTransferList = currentTransferList.filter(p=>{
-    if(!p || p.isDirect) return true;
-    const n2 = p.n2 ? String(p.n2) : '';
-    if(!n2) return true;
-    const dmin = directMinByTrain.get(n2);
-    if(dmin === undefined) return true;
-    return p.travelMin < dmin;
+  currentTransferList = currentTransferList.filter((plan)=>{
+    if(!plan || plan.isDirect) return true;
+    const lastTrainNo = String(plan.legs?.[plan.legs.length - 1]?.trainNo || '');
+    const directTravel = directMinByTrain.get(lastTrainNo);
+    if(directTravel === undefined) return true;
+    return Number(plan.travelMin) < Number(directTravel);
   });
 
-  // ✅ 同一個後續轉乘車次 n2 且「抵達時間相同」：只留耗時最短的一個方案（沿用你原本規則）
-  (function dedupeSameN2SameArr(){
-    const directs = currentTransferList.filter(p=>p && p.isDirect);
-    const transfers = currentTransferList.filter(p=>p && !p.isDirect);
-
-    const groups = new Map(); // key: n2|arrSched  -> plans[]
-    transfers.forEach(p=>{
-      const n2 = p.n2 ? String(p.n2) : '';
-      const arr = p.arrSched || '';
-      const key = n2 + '|' + arr;
+  (function dedupeSameLastTrainSameArr(){
+    const directs = currentTransferList.filter((plan)=>plan && plan.isDirect);
+    const transfers = currentTransferList.filter((plan)=>plan && !plan.isDirect);
+    const groups = new Map();
+    transfers.forEach((plan)=>{
+      const lastLeg = plan.legs?.[plan.legs.length - 1];
+      const key = `${String(lastLeg?.trainNo || '')}|${String(lastLeg?.originDate || '')}|${String(plan.arrSched || '')}`;
       if(!groups.has(key)) groups.set(key, []);
-      groups.get(key).push(p);
+      groups.get(key).push(plan);
     });
-
     const kept = [];
-    groups.forEach(list=>{
-      list.sort((a,b)=>(a.travelMin||999999)-(b.travelMin||999999));
+    groups.forEach((list)=>{
+      list.sort(compareTraTransferPlan);
       const best = list[0];
-      kept.push(best);
-
+      if(best) kept.push(best);
       const second = list[1];
-      if(second && Number.isFinite(best.waitMin) && best.waitMin < 10){
+      if(second && Number.isFinite(best?.minWaitMin) && best.minWaitMin < 10){
+        second.isTightFallback = true;
         kept.push(second);
       }
     });
-
     currentTransferList = directs.concat(kept);
   })();
 
-  // 排序：仍用 depSortMin
-  currentTransferList.sort((a,b)=> (a.depSortMin??999999) - (b.depSortMin??999999));
-  if(startEndSortState.key){
-    sortStartEndListInPlace(currentTransferList, startEndSortState);
-  }
+  currentTransferList = pruneDominatedTraStartEndPlans(currentTransferList);
+  currentTransferList = mergeTraDirectPlansIntoTransferList(currentTransferList, directRows);
+  startEndSearchResultCache.set(cacheKey, currentTransferList.slice());
+  applyTraStartEndSort(currentTransferList);
+  return currentTransferList;
 }
 
 
@@ -7819,24 +8462,7 @@ function renderTransferTable(){
           ${r.ticketHTML ? `<div class="mact">${r.ticketHTML}</div>` : ``}
         `;
       }else{
-        // 轉乘：顯示兩段與等候，並提供「查看轉乘詳細」按鈕（維持既有 modal）
-        html = `
-          <div class="mblk">
-            <div class="mt">第 1 段</div>
-            <div class="mv"><b>${r.n1}</b>　${colorType(r.type1)}　${displayTraStationName(r.startStation)} ${r.depHTML||highlightPeak(r.depSched||r.dep||'--')} → ${displayTraStationName(r.transferStation)} ${r.midArrHTML||highlightPeak(r.midArr||'--')}</div>
-          </div>
-          <div class="mblk">
-            <div class="mt">等候</div>
-            <div class="mv">${r.waitMin} 分（${displayTraStationName(r.transferStation)}）</div>
-          </div>
-          <div class="mblk">
-            <div class="mt">第 2 段</div>
-            <div class="mv"><b>${r.n2}</b>　${colorType(r.type2)}　${displayTraStationName(r.transferStation)} ${r.midDepHTML||highlightPeak(r.midDep||'--')} → ${displayTraStationName(r.endStation)} ${r.arrHTML||highlightPeak(r.arrSched||r.arr||'--')}</div>
-          </div>
-          <div class="mact">
-            <button class="btn btn-primary btn-transfer-details" data-idx="${idx}">查看轉乘詳細</button>
-          </div>
-        `;
+        html = buildTraTransferMobileDetailHtml(r, idx);
       }
 
       detailRow.innerHTML = `<td colspan="7"><div class="mobile-detail-wrap">${html}</div></td>`;
@@ -7880,7 +8506,7 @@ function renderTransferTable(){
           ? `<span class="mobile-expand-btn" data-idx="${idx}">+</span><b>${r.trainNumber}</b><span class="badge-sea">海</span>`
           : `<span class="mobile-expand-btn" data-idx="${idx}">+</span><b>${r.trainNumber}</b>`)
       : (mobileCompact
-          ? `<span class="mobile-expand-btn" data-idx="${idx}">+</span><span class="mobile-transfer-trains"><b>${r.n1}</b><b>${r.n2}</b></span>`
+          ? `<span class="mobile-expand-btn" data-idx="${idx}">+</span>${buildTraTransferTrainStackHtml(r, true)}`
           : `<span class="mobile-expand-btn" data-idx="${idx}">+</span><b>${r.trainNumber}</b>`);
 
     // 轉乘表格的車種(區間)欄位也加上 desktop-only
@@ -7889,11 +8515,9 @@ function renderTransferTable(){
     if(r.isDirect){
       typeCell.innerHTML = renderTraTypeCell(r.type1, `${displayTraStationName(r.startStation)}➝${displayTraStationName(r.endStation)}`);
     }else if(mobileCompact){
-      typeCell.innerHTML = `${colorType(r.type1)}<br>${colorType(r.type2)}`;
+      typeCell.innerHTML = buildTraTransferTypeCellHtml(r, true);
     }else{
-      typeCell.innerHTML =
-        `${colorType(r.type1)}<span class="pc-only train-route">(${displayTraStationName(r.startStation)}➝${displayTraStationName(r.transferStation)})</span><br>`+
-        `${colorType(r.type2)}<span class="pc-only train-route">(${displayTraStationName(r.transferStation)}➝${displayTraStationName(r.endStation)})</span>`;
+      typeCell.innerHTML = buildTraTransferTypeCellHtml(r, false);
     }
 
     tr.insertCell().innerHTML = r.depHTML;
@@ -7902,10 +8526,8 @@ function renderTransferTable(){
     if(r.isDirect){
       tr.insertCell().innerHTML = `<span style="color:var(--text-muted);">—</span>`;
     }else{
-      tr.insertCell().innerHTML =
-        `<div style="font-weight:700">${displayTraStationName(r.transferStation)}</div>`+
-        `<div class="train-route transfer-detail">抵達 ${r.midArrHTML||highlightPeak(r.midArr)} / 發車 ${r.midDepHTML||highlightPeak(r.midDep)}（等 ${r.waitMin} 分）</div>`;
-}
+      tr.insertCell().innerHTML = buildTraTransferColumnHtml(r);
+    }
 
     tr.insertCell().innerHTML = r.arrHTML;
 
@@ -8458,23 +9080,24 @@ function renderTransferTable(){
     const rows = sourceRows.map((row)=>{
       if(modeEnabled && !row.isDirect){
         const transferStatusDisplay = getTraStationStatusDisplayForTrain(row.n1, row.originDate1, row.startStation, row.status);
+        const mobileTransferText = buildTraTransferMobileText(row);
         return {
           trainNo: row.n1,
           originDate: row.originDate1,
-          trainHtml: `<span class="rod2-train-stack"><span class="rod2-train-line"><span class="rsv2-train-no">${row.n1}</span><span class="rsv2-train-type">${colorType(row.type1)}</span></span><span class="rod2-train-line"><span class="rsv2-train-no">${row.n2}</span><span class="rsv2-train-type">${colorType(row.type2)}</span></span></span>`,
-          summaryTrainHtml: `<span class="rsv2-train-no">${row.n1}</span><span class="rsv2-train-type">${colorType(row.type1)}</span><span class="rod2-train-sep">→</span><span class="rsv2-train-no">${row.n2}</span><span class="rsv2-train-type">${colorType(row.type2)}</span>`,
+          trainHtml: `<span class="rod2-train-stack">${buildTraTransferTrainStackHtml(row)}</span>`,
+          summaryTrainHtml: buildTraTransferSummaryTrainHtml(row),
           timeHtml: buildQuery2CombinedTimeHtml(row.depHTML, row.arrHTML, row.depSched, row.arrSched),
           summaryTimeHtml: buildQuery2SummaryTimeHtml(row.depHTML, row.arrHTML, row.depSched, row.arrSched),
           timeText: buildQuery2CombinedTimeText(row.depHTML, row.arrHTML, row.depSched, row.arrSched),
-          routeText: `${displayTraStationName(row.startStation)} → ${displayTraStationName(row.transferStation)} → ${displayTraStationName(row.endStation)}`,
-          mobileTransferLine1: `${displayTraStationName(row.transferStation)}轉乘`,
-          mobileTransferLine2: `等候${row.waitMin}分`,
+          routeText: row.routeText,
+          mobileTransferLine1: mobileTransferText.line1,
+          mobileTransferLine2: mobileTransferText.line2,
           durationText: formatDurationMinutes(row.travelMin),
-          durationMetaText: '轉乘1次',
+          durationMetaText: `轉乘${row.transferStations?.length || 1}次`,
           viaText: '',
           viaHtml: '',
-          summaryTransferText: `${displayTraStationName(row.transferStation)}轉乘`,
-          metaHtml: `${displayTraStationName(row.transferStation)}轉乘 · 等候 ${row.waitMin} 分`,
+          summaryTransferText: row.transferText,
+          metaHtml: `<span class="traq2-transfer-meta-compact">${row.transferText}</span>`,
           statusText: row.status,
           statusHtml: transferStatusDisplay.html,
           statusTone: transferStatusDisplay.tone,
@@ -8592,28 +9215,32 @@ function renderTransferTable(){
 
   async function buildTraStartEndQuery2Data(queryState){
     syncTraStartEndQuery2LegacyState(queryState, { syncFilters: true });
-    await runStartEndSearch();
-    const sourceRows = !!queryState.modeEnabled ? (currentTransferList || []) : (currentStartEndList || []);
-    const rows = buildTraStartEndQuery2Rows(!!queryState.modeEnabled, queryState.sortKey);
+    const searchState = await runStartEndSearch();
+    const effectiveModeEnabled = !!(searchState ? searchState.accept : queryState.modeEnabled);
+    if(effectiveModeEnabled !== !!queryState.modeEnabled){
+      queryState.modeEnabled = effectiveModeEnabled;
+    }
+    const sourceRows = effectiveModeEnabled ? (currentTransferList || []) : (currentStartEndList || []);
+    const rows = buildTraStartEndQuery2Rows(effectiveModeEnabled, queryState.sortKey);
     const summary = buildTraStartEndQuery2Summary(rows);
     return {
-      kickerHtml: `<span>台鐵</span><strong>${queryState.modeEnabled ? '接受轉乘' : '直達優先'}</strong><span>查詢日 ${currentQueryDateStr || '--'}</span>`,
+      kickerHtml: `<span>台鐵</span><strong>${effectiveModeEnabled ? '接受轉乘' : '直達優先'}</strong><span>查詢日 ${currentQueryDateStr || '--'}</span>`,
       titleHtml: `${escapeTrainQueryHtml(queryState.start)} <span style="opacity:.55">→</span> ${escapeTrainQueryHtml(queryState.end)}`,
       countValue: rows.length,
       countLabel: '總班次',
       summaryHtml: summary.html,
       summaryRow: summary.row,
       hideMobileHead: false,
-      swapDurationAndVia: !queryState.modeEnabled,
+      swapDurationAndVia: !effectiveModeEnabled,
       headings: {
         time: '出發 / 抵達',
         train: '列車',
-        duration: queryState.modeEnabled ? '耗時' : '停靠 / 耗時',
+        duration: effectiveModeEnabled ? '耗時' : '停靠 / 耗時',
         route: '行駛區間',
-        via: queryState.modeEnabled ? '' : '經由',
+        via: effectiveModeEnabled ? '' : '經由',
         status: '狀態'
       },
-      mobileHeadings: queryState.modeEnabled
+      mobileHeadings: effectiveModeEnabled
         ? {
             time: '時間',
             train: '列車',
@@ -10146,142 +10773,121 @@ function filterTrainScheduleByNumberV2(trainNo){
   let startEndSortState = { key: null, dir: 1 }; // dir: 1=asc, -1=desc
 
   
-  // ===== Modal: 轉乘詳情（兩班列車，標示轉乘站） =====
+  // ===== Modal: 轉乘詳情（支援多段轉乘） =====
   function showTransferDetails(plan){
     if(!plan) return;
+    const legs = Array.isArray(plan.legs) ? plan.legs : [];
+    if(legs.length < 2){
+      if(legs[0]) showTrainDetails(legs[0].trainNo, legs[0].originDate || currentQueryDateStr);
+      return;
+    }
     modalCtx = null;
 
-    const od1 = plan.originDate1 || currentQueryDateStr;
-    const od2 = plan.originDate2 || currentQueryDateStr;
-
-    const originDateStr1 = od1;
-    const originDateStr2 = od2;
-
-    const t1 = getScheduleByOrigin(plan.n1, originDateStr1);
-    const t2 = getScheduleByOrigin(plan.n2, originDateStr2);
-    if(!t1 || !t2) return;
-
-    const arr1All = t1['車站時間']||[];
-    const arr2All = t2['車站時間']||[];
-
-    const pickIndex = (arr, name, startAt = 0)=>findTraStopIndex(arr, name, startAt);
-    const i1Start = pickIndex(arr1All, plan.startStation);
-    const i1Mid = pickIndex(arr1All, plan.transferStation, i1Start + 1);
-    const i2Mid = pickIndex(arr2All, plan.transferStation);
-    const i2End = pickIndex(arr2All, plan.endStation, i2Mid + 1);
-
-    if(i1Start < 0 || i1Mid < 0 || i2Mid < 0 || i2End < 0) return;
-
-    // 第一段只顯示到「轉乘站」；第二段只顯示「轉乘站→迄站」
-    if(i1Start < 0 || i1Mid <= i1Start) return;
-    const arr1 = arr1All.slice(i1Start, i1Mid+1);
-    const arr2 = arr2All.slice(i2Mid, i2End+1);
-
-    const seg1Dep = (splitArrDep(arr1[0]||[]).dep || splitArrDep(arr1[0]||[]).arr || '--'); // 起站開車
-    const seg1Arr = (splitArrDep(arr1[arr1.length-1]||[]).arr || splitArrDep(arr1[arr1.length-1]||[]).dep || '--'); // 轉乘站到達
-
-    const seg2Dep = (splitArrDep(arr2[0]||[]).dep || splitArrDep(arr2[0]||[]).arr || '--'); // 轉乘站開車
-    const seg2Arr = (splitArrDep(arr2[arr2.length-1]||[]).arr || splitArrDep(arr2[arr2.length-1]||[]).dep || '--'); // 迄站到達（★修正：不是開車）
-    const seg1Abs = buildAbsArrDep(arr1);
-    const seg2Abs = buildAbsArrDep(arr2);
-    const seg1DepAbs = seg1Abs.absDep[0] ?? seg1Abs.absArr[0] ?? null;
-    const seg1ArrAbs = seg1Abs.absArr[arr1.length-1] ?? seg1Abs.absDep[arr1.length-1] ?? null;
-    const seg2DepAbs = seg2Abs.absDep[0] ?? seg2Abs.absArr[0] ?? null;
-    const seg2ArrAbs = seg2Abs.absArr[arr2.length-1] ?? seg2Abs.absDep[arr2.length-1] ?? null;
-
-    // 狀態：不顯示「已過站」
-    const s1 = getStatusForModal(plan.n1, originDateStr1, arr1All);
-    const s2 = getStatusForModal(plan.n2, originDateStr2, arr2All);
+    const transferStations = Array.isArray(plan.transferStations) ? plan.transferStations : [];
+    const waitText = Array.isArray(plan.waitMins) && plan.waitMins.length ? plan.waitMins.join('/') : '--';
+    const firstDate = legs[0]?.originDate || currentQueryDateStr;
+    const lastDate = legs[legs.length - 1]?.originDate || currentQueryDateStr;
 
     document.getElementById('modalTitleMain').innerHTML = `
       <span class="modal-brand-tag">TR Transfer</span>
-      <span class="modal-train-no">${plan.n1}</span>
-      <span class="modal-train-type" style="color:var(--text-muted)">轉乘</span>
-      <span class="modal-train-no">${plan.n2}</span>
+      ${legs.map((leg, index)=>`${index ? `<span class="modal-train-type" style="color:var(--text-muted)">轉乘</span>` : ''}<span class="modal-train-no">${leg.trainNo}</span>`).join('')}
     `;
     document.getElementById('modalTitleSub').innerHTML = `
       <div class="modal-meta-line">
-        <span>日期 ${buildTransferDateText(originDateStr1, originDateStr2)}</span>
+        <span>日期 ${buildTransferDateText(firstDate, lastDate)}</span>
         <span class="modal-meta-sep">·</span>
-        <span>${displayTraStationName(plan.transferStation)} 轉乘</span>
+        <span>${transferStations.map((station)=>displayTraStationName(station)).join('/')} 轉乘</span>
         <span class="modal-meta-sep">·</span>
-        <span>等待 ${plan.waitMin} 分</span>
+        <span>等待 ${waitText} 分</span>
         <span class="modal-meta-sep">·</span>
         <span>總耗時 ${plan.travel || formatDurationMinutes(plan.travelMin)}</span>
       </div>
     `;
 
+    const summaryRows = [];
+    const timelineSections = [];
+    const timelinePayloads = [];
+
+    legs.forEach((leg, index)=>{
+      const originDate = leg.originDate || currentQueryDateStr;
+      const schedule = getScheduleByOrigin(leg.trainNo, originDate);
+      const allStops = schedule?.['車站時間'] || [];
+      const startIdx = findTraStopIndex(allStops, leg.startStation);
+      const endIdx = findTraStopIndex(allStops, leg.endStation, startIdx + 1);
+      if(startIdx < 0 || endIdx < 0 || endIdx <= startIdx) return;
+      const segmentStops = allStops.slice(startIdx, endIdx + 1);
+      const segmentAbs = buildAbsArrDep(segmentStops);
+      const segDep = (splitArrDep(segmentStops[0] || []).dep || splitArrDep(segmentStops[0] || []).arr || '--');
+      const segArr = (splitArrDep(segmentStops[segmentStops.length - 1] || []).arr || splitArrDep(segmentStops[segmentStops.length - 1] || []).dep || '--');
+      const segDepAbs = segmentAbs.absDep[0] ?? segmentAbs.absArr[0] ?? null;
+      const segArrAbs = segmentAbs.absArr[segmentStops.length - 1] ?? segmentAbs.absDep[segmentStops.length - 1] ?? null;
+      const legStatus = getStatusForModal(leg.trainNo, originDate, allStops);
+
+      summaryRows.push(`
+        <article class="transfer-card-lite transfer-summary-row compact">
+          <div class="segment-rail">
+            <div class="segment-label">第 ${index + 1} 段</div>
+            <div class="segment-main">
+              <span class="segment-train-no">${leg.trainNo}</span>
+              <span class="segment-meta-sep">｜</span>
+              ${renderTrainTypeText(leg.type)}
+            </div>
+          </div>
+          <div class="segment-inline-meta">
+            <span class="segment-route">${displayTraStationName(leg.startStation)} → ${displayTraStationName(leg.endStation)}</span>
+            <span class="segment-meta-sep">·</span>
+            <span><strong>${renderTimeWithDelay(leg.trainNo, segDep, currentQueryDateStr, null, segDepAbs, originDate)}</strong> → <strong>${renderTimeWithDelay(leg.trainNo, segArr, currentQueryDateStr, null, segArrAbs, originDate)}</strong></span>
+            <span class="segment-meta-sep">·</span>
+            <span>${statusBadge(legStatus)}</span>
+          </div>
+        </article>
+      `);
+
+      const transfer = plan.transfers?.[index];
+      if(transfer){
+        summaryRows.push(`
+          <article class="transfer-card-lite transfer-summary-row transfer-wait-row compact">
+            <div class="segment-rail">
+              <div class="segment-label">轉乘</div>
+              <div class="segment-main">${displayTraStationName(transfer.station)}</div>
+            </div>
+            <div class="segment-inline-meta">
+              <span><strong>${renderTimeWithDelay(transfer.fromTrainNo, transfer.arriveSched, currentQueryDateStr, null, transfer.arriveAbs, transfer.fromOriginDate)}</strong> → <strong>${renderTimeWithDelay(transfer.toTrainNo, transfer.departSched, currentQueryDateStr, null, transfer.departAbs, transfer.toOriginDate)}</strong></span>
+              <span class="segment-meta-sep">·</span>
+              <span>等待 <strong>${transfer.waitMin} 分</strong></span>
+            </div>
+          </article>
+        `);
+      }
+
+      const timelineId = `transferTimeline${index + 1}`;
+      timelineSections.push(`
+        <section class="modal-section transfer-section">
+          <div class="transfer-sec-title">
+            第 ${index + 1} 段時間軸
+            <span>${leg.trainNo}｜${renderTrainTypeText(leg.type)}</span>
+          </div>
+          <div id="${timelineId}"></div>
+        </section>
+      `);
+      timelinePayloads.push({ id: timelineId, trainNo: leg.trainNo, originDate, stops: segmentStops });
+    });
+
     const body = document.getElementById('modalBody');
     body.innerHTML = `
       <section class="modal-section transfer-summary-section">
         <div class="transfer-summary-grid">
-          <article class="transfer-card-lite transfer-summary-row compact">
-            <div class="segment-rail">
-              <div class="segment-label">第 1 段</div>
-              <div class="segment-main">
-                <span class="segment-train-no">${plan.n1}</span>
-                <span class="segment-meta-sep">｜</span>
-                ${renderTrainTypeText(t1['車種'])}
-              </div>
-            </div>
-            <div class="segment-inline-meta">
-              <span class="segment-route">${displayTraStationName(plan.startStation)} → ${displayTraStationName(plan.transferStation)}</span>
-              <span class="segment-meta-sep">·</span>
-              <span><strong>${renderTimeWithDelay(plan.n1, seg1Dep, currentQueryDateStr, null, seg1DepAbs, originDateStr1)}</strong> → <strong>${renderTimeWithDelay(plan.n1, seg1Arr, currentQueryDateStr, null, seg1ArrAbs, originDateStr1)}</strong></span>
-              <span class="segment-meta-sep">·</span>
-              <span>${statusBadge(s1)}</span>
-            </div>
-          </article>
-          <article class="transfer-card-lite transfer-summary-row transfer-wait-row compact">
-            <div class="segment-rail">
-              <div class="segment-label">轉乘</div>
-              <div class="segment-main">${displayTraStationName(plan.transferStation)}</div>
-            </div>
-            <div class="segment-inline-meta">
-              <span><strong>${renderTimeWithDelay(plan.n1, seg1Arr, currentQueryDateStr, null, seg1ArrAbs, originDateStr1)}</strong> → <strong>${renderTimeWithDelay(plan.n2, seg2Dep, currentQueryDateStr, null, seg2DepAbs, originDateStr2)}</strong></span>
-              <span class="segment-meta-sep">·</span>
-              <span>等待 <strong>${plan.waitMin} 分</strong></span>
-            </div>
-          </article>
-          <article class="transfer-card-lite transfer-summary-row compact">
-            <div class="segment-rail">
-              <div class="segment-label">第 2 段</div>
-              <div class="segment-main">
-                <span class="segment-train-no">${plan.n2}</span>
-                <span class="segment-meta-sep">｜</span>
-                ${renderTrainTypeText(t2['車種'])}
-              </div>
-            </div>
-            <div class="segment-inline-meta">
-              <span class="segment-route">${displayTraStationName(plan.transferStation)} → ${displayTraStationName(plan.endStation)}</span>
-              <span class="segment-meta-sep">·</span>
-              <span><strong>${renderTimeWithDelay(plan.n2, seg2Dep, currentQueryDateStr, null, seg2DepAbs, originDateStr2)}</strong> → <strong>${renderTimeWithDelay(plan.n2, seg2Arr, currentQueryDateStr, null, seg2ArrAbs, originDateStr2)}</strong></span>
-              <span class="segment-meta-sep">·</span>
-              <span>${statusBadge(s2)}</span>
-            </div>
-          </article>
+          ${summaryRows.join('')}
         </div>
       </section>
       <div class="transfer-timelines">
-        <section class="modal-section transfer-section">
-          <div class="transfer-sec-title">
-            第 1 段時間軸
-            <span>${plan.n1}｜${renderTrainTypeText(t1['車種'])}</span>
-          </div>
-          <div id="transferTimeline1"></div>
-        </section>
-        <section class="modal-section transfer-section">
-          <div class="transfer-sec-title">
-            第 2 段時間軸
-            <span>${plan.n2}｜${renderTrainTypeText(t2['車種'])}</span>
-          </div>
-          <div id="transferTimeline2"></div>
-        </section>
+        ${timelineSections.join('')}
       </div>
     `;
 
-    body.querySelector('#transferTimeline1')?.appendChild(buildTimelineForTrain(plan.n1, originDateStr1, arr1, plan.transferStation));
-    body.querySelector('#transferTimeline2')?.appendChild(buildTimelineForTrain(plan.n2, originDateStr2, arr2, plan.transferStation));
+    timelinePayloads.forEach((item)=>{
+      body.querySelector(`#${item.id}`)?.appendChild(buildTimelineForTrain(item.trainNo, item.originDate, item.stops, transferStations));
+    });
 
     modal.style.display = 'flex';
   }
@@ -10290,6 +10896,7 @@ function filterTrainScheduleByNumberV2(trainNo){
   function buildTimelineForTrain(trainNo, originDateStr, arr, transferStation){
     const timeline = document.createElement('div');
     timeline.className = 'timeline';
+    const transferSet = new Set((Array.isArray(transferStation) ? transferStation : [transferStation]).filter(Boolean).map((station)=>normalizeTraLinkedStation(station)));
 
     const abs = buildAbsMinutes(arr);
     const absAD = buildAbsArrDep(arr);
@@ -10342,7 +10949,7 @@ function filterTrainScheduleByNumberV2(trainNo){
       const badgeNext = (canNext && i===nextIndex) ? ` <span class="badge-next">下一站</span>` : '';
       const stationDisplayName = displayTraStationName(s[0]);
       const transferBadges = window.RailStationContext?.renderTransferBadges?.(s[0] || '', { system: 'tr' }) || '';
-      const badgeXfer = (transferStation && sameTraStationName(s[0], transferStation)) ? ` <span class="badge-xfer">轉乘</span>` : '';
+      const badgeXfer = transferSet.has(normalizeTraLinkedStation(s[0])) ? ` <span class="badge-xfer">轉乘</span>` : '';
       const tag = (i===0) ? '起站' : (i===arr.length-1 ? '終點' : '');
 
       item.innerHTML = `
@@ -10357,7 +10964,7 @@ function filterTrainScheduleByNumberV2(trainNo){
         </div>
       `;
 
-      if(transferStation && sameTraStationName(s[0], transferStation)) item.classList.add('transfer');
+      if(transferSet.has(normalizeTraLinkedStation(s[0]))) item.classList.add('transfer');
       if(canNext){
         if(i<nextIndex) item.classList.add('passed');
         if(i===nextIndex) item.classList.add('next');

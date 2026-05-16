@@ -922,6 +922,32 @@
     bindActionButtons(state);
   }
 
+  function buildTraAssistantTransferTrainHtml(plan) {
+    const legs = Array.isArray(plan?.legs) ? plan.legs : [];
+    if (!legs.length) {
+      const fallback = [plan?.n1, plan?.n2].filter(Boolean);
+      return escapeHtml(fallback.join(" → "));
+    }
+    return legs.map((leg) => `${escapeHtml(leg.trainNo || "--")} ${renderTraTypeInline(leg.type || "列車")}`).join(" → ");
+  }
+
+  function buildTraAssistantTransferLineHtml(plan) {
+    const transferStations = Array.isArray(plan?.transferStations) ? plan.transferStations : [];
+    const waitMins = Array.isArray(plan?.waitMins) ? plan.waitMins : [];
+    const transferText = transferStations.length
+      ? `${transferStations.map((station) => renderStationLabel(station, "tr")).join("/")} 轉乘 ${escapeHtml(waitMins.join("/"))} 分`
+      : "直達";
+    return `${plan?.depHTML || escapeHtml(plan?.depSched)} ${renderStationLabel(plan?.startStation, "tr")} 出發 ｜ ${transferText} ｜ ${plan?.arrHTML || escapeHtml(plan?.arrSched)} 抵達 ${renderStationLabel(plan?.endStation, "tr")}`;
+  }
+
+  function buildTraAssistantTransferMetaHtml(plan) {
+    const legs = Array.isArray(plan?.legs) ? plan.legs : [];
+    const legTypes = legs.length
+      ? legs.map((leg, index) => `第 ${index + 1} 段 ${renderTraTypeInline(leg.type || "列車")}`).join(" ｜ ")
+      : [plan?.type1 ? `第 1 段 ${renderTraTypeInline(plan.type1)}` : "", plan?.type2 ? `第 2 段 ${renderTraTypeInline(plan.type2)}` : ""].filter(Boolean).join(" ｜ ");
+    return `總耗時 ${escapeHtml(plan?.travel || "--")}${legTypes ? ` ｜ ${legTypes}` : ""}`;
+  }
+
   function renderTraRoute(state, intent, directRows, transferRows, persist = true) {
     if (persist) {
       state.renderState = { kind: "tr-route", intent, directRows, transferRows };
@@ -980,9 +1006,9 @@
               return `
                 <article class="rail-ai-card">
                   <div class="rail-ai-card-main">
-                    <strong>${escapeHtml(item.n1)} 次 → ${escapeHtml(item.n2)} 次</strong>
-                    <p class="rail-ai-line">${item.depHTML || escapeHtml(item.depSched)} ${renderStationLabel(item.startStation, "tr")} 出發 ｜ ${renderStationLabel(item.transferStation, "tr")} 轉乘 ${item.waitMin} 分 ｜ ${item.arrHTML || escapeHtml(item.arrSched)} 抵達 ${renderStationLabel(item.endStation, "tr")}</p>
-                    <p class="rail-ai-subline">總耗時 ${escapeHtml(item.travel)} ｜ 第 1 段 ${renderTraTypeInline(item.type1)} ｜ 第 2 段 ${renderTraTypeInline(item.type2)}</p>
+                    <strong>${buildTraAssistantTransferTrainHtml(item)}</strong>
+                    <p class="rail-ai-line">${buildTraAssistantTransferLineHtml(item)}</p>
+                    <p class="rail-ai-subline">${buildTraAssistantTransferMetaHtml(item)}</p>
                   </div>
                   <div class="rail-ai-actions">
                     <button class="rail-ai-btn" type="button" data-ai-action="${actionIndex}">查看轉乘詳細</button>
@@ -990,7 +1016,7 @@
                 </article>
               `;
             }).join("")
-          : `<div class="rail-ai-empty">沒有找到更合適的 1 次轉乘方案。</div>`)
+          : `<div class="rail-ai-empty">沒有找到更合適的轉乘方案。</div>`)
       : "";
     const transferPagination = !intent.directOnly
       ? buildPaginationBlock(
@@ -1216,7 +1242,7 @@
     if (startInput) startInput.value = start;
     if (endInput) endInput.value = end;
     if (transferInput) transferInput.checked = !!intent.allowTransfer && !intent.directOnly;
-    window.runStartEndSearch?.();
+    await Promise.resolve(window.runStartEndSearch?.());
     await settleSearch("tr");
 
     const directRows = upcomingByIntent(
@@ -1226,13 +1252,17 @@
       (item) => item?.status
     );
 
-    window.buildTransferList?.(start, end);
-    const transferRows = upcomingByIntent(
-      readPageValue("currentTransferList") || [],
-      intent,
-      (item) => item?.depSortMin ?? timeToMinutes(item?.depSched),
-      (item) => item?.status
-    );
+    const transferRows = (intent.allowTransfer || !directRows.length)
+      ? (() => {
+          window.buildTransferList?.(start, end);
+          return upcomingByIntent(
+            readPageValue("currentTransferList") || [],
+            intent,
+            (item) => item?.depSortMin ?? timeToMinutes(item?.depSched),
+            (item) => item?.status
+          );
+        })()
+      : [];
 
     renderTraRoute(state, { ...intent, startRaw: start, endRaw: end }, directRows, transferRows);
   }
@@ -1477,15 +1507,21 @@
     renderError(state, "目前只支援起訖站、車次或車站查詢。");
   }
 
-  async function runAssistant(state, prompt) {
+  async function runAssistant(state, prompt, options = {}) {
+    const silent = !!options?.silent;
     const raw = String(prompt || state.input.value || "").trim();
     if (!raw) {
       renderEmpty(state);
       return;
     }
+    if (state.runInFlight) return false;
+    state.runInFlight = true;
     state.input.value = raw;
     const allowed = await ensureAiFeatureAccess();
-    if (!allowed) return;
+    if (!allowed) {
+      state.runInFlight = false;
+      return false;
+    }
     state.lastPrompt = raw;
     state.view = { route: { direct: 0, transfer: 0 }, station: 0 };
     state.renderState = null;
@@ -1493,11 +1529,14 @@
     const intent = parseIntent(raw, state.system);
     if (!intent) {
       renderError(state, "我還沒看懂這句，建議直接輸入起訖站、車次或車站，例如：今天 08:00 台北到台中。");
-      return;
+      state.runInFlight = false;
+      return false;
     }
 
     state.lastIntentDate = intent.dateStr || "";
-    const button = state.runButton;
+    const button = silent
+      ? { textContent: state.runButton?.textContent || "", disabled: !!state.runButton?.disabled }
+      : state.runButton;
     const previousLabel = button.textContent;
     button.disabled = true;
     button.textContent = "分析中...";
@@ -1509,6 +1548,7 @@
     } finally {
       button.disabled = false;
       button.textContent = previousLabel;
+      state.runInFlight = false;
     }
   }
 
@@ -1679,6 +1719,7 @@
       lastPrompt: "",
       lastIntentDate: "",
       autoRefreshInFlight: false,
+      runInFlight: false,
       renderState: null,
       view: { route: { direct: 0, transfer: 0 }, station: 0 },
     };
@@ -1699,15 +1740,15 @@
       runAssistant(state, prompt);
     });
 
-    window.refreshRailPageAssistant = async function () {
+    window.refreshRailPageAssistant = async function (options = {}) {
       const prompt = String(state.lastPrompt || state.input.value || "").trim();
       const todayStr = window.RailAssistantCommon?.getTodayDateStr?.() || new Date().toISOString().slice(0, 10);
       if (!prompt || !state.lastIntentDate || state.lastIntentDate !== todayStr) return false;
-      if (state.runButton?.disabled) return false;
+      if (state.runButton?.disabled || state.runInFlight) return false;
       if (state.autoRefreshInFlight) return false;
       state.autoRefreshInFlight = true;
       try {
-        await runAssistant(state, prompt);
+        await runAssistant(state, prompt, options);
         return true;
       } finally {
         state.autoRefreshInFlight = false;

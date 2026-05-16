@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>台北捷運板南線 BL 列車模擬器</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <p class="eyebrow">Taipei Metro Operations Simulator</p>
+      <h1>板南線 BL 列車監控系統</h1>
+    </div>
+    <div class="status-strip">
+      <div class="stat">
+        <span>模擬時間</span>
+        <strong id="topCurrentTime">07:00:00</strong>
+      </div>
+      <div class="stat">
+        <span>倍率</span>
+        <strong id="topSpeed">1x</strong>
+      </div>
+      <div class="stat">
+        <span>在線列車</span>
+        <strong id="topActiveTrains">0</strong>
+      </div>
+      <div class="stat danger">
+        <span>延誤列車</span>
+        <strong id="topDelayedTrains">0</strong>
+      </div>
+    </div>
+  </header>
+
+  <nav class="workspace-tabs" aria-label="主要功能切換">
+    <button class="active" data-view="monitor">路線監控</button>
+    <button data-view="schedule">班表管理</button>
+  </nav>
+
+  <main class="layout">
+    <section class="route-panel view-section active" data-section="monitor">
+      <div class="panel-header">
+        <div>
+          <p class="eyebrow">Blue Line</p>
+          <h2>板南線 BL 路線圖</h2>
+        </div>
+        <div class="legend">
+          <span><i class="legend-dot regular"></i>一般列車</span>
+          <span><i class="legend-dot extra"></i>加班車</span>
+          <span><i class="legend-dot delayed"></i>延誤</span>
+        </div>
+      </div>
+      <div class="route-viewport">
+        <div id="routeCanvas" class="route-canvas" aria-label="板南線路線圖"></div>
+      </div>
+    </section>
+
+    <aside class="control-panel view-section active" data-section="monitor">
+      <section class="panel-block">
+        <div class="panel-header compact">
+          <h2>模擬控制</h2>
+        </div>
+        <div class="time-display" id="currentTime">07:00:00</div>
+        <div class="button-grid">
+          <button id="startBtn" class="primary">開始模擬</button>
+          <button id="pauseBtn">暫停</button>
+          <button id="resetBtn">重置</button>
+        </div>
+        <label>
+          加速倍率
+          <select id="speedSelect">
+            <option value="1">1x</option>
+            <option value="5">5x</option>
+            <option value="10">10x</option>
+            <option value="30">30x</option>
+            <option value="60">60x</option>
+          </select>
+        </label>
+        <div class="inline-form">
+          <label>
+            手動時間
+            <input id="manualTime" type="time" value="07:00">
+          </label>
+          <button id="setTimeBtn">套用</button>
+        </div>
+        <label>
+          平均速度 <span id="speedValue">38</span> km/h
+          <input id="avgSpeed" type="range" min="25" max="65" step="1" value="38">
+        </label>
+      </section>
+    </aside>
+
+    <aside class="schedule-panel view-section" data-section="schedule">
+      <section class="panel-block">
+        <div class="panel-header compact">
+          <h2>班表管理</h2>
+        </div>
+        <form id="scheduleForm" class="form-grid">
+          <label>
+            自動車次
+            <input id="scheduleAutoId" type="text" value="001" readonly>
+          </label>
+          <select id="scheduleOrigin" required></select>
+          <select id="scheduleDestination" required></select>
+          <label>
+            發車時間
+            <span class="time-select-group" data-time-group="scheduleDeparture">
+              <select id="scheduleDepartureHour" aria-label="班表發車小時"></select>
+              <select id="scheduleDepartureMinute" aria-label="班表發車分鐘"></select>
+            </span>
+          </label>
+          <label class="check-row"><input id="scheduleEnabled" type="checkbox" checked> 啟用</label>
+          <button class="primary wide" type="submit">新增班次</button>
+        </form>
+      </section>
+
+      <section class="panel-block">
+        <div class="panel-header compact">
+          <h2>即時加班車</h2>
+        </div>
+        <form id="extraForm" class="form-grid">
+          <input id="extraId" type="text" inputmode="numeric" pattern="[0-9]+" placeholder="加班車車次，例如 701" required>
+          <select id="extraOrigin" required></select>
+          <select id="extraDestination" required></select>
+          <select id="extraMode">
+            <option value="now">立即發車</option>
+            <option value="scheduled">指定時間發車</option>
+          </select>
+          <label>
+            指定發車時間
+            <span class="time-select-group" data-time-group="extraDeparture">
+              <select id="extraDepartureHour" aria-label="加班車發車小時"></select>
+              <select id="extraDepartureMinute" aria-label="加班車發車分鐘"></select>
+            </span>
+          </label>
+          <input id="extraNote" type="text" placeholder="備註：尖峰疏運">
+          <button class="accent wide" type="submit">加入加班車</button>
+        </form>
+      </section>
+    </aside>
+
+    <section class="bottom-panel view-section active" data-section="monitor">
+      <div class="tabs-row">
+        <div>
+          <p class="eyebrow">Fleet</p>
+          <h2>列車清單</h2>
+        </div>
+        <div class="filters" id="trainFilters">
+          <button class="active" data-filter="all">全部</button>
+          <button data-filter="east">東行</button>
+          <button data-filter="west">西行</button>
+          <button data-filter="extra">加班車</button>
+          <button data-filter="delayed">誤點列車</button>
+          <button data-filter="running">行駛中</button>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>車次</th>
+              <th>方向</th>
+              <th>起站</th>
+              <th>終點</th>
+              <th>發車</th>
+              <th>目前位置</th>
+              <th>狀態</th>
+              <th>誤點</th>
+              <th>類型</th>
+              <th>事件說明</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody id="trainTableBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="log-panel view-section active" data-section="monitor">
+      <div class="panel-header compact">
+        <h2>事件紀錄</h2>
+        <button id="clearLogsBtn">清除</button>
+      </div>
+      <div id="eventLogs" class="event-logs"></div>
+    </section>
+  </main>
+
+  <dialog id="detailDialog">
+    <div class="dialog-head">
+      <h2 id="detailTitle">詳細資料</h2>
+      <button id="closeDialog" aria-label="關閉">×</button>
+    </div>
+    <div id="detailBody" class="detail-body"></div>
+  </dialog>
+
+  <dialog id="editTrainDialog">
+    <form id="editTrainForm" method="dialog">
+      <div class="dialog-head">
+        <h2>編輯列車</h2>
+        <button id="closeEditDialog" type="button" aria-label="關閉">×</button>
+      </div>
+      <div class="detail-body edit-form">
+        <input id="editOriginalId" type="hidden">
+        <label>
+          車次編號
+          <input id="editTrainId" type="text" inputmode="numeric" pattern="[0-9]+" required>
+        </label>
+        <label>
+          起站
+          <select id="editOrigin" required></select>
+        </label>
+        <label>
+          終點站
+          <select id="editDestination" required></select>
+        </label>
+        <label>
+          發車時間
+          <span class="time-select-group" data-time-group="editDeparture">
+            <select id="editDepartureHour" aria-label="編輯發車小時"></select>
+            <select id="editDepartureMinute" aria-label="編輯發車分鐘"></select>
+          </span>
+        </label>
+        <label class="check-row"><input id="editIsExtra" type="checkbox"> 加班車</label>
+        <label class="check-row"><input id="editEnabled" type="checkbox"> 啟用</label>
+        <div class="edit-actions">
+          <button id="deleteTrainBtn" type="button" class="danger-button">刪除列車</button>
+          <button type="submit" class="primary">儲存變更</button>
+        </div>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="script.js"></script>
+</body>
+</html>

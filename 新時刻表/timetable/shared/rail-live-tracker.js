@@ -369,10 +369,15 @@
 
   function startTrackerRefreshLoop(state, run) {
     const startAlignedPolling = window.RailAssistantCommon?.startAlignedPolling;
+    const preserveViewport = window.RailAssistantCommon?.preserveViewport;
     if (typeof startAlignedPolling === "function") {
       state.refreshLoop?.stop?.();
       state.refreshLoop = startAlignedPolling(() => {
-        if (!state.panel.classList.contains("hidden")) return run();
+        if (state.panel.classList.contains("hidden")) return null;
+        if (typeof preserveViewport === "function") {
+          return preserveViewport(() => run({ silent: true }), { restoreFocus: false });
+        }
+        return run({ silent: true });
       }, {
         getIntervalMs: () => getTrackerRefreshIntervalMs(state),
       });
@@ -380,7 +385,12 @@
     }
     if (state.timer) window.clearInterval(state.timer);
     state.timer = window.setInterval(() => {
-      if (!state.panel.classList.contains("hidden")) run();
+      if (state.panel.classList.contains("hidden")) return;
+      if (typeof preserveViewport === "function") {
+        preserveViewport(() => run({ silent: true }), { restoreFocus: false });
+        return;
+      }
+      run({ silent: true });
     }, REFRESH_MS);
   }
 
@@ -5440,14 +5450,22 @@
 
   function bindTrackerPanel(state, tab) {
     const render = state.variant === "modern" ? renderTrackerV2 : renderTracker;
-    const run = () => {
+    const run = (options = {}) => {
+      if (state.renderInFlight) return Promise.resolve(false);
+      const silent = !!options?.silent;
       promptGeoEntryIfNeeded(state);
       const previousLabel = state.renderButton.textContent;
-      state.renderButton.disabled = true;
-      state.renderButton.textContent = "更新中...";
-      render(state).finally(() => {
-        state.renderButton.disabled = false;
-        state.renderButton.textContent = previousLabel;
+      state.renderInFlight = true;
+      if (!silent) {
+        state.renderButton.disabled = true;
+        state.renderButton.textContent = "更新中...";
+      }
+      return maybePromise(render(state)).finally(() => {
+        if (!silent) {
+          state.renderButton.disabled = false;
+          state.renderButton.textContent = previousLabel;
+        }
+        state.renderInFlight = false;
       });
     };
     state.runRender = run;

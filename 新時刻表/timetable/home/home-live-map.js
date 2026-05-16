@@ -1169,6 +1169,13 @@
   }
 
   function getScheduleUrls(system, date) {
+    if (system === "tr") {
+      return [
+        SYSTEMS[system].scheduleUrl(date),
+        `https://tdx.transportdata.tw/api/basic/v2/Rail/TRA/DailyTimetable/TrainDate/${date}?%24format=JSON`,
+        `https://tdx.transportdata.tw/api/basic/v2/Rail/TRA/DailyTimetable/TrainDate/${date}?$format=JSON`,
+      ];
+    }
     if (system !== "thsr") return [SYSTEMS[system].scheduleUrl(date)];
     return [
       SYSTEMS[system].scheduleUrl(date),
@@ -1199,7 +1206,11 @@
     if (system === "tr") {
       return Array.isArray(data?.TrainTimetables)
         ? data.TrainTimetables
-        : (Array.isArray(data?.DailyTrainTimetables) ? data.DailyTrainTimetables : []);
+        : (
+          Array.isArray(data?.DailyTimetables)
+            ? data.DailyTimetables
+            : (Array.isArray(data?.DailyTrainTimetables) ? data.DailyTrainTimetables : [])
+        );
     }
     return (
         Array.isArray(data?.TrainTimetables)
@@ -1391,7 +1402,7 @@
         const data = await cachedFetchJson(`home_live_schedule_${system}_${date}_v2_${index}`, cacheMs, urls[index], token);
         const rows = extractScheduleRows(system, data);
         lastRows = rows;
-        if (rows.length || system !== "thsr") return rows;
+        if (rows.length || index === urls.length - 1) return rows;
       } catch (error) {
         lastError = error;
       }

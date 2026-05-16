@@ -15,6 +15,8 @@
   let assistantLastQueryText = "";
   let assistantAutoRefreshLoop = null;
   let assistantAutoRefreshInFlight = false;
+  let assistantTraTransferSearchCache = new Map();
+  const assistantTraTransferIndexCache = typeof WeakMap === "function" ? new WeakMap() : null;
 
   function pad2(value) {
     return String(value).padStart(2, "0");
@@ -43,7 +45,13 @@
     if (assistantAutoRefreshInFlight) return;
     assistantAutoRefreshInFlight = true;
     try {
-      await window.handleAssistantQuery?.(assistantLastQueryText, { silent: true });
+      const preserveViewport = window.RailAssistantCommon?.preserveViewport;
+      const runRefresh = () => window.handleAssistantQuery?.(assistantLastQueryText, { silent: true });
+      if (typeof preserveViewport === "function") {
+        await preserveViewport(runRefresh);
+      } else {
+        await runRefresh();
+      }
     } catch (error) {
       console.warn("首頁 AI 自動更新失敗", error);
     } finally {
@@ -1087,6 +1095,7 @@
     const wanted = Array.isArray(systems) ? systems : ["tr", "thsr"];
     if (assistantRouteCache.date !== dateStr) {
       assistantRouteCache = window.assistantRouteCache = { date: dateStr, tra: null, thsr: null };
+      assistantTraTransferSearchCache = new Map();
     }
     const tasks = [];
     if (wanted.includes("tr") && !assistantRouteCache.tra) {
@@ -1275,83 +1284,561 @@
     };
   }
 
-  function collectTransfer(dataset, startName, endName, options) {
-    if (!Array.isArray(dataset) || !dataset.length) return [];
-    const useNow = options.dateStr === getTodayDateStr() && !options.hasTimeFilter;
-    const nowTs = Date.now();
-    const plans = [];
+  function isAssistantTraLocalOnlySelection(typePreference) {
+    return simplifyTypeName(typePreference).replace(/\s+/g, "") === "區間";
+  }
 
-    (dataset || []).forEach((firstTrain) => {
-      if (options.typePreference && !matchesTraType(firstTrain.type, options.typePreference)) return;
-      const startIdx = getStopMapIndex(firstTrain.stopMap, startName);
-      if (!Number.isInteger(startIdx) || startIdx >= firstTrain.stops.length - 1) return;
+  function isAssistantTraLocalType(typeName) {
+    return simplifyTypeName(typeName).replace(/\s+/g, "") === "區間";
+  }
 
-      const startStop = firstTrain.stops[startIdx];
-      const dep = startStop.dep || startStop.arr || "";
-      const depAbs = getStopAbs(startStop, "dep");
-      const depDT = buildDateTimeByAbs(firstTrain.originDate, depAbs);
-      const depMin = timeToMin(dep);
-      if (!depDT || depMin === null) return;
-      if (getDisplayDateByAbs(firstTrain.originDate, depAbs) !== options.dateStr) return;
-      if (!matchesQueryTime(depMin, options)) return;
-      if (useNow && depDT.getTime() < nowTs - 60000) return;
+  function isAssistantTraSpecialTransferType(typeName) {
+    return /專車|專開列車/.test(String(typeName || ""));
+  }
 
-      (dataset || []).forEach((secondTrain) => {
-        if (secondTrain.trainNo === firstTrain.trainNo && secondTrain.originDate === firstTrain.originDate) return;
-        const endIdx = getStopMapIndex(secondTrain.stopMap, endName);
-        if (!Number.isInteger(endIdx) || endIdx <= 0) return;
+  function getAssistantTraTransferIndex(dataset) {
+    if (!Array.isArray(dataset) || !dataset.length) return { entries: [], bundleCache: new Map() };
+    if (assistantTraTransferIndexCache?.has(dataset)) return assistantTraTransferIndexCache.get(dataset);
+    const entries = dataset
+      .filter((train) => train && Array.isArray(train.stops) && train.stops.length > 1 && !isAssistantTraSpecialTransferType(train.type))
+      .map((train) => ({
+        key: `${String(train.trainNo || "").trim()}@${String(train.originDate || "").trim()}`,
+        trainNo: String(train.trainNo || "").trim(),
+        type: train.type || "列車",
+        originDate: train.originDate || "",
+        stops: train.stops,
+        meta: (train.stops || []).map((stop) => ({
+          stop,
+          name: stop?.name || "",
+          key: normalizeLoose(stop?.name || ""),
+          arr: stop?.arr || stop?.dep || "",
+          dep: stop?.dep || stop?.arr || "",
+          arrAbs: getStopAbs(stop, "arr"),
+          depAbs: getStopAbs(stop, "dep"),
+          arrTimestamp: buildDateTimeByAbs(train.originDate, getStopAbs(stop, "arr"))?.getTime() ?? null,
+          depTimestamp: buildDateTimeByAbs(train.originDate, getStopAbs(stop, "dep"))?.getTime() ?? null,
+        })),
+      }));
+    const index = { entries, bundleCache: new Map() };
+    if (assistantTraTransferIndexCache) assistantTraTransferIndexCache.set(dataset, index);
+    return index;
+  }
 
-        for (let midFirstIdx = startIdx + 1; midFirstIdx < firstTrain.stops.length; midFirstIdx += 1) {
-          const transfer = firstTrain.stops[midFirstIdx].name;
-          const midSecondIdx = getStopMapIndex(secondTrain.stopMap, transfer);
-          if (!Number.isInteger(midSecondIdx) || midSecondIdx >= endIdx) continue;
+  function getAssistantTraTransferBundle(dataset, typePreference) {
+    const index = getAssistantTraTransferIndex(dataset);
+    const cacheKey = simplifyTypeName(typePreference || "").replace(/\s+/g, "") || "*";
+    if (index.bundleCache.has(cacheKey)) return index.bundleCache.get(cacheKey);
+    const candidateEntries = typePreference
+      ? index.entries.filter((entry) => matchesTraType(entry.type, typePreference))
+      : index.entries.slice();
+    const boardEvents = [];
+    candidateEntries.forEach((entry) => {
+      const meta = entry.meta || [];
+      for (let boardIdx = 0; boardIdx < meta.length - 1; boardIdx += 1) {
+        const boardMeta = meta[boardIdx];
+        if (!Number.isFinite(boardMeta?.depTimestamp)) continue;
+        boardEvents.push({
+          entry,
+          trainKey: entry.key,
+          boardIdx,
+          boardMeta,
+          depAbs: boardMeta.depAbs,
+          depTimestamp: boardMeta.depTimestamp,
+          stationKey: boardMeta.key
+        });
+      }
+    });
+    boardEvents.sort((a, b) => (a.depTimestamp ?? Infinity) - (b.depTimestamp ?? Infinity) || String(a.trainKey || "").localeCompare(String(b.trainKey || "")));
+    const bundle = { candidateEntries, boardEvents, reverseCache: new Map() };
+    index.bundleCache.set(cacheKey, bundle);
+    return bundle;
+  }
 
-          const firstMid = firstTrain.stops[midFirstIdx];
-          const secondMid = secondTrain.stops[midSecondIdx];
-          const endStop = secondTrain.stops[endIdx];
-          const midArrDT = buildDateTimeByAbs(firstTrain.originDate, getStopAbs(firstMid, "arr"));
-          const midDepDT = buildDateTimeByAbs(secondTrain.originDate, getStopAbs(secondMid, "dep"));
-          const endArrDT = buildDateTimeByAbs(secondTrain.originDate, getStopAbs(endStop, "arr"));
-          if (!midArrDT || !midDepDT || !endArrDT) continue;
-
-          const waitMin = Math.round((midDepDT.getTime() - midArrDT.getTime()) / 60000);
-          const totalMin = Math.round((endArrDT.getTime() - depDT.getTime()) / 60000);
-          if (!Number.isFinite(waitMin) || waitMin < 0 || waitMin > 90) continue;
-          if (!Number.isFinite(totalMin) || totalMin < 0) continue;
-
-          plans.push({
-            transfer,
-            first: {
-              trainNo: firstTrain.trainNo,
-              type: firstTrain.type,
-              dep,
-              arr: firstMid.arr || firstMid.dep || "",
-            },
-            second: {
-              trainNo: secondTrain.trainNo,
-              type: secondTrain.type,
-              dep: secondMid.dep || secondMid.arr || "",
-              arr: endStop.arr || endStop.dep || "",
-            },
-            waitMin,
-            totalMin,
-            duration: formatDurationMinutes(totalMin),
-            depTimestamp: depDT.getTime(),
-          });
+  function createAssistantTraReverseReachabilityStore(bundle) {
+    let minTs = Infinity;
+    let maxTs = -Infinity;
+    (bundle?.boardEvents || []).forEach((event) => {
+      if (Number.isFinite(event?.depTimestamp)) {
+        minTs = Math.min(minTs, event.depTimestamp);
+        maxTs = Math.max(maxTs, event.depTimestamp);
+      }
+    });
+    (bundle?.candidateEntries || []).forEach((entry) => {
+      (entry?.meta || []).forEach((stopMeta) => {
+        if (Number.isFinite(stopMeta?.arrTimestamp)) {
+          minTs = Math.min(minTs, stopMeta.arrTimestamp);
+          maxTs = Math.max(maxTs, stopMeta.arrTimestamp);
+        }
+        if (Number.isFinite(stopMeta?.depTimestamp)) {
+          minTs = Math.min(minTs, stopMeta.depTimestamp);
+          maxTs = Math.max(maxTs, stopMeta.depTimestamp);
         }
       });
     });
+    if (!Number.isFinite(minTs) || !Number.isFinite(maxTs) || maxTs < minTs) {
+      return { baseMinute: 0, length: 0, byStation: new Map() };
+    }
+    return {
+      baseMinute: Math.floor(minTs / 60000),
+      length: Math.max(0, Math.ceil((maxTs - minTs) / 60000) + 92),
+      byStation: new Map()
+    };
+  }
 
-    const seen = new Set();
-    return plans
-      .sort((a, b) => a.depTimestamp - b.depTimestamp || a.totalMin - b.totalMin)
-      .filter((plan) => {
-        const key = `${plan.first.trainNo}|${plan.first.dep}|${plan.second.trainNo}|${plan.transfer}|${plan.second.arr}`;
-        if (seen.has(key)) return false;
-        seen.add(key);
-        return true;
-      })
-      .slice(0, 18);
+  function getAssistantTraReverseReachabilitySlots(store, key, create = false) {
+    if (!store?.byStation || !key) return null;
+    let slots = store.byStation.get(key);
+    if (!slots && create && Number.isFinite(store.length) && store.length > 0) {
+      slots = new Uint8Array(store.length);
+      store.byStation.set(key, slots);
+    }
+    return slots || null;
+  }
+
+  function markAssistantTraReverseReachableDeparture(store, station, depTimestamp) {
+    if (!store || !Number.isFinite(depTimestamp)) return;
+    const index = Math.round(depTimestamp / 60000) - store.baseMinute;
+    if (index < 0 || index >= store.length) return;
+    [station, normalizeLoose(station)].forEach((key) => {
+      const slots = getAssistantTraReverseReachabilitySlots(store, key, true);
+      if (slots) slots[index] = 1;
+    });
+  }
+
+  function hasAssistantTraReverseReachableDeparture(store, station, arrTimestamp) {
+    if (!store || !Number.isFinite(arrTimestamp)) return false;
+    const arriveMinute = Math.round(arrTimestamp / 60000);
+    const start = Math.max(0, arriveMinute - store.baseMinute + 3);
+    const end = Math.min(store.length - 1, arriveMinute - store.baseMinute + 90);
+    if (end < start) return false;
+    const keys = [station, normalizeLoose(station)];
+    for (let keyIndex = 0; keyIndex < keys.length; keyIndex += 1) {
+      const slots = getAssistantTraReverseReachabilitySlots(store, keys[keyIndex], false);
+      if (!slots) continue;
+      for (let i = start; i <= end; i += 1) {
+        if (slots[i]) return true;
+      }
+    }
+    return false;
+  }
+
+  function canAssistantTraReverseStopReachEnd(reverseIndex, station, arrTimestamp) {
+    if (!reverseIndex) return true;
+    if (normalizeLoose(station) === reverseIndex.endKey) return true;
+    return hasAssistantTraReverseReachableDeparture(reverseIndex.store, station, arrTimestamp);
+  }
+
+  function buildAssistantTraReverseReachability(bundle, endName) {
+    if (!bundle) return { endName, endKey: normalizeLoose(endName), store: { baseMinute: 0, length: 0, byStation: new Map() }, boardReachableKeys: new Set() };
+    if (!bundle.reverseCache) bundle.reverseCache = new Map();
+    const cacheKey = normalizeLoose(endName);
+    if (bundle.reverseCache.has(cacheKey)) return bundle.reverseCache.get(cacheKey);
+
+    const store = createAssistantTraReverseReachabilityStore(bundle);
+    const boardReachableKeys = new Set();
+    const groupedEvents = new Map();
+    (bundle?.boardEvents || []).forEach((event) => {
+      if (!Number.isFinite(event?.depTimestamp)) return;
+      if (!groupedEvents.has(event.depTimestamp)) groupedEvents.set(event.depTimestamp, []);
+      groupedEvents.get(event.depTimestamp).push(event);
+    });
+
+    const depBuckets = Array.from(groupedEvents.keys()).sort((a, b) => b - a);
+    const reverseIndex = { endName, endKey: cacheKey, store, boardReachableKeys };
+    depBuckets.forEach((depTimestamp) => {
+      const events = groupedEvents.get(depTimestamp) || [];
+      const reachableEvents = [];
+      events.forEach((event) => {
+        const meta = event?.entry?.meta || [];
+        let reachable = false;
+        for (let idx = event.boardIdx + 1; idx < meta.length; idx += 1) {
+          const stopMeta = meta[idx];
+          const arrTimestamp = stopMeta?.arrTimestamp ?? stopMeta?.depTimestamp;
+          if (!Number.isFinite(arrTimestamp)) continue;
+          if (canAssistantTraReverseStopReachEnd(reverseIndex, stopMeta.name, arrTimestamp)) {
+            reachable = true;
+            break;
+          }
+        }
+        if (reachable) reachableEvents.push(event);
+      });
+      reachableEvents.forEach((event) => {
+        boardReachableKeys.add(`${event.trainKey}|${event.boardIdx}`);
+        markAssistantTraReverseReachableDeparture(store, event.boardMeta.name, event.depTimestamp);
+      });
+    });
+
+    bundle.reverseCache.set(cacheKey, reverseIndex);
+    return reverseIndex;
+  }
+
+  function createAssistantTraTransferOriginState(startName) {
+    return {
+      kind: "origin",
+      parent: null,
+      stationKey: normalizeLoose(startName),
+      stationName: startName,
+      arrivalTimestamp: -Infinity,
+      effectiveDepTimestamp: null,
+      transferCount: 0,
+      lastTrainKey: ""
+    };
+  }
+
+  function findAssistantTraLastRideState(stateNode) {
+    let cursor = stateNode;
+    while (cursor) {
+      if (cursor.kind === "ride" && cursor.leg) return cursor;
+      cursor = cursor.parent;
+    }
+    return null;
+  }
+
+  function isAssistantTraTerminalLeg(leg) {
+    return !!leg && Number(leg.endIdx) >= Number(leg.stopCount || 0) - 1;
+  }
+
+  function getAssistantTraTransferRestrictionKey(stateNode, allowLocalOnly) {
+    const ride = findAssistantTraLastRideState(stateNode);
+    if (!ride?.leg) return "origin";
+    if (allowLocalOnly) return `free:${ride.lastTrainKey || ""}`;
+    if (isAssistantTraLocalType(ride.leg.type) && !isAssistantTraTerminalLeg(ride.leg)) return `local-nonterminal:${ride.lastTrainKey || ""}`;
+    return `free:${ride.lastTrainKey || ""}`;
+  }
+
+  function compareAssistantTraStateDominance(a, b, allowLocalOnly) {
+    if (!a || !b) return false;
+    if (String(a.lastTrainKey || "") !== String(b.lastTrainKey || "")) return false;
+    if (getAssistantTraTransferRestrictionKey(a, allowLocalOnly) !== getAssistantTraTransferRestrictionKey(b, allowLocalOnly)) return false;
+    const dominates =
+      (a.arrivalTimestamp ?? Infinity) <= (b.arrivalTimestamp ?? Infinity) &&
+      (a.effectiveDepTimestamp ?? -Infinity) >= (b.effectiveDepTimestamp ?? -Infinity) &&
+      (a.transferCount ?? Infinity) <= (b.transferCount ?? Infinity);
+    const strictlyBetter =
+      (a.arrivalTimestamp ?? Infinity) < (b.arrivalTimestamp ?? Infinity) ||
+      (a.effectiveDepTimestamp ?? -Infinity) > (b.effectiveDepTimestamp ?? -Infinity) ||
+      (a.transferCount ?? Infinity) < (b.transferCount ?? Infinity);
+    return dominates && strictlyBetter;
+  }
+
+  function insertAssistantTraTransferState(frontiers, nextState, allowLocalOnly) {
+    const key = nextState.stationKey;
+    const list = frontiers.get(key) || [];
+    for (let i = 0; i < list.length; i += 1) {
+      if (compareAssistantTraStateDominance(list[i], nextState, allowLocalOnly)) return false;
+    }
+    const filtered = list.filter((item) => !compareAssistantTraStateDominance(nextState, item, allowLocalOnly));
+    filtered.push(nextState);
+    filtered.sort((a, b) => (a.arrivalTimestamp ?? Infinity) - (b.arrivalTimestamp ?? Infinity) || (b.effectiveDepTimestamp ?? -Infinity) - (a.effectiveDepTimestamp ?? -Infinity) || (a.transferCount ?? Infinity) - (b.transferCount ?? Infinity));
+    frontiers.set(key, filtered);
+    return true;
+  }
+
+  function buildAssistantTraTransferInfo(previousState, event) {
+    const previousRide = findAssistantTraLastRideState(previousState);
+    if (!previousRide?.leg) return null;
+    const waitMin = Math.round(((event.depTimestamp ?? 0) - (previousState.arrivalTimestamp ?? 0)) / 60000);
+    return {
+      station: event.boardMeta.name,
+      waitMin,
+      arriveTimestamp: previousRide.leg.arrTimestamp,
+      departTimestamp: event.depTimestamp,
+      arriveSched: previousRide.leg.arr,
+      departSched: event.boardMeta.dep || event.boardMeta.arr || "",
+      fromTrainNo: previousRide.leg.trainNo,
+      toTrainNo: event.entry.trainNo,
+      fromOriginDate: previousRide.leg.originDate,
+      toOriginDate: event.entry.originDate
+    };
+  }
+
+  function isAssistantTraLocalTransferBlocked(previousRide, event, allowLocalOnly) {
+    if (allowLocalOnly) return false;
+    const previousLeg = previousRide?.leg;
+    if (!previousLeg || !event?.entry) return false;
+    if (!isAssistantTraLocalType(previousLeg.type) || !isAssistantTraLocalType(event.entry.type)) return false;
+    return !isAssistantTraTerminalLeg(previousLeg);
+  }
+
+  function compareAssistantTraBoardCandidate(a, b) {
+    if (!a) return 1;
+    if (!b) return -1;
+    const byDep = (b.effectiveDepTimestamp ?? -Infinity) - (a.effectiveDepTimestamp ?? -Infinity);
+    if (byDep) return byDep;
+    const byTransfer = (a.transferCount ?? Infinity) - (b.transferCount ?? Infinity);
+    if (byTransfer) return byTransfer;
+    const byArrival = (b.predecessor?.arrivalTimestamp ?? -Infinity) - (a.predecessor?.arrivalTimestamp ?? -Infinity);
+    if (byArrival) return byArrival;
+    return 0;
+  }
+
+  function selectAssistantTraTransferBoardCandidate(event, startName, options, frontiers, allowLocalOnly) {
+    let best = null;
+    if (event?.stationKey === normalizeLoose(startName)) {
+      const depDate = getDisplayDateByAbs(event.entry.originDate, event.depAbs);
+      const depClock = event.boardMeta.dep || event.boardMeta.arr || "";
+      const depMin = timeToMin(depClock);
+      if (depDate === options.dateStr && depMin !== null && matchesQueryTime(depMin, options) && (!options.useNow || event.depTimestamp >= options.nowTs - 60000)) {
+        best = {
+          predecessor: createAssistantTraTransferOriginState(startName),
+          effectiveDepTimestamp: event.depTimestamp,
+          transferCount: 0,
+          transferInfo: null
+        };
+      }
+    }
+
+    const list = frontiers.get(event.stationKey) || [];
+    for (let i = 0; i < list.length; i += 1) {
+      const node = list[i];
+      if ((node.arrivalTimestamp ?? Infinity) > (event.depTimestamp ?? -Infinity)) break;
+      if (node.lastTrainKey && node.lastTrainKey === event.trainKey) continue;
+      const previousRide = findAssistantTraLastRideState(node);
+      if (isAssistantTraLocalTransferBlocked(previousRide, event, allowLocalOnly)) continue;
+      const transferInfo = buildAssistantTraTransferInfo(node, event);
+      if (!transferInfo) continue;
+      if (!Number.isFinite(transferInfo.waitMin) || transferInfo.waitMin < 3 || transferInfo.waitMin > 90) continue;
+      const candidate = {
+        predecessor: node,
+        effectiveDepTimestamp: node.effectiveDepTimestamp,
+        transferCount: (node.transferCount || 0) + 1,
+        transferInfo
+      };
+      if (compareAssistantTraBoardCandidate(candidate, best) < 0) best = candidate;
+    }
+    return best;
+  }
+
+  function createAssistantTraRideState(event, candidate, endIdx) {
+    const arriveMeta = event?.entry?.meta?.[endIdx];
+    if (!arriveMeta || !Number.isFinite(arriveMeta.arrTimestamp)) return null;
+    if ((arriveMeta.arrTimestamp ?? -Infinity) <= (event.depTimestamp ?? -Infinity)) return null;
+    return {
+      kind: "ride",
+      parent: candidate.predecessor,
+      stationKey: arriveMeta.key,
+      stationName: arriveMeta.name,
+      arrivalTimestamp: arriveMeta.arrTimestamp,
+      effectiveDepTimestamp: candidate.effectiveDepTimestamp,
+      transferCount: candidate.transferCount,
+      lastTrainKey: event.trainKey,
+      boardingTransfer: candidate.transferInfo,
+      leg: {
+        key: `${event.trainKey}|${event.boardIdx}|${endIdx}`,
+        trainKey: event.trainKey,
+        trainNo: String(event.entry.trainNo || ""),
+        type: event.entry.type,
+        originDate: event.entry.originDate,
+        startIdx: event.boardIdx,
+        endIdx,
+        stopCount: event.entry.meta.length,
+        startStation: event.boardMeta.name,
+        endStation: arriveMeta.name,
+        depAbs: event.depAbs,
+        arrAbs: arriveMeta.arrAbs,
+        depTimestamp: event.depTimestamp,
+        arrTimestamp: arriveMeta.arrTimestamp,
+        dep: event.boardMeta.dep || event.boardMeta.arr || "",
+        arr: arriveMeta.arr || arriveMeta.dep || ""
+      }
+    };
+  }
+
+  function collectAssistantTraTransferChain(stateNode) {
+    const nodes = [];
+    let cursor = stateNode;
+    while (cursor) {
+      nodes.push(cursor);
+      cursor = cursor.parent;
+    }
+    return nodes.reverse();
+  }
+
+  function buildAssistantTraTransferText(transferStations, waitMins) {
+    if (!transferStations.length) return "直達";
+    if (transferStations.length === 1) return `${transferStations[0]} 轉乘 ${waitMins[0]} 分`;
+    return `${transferStations.join("/")} 轉乘 ${waitMins.join("/")} 分`;
+  }
+
+  function buildAssistantTraTransferPlan(stateNode, startName, endName) {
+    const chain = collectAssistantTraTransferChain(stateNode);
+    const rideStates = chain.filter((node) => node?.kind === "ride" && node.leg);
+    if (!rideStates.length || !Number.isFinite(stateNode?.effectiveDepTimestamp)) return null;
+    const legs = rideStates.map((node) => ({ ...node.leg }));
+    const transfers = rideStates.slice(1).map((node) => node.boardingTransfer).filter(Boolean);
+    const firstLeg = legs[0];
+    const lastLeg = legs[legs.length - 1];
+    const totalMin = Math.round(((lastLeg.arrTimestamp ?? 0) - (stateNode.effectiveDepTimestamp ?? 0)) / 60000);
+    if (!Number.isFinite(totalMin) || totalMin < 0) return null;
+    const transferStations = transfers.map((item) => item.station);
+    const waitMins = transfers.map((item) => item.waitMin);
+    const first = {
+      trainNo: firstLeg.trainNo,
+      type: firstLeg.type,
+      dep: firstLeg.dep,
+      arr: transfers[0]?.arriveSched || lastLeg.arr
+    };
+    const secondLeg = legs[1] || null;
+    const second = secondLeg ? {
+      trainNo: secondLeg.trainNo,
+      type: secondLeg.type,
+      dep: secondLeg.dep,
+      arr: lastLeg.arr
+    } : null;
+    return {
+      transfer: transferStations[0] || "",
+      first,
+      second,
+      legs,
+      transfers,
+      transferStations,
+      waitMin: waitMins[0] ?? null,
+      waitMins,
+      transferCount: transfers.length,
+      minWaitMin: waitMins.length ? Math.min(...waitMins) : Infinity,
+      totalMin,
+      duration: formatDurationMinutes(totalMin),
+      depTimestamp: stateNode.effectiveDepTimestamp,
+      arrTimestamp: lastLeg.arrTimestamp,
+      dep: firstLeg.dep,
+      arr: lastLeg.arr,
+      startStation: startName,
+      endStation: endName,
+      transferText: buildAssistantTraTransferText(transferStations, waitMins),
+    };
+  }
+
+  function compareAssistantTraTransferPlan(a, b) {
+    const byTotal = (a?.totalMin ?? Infinity) - (b?.totalMin ?? Infinity);
+    if (byTotal) return byTotal;
+    const byTransfer = (a?.transferCount ?? Infinity) - (b?.transferCount ?? Infinity);
+    if (byTransfer) return byTransfer;
+    return (b?.depTimestamp ?? -Infinity) - (a?.depTimestamp ?? -Infinity);
+  }
+
+  function pruneAssistantTraTransferPlans(plans) {
+    const fallback = [];
+    const normal = [];
+    (plans || []).forEach((plan) => {
+      if (plan?.isTightFallback) fallback.push(plan);
+      else normal.push(plan);
+    });
+    const sorted = normal.slice().sort((a, b) => {
+      const depDiff = (a?.depTimestamp ?? Infinity) - (b?.depTimestamp ?? Infinity);
+      if (depDiff) return depDiff;
+      const arrDiff = (b?.arrTimestamp ?? -Infinity) - (a?.arrTimestamp ?? -Infinity);
+      if (arrDiff) return arrDiff;
+      return (b?.transferCount ?? Infinity) - (a?.transferCount ?? Infinity);
+    });
+    const keptReverse = [];
+    let bestArrival = Infinity;
+    for (let i = sorted.length - 1; i >= 0; i -= 1) {
+      const plan = sorted[i];
+      if (Number.isFinite(plan?.arrTimestamp) && plan.arrTimestamp >= bestArrival) continue;
+      if (Number.isFinite(plan?.arrTimestamp)) bestArrival = plan.arrTimestamp;
+      keptReverse.push(plan);
+    }
+    const kept = keptReverse.reverse();
+    const seen = new Set(kept.map((plan) => `${plan.depTimestamp}|${plan.arrTimestamp}|${(plan.transferStations || []).join("/")}|${(plan.waitMins || []).join("/")}`));
+    fallback.forEach((plan) => {
+      const key = `${plan.depTimestamp}|${plan.arrTimestamp}|${(plan.transferStations || []).join("/")}|${(plan.waitMins || []).join("/")}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      kept.push(plan);
+    });
+    kept.sort((a, b) => (a?.depTimestamp ?? Infinity) - (b?.depTimestamp ?? Infinity) || (a?.arrTimestamp ?? Infinity) - (b?.arrTimestamp ?? Infinity));
+    return kept;
+  }
+
+  function collectTransfer(dataset, startName, endName, options) {
+    if (!Array.isArray(dataset) || !dataset.length) return [];
+    const cacheKey = [
+      assistantRouteCache.date || options?.dateStr || "",
+      normalizeLoose(startName || ""),
+      normalizeLoose(endName || ""),
+      simplifyTypeName(options?.typePreference || "").replace(/\s+/g, ""),
+      Number.isFinite(options?.timeStartMin) ? options.timeStartMin : "",
+      Number.isFinite(options?.timeEndMin) ? options.timeEndMin : "",
+      options?.hasTimeFilter ? "1" : "0",
+      dataset.length
+    ].join("|");
+    if (assistantTraTransferSearchCache.has(cacheKey)) return (assistantTraTransferSearchCache.get(cacheKey) || []).slice();
+
+    const allowLocalOnly = isAssistantTraLocalOnlySelection(options?.typePreference);
+    const bundle = getAssistantTraTransferBundle(dataset, options?.typePreference);
+    const reverseIndex = buildAssistantTraReverseReachability(bundle, endName);
+    const frontiers = new Map();
+    const rawPlans = [];
+    const queryOptions = {
+      ...(options || {}),
+      useNow: options?.dateStr === getTodayDateStr() && !options?.hasTimeFilter,
+      nowTs: Date.now()
+    };
+
+    (bundle.boardEvents || []).forEach((event) => {
+      if (!reverseIndex.boardReachableKeys.has(`${event.trainKey}|${event.boardIdx}`)) return;
+      const candidate = selectAssistantTraTransferBoardCandidate(event, startName, queryOptions, frontiers, allowLocalOnly);
+      if (!candidate) return;
+      for (let endIdx = event.boardIdx + 1; endIdx < event.entry.meta.length; endIdx += 1) {
+        const arriveMeta = event.entry.meta[endIdx];
+        const arrTimestamp = arriveMeta?.arrTimestamp ?? arriveMeta?.depTimestamp;
+        if (!canAssistantTraReverseStopReachEnd(reverseIndex, arriveMeta?.name, arrTimestamp)) continue;
+        const rideState = createAssistantTraRideState(event, candidate, endIdx);
+        if (!rideState) continue;
+        if (!insertAssistantTraTransferState(frontiers, rideState, allowLocalOnly)) continue;
+        if (rideState.stationKey === normalizeLoose(endName)) {
+          const plan = buildAssistantTraTransferPlan(rideState, startName, endName);
+          if (plan) rawPlans.push(plan);
+        }
+      }
+    });
+
+    const bestByFirstTrain = new Map();
+    rawPlans.forEach((plan) => {
+      const key = `${plan?.first?.trainNo || ""}|${plan?.legs?.[0]?.originDate || ""}`;
+      const current = bestByFirstTrain.get(key);
+      if (!current || compareAssistantTraTransferPlan(plan, current) < 0) {
+        bestByFirstTrain.set(key, plan);
+      }
+    });
+
+    let plans = Array.from(bestByFirstTrain.values());
+    const directMinByLastTrain = new Map();
+    plans.forEach((plan) => {
+      if ((plan?.transferCount || 0) === 0) directMinByLastTrain.set(String(plan?.first?.trainNo || ""), plan.totalMin);
+    });
+    plans = plans.filter((plan) => {
+      if (!plan || (plan.transferCount || 0) === 0) return true;
+      const lastTrainNo = String(plan.legs?.[plan.legs.length - 1]?.trainNo || "");
+      const directMin = directMinByLastTrain.get(lastTrainNo);
+      if (directMin === undefined) return true;
+      return Number(plan.totalMin) < Number(directMin);
+    });
+
+    const directs = plans.filter((plan) => (plan?.transferCount || 0) === 0);
+    const transferGroups = new Map();
+    plans.filter((plan) => (plan?.transferCount || 0) > 0).forEach((plan) => {
+      const lastLeg = plan.legs?.[plan.legs.length - 1];
+      const key = `${String(lastLeg?.trainNo || "")}|${String(lastLeg?.originDate || "")}|${String(plan.arr || "")}`;
+      if (!transferGroups.has(key)) transferGroups.set(key, []);
+      transferGroups.get(key).push(plan);
+    });
+
+    const keptTransfers = [];
+    transferGroups.forEach((group) => {
+      group.sort(compareAssistantTraTransferPlan);
+      const best = group[0];
+      if (best) keptTransfers.push(best);
+      const second = group[1];
+      if (second && Number.isFinite(best?.minWaitMin) && best.minWaitMin < 10) {
+        second.isTightFallback = true;
+        keptTransfers.push(second);
+      }
+    });
+
+    const finalPlans = pruneAssistantTraTransferPlans(directs.concat(keptTransfers)).slice(0, 18);
+    assistantTraTransferSearchCache.set(cacheKey, finalPlans.slice());
+    return finalPlans;
   }
 
   function collectStation(dataset, stationName, options) {
@@ -1819,7 +2306,7 @@
             const directItems = Array.isArray(result.direct?.items) ? result.direct.items : (result.direct?.matches || []);
             const directPageSize = getResultPageSize("direct");
             const directPage = getPagedItems(directItems, view.direct[result.sys], directPageSize);
-            const transferItems = Array.isArray(result.transfers) ? result.transfers : [];
+            const transferItems = (Array.isArray(result.transfers) ? result.transfers : []).filter((item) => (item?.transferCount || 0) > 0);
             const transferPageSize = getResultPageSize("transfer");
             const transferPage = getPagedItems(transferItems, view.transfer[result.sys], transferPageSize);
             const directHtml = directPage.items.length ? `
@@ -1845,9 +2332,9 @@
                 ${transferPage.items.map((item) => `
                   <article class="rail-ai-card">
                     <div class="rail-ai-card-main">
-                      <strong>${escapeHtml(item.first.trainNo)} 次${renderTraTypeInline(item.first.type)} → ${escapeHtml(item.second.trainNo)} 次${renderTraTypeInline(item.second.type)}</strong>
-                      <p class="rail-ai-line">${escapeHtml(item.first.dep)} ${renderStationLabel(result.start, result.sys)} 出發 ｜ ${renderStationLabel(item.transfer, result.sys)} 轉乘 ${item.waitMin} 分 ｜ ${escapeHtml(item.second.arr)} 抵達 ${renderStationLabel(result.end, result.sys)}</p>
-                      <p class="rail-ai-subline">總耗時 ${escapeHtml(item.duration)} ｜ 第一段 ${escapeHtml(item.first.arr)} 抵達轉乘站 ｜ 第二段 ${escapeHtml(item.second.dep)} 發車</p>
+                      <strong>${buildHomeAssistantTransferTrainHtml(item)}</strong>
+                      <p class="rail-ai-line">${buildHomeAssistantTransferLineHtml(item, result.start, result.end, result.sys)}</p>
+                      <p class="rail-ai-subline">${buildHomeAssistantTransferMetaHtml(item)}</p>
                     </div>
                     <div class="rail-ai-actions">
                       <button class="rail-ai-btn" type="button" onclick='openAppOverlay("tr", { start: ${JSON.stringify(result.start)}, end: ${JSON.stringify(result.end)} })'>查看轉乘詳細</button>
@@ -1901,6 +2388,33 @@
         </div>
       </div>
     `;
+  }
+
+  function buildHomeAssistantTransferTrainHtml(plan) {
+    const legs = Array.isArray(plan?.legs) ? plan.legs : [];
+    if (!legs.length) {
+      const first = plan?.first?.trainNo ? `${escapeHtml(plan.first.trainNo)} 次${renderTraTypeInline(plan.first.type)}` : "";
+      const second = plan?.second?.trainNo ? `${escapeHtml(plan.second.trainNo)} 次${renderTraTypeInline(plan.second.type)}` : "";
+      return [first, second].filter(Boolean).join(" → ");
+    }
+    return legs.map((leg) => `${escapeHtml(leg.trainNo || "--")} 次${renderTraTypeInline(leg.type || "列車")}`).join(" → ");
+  }
+
+  function buildHomeAssistantTransferLineHtml(plan, startName, endName, sys) {
+    const transferStations = Array.isArray(plan?.transferStations) ? plan.transferStations : [];
+    const waitMins = Array.isArray(plan?.waitMins) ? plan.waitMins : [];
+    const transferText = transferStations.length
+      ? `${transferStations.map((station) => renderStationLabel(station, sys)).join("/")} 轉乘 ${escapeHtml(waitMins.join("/"))} 分`
+      : "直達";
+    return `${escapeHtml(plan?.dep || plan?.first?.dep || "--")} ${renderStationLabel(startName, sys)} 出發 ｜ ${transferText} ｜ ${escapeHtml(plan?.arr || plan?.second?.arr || "--")} 抵達 ${renderStationLabel(endName, sys)}`;
+  }
+
+  function buildHomeAssistantTransferMetaHtml(plan) {
+    const legs = Array.isArray(plan?.legs) ? plan.legs : [];
+    const legText = legs.length
+      ? legs.map((leg, index) => `第 ${index + 1} 段 ${renderTraTypeInline(leg.type || "列車")}`).join(" ｜ ")
+      : [plan?.first?.type ? `第 1 段 ${renderTraTypeInline(plan.first.type)}` : "", plan?.second?.type ? `第 2 段 ${renderTraTypeInline(plan.second.type)}` : ""].filter(Boolean).join(" ｜ ");
+    return `總耗時 ${escapeHtml(plan?.duration || "--")}${legText ? ` ｜ ${legText}` : ""}`;
   }
 
   function renderTrain(intent, results) {

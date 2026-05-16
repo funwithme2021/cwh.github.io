@@ -6424,7 +6424,7 @@ select.setting-input[id*="pick"] {
         const rotatingTextTimers = {};
         let assistantRouteCache = { date: '', tra: null, thsr: null };
         const HOME_QUICK_PAGE_SIZE = 3;
-        const HOME_LOCATION_CACHE_KEY = 'home_location_weather_v15';
+        const HOME_LOCATION_CACHE_KEY = 'home_location_weather_v16';
         const HOME_SHARED_GEO_KEY = 'home_shared_geo_snapshot_v1';
         const HOME_WEATHER_SAME_AREA_REFRESH_MS = 30 * 60 * 1000;
         const HOME_NEARBY_RAIL_STATUS_STALE_MS = 2 * 60 * 1000;
@@ -6439,9 +6439,11 @@ select.setting-input[id*="pick"] {
         const HOME_CWA_AUTH = 'CWA-037FE620-63E1-4CAB-B159-84853F6CA215';
         const HOME_CWA_DATASTORE = 'https://opendata.cwa.gov.tw/api/v1/rest/datastore';
         const HOME_CWA_FILEAPI = 'https://opendata.cwa.gov.tw/fileapi/v1/opendataapi';
-        const HOME_OBSERVATION_FIELD_CACHE_KEY = 'home_observation_field_cache_v1';
+        const HOME_OBSERVATION_FIELD_CACHE_KEY = 'home_observation_field_cache_v2';
         const HOME_OBSERVATION_FIELD_CACHE_MS = 3 * 60 * 60 * 1000;
+        const HOME_OBSERVATION_STALE_MS = 3 * 60 * 60 * 1000;
         const HOME_CWA_OBSERVATION_DATASETS = ['O-A0003-001', 'O-A0001-001', 'O-A0002-001'];
+        const HOME_CWA_WEATHER_OBSERVATION_DATASETS = ['O-A0003-001', 'O-A0001-001'];
         const HOME_CWA_TOWNSHIP_FORECAST_DATASET = 'F-D0047-089';
         const HOME_CWA_2DAY_FORECAST_DATASETS = {
             '宜蘭縣': 'F-D0047-001',
@@ -8160,10 +8162,22 @@ select.setting-input[id*="pick"] {
 
             await updateAllMonitor(targets);
             const startAlignedPolling = window.RailAssistantCommon?.startAlignedPolling;
+            const preserveViewport = window.RailAssistantCommon?.preserveViewport;
             if(typeof startAlignedPolling === 'function'){
-                monitorFetchLoop = startAlignedPolling(() => updateAllMonitor(targets), { intervalMs: 60000 });
+                monitorFetchLoop = startAlignedPolling(() => {
+                    if(typeof preserveViewport === 'function'){
+                        return preserveViewport(() => updateAllMonitor(targets), { restoreFocus: false });
+                    }
+                    return updateAllMonitor(targets);
+                }, { intervalMs: 60000 });
             }else{
-                monitorFetchInterval = setInterval(() => updateAllMonitor(targets), 60000);
+                monitorFetchInterval = setInterval(() => {
+                    if(typeof preserveViewport === 'function'){
+                        preserveViewport(() => updateAllMonitor(targets), { restoreFocus: false });
+                        return;
+                    }
+                    updateAllMonitor(targets);
+                }, 60000);
             }
         }
 
@@ -10923,20 +10937,28 @@ function toggleSettings(show) {
             return parts.join(' · ') || '--';
         }
 
+        function isHomeObservationDataValid(observation) {
+            if (!observation) return false;
+            if (!isHomeObservationFresh(observation)) return false;
+            if (isHomeObservationPlaceholderStation(observation)) return false;
+            return ['weather', 'temp', 'humidity', 'windSpeed', 'windGust'].some((field) => hasHomeObservationValue(observation, field));
+        }
+
         function buildHomeObservationDisplay(observation, weather = null) {
             if (!observation && !weather) return { main: '--', meta: '', metaCompact: '' };
-            const visual = resolveHomeWeatherVisual({ observation, weather });
+            const useObservation = isHomeObservationDataValid(observation);
+            const visual = resolveHomeWeatherVisual({ observation: useObservation ? observation : null, weather });
             const mainParts = [];
             const metaParts = [];
             const metaCompactParts = [];
-            const label = normalizeHomeWeatherText(observation?.weather || '') || normalizeHomeWeatherText(weather?.condition || '') || normalizeHomeWeatherText(visual?.label || '');
-            const tempValue = Number.isFinite(Number(observation?.temp))
+            const label = normalizeHomeWeatherText((useObservation ? observation?.weather : '') || '') || normalizeHomeWeatherText(weather?.condition || '') || normalizeHomeWeatherText(visual?.label || '');
+            const tempValue = useObservation && Number.isFinite(Number(observation?.temp))
                 ? Number(observation.temp)
                 : (Number.isFinite(Number(weather?.currentTemp)) ? Number(weather.currentTemp) : null);
             if (label && label !== '--' && label !== '預報更新中') mainParts.push(label);
-            const tempText = formatHomeTempValue(tempValue, { decimals: Number.isFinite(Number(observation?.temp)) ? 1 : 0 });
+            const tempText = formatHomeTempValue(tempValue, { decimals: useObservation && Number.isFinite(Number(observation?.temp)) ? 1 : 0 });
             if (tempText !== '--') mainParts.push(tempText);
-            const humidityValue = Number.isFinite(Number(observation?.humidity))
+            const humidityValue = useObservation && Number.isFinite(Number(observation?.humidity))
                 ? Number(observation.humidity)
                 : (Number.isFinite(Number(weather?.currentHumidity)) ? Number(weather.currentHumidity) : null);
             if (Number.isFinite(humidityValue) && humidityValue >= 0) {
@@ -10944,7 +10966,7 @@ function toggleSettings(show) {
                 metaParts.push(humidityText);
                 metaCompactParts.push(humidityText);
             }
-            const windValue = Number.isFinite(Number(observation?.windSpeed)) ? Number(observation.windSpeed) : null;
+            const windValue = useObservation && Number.isFinite(Number(observation?.windSpeed)) ? Number(observation.windSpeed) : null;
             const calculatedApparent = calculateHomeApparentTemperature(tempValue, humidityValue, windValue);
             const fallbackApparent = Number.isFinite(Number(weather?.currentApparentTemp)) ? Number(weather.currentApparentTemp) : null;
             const comfortText = Number.isFinite(calculatedApparent)
@@ -10957,7 +10979,7 @@ function toggleSettings(show) {
                 metaParts.push(`風速${windText}${windLevel == null ? '' : ` (${windLevel}級)`}`);
                 metaCompactParts.push(windLevel == null ? `風速${windText}` : `風速${windLevel}級`);
             }
-            const gustValue = Number.isFinite(Number(observation?.windGust)) ? Number(observation.windGust) : null;
+            const gustValue = useObservation && Number.isFinite(Number(observation?.windGust)) ? Number(observation.windGust) : null;
             const gustText = formatHomeWindSpeed(gustValue);
             const gustLevel = getHomeWindLevel(gustValue);
             if (gustText) {
@@ -11634,10 +11656,59 @@ ${dayNightOrb(56, 30, 16)}
             };
         }
 
+        function isHomeObservationWeatherDataset(dataset) {
+            return HOME_CWA_WEATHER_OBSERVATION_DATASETS.includes(String(dataset || '').trim());
+        }
+
+        function getHomeObservationTimeMs(item) {
+            return parseHomeTime(item?.time);
+        }
+
+        function isHomeObservationFresh(item, maxAgeMs = HOME_OBSERVATION_STALE_MS) {
+            if (!item) return false;
+            const timeMs = getHomeObservationTimeMs(item);
+            if (!Number.isFinite(timeMs)) return true;
+            const ageMs = Date.now() - timeMs;
+            return ageMs >= -(15 * 60 * 1000) && ageMs <= maxAgeMs;
+        }
+
+        function isHomeObservationPlaceholderStation(item) {
+            if (!item) return false;
+            const weatherText = normalizeHomeWeatherText(item.weather || '');
+            const temp = Number(item.temp);
+            const humidity = Number(item.humidity);
+            const windSpeed = Number(item.windSpeed);
+            const windGust = Number(item.windGust);
+            const zeroishTemp = Number.isFinite(temp) && Math.abs(temp) < 0.15;
+            const zeroHumidity = Number.isFinite(humidity) && humidity <= 0;
+            const zeroWind = Number.isFinite(windSpeed) && windSpeed <= 0;
+            const zeroGust = Number.isFinite(windGust) && windGust <= 0;
+            if (zeroishTemp && zeroHumidity && zeroWind && (zeroGust || !Number.isFinite(windGust))) return true;
+            if (!weatherText && zeroHumidity && zeroWind && (zeroishTemp || !Number.isFinite(temp))) return true;
+            return false;
+        }
+
         function hasHomeObservationValue(item, field) {
             if (!item) return false;
-            if (field === 'weather') return !!item.weather;
-            return Number.isFinite(Number(item[field]));
+            if (field === 'weather') return !!normalizeHomeWeatherText(item.weather || '');
+            const value = Number(item[field]);
+            if (!Number.isFinite(value)) return false;
+            const placeholder = isHomeObservationPlaceholderStation(item);
+            switch (field) {
+                case 'temp':
+                    return value > -90 && value < 60 && !(placeholder && Math.abs(value) < 0.15);
+                case 'humidity':
+                    return value > 0 && value <= 100;
+                case 'windSpeed':
+                case 'windGust':
+                    return value >= 0 && value < 150 && !(placeholder && value === 0);
+                case 'uvIndex':
+                    return value >= 0 && value <= 25;
+                case 'precipitation':
+                    return value >= 0 && value < 5000;
+                default:
+                    return true;
+            }
         }
 
         function pickHomeObservationField(base, candidates, field) {
@@ -11677,6 +11748,7 @@ ${dayNightOrb(56, 30, 16)}
                 if (!savedAt || now - savedAt > HOME_OBSERVATION_FIELD_CACHE_MS * 4) delete cache[key];
             });
             (Array.isArray(items) ? items : []).forEach((item) => {
+                if (!isHomeObservationFresh(item) || isHomeObservationPlaceholderStation(item)) return;
                 const key = getHomeObservationCacheKey(item);
                 if (!key) return;
                 const record = cache[key] && typeof cache[key] === 'object' ? cache[key] : {};
@@ -11727,6 +11799,45 @@ ${dayNightOrb(56, 30, 16)}
             return result;
         }
 
+        function pickHomeObservationStation(items, township = null) {
+            const parsed = Array.isArray(items) ? items.filter(Boolean) : [];
+            if (!parsed.length) return { nearest: null, fillPool: [] };
+            const targetTown = normalizeHomeTownshipKeyPart(township?.townName || township?.villageName || '');
+            const targetCounty = normalizeHomeTownshipKeyPart(township?.countyName || '');
+            const sameTown = targetTown
+                ? parsed.filter((item) => normalizeHomeTownshipKeyPart(item.townName) === targetTown)
+                : [];
+            const sameCounty = targetCounty
+                ? parsed.filter((item) => normalizeHomeTownshipKeyPart(item.countyName) === targetCounty)
+                : [];
+            const pools = [sameTown, sameCounty, parsed].filter((pool) => Array.isArray(pool) && pool.length);
+            for (const pool of pools) {
+                const usableWeather = pool.filter((item) => isHomeObservationWeatherDataset(item.sourceDataset) && isHomeObservationStationUsable(item));
+                for (const dataset of HOME_CWA_WEATHER_OBSERVATION_DATASETS) {
+                    const preferred = usableWeather.find((item) => item.sourceDataset === dataset && hasHomeObservationValue(item, 'temp'));
+                    if (preferred) return { nearest: preferred, fillPool: usableWeather };
+                }
+                for (const dataset of HOME_CWA_WEATHER_OBSERVATION_DATASETS) {
+                    const fallback = usableWeather.find((item) => item.sourceDataset === dataset);
+                    if (fallback) return { nearest: fallback, fillPool: usableWeather };
+                }
+            }
+            for (const pool of pools) {
+                const usable = pool.filter((item) => isHomeObservationStationUsable(item));
+                const preferred = usable.find((item) => hasHomeObservationValue(item, 'temp'));
+                if (preferred) return { nearest: preferred, fillPool: usable };
+                if (usable[0]) return { nearest: usable[0], fillPool: usable };
+            }
+            return { nearest: null, fillPool: parsed };
+        }
+
+        function isHomeObservationStationUsable(item) {
+            if (!item) return false;
+            if (!isHomeObservationFresh(item)) return false;
+            if (isHomeObservationPlaceholderStation(item)) return false;
+            return ['weather', 'temp', 'humidity', 'windSpeed', 'windGust', 'precipitation'].some((field) => hasHomeObservationValue(item, field));
+        }
+
         async function fetchHomeObservationDataset(dataset) {
             let lastError = null;
             for (const type of ['rest', 'file']) {
@@ -11762,14 +11873,17 @@ ${dayNightOrb(56, 30, 16)}
             const parsed = mergeHomeObservationCachedFields(normalized)
                 .sort((a, b) => a.distance - b.distance);
             if (!parsed.length) return null;
-            const targetCounty = normalizeHomeTownshipKeyPart(township?.countyName || '');
-            const sameCounty = targetCounty
-                ? parsed.filter(item => normalizeHomeTownshipKeyPart(item.countyName) === targetCounty)
-                : [];
-            const fillPool = (sameCounty.length ? sameCounty : parsed).sort((a, b) => a.distance - b.distance);
-            const nearest = fillPool.find(item => hasHomeObservationValue(item, 'temp')) || fillPool[0] || parsed[0];
+            const weatherStations = parsed.filter((item) => isHomeObservationWeatherDataset(item.sourceDataset));
+            const observationPool = weatherStations.length ? weatherStations : parsed;
+            const preferredSelection = pickHomeObservationStation(observationPool, township);
+            const usedFallbackPool = weatherStations.length && !preferredSelection?.nearest;
+            const fallbackSelection = usedFallbackPool
+                ? pickHomeObservationStation(parsed, township)
+                : preferredSelection;
+            const { nearest, fillPool } = fallbackSelection || { nearest: null, fillPool: [] };
             if (!nearest) return null;
-            const fieldPool = buildHomeObservationFieldPool(nearest, fillPool, parsed);
+            const fieldPoolSource = usedFallbackPool ? parsed : observationPool;
+            const fieldPool = buildHomeObservationFieldPool(nearest, fillPool, fieldPoolSource);
 
             return {
                 ...nearest,
@@ -12666,7 +12780,7 @@ ${dayNightOrb(56, 30, 16)}
                     weatherCondition: forecastText !== '--' ? forecastText : (canReuseCachedWeather && cached.weatherCondition ? normalizeHomeForecastTempDisplay(cached.weatherCondition) : '預報稍後更新'),
                     weatherRain: rainText !== '--' ? rainText : (canReuseCachedWeather && cached.weatherRain ? cached.weatherRain : '降雨稍後更新'),
                     weatherObservation: observationDisplay.main !== '--' ? normalizeHomeObservationComfortDisplay(observationDisplay.main, weather?.currentComfort || '') : '觀測稍後更新',
-                    weatherObservationTemp: Number.isFinite(Number(observation?.temp)) ? Number(observation.temp) : null,
+                    weatherObservationTemp: isHomeObservationDataValid(observation) && Number.isFinite(Number(observation?.temp)) ? Number(observation.temp) : (weather?.currentTemp ?? null),
                     weatherObservationMeta: observationDisplay.meta || '',
                     weatherObservationMetaCompact: observationDisplay.metaCompact || '',
                     weatherObservationRainAmount: formatHomeRainAmount(observation?.precipitation),

@@ -423,24 +423,39 @@ async function initStationMap() {
 async function fetchRealData(date) {
     const token = await getAccessToken();
     if (!token) return {};
-    if (Object.keys(stationMap).length === 0) await initStationMap();
 
     try {
+        const headers = buildTdxAuthHeaders(token, { includeApiKey: false });
         const url = `https://tdx.transportdata.tw/api/basic/v3/Rail/TRA/DailyTrainTimetable/TrainDate/${date}?%24format=JSON`;
-        const res = await fetch(url, { headers: buildTdxAuthHeaders(token, { includeApiKey: false }) });
+        const res = await fetch(url, { headers });
         if (!res.ok) throw new Error(`DailyTrainTimetable fetch failed: ${res.status}`);
         const data = await res.json();
 
         const translated = {};
 
         // 這裡對應你貼出的 TrainTimetables 結構
-        const rows = Array.isArray(data?.TrainTimetables) ? data.TrainTimetables : [];
+        let rows = Array.isArray(data?.TrainTimetables) ? data.TrainTimetables : [];
+        let source = 'v3-TrainDate';
+        if (!rows.length) {
+            try {
+                const v2Res = await fetch(`https://tdx.transportdata.tw/api/basic/v2/Rail/TRA/DailyTimetable/TrainDate/${date}?%24format=JSON`, { headers });
+                if (v2Res.ok) {
+                    const v2Data = await v2Res.json();
+                    const v2Rows = Array.isArray(v2Data) ? v2Data : [];
+                    if (v2Rows.length) {
+                        rows = v2Rows;
+                        source = 'v2-TrainDate';
+                    }
+                }
+            } catch (_) {}
+        }
         rows.forEach(item => {
-            const info = item.TrainInfo;
+            const info = item?.TrainInfo || item?.DailyTrainInfo || {};
             const trainNo = info.TrainNo;
+            if (!trainNo) return;
 
             // 處理車種名稱 (因為 API 會回傳長串如 "自強(3000)..."，我們簡化它)
-            const originalTypeName = info.TrainTypeName.Zh_tw;
+            const originalTypeName = info?.TrainTypeName?.Zh_tw || '';
             const typeName = normalizeTraTypeName(originalTypeName);
 
             translated[trainNo] = {

@@ -105,6 +105,76 @@
     };
   }
 
+  function nextAnimationFrame() {
+    return new Promise((resolve) => window.requestAnimationFrame(() => resolve()));
+  }
+
+  async function preserveViewport(task, options = {}) {
+    const runTask = typeof task === "function" ? task : () => task;
+    const shouldRestoreFocus = options.restoreFocus !== false;
+    const docEl = document.documentElement;
+    const body = document.body;
+    const scrollEl = document.scrollingElement || docEl || body;
+    const beforeX = window.pageXOffset ?? scrollEl?.scrollLeft ?? 0;
+    const beforeY = window.pageYOffset ?? scrollEl?.scrollTop ?? 0;
+    const activeEl = shouldRestoreFocus ? document.activeElement : null;
+    const selection =
+      activeEl &&
+      typeof activeEl.selectionStart === "number" &&
+      typeof activeEl.selectionEnd === "number"
+        ? { start: activeEl.selectionStart, end: activeEl.selectionEnd }
+        : null;
+    const prevDocScrollBehavior = docEl?.style?.scrollBehavior || "";
+    const prevBodyScrollBehavior = body?.style?.scrollBehavior || "";
+    const prevOverflowAnchor = docEl?.style?.overflowAnchor || "";
+
+    if (docEl?.style) {
+      docEl.style.scrollBehavior = "auto";
+      docEl.style.overflowAnchor = "none";
+    }
+    if (body?.style) {
+      body.style.scrollBehavior = "auto";
+    }
+
+    try {
+      const result = await runTask();
+      await nextAnimationFrame();
+      await nextAnimationFrame();
+      const maxScrollY = Math.max(
+        0,
+        ((scrollEl?.scrollHeight || docEl?.scrollHeight || body?.scrollHeight || 0) - window.innerHeight)
+      );
+      window.scrollTo(beforeX, Math.min(beforeY, maxScrollY));
+
+      if (activeEl && activeEl.isConnected && typeof activeEl.focus === "function") {
+        try {
+          activeEl.focus({ preventScroll: true });
+        } catch (_) {
+          try {
+            activeEl.focus();
+          } catch (_) {}
+        }
+        if (selection && typeof activeEl.setSelectionRange === "function") {
+          try {
+            activeEl.setSelectionRange(selection.start, selection.end);
+          } catch (_) {}
+        }
+      }
+
+      await nextAnimationFrame();
+      window.scrollTo(beforeX, Math.min(beforeY, maxScrollY));
+      return result;
+    } finally {
+      if (docEl?.style) {
+        docEl.style.scrollBehavior = prevDocScrollBehavior;
+        docEl.style.overflowAnchor = prevOverflowAnchor;
+      }
+      if (body?.style) {
+        body.style.scrollBehavior = prevBodyScrollBehavior;
+      }
+    }
+  }
+
   function normalizeText(raw) {
     return String(raw || "")
       .replace(/[０-９]/g, (char) => String.fromCharCode(char.charCodeAt(0) - 65248))
@@ -548,6 +618,7 @@
     normalizeLooseStation,
     parseFlexibleDate,
     parseFlexibleTimeWindow,
+    preserveViewport,
     setLang,
     startAlignedPolling,
     translateStationName,

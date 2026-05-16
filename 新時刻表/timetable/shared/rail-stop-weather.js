@@ -331,11 +331,42 @@
     }, null)?.item || null;
   }
 
+  function inferSeriesEnd(series, index) {
+    const items = Array.isArray(series) ? series : [];
+    const current = items[index];
+    if (!current || !Number.isFinite(current.start)) return null;
+    if (Number.isFinite(current.end) && current.end > current.start) return current.end;
+    const nextStart = Number(items[index + 1]?.start);
+    if (Number.isFinite(nextStart) && nextStart > current.start) return nextStart;
+    const prevStart = Number(items[index - 1]?.start);
+    if (Number.isFinite(prevStart) && current.start > prevStart) {
+      return current.start + (current.start - prevStart);
+    }
+    return current.start + 60 * 60 * 1000;
+  }
+
   function getSeriesValue(series, targetMs) {
-    return (Array.isArray(series) ? series : []).find((item) => {
-      const end = Number.isFinite(item.end) ? item.end : item.start + 3 * 60 * 60 * 1000;
-      return targetMs >= item.start && targetMs < end;
-    })?.value ?? null;
+    const items = Array.isArray(series) ? series : [];
+    if (!items.length || !Number.isFinite(targetMs)) return null;
+    for (let index = 0; index < items.length; index += 1) {
+      const item = items[index];
+      if (!Number.isFinite(item?.start)) continue;
+      const end = inferSeriesEnd(items, index);
+      if (Number.isFinite(end) && targetMs >= item.start && targetMs < end) return item.value;
+      if (!Number.isFinite(end) && targetMs === item.start) return item.value;
+    }
+    let sameHour = null;
+    let nearest = null;
+    for (const item of items) {
+      if (!Number.isFinite(item?.start)) continue;
+      const distance = Math.abs(item.start - targetMs);
+      if (distance < 60 * 60 * 1000 && (!sameHour || distance < sameHour.distance)) {
+        sameHour = { value: item.value, distance };
+      }
+      if (!nearest || distance < nearest.distance) nearest = { value: item.value, distance };
+    }
+    if (sameHour) return sameHour.value;
+    return nearest && nearest.distance <= 3 * 60 * 60 * 1000 ? nearest.value : null;
   }
 
   function getWeatherType(text, targetMs) {

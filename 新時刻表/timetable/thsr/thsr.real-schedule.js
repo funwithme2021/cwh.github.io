@@ -222,11 +222,17 @@ async function initStationMap() {
 async function fetchRealData(date) {
     const token = await getAccessToken();
     if (!token) return {};
-    if (Object.keys(window.stationMap || {}).length === 0) await initStationMap();
     try {
         const url = `https://tdx.transportdata.tw/api/basic/v2/Rail/THSR/DailyTimetable/TrainDate/${date}?$format=JSON`;
         const res = await fetch(url, { headers: buildTdxAuthHeaders(token, { includeApiKey: false }) });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        if (!res.ok) {
+            const errorText = await res.text().catch(() => "");
+            if (res.status === 400 && /無提供查詢歷史資料/.test(errorText)) {
+                window.trainSchedule = {};
+                return {};
+            }
+            throw new Error(`HTTP ${res.status}${errorText ? ` ${errorText}` : ''}`);
+        }
         const data = await res.json();
         const translated = {};
         const rows = Array.isArray(data) ? data : [];

@@ -2914,7 +2914,7 @@
 <script charset="UTF-8" src="./thsr.real-schedule.js?v=20260419-tdxgate1"></script>
 <script charset="UTF-8" src="../shared/rail-station-query-common.js?v=20260419-common1"></script>
 <script charset="UTF-8" src="../shared/rail-station-timetable-v2.js?v=20260330-stationv2"></script>
-<script charset="UTF-8" src="../shared/rail-stop-weather.js?v=20260419-stopwx11"></script>
+<script charset="UTF-8" src="../shared/rail-stop-weather.js?v=20260504-stopwx12"></script>
 <script charset="UTF-8" src="../shared/rail-station-context.js?v=20260419-context7"></script>
 <script charset="UTF-8" src="../shared/rail-train-query-v2.js?v=20260417-stopwx9"></script>
 <script charset="UTF-8" src="../shared/rail-origin-destination-query-v2.js?v=20260403-odquery2mobilecards10"></script>
@@ -3107,12 +3107,38 @@
 
   function bindStationInput(inputId){
     const input = document.getElementById(inputId); if(!input) return;
+    const helper = window.RailStationQueryCommon;
+    if(helper?.bindSuggestInput){
+      helper.bindSuggestInput(input, {
+        getItems: getThsrStationSuggestItems,
+        limit: 30,
+        emptyText: '找不到符合的車站',
+        onBlur: (el) => {
+          const resolved = extractStationNameFromInput(el.value);
+          if(resolved) el.value = resolved;
+        }
+      });
+      return;
+    }
     input.addEventListener('focus', ()=> fillStationDatalist(input.value));
     input.addEventListener('input', ()=> fillStationDatalist(input.value));
     input.addEventListener('blur', ()=>{ const resolved = extractStationNameFromInput(input.value); if(resolved) input.value = resolved; });
   }
   function bindTrainInput(inputId){
     const input = document.getElementById(inputId); if(!input) return;
+    const helper = window.RailStationQueryCommon;
+    if(helper?.bindSuggestInput){
+      helper.bindSuggestInput(input, {
+        getItems: getThsrTrainSuggestItems,
+        limit: 50,
+        emptyText: '找不到符合的車次',
+        onBlur: (el) => {
+          const no = extractTrainNoFromInput(el.value);
+          if(no) el.value = no;
+        }
+      });
+      return;
+    }
     input.addEventListener('focus', ()=> fillTrainDatalist(input.value));
     input.addEventListener('input', ()=> fillTrainDatalist(input.value));
     input.addEventListener('blur', ()=>{ const no = extractTrainNoFromInput(input.value); if(no) input.value = no; });
@@ -3171,6 +3197,40 @@
     dl.innerHTML = out; 
   }
   function extractTrainNoFromInput(v){ let no=String(v||'').trim().split('-')[0].trim(); if(/^\d{3}$/.test(no)) no='0'+no; return no; }
+  function getThsrStationSuggestItems(){
+    const seen = new Set();
+    return (stationListSorted || []).map((station) => {
+      const id = String(station?.id || '').trim();
+      const rawName = normTHSRStationName(station?.name || '');
+      const displayName = rawName.replace(/臺/g,'台').trim();
+      const aliases = rawName === '左營' ? ['高雄', '新左營'] : [];
+      const value = id ? `${id}-${displayName}` : displayName;
+      if(!value || seen.has(value)) return null;
+      seen.add(value);
+      return {
+        value,
+        label: value,
+        searchText: [id, rawName, displayName, ...aliases, value].filter(Boolean).join(' ')
+      };
+    }).filter(Boolean);
+  }
+  function getThsrTrainSuggestItems(){
+    return Object.keys(baseSchedule || {})
+      .sort((a,b)=>String(a).localeCompare(String(b),'en'))
+      .map((trainNo) => {
+        const item = baseSchedule?.[trainNo];
+        const stops = item?.['車站時間'] || [];
+        const first = String(stops?.[0]?.[0] || '').replace(/臺/g,'台');
+        const last = String(stops?.[stops.length - 1]?.[0] || '').replace(/臺/g,'台');
+        const range = (first && last) ? `${first}➝${last}` : '';
+        const value = range ? `${trainNo} - ${range}` : String(trainNo);
+        return {
+          value,
+          label: value,
+          searchText: [trainNo, first, last, range, value].filter(Boolean).join(' ')
+        };
+      });
+  }
   function buildStationIndex(){ nameToId={}; stationListSorted=[]; if(!window.stationMap) return; Object.entries(window.stationMap).forEach(([id,n])=>{ const nn=normTW(n); nameToId[nn]=id; stationListSorted.push({id,name:nn}); }); stationListSorted.sort((a,b)=>String(a.id).localeCompare(String(b.id))); }
   const THSR_WEB_STATION_VALUE_MAP = {
     '南港': '1',
@@ -3314,12 +3374,17 @@
       document.getElementById('loading-text').textContent = `正在獲取 ${dateStr} 資料...`;
     }
     try{
-      await fetchRealData(dateStr);
-      baseSchedule = (typeof structuredClone==='function') ? structuredClone(window.trainSchedule) : JSON.parse(JSON.stringify(window.trainSchedule||{}));
       const prevDateStr = addDays(dateStr, -1);
-      await fetchRealData(prevDateStr);
-      prevSchedule = (typeof structuredClone==='function') ? structuredClone(window.trainSchedule) : JSON.parse(JSON.stringify(window.trainSchedule||{}));
-      window.trainSchedule = structuredClone(baseSchedule);
+      const cloneData = (value)=>(typeof structuredClone==='function') ? structuredClone(value) : JSON.parse(JSON.stringify(value||{}));
+      const stationPromise = Object.keys(window.stationMap || {}).length ? Promise.resolve() : initStationMap();
+      const [baseData, prevData] = await Promise.all([
+        fetchRealData(dateStr),
+        fetchRealData(prevDateStr)
+      ]);
+      await stationPromise;
+      baseSchedule = cloneData(baseData);
+      prevSchedule = cloneData(prevData);
+      window.trainSchedule = cloneData(baseSchedule);
       buildStationIndex(); fillStationDatalist(''); fillTrainDatalist(''); renderHistory();
       await rerenderVisibleResults();
     }finally{
@@ -4578,8 +4643,14 @@
   function initDatePickerWindow(){
     const el=document.getElementById('mainQueryDate');
     const t=new Date();
+    const minStr = fmtDate(t);
+    const maxDate = new Date(t); maxDate.setDate(maxDate.getDate() + 28);
+    const maxStr = fmtDate(maxDate);
     const linkedDate = String(new URLSearchParams(window.location.search).get('date') || '').trim();
-    el.value=/^\d{4}-\d{2}-\d{2}$/.test(linkedDate) ? linkedDate : fmtDate(t);
+    const requested=/^\d{4}-\d{2}-\d{2}$/.test(linkedDate) ? linkedDate : fmtDate(t);
+    el.min=minStr;
+    el.max=maxStr;
+    el.value=requested < minStr ? minStr : requested > maxStr ? maxStr : requested;
     el.addEventListener('change',()=>refreshData(el.value));
   }
   function setupThemeToggle(){ document.getElementById('themeToggle').addEventListener('click',()=>{ document.body.classList.toggle('dark-mode'); rerenderVisibleResults(); }); }
@@ -5145,8 +5216,16 @@
 
     autoRefreshInFlight = true;
     try{
-      await refreshData(cur, { silent: true });
-      await window.refreshRailPageAssistant?.({ silent: true });
+      const preserveViewport = window.RailAssistantCommon?.preserveViewport;
+      const runRefresh = async ()=>{
+        await refreshData(cur, { silent: true });
+        await window.refreshRailPageAssistant?.({ silent: true });
+      };
+      if(typeof preserveViewport === 'function'){
+        await preserveViewport(runRefresh);
+      }else{
+        await runRefresh();
+      }
     }catch(error){
       console.warn('高鐵自動更新失敗', error);
     }finally{
